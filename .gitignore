@@ -1,0 +1,132 @@
+# Binaries and build artifacts
+bin/
+dist/
+build/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Go specific
+*.test
+*.out
+coverage.out
+coverage.html
+vendor/
+
+# Generated protobuf code
+backend/pkg/proto/
+
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+.vibecare/
+
+# OS specific
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.vim/
+.nvim/
+
+# Xcode (macOS client)
+clients/macos-swift/build/
+clients/macos-swift/DerivedData/
+clients/macos-swift/*.xcworkspace/xcuserdata/
+clients/macos-swift/*.xcodeproj/xcuserdata/
+clients/macos-swift/*.xcodeproj/project.xcworkspace/xcuserdata/
+clients/macos-swift/VibeCare.xcodeproj/xcuserdata/
+clients/macos-swift/VibeCare.xcworkspace/xcuserdata/
+
+# Swift Package Manager
+clients/macos-swift/.build/
+clients/macos-swift/Package.resolved
+
+# CocoaPods (if used)
+clients/macos-swift/Pods/
+clients/macos-swift/Podfile.lock
+
+# Carthage (if used)
+clients/macos-swift/Carthage/Build/
+
+# Fastlane
+clients/macos-swift/fastlane/report.xml
+clients/macos-swift/fastlane/Preview.html
+clients/macos-swift/fastlane/screenshots/**/*.png
+clients/macos-swift/fastlane/test_output
+
+# Android specific (for future)
+clients/android-kotlin/build/
+clients/android-kotlin/app/build/
+clients/android-kotlin/.gradle/
+clients/android-kotlin/local.properties
+clients/android-kotlin/*.iml
+
+# Linux client (for future)
+clients/linux-gtk/build/
+
+# Logs
+*.log
+logs/
+
+# Runtime and temp files
+tmp/
+temp/
+.tmp/
+
+# Environment and config files
+.env
+.env.local
+.env.production
+.env.development
+config.local.*
+
+# Backup files
+*.bak
+*.backup
+*.orig
+
+# Documentation build
+docs/build/
+
+# Test coverage
+*.cover
+coverage/
+
+# Profiling
+*.prof
+*.pprof
+
+# Go workspace
+go.work
+go.work.sum
+
+# Just command runner
+.just/
+
+# Dependencies and packages
+node_modules/
+
+# Generated certificates and keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# Application data
+data/
+.data/

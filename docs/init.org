@@ -1,0 +1,74 @@
+#+TITLE: Initial Idea
+#+DATE: Sunday, Sep 21 2025
+
+* Application Summary
+
+*Vibecare*: A modern wellness and routine management app for desktop and mobile. VibeCare helps you create, schedule, and track your routines with beautiful notifications, and custom device specific actions.
+
+## ✨ Key Features : 🎯 **Routine Management**
+- Create and organize wellness routines
+- Enable/disable routines as needed
+- Eg: for someone sitting mostly in front of a laptop/desk,a basic healthly routines could include:
+    - Eye: the 20-20-20 eye care rule
+    - Posture: posture reminder, streching alerts
+    - Hydration: remind to drink
+    - Workout: remind to do 10 pushup at 7am and 6pm everyday
+    - Motion: Walk (10k steps+ with your loved ones after food at evening)
+
+- Eg: for advance feature(future):
+  - Posture: a scheduler kicks a posture scan via a camera and analyse your pose and suggest you different excercise/routines/notification to keep your back straight
+
+- *Extensionsible*: allows you to write extensions to perform custom actions:
+  - i.e, lets you define/run custom actions via code
+    - eg: play a video, make an api call, send an email
+  - such that, for a certain routine(rules), it lets you perform that action
+
+## Awesome Features List
+### Devs Friendly Interface
+- provides api for devs to build their own cli/ui elements
+- provides api for devtool(editor) integrations
+
+### Report/Survey: At certain intervals, popup a survey form to rate your progress {focus, achievements}
+
+### Logging & Analytics:
+  - Execution logs for all routines
+  - Track completion status
+  - Notes and completion timestamps
+
+### ⌨️ **Power User KEY Features**
+- **Context-aware keyboard shortcuts** - only active when appropriate
+- **Vim-style navigation** (j/k keys) - works in lists, not in text fields, for dekstop UI lists
+- **Quick search** with `/` key - focuses search when viewing routines
+- **Help menu** with `?` key - shows help when not editing
+- **Inspector panel** for detailed editing with escape key support
+
+### ⏰ **Intelligent Scheduling System**
+- Notification can be paused for next meeting hour
+- Option to auto detect meetings
+- **Execution-based scheduling** with last execution tracking
+
+* Component Spec
+
+- Client
+  - Native UI/Controls {exec X, show overlays} that runs as a thin client
+    | device  | lang   |
+    |---------+--------|
+    | mac     | swift  |
+    | ios     | swift  |
+    | linux   | gtk    |
+    | android | kotlin |
+    | windows | ??     |
+
+- Backend:
+  - {api, store, scheduler}
+  - in golang
+
+- client and backend communicate via a grpc api
+- both bundled together during deployment and lives in a mono repo
+- No javascript bullshit
+
+** requirements:
+ - api: backend elements be written in golang
+ - transport: grpc with protobuf:3 contract
+ - client/app could be developed and specialized with platform specific language
+ - common: eg: skia be used to build cool 2d animations
