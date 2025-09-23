@@ -1,0 +1,493 @@
+syntax = "proto3";
+
+package vibecare.v1;
+
+option go_package = "github.com/vibecare-io/vibecare/backend/pkg/proto";
+option swift_prefix = "VC";
+
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+// ============================================================================
+// Core Domain Models
+// ============================================================================
+
+// Profile entity - binds to a user
+message Profile {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  map<string, string> preferences = 4;  // JSON preferences
+  repeated Device devices = 5;
+  google.protobuf.Timestamp created_at = 6;
+  google.protobuf.Timestamp updated_at = 7;
+}
+
+// Device information for multi-device support
+message Device {
+  string id = 1;
+  string name = 2;
+  DeviceType type = 3;
+  string push_token = 4;  // for push notifications
+  google.protobuf.Timestamp last_seen = 5;
+  bool active = 6;
+}
+
+enum DeviceType {
+  DEVICE_TYPE_UNSPECIFIED = 0;
+  DEVICE_TYPE_MACOS = 1;
+  DEVICE_TYPE_IOS = 2;
+  DEVICE_TYPE_LINUX = 3;
+  DEVICE_TYPE_ANDROID = 4;
+  DEVICE_TYPE_WINDOWS = 5;
+}
+
+// Action is the core concept - everything is an action
+message Action {
+  string id = 1;
+  string profile_id = 2;
+  ActionType type = 3;
+  string name = 4;
+  string description = 5;
+  map<string, string> parameters = 6;  // Type-specific parameters
+  google.protobuf.Timestamp created_at = 7;
+}
+
+enum ActionType {
+  ACTION_TYPE_UNSPECIFIED = 0;
+  ACTION_TYPE_NOTIFICATION = 1;    // Show system notification
+  ACTION_TYPE_OPEN_LINK = 2;       // Open URL in browser
+  ACTION_TYPE_SEND_EMAIL = 3;      // Send email
+  ACTION_TYPE_RUN_SCRIPT = 4;      // Execute shell script
+  ACTION_TYPE_PLAY_SOUND = 5;      // Play audio file
+  ACTION_TYPE_SYSTEM_COMMAND = 6;  // System command (e.g., lock screen)
+  ACTION_TYPE_API_CALL = 7;        // Webhook/API call
+  ACTION_TYPE_LOG_ENTRY = 8;       // Create log entry
+}
+
+// Routine - a collection of actions with a schedule
+message Routine {
+  string id = 1;
+  string profile_id = 2;
+  string name = 3;
+  string description = 4;
+  repeated string action_ids = 5;  // References to Action.id
+  bool enabled = 6;
+  map<string, string> metadata = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp updated_at = 9;
+  google.protobuf.Timestamp last_executed_at = 10;
+}
+
+// Schedule - RRule-based scheduling aligned with SQLite schema
+message Schedule {
+  int64 schedule_id = 1;
+  string routine_id = 2;
+  string name = 3;
+
+  // RRule JSON for recurring rules (RFC 5545 compatible)
+  // Example: {"freq": "DAILY", "interval": 1, "byhour": [9, 18], "byminute": [0]}
+  string recurrence_json = 4;
+
+  google.protobuf.Timestamp dtstart = 5;         // when schedule starts
+  repeated string exdates = 6;  // Exclusion dates (ISO 8601 strings for simplicity)
+  google.protobuf.Timestamp last_execution = 7;
+  string notes = 8;
+  bool enabled = 9;
+  google.protobuf.Timestamp created_at = 10;
+  google.protobuf.Timestamp updated_at = 11;
+}
+
+// RRule structure for JSON encoding/decoding
+message RRule {
+  string freq = 1;              // YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY
+  int32 interval = 2;           // e.g., every 2 days
+  repeated int32 byhour = 3;    // hours (0-23)
+  repeated int32 byminute = 4;  // minutes (0-59)
+  repeated string byday = 5;    // MO, TU, WE, TH, FR, SA, SU
+  repeated int32 bymonthday = 6;  // day of month (1-31)
+  repeated int32 bymonth = 7;   // month (1-12)
+  google.protobuf.Timestamp until = 8;             // End date
+  int32 count = 9;              // Number of occurrences
+  repeated int32 byweekno = 10; // Week number
+  repeated int32 byyearday = 11; // Day of year
+  string wkst = 12;             // Week start day (MO, TU, etc.)
+}
+
+// ExecutionLog - matches existing SQLite schema
+message ExecutionLog {
+  int64 log_id = 1;
+  string routine_id = 2;
+  google.protobuf.Timestamp timestamp = 3;
+  bool completed = 4;
+  string notes = 5;
+  map<string, string> action_results = 6;  // action_id -> result JSON
+}
+
+// ============================================================================
+// Service Definitions
+// ============================================================================
+
+service ProfileService {
+  // Profile management
+  rpc CreateProfile(CreateProfileRequest) returns (CreateProfileResponse);
+  rpc GetProfile(GetProfileRequest) returns (Profile);
+  rpc UpdateProfile(UpdateProfileRequest) returns (Profile);
+  rpc DeleteProfile(DeleteProfileRequest) returns (google.protobuf.Empty);
+  rpc ListProfiles(ListProfilesRequest) returns (ListProfilesResponse);
+
+  // Device management
+  rpc RegisterDevice(RegisterDeviceRequest) returns (Device);
+  rpc UnregisterDevice(UnregisterDeviceRequest) returns (google.protobuf.Empty);
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+}
+
+service RoutineService {
+  // Routine CRUD
+  rpc CreateRoutine(CreateRoutineRequest) returns (CreateRoutineResponse);
+  rpc GetRoutine(GetRoutineRequest) returns (GetRoutineResponse);
+  rpc UpdateRoutine(UpdateRoutineRequest) returns (Routine);
+  rpc DeleteRoutine(DeleteRoutineRequest) returns (google.protobuf.Empty);
+  rpc ListRoutines(ListRoutinesRequest) returns (ListRoutinesResponse);
+
+  // Routine control
+  rpc EnableRoutine(EnableRoutineRequest) returns (Routine);
+  rpc DisableRoutine(DisableRoutineRequest) returns (Routine);
+  rpc ExecuteRoutine(ExecuteRoutineRequest) returns (ExecutionLog);
+
+  // Execution history
+  rpc GetExecutionLogs(GetExecutionLogsRequest) returns (GetExecutionLogsResponse);
+}
+
+service ScheduleService {
+  // Schedule management
+  rpc CreateSchedule(CreateScheduleRequest) returns (Schedule);
+  rpc GetSchedule(GetScheduleRequest) returns (Schedule);
+  rpc UpdateSchedule(UpdateScheduleRequest) returns (Schedule);
+  rpc DeleteSchedule(DeleteScheduleRequest) returns (google.protobuf.Empty);
+  rpc ListSchedules(ListSchedulesRequest) returns (ListSchedulesResponse);
+
+  // Schedule operations
+  rpc GetNextExecution(GetNextExecutionRequest) returns (GetNextExecutionResponse);
+  rpc PauseSchedule(PauseScheduleRequest) returns (Schedule);
+  rpc ResumeSchedule(ResumeScheduleRequest) returns (Schedule);
+
+  // Bulk operations
+  rpc PauseAllSchedules(PauseAllSchedulesRequest) returns (google.protobuf.Empty);
+  rpc ResumeAllSchedules(ResumeAllSchedulesRequest) returns (google.protobuf.Empty);
+}
+
+service ActionService {
+  // Action CRUD
+  rpc CreateAction(CreateActionRequest) returns (Action);
+  rpc GetAction(GetActionRequest) returns (Action);
+  rpc UpdateAction(UpdateActionRequest) returns (Action);
+  rpc DeleteAction(DeleteActionRequest) returns (google.protobuf.Empty);
+  rpc ListActions(ListActionsRequest) returns (ListActionsResponse);
+
+  // Action execution
+  rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
+  rpc ValidateAction(ValidateActionRequest) returns (ValidateActionResponse);
+
+  // Action metadata
+  rpc ListActionTypes(ListActionTypesRequest) returns (ListActionTypesResponse);
+  rpc GetActionParameters(GetActionParametersRequest) returns (GetActionParametersResponse);
+}
+
+// ============================================================================
+// Request/Response Messages
+// ============================================================================
+
+// Profile Service Messages
+message CreateProfileRequest {
+  string name = 1;
+  string email = 2;
+  map<string, string> preferences = 3;
+}
+
+message CreateProfileResponse {
+  Profile profile = 1;
+}
+
+message GetProfileRequest {
+  string id = 1;
+}
+
+message UpdateProfileRequest {
+  string id = 1;
+  string name = 2;
+  string email = 3;
+  map<string, string> preferences = 4;
+}
+
+message DeleteProfileRequest {
+  string id = 1;
+}
+
+message ListProfilesRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+message ListProfilesResponse {
+  repeated Profile profiles = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message RegisterDeviceRequest {
+  string profile_id = 1;
+  string device_name = 2;
+  DeviceType device_type = 3;
+  string push_token = 4;
+}
+
+message UnregisterDeviceRequest {
+  string profile_id = 1;
+  string device_id = 2;
+}
+
+message ListDevicesRequest {
+  string profile_id = 1;
+}
+
+message ListDevicesResponse {
+  repeated Device devices = 1;
+}
+
+// Routine Service Messages
+message CreateRoutineRequest {
+  string profile_id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string action_ids = 4;
+  bool enabled = 5;
+  map<string, string> metadata = 6;
+}
+
+message CreateRoutineResponse {
+  Routine routine = 1;
+}
+
+message GetRoutineRequest {
+  string id = 1;
+}
+
+message GetRoutineResponse {
+  Routine routine = 1;
+  repeated Schedule schedules = 2;
+  repeated Action actions = 3;
+}
+
+message UpdateRoutineRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  repeated string action_ids = 4;
+  map<string, string> metadata = 5;
+}
+
+message DeleteRoutineRequest {
+  string id = 1;
+}
+
+message ListRoutinesRequest {
+  string profile_id = 1;
+  bool enabled_only = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListRoutinesResponse {
+  repeated Routine routines = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message EnableRoutineRequest {
+  string id = 1;
+}
+
+message DisableRoutineRequest {
+  string id = 1;
+}
+
+message ExecuteRoutineRequest {
+  string routine_id = 1;
+  bool force = 2;  // Force execution even if not scheduled
+  string notes = 3;
+}
+
+message GetExecutionLogsRequest {
+  string routine_id = 1;
+  google.protobuf.Timestamp start_time = 2;
+  google.protobuf.Timestamp end_time = 3;
+  int32 limit = 4;
+}
+
+message GetExecutionLogsResponse {
+  repeated ExecutionLog logs = 1;
+}
+
+// Schedule Service Messages
+message CreateScheduleRequest {
+  string routine_id = 1;
+  string name = 2;
+  string recurrence_json = 3;  // RRule JSON
+  string dtstart = 4;           // ISO 8601
+  repeated string exdates = 5;  // ISO 8601 dates to exclude
+  string notes = 6;
+  bool enabled = 7;
+}
+
+message GetScheduleRequest {
+  int64 schedule_id = 1;
+}
+
+message UpdateScheduleRequest {
+  int64 schedule_id = 1;
+  string name = 2;
+  string recurrence_json = 3;
+  string dtstart = 4;
+  repeated string exdates = 5;
+  string notes = 6;
+}
+
+message DeleteScheduleRequest {
+  int64 schedule_id = 1;
+}
+
+message ListSchedulesRequest {
+  string routine_id = 1;
+  bool enabled_only = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListSchedulesResponse {
+  repeated Schedule schedules = 1;
+  string next_page_token = 2;
+}
+
+message GetNextExecutionRequest {
+  int64 schedule_id = 1;
+}
+
+message GetNextExecutionResponse {
+  google.protobuf.Timestamp next_execution = 1;
+  bool is_paused = 2;
+  google.protobuf.Timestamp paused_until = 3;
+}
+
+message PauseScheduleRequest {
+  int64 schedule_id = 1;
+  int32 duration_minutes = 2;  // 0 for indefinite
+}
+
+message ResumeScheduleRequest {
+  int64 schedule_id = 1;
+}
+
+message PauseAllSchedulesRequest {
+  string profile_id = 1;
+  int32 duration_minutes = 2;
+}
+
+message ResumeAllSchedulesRequest {
+  string profile_id = 1;
+}
+
+// Action Service Messages
+message CreateActionRequest {
+  string profile_id = 1;
+  ActionType type = 2;
+  string name = 3;
+  string description = 4;
+  map<string, string> parameters = 5;
+}
+
+message GetActionRequest {
+  string id = 1;
+}
+
+message UpdateActionRequest {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  map<string, string> parameters = 4;
+}
+
+message DeleteActionRequest {
+  string id = 1;
+}
+
+message ListActionsRequest {
+  string profile_id = 1;
+  ActionType type_filter = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+message ListActionsResponse {
+  repeated Action actions = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+message ExecuteActionRequest {
+  string action_id = 1;
+  string routine_id = 2;  // Optional, for context
+  map<string, string> override_parameters = 3;  // Override action parameters
+}
+
+message ExecuteActionResponse {
+  bool success = 1;
+  string result = 2;
+  string error_message = 3;
+  google.protobuf.Timestamp execution_time = 4;
+}
+
+message ValidateActionRequest {
+  Action action = 1;
+}
+
+message ValidateActionResponse {
+  bool valid = 1;
+  repeated string errors = 2;
+  repeated string warnings = 3;
+}
+
+message ListActionTypesRequest {
+  // Empty - returns all available action types
+}
+
+message ListActionTypesResponse {
+  repeated ActionTypeInfo action_types = 1;
+}
+
+message ActionTypeInfo {
+  ActionType type = 1;
+  string name = 2;
+  string description = 3;
+  repeated ParameterInfo required_parameters = 4;
+  repeated ParameterInfo optional_parameters = 5;
+  repeated string examples = 6;
+}
+
+message ParameterInfo {
+  string name = 1;
+  string type = 2;         // string, number, boolean, array, object
+  string description = 3;
+  string default_value = 4;
+  repeated string allowed_values = 5;  // For enum-like parameters
+  bool required = 6;
+}
+
+message GetActionParametersRequest {
+  ActionType type = 1;
+}
+
+message GetActionParametersResponse {
+  repeated ParameterInfo parameters = 1;
+  map<string, string> default_values = 2;
+}
