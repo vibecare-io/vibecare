@@ -160,6 +160,41 @@ docker-run:
     @echo "{{GREEN}}Running Docker container...{{NC}}"
     docker run -p 50051:50051 -v ~/.vibecare:/data vibecare-server:latest
 
+# macOS Swift client commands
+swift-build:
+    @echo "{{GREEN}}Building Swift client...{{NC}}"
+    cd clients/macos-swift/VibeCare && swift build
+
+swift-run:
+    @echo "{{GREEN}}Running Swift client...{{NC}}"
+    cd clients/macos-swift/VibeCare && swift run VibeCare
+
+swift-test:
+    @echo "{{GREEN}}Testing Swift client...{{NC}}"
+    cd clients/macos-swift/VibeCare && swift test
+
+# Test the complete stack
+test-stack: proto migrate
+    @echo "{{GREEN}}Testing complete VibeCare stack...{{NC}}"
+    @echo "{{YELLOW}}Starting backend server in background...{{NC}}"
+    cd {{backend_dir}} && go run cmd/server/main.go &
+    @sleep 2
+    @echo "{{GREEN}}Testing gRPC connection...{{NC}}"
+    just grpc-test
+    @echo "{{GREEN}}Creating test profile...{{NC}}"
+    just grpc-create-profile "Test User" "test@vibecare.io"
+    @echo "{{GREEN}}✓ Stack test complete{{NC}}"
+    @echo "{{YELLOW}}Note: Backend server is still running. Press Ctrl+C to stop.{{NC}}"
+
+# Open test setup guide
+test-guide:
+    @echo "{{GREEN}}Opening test setup guide...{{NC}}"
+    @if command -v open &> /dev/null; then \
+        open test_setup.md; \
+    else \
+        cat test_setup.md; \
+    fi
+
 # Generate macOS app (Swift client)
 macos-build:
     @echo "{{GREEN}}Building macOS app...{{NC}}"
@@ -170,5 +205,5 @@ xcode:
     open clients/macos-swift/VibeCare.xcodeproj
 
 # Full build: backend and macOS client
-build-all: build macos-build
+build-all: build swift-build
     @echo "{{GREEN}}✓ All components built{{NC}}"

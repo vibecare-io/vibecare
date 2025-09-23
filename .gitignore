@@ -44,6 +44,7 @@ Thumbs.db
 
 # Xcode (macOS client)
 clients/macos-swift/build/
+**/.build
 clients/macos-swift/DerivedData/
 clients/macos-swift/*.xcworkspace/xcuserdata/
 clients/macos-swift/*.xcodeproj/xcuserdata/
@@ -130,3 +131,5 @@ node_modules/
 # Application data
 data/
 .data/
+/clients/macos-swift/VibeCare/.build/
+/clients/macos-swift/VibeCare/.swiftpm/

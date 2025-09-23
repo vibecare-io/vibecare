@@ -44,7 +44,7 @@
 
 ### ⏰ **Intelligent Scheduling System**
 - Notification can be paused for next meeting hour
-- Option to auto detect meetings
+- Option to auto detect meetings and movie time
 - **Execution-based scheduling** with last execution tracking
 
 * Component Spec
