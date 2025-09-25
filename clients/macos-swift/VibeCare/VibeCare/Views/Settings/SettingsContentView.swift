@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct SettingsContentView: View {
-    var body: some View {
+public struct SettingsContentView: View {
+    public var body: some View {
         VStack {
             EmptyStateView(
                 title: "Settings",
@@ -13,8 +13,10 @@ struct SettingsContentView: View {
     }
 }
 
-struct SettingsView: View {
-    var body: some View {
+public struct SettingsView: View {
+    public init() {}
+
+    public var body: some View {
         SettingsContentView()
     }
 }

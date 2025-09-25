@@ -1,11 +1,12 @@
 import SwiftUI
 
-struct Dashboard: View {
+public struct Dashboard: View {
     enum SidebarItem: String, CaseIterable, Identifiable {
         case routines = "Routines"
         case schedules = "Schedules"
         case actions = "Actions"
         case logs = "Execution Logs"
+        case testing = "gRPC Testing"
         case settings = "Settings"
 
         var id: String { rawValue }
@@ -16,6 +17,7 @@ struct Dashboard: View {
             case .schedules: return "calendar.badge.clock"
             case .actions: return "bolt.circle"
             case .logs: return "doc.text"
+            case .testing: return "network"
             case .settings: return "gearshape.fill"
             }
         }
@@ -26,6 +28,7 @@ struct Dashboard: View {
             case .schedules: return .orange
             case .actions: return .purple
             case .logs: return .green
+            case .testing: return .red
             case .settings: return .gray
             }
         }
@@ -35,6 +38,8 @@ struct Dashboard: View {
     @StateObject private var routineViewModel = RoutineViewModel()
     @StateObject private var scheduleViewModel = ScheduleViewModel()
     @StateObject private var actionViewModel = ActionViewModel()
+
+    public init() {}
 
     @State private var selectedSidebarItem: SidebarItem? = .routines
     @State private var columnVisibility: NavigationSplitViewVisibility = .automatic
@@ -48,7 +53,7 @@ struct Dashboard: View {
     @FocusState private var isListFocused: Bool
     @State private var selectedIndex: Int = 0
 
-    var body: some View {
+    public var body: some View {
         NavigationSplitView(columnVisibility: $columnVisibility) {
             sidebarView
         } content: {
@@ -164,6 +169,14 @@ struct Dashboard: View {
 
             case .logs:
                 ExecutionLogView(searchText: searchText)
+
+            case .testing:
+                if #available(macOS 15.0, *) {
+                    GRPCTestView()
+                } else {
+                    Text("gRPC Testing requires macOS 15.0 or later")
+                        .foregroundColor(.secondary)
+                }
 
             case .settings:
                 SettingsContentView()
@@ -333,6 +346,8 @@ struct Dashboard: View {
             return actionViewModel.actions.count
         case .logs:
             return nil // Don't show count for logs
+        case .testing:
+            return nil // Don't show count for testing
         case .settings:
             return nil
         }
@@ -348,6 +363,8 @@ struct Dashboard: View {
             return "Select an action to view details"
         case .logs:
             return "View execution logs here"
+        case .testing:
+            return "Test gRPC connection and debug issues"
         case .settings:
             return "Configure your VibeCare settings"
         case .none:
@@ -361,6 +378,7 @@ struct Dashboard: View {
         case .schedules: return "calendar.circle"
         case .actions: return "bolt.circle"
         case .logs: return "doc.circle"
+        case .testing: return "network.circle"
         case .settings: return "gearshape.circle"
         case .none: return "heart.circle"
         }

@@ -1,5 +1,6 @@
 import SwiftUI
 import Logging
+import VibeCareCore
 
 @main
 struct VibeCareApp: App {
@@ -11,8 +12,7 @@ struct VibeCareApp: App {
         let logger = Logger(label: "com.vibecare.app")
         logger.info("VibeCare macOS app starting up")
 
-        // Initialize gRPC connection
-        GRPCClient.shared.connect()
+        // gRPC connection will be initialized when app appears
 
         logger.info("VibeCare app startup completed")
     }

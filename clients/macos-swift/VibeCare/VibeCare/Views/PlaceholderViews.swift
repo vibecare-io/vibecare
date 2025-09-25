@@ -2,8 +2,10 @@ import SwiftUI
 
 // MARK: - Placeholder Views for Compilation
 
-struct CompactDashboard: View {
-    var body: some View {
+public struct CompactDashboard: View {
+    public init() {}
+
+    public var body: some View {
         TabView {
             Text("Routines")
                 .tabItem {
@@ -32,11 +34,13 @@ struct CompactDashboard: View {
     }
 }
 
-struct ProfileSelectorView: View {
+public struct ProfileSelectorView: View {
     @EnvironmentObject private var appState: AppState
     @State private var showCreateProfile = false
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         VStack(spacing: 20) {
             Text("Select Profile")
                 .font(.title)
@@ -116,10 +120,12 @@ struct CreateProfileView: View {
     }
 }
 
-struct MenuBarView: View {
+public struct MenuBarView: View {
     @EnvironmentObject private var appState: AppState
 
-    var body: some View {
+    public init() {}
+
+    public var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("VibeCare")
                 .font(.headline)

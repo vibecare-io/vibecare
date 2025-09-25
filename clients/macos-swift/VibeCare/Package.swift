@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -6,41 +6,61 @@ import PackageDescription
 let package = Package(
     name: "VibeCare",
     platforms: [
-        .macOS(.v14)
+        .macOS(.v15)
     ],
     products: [
         .executable(
             name: "VibeCare",
             targets: ["VibeCare"]
+        ),
+        .executable(
+            name: "TestGRPC",
+            targets: ["TestGRPC"]
+        ),
+        .library(
+            name: "VibeCareCore",
+            targets: ["VibeCareCore"]
         )
     ],
     dependencies: [
-        .package(url: "https://github.com/grpc/grpc-swift.git", from: "1.19.0"),
-        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.21.0"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0")
+        .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.1.0"),
+        .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.1.1"),
+        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.1.1"),
+        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
     ],
     targets: [
-        .executableTarget(
-            name: "VibeCare",
+        .target(
+            name: "VibeCareCore",
             dependencies: [
-                .product(name: "GRPC", package: "grpc-swift"),
-                .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+                .product(name: "GRPCCore", package: "grpc-swift-2"),
+                .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
+                .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
                 .product(name: "Logging", package: "swift-log")
             ],
             path: "vibecare",
             exclude: [
                 "vibecare.entitlements",
-                "Assets.xcassets"
-            ],
+                "Assets.xcassets",
+                "TestGRPCMain.swift",
+                "App.swift",
+                "ContentView.swift"
+            ]
+        ),
+        .executableTarget(
+            name: "VibeCare",
+            dependencies: ["VibeCareCore"],
+            path: "vibecare",
             sources: [
-                "ContentView.swift",
-                "vibecareApp.swift",
-                "Models/",
-                "ViewModels/",
-                "Views/",
-                "Services/",
-                "Generated/",
-                "Resources/"
+                "App.swift",
+                "ContentView.swift"
+            ]
+        ),
+        .executableTarget(
+            name: "TestGRPC",
+            dependencies: ["VibeCareCore"],
+            path: "vibecare",
+            sources: [
+                "TestGRPCMain.swift"
             ]
         ),
         .testTarget(

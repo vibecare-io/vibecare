@@ -1,4 +1,5 @@
 import SwiftUI
+import VibeCareCore
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
@@ -25,7 +26,7 @@ struct ContentView: View {
         .alert("Connection Error", isPresented: $appState.showConnectionError) {
             Button("Retry") {
                 Task {
-                    await GRPCClient.shared.reconnect()
+                    await appState.loadInitialData()
                 }
             }
             Button("Settings") {

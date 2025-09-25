@@ -1,13 +1,13 @@
 import Foundation
 
-struct Profile: Identifiable, Codable, Equatable, Hashable {
-    let id: String
-    var name: String
-    var email: String
-    var preferences: [String: String]
-    var devices: [Device]
-    let createdAt: Date
-    var updatedAt: Date
+public struct Profile: Identifiable, Codable, Equatable, Hashable, Sendable {
+    public let id: String
+    public var name: String
+    public var email: String
+    public var preferences: [String: String]
+    public var devices: [Device]
+    public let createdAt: Date
+    public var updatedAt: Date
 
     init(
         id: String = UUID().uuidString,
@@ -28,13 +28,13 @@ struct Profile: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-struct Device: Identifiable, Codable, Equatable, Hashable {
-    let id: String
-    var name: String
-    var type: DeviceType
-    var pushToken: String?
-    var lastSeen: Date
-    var active: Bool
+public struct Device: Identifiable, Codable, Equatable, Hashable, Sendable {
+    public let id: String
+    public var name: String
+    public var type: DeviceType
+    public var pushToken: String?
+    public var lastSeen: Date
+    public var active: Bool
 
     init(
         id: String = UUID().uuidString,
@@ -53,7 +53,7 @@ struct Device: Identifiable, Codable, Equatable, Hashable {
     }
 }
 
-enum DeviceType: String, Codable, CaseIterable {
+public enum DeviceType: String, Codable, CaseIterable, Sendable {
     case macOS = "macos"
     case iOS = "ios"
     case linux = "linux"

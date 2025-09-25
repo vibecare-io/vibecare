@@ -1,13 +1,21 @@
 import SwiftUI
 
-struct EmptyStateView: View {
-    let title: String
-    let subtitle: String
-    let systemImage: String
-    var actionTitle: String?
-    var action: (() -> Void)?
+public struct EmptyStateView: View {
+    public let title: String
+    public let subtitle: String
+    public let systemImage: String
+    public var actionTitle: String?
+    public var action: (() -> Void)?
 
-    var body: some View {
+    public init(title: String, subtitle: String, systemImage: String, actionTitle: String? = nil, action: (() -> Void)? = nil) {
+        self.title = title
+        self.subtitle = subtitle
+        self.systemImage = systemImage
+        self.actionTitle = actionTitle
+        self.action = action
+    }
+
+    public var body: some View {
         VStack(spacing: 20) {
             Image(systemName: systemImage)
                 .font(.system(size: 64))

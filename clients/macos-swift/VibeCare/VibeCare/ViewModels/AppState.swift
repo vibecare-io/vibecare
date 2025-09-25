@@ -4,28 +4,27 @@ import Logging
 //import Logging
 
 @MainActor
-class AppState: ObservableObject {
-    static let shared = AppState()
+public class AppState: ObservableObject {
+    public static let shared = AppState()
 
     // MARK: - Published Properties
-    @Published var currentProfile: Profile?
-    @Published var profiles: [Profile] = []
-    @Published var isConnected: Bool = false
-    @Published var showProfileSelector: Bool = false
-    @Published var showConnectionError: Bool = false
-    @Published var isLoading: Bool = false
+    @Published public var currentProfile: Profile?
+    @Published public var profiles: [Profile] = []
+    @Published public var isConnected: Bool = false
+    @Published public var showProfileSelector: Bool = false
+    @Published public var showConnectionError: Bool = false
+    @Published public var isLoading: Bool = false
 
     // MARK: - Services
     private let logger = Logger(label: "com.vibecare.appstate")
     private var cancellables = Set<AnyCancellable>()
 
     private init() {
-        setupConnectionObserver()
         loadCachedProfile()
     }
 
     // MARK: - Public Methods
-    func loadInitialData() async {
+    public func loadInitialData() async {
         isLoading = true
         defer { isLoading = false }
 
@@ -95,17 +94,6 @@ class AppState: ObservableObject {
     }
 
     // MARK: - Private Methods
-    private func setupConnectionObserver() {
-        GRPCClient.shared.$isConnected
-            .receive(on: DispatchQueue.main)
-            .sink { [weak self] connected in
-                self?.isConnected = connected
-                if !connected {
-                    self?.showConnectionError = true
-                }
-            }
-            .store(in: &cancellables)
-    }
 
     private func loadCachedProfile() {
         if let profileId = UserDefaults.standard.string(forKey: "currentProfileId") {
