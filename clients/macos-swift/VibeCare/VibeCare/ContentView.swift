@@ -1,5 +1,4 @@
 import SwiftUI
-import VibeCareCore
 
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState

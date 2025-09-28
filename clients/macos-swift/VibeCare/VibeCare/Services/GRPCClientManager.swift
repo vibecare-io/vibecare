@@ -3,6 +3,7 @@ import GRPCCore
 import GRPCNIOTransportHTTP2
 import SwiftProtobuf
 import Logging
+import VCStubs
 
 @MainActor
 class GRPCClientManager: ObservableObject {

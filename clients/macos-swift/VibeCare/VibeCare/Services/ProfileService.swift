@@ -3,6 +3,7 @@ import Logging
 import SwiftProtobuf
 import GRPCCore
 import GRPCProtobuf
+import VCStubs
 
 enum ProfileServiceError: Error {
     case timeout

@@ -1,6 +1,5 @@
 import SwiftUI
 import Logging
-import VibeCareCore
 
 @main
 struct VibeCareApp: App {

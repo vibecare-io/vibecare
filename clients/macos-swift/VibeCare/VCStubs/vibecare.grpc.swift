@@ -16,109 +16,109 @@ import SwiftProtobuf
 
 /// Namespace containing generated types for the "vibecare.v1.ProfileService" service.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-internal enum VCProfileService {
+public enum VCProfileService {
     /// Service descriptor for the "vibecare.v1.ProfileService" service.
-    internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService")
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService")
     /// Namespace for method metadata.
-    internal enum Method {
+    public enum Method {
         /// Namespace for "CreateProfile" metadata.
-        internal enum CreateProfile {
+        public enum CreateProfile {
             /// Request type for "CreateProfile".
-            internal typealias Input = VCCreateProfileRequest
+            public typealias Input = VCCreateProfileRequest
             /// Response type for "CreateProfile".
-            internal typealias Output = VCCreateProfileResponse
+            public typealias Output = VCCreateProfileResponse
             /// Descriptor for "CreateProfile".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService"),
                 method: "CreateProfile"
             )
         }
         /// Namespace for "GetProfile" metadata.
-        internal enum GetProfile {
+        public enum GetProfile {
             /// Request type for "GetProfile".
-            internal typealias Input = VCGetProfileRequest
+            public typealias Input = VCGetProfileRequest
             /// Response type for "GetProfile".
-            internal typealias Output = VCProfile
+            public typealias Output = VCProfile
             /// Descriptor for "GetProfile".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService"),
                 method: "GetProfile"
             )
         }
         /// Namespace for "UpdateProfile" metadata.
-        internal enum UpdateProfile {
+        public enum UpdateProfile {
             /// Request type for "UpdateProfile".
-            internal typealias Input = VCUpdateProfileRequest
+            public typealias Input = VCUpdateProfileRequest
             /// Response type for "UpdateProfile".
-            internal typealias Output = VCProfile
+            public typealias Output = VCProfile
             /// Descriptor for "UpdateProfile".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService"),
                 method: "UpdateProfile"
             )
         }
         /// Namespace for "DeleteProfile" metadata.
-        internal enum DeleteProfile {
+        public enum DeleteProfile {
             /// Request type for "DeleteProfile".
-            internal typealias Input = VCDeleteProfileRequest
+            public typealias Input = VCDeleteProfileRequest
             /// Response type for "DeleteProfile".
-            internal typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
             /// Descriptor for "DeleteProfile".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService"),
                 method: "DeleteProfile"
             )
         }
         /// Namespace for "ListProfiles" metadata.
-        internal enum ListProfiles {
+        public enum ListProfiles {
             /// Request type for "ListProfiles".
-            internal typealias Input = VCListProfilesRequest
+            public typealias Input = VCListProfilesRequest
             /// Response type for "ListProfiles".
-            internal typealias Output = VCListProfilesResponse
+            public typealias Output = VCListProfilesResponse
             /// Descriptor for "ListProfiles".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService"),
                 method: "ListProfiles"
             )
         }
         /// Namespace for "RegisterDevice" metadata.
-        internal enum RegisterDevice {
+        public enum RegisterDevice {
             /// Request type for "RegisterDevice".
-            internal typealias Input = VCRegisterDeviceRequest
+            public typealias Input = VCRegisterDeviceRequest
             /// Response type for "RegisterDevice".
-            internal typealias Output = VCDevice
+            public typealias Output = VCDevice
             /// Descriptor for "RegisterDevice".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService"),
                 method: "RegisterDevice"
             )
         }
         /// Namespace for "UnregisterDevice" metadata.
-        internal enum UnregisterDevice {
+        public enum UnregisterDevice {
             /// Request type for "UnregisterDevice".
-            internal typealias Input = VCUnregisterDeviceRequest
+            public typealias Input = VCUnregisterDeviceRequest
             /// Response type for "UnregisterDevice".
-            internal typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
             /// Descriptor for "UnregisterDevice".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService"),
                 method: "UnregisterDevice"
             )
         }
         /// Namespace for "ListDevices" metadata.
-        internal enum ListDevices {
+        public enum ListDevices {
             /// Request type for "ListDevices".
-            internal typealias Input = VCListDevicesRequest
+            public typealias Input = VCListDevicesRequest
             /// Response type for "ListDevices".
-            internal typealias Output = VCListDevicesResponse
+            public typealias Output = VCListDevicesResponse
             /// Descriptor for "ListDevices".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService"),
                 method: "ListDevices"
             )
         }
         /// Descriptors for all methods in the "vibecare.v1.ProfileService" service.
-        internal static let descriptors: [GRPCCore.MethodDescriptor] = [
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
             CreateProfile.descriptor,
             GetProfile.descriptor,
             UpdateProfile.descriptor,
@@ -134,7 +134,7 @@ internal enum VCProfileService {
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension GRPCCore.ServiceDescriptor {
     /// Service descriptor for the "vibecare.v1.ProfileService" service.
-    internal static let vcProfileService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService")
+    public static let vcProfileService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ProfileService")
 }
 
 // MARK: vibecare.v1.ProfileService (server)
@@ -151,7 +151,7 @@ extension VCProfileService {
     ///
     /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
     /// or ``SimpleServiceProtocol`` instead.
-    internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
         /// Handle the "CreateProfile" method.
         ///
         /// > Source IDL Documentation:
@@ -280,7 +280,7 @@ extension VCProfileService {
     /// trailing response metadata. If you don't need these then consider using
     /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
     /// use ``StreamingServiceProtocol``.
-    internal protocol ServiceProtocol: VCProfileService.StreamingServiceProtocol {
+    public protocol ServiceProtocol: VCProfileService.StreamingServiceProtocol {
         /// Handle the "CreateProfile" method.
         ///
         /// > Source IDL Documentation:
@@ -407,7 +407,7 @@ extension VCProfileService {
     /// This is the highest level protocol for the service. The API is the easiest to use but
     /// doesn't provide access to request or response metadata. If you need access to these
     /// then use ``ServiceProtocol`` instead.
-    internal protocol SimpleServiceProtocol: VCProfileService.ServiceProtocol {
+    public protocol SimpleServiceProtocol: VCProfileService.ServiceProtocol {
         /// Handle the "CreateProfile" method.
         ///
         /// > Source IDL Documentation:
@@ -533,7 +533,7 @@ extension VCProfileService {
 // Default implementation of 'registerMethods(with:)'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCProfileService.StreamingServiceProtocol {
-    internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
         router.registerHandler(
             forMethod: VCProfileService.Method.CreateProfile.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<VCCreateProfileRequest>(),
@@ -628,7 +628,7 @@ extension VCProfileService.StreamingServiceProtocol {
 // Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCProfileService.ServiceProtocol {
-    internal func createProfile(
+    public func createProfile(
         request: GRPCCore.StreamingServerRequest<VCCreateProfileRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCCreateProfileResponse> {
@@ -639,7 +639,7 @@ extension VCProfileService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func getProfile(
+    public func getProfile(
         request: GRPCCore.StreamingServerRequest<VCGetProfileRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCProfile> {
@@ -650,7 +650,7 @@ extension VCProfileService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func updateProfile(
+    public func updateProfile(
         request: GRPCCore.StreamingServerRequest<VCUpdateProfileRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCProfile> {
@@ -661,7 +661,7 @@ extension VCProfileService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func deleteProfile(
+    public func deleteProfile(
         request: GRPCCore.StreamingServerRequest<VCDeleteProfileRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -672,7 +672,7 @@ extension VCProfileService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func listProfiles(
+    public func listProfiles(
         request: GRPCCore.StreamingServerRequest<VCListProfilesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCListProfilesResponse> {
@@ -683,7 +683,7 @@ extension VCProfileService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func registerDevice(
+    public func registerDevice(
         request: GRPCCore.StreamingServerRequest<VCRegisterDeviceRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCDevice> {
@@ -694,7 +694,7 @@ extension VCProfileService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func unregisterDevice(
+    public func unregisterDevice(
         request: GRPCCore.StreamingServerRequest<VCUnregisterDeviceRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -705,7 +705,7 @@ extension VCProfileService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func listDevices(
+    public func listDevices(
         request: GRPCCore.StreamingServerRequest<VCListDevicesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCListDevicesResponse> {
@@ -720,7 +720,7 @@ extension VCProfileService.ServiceProtocol {
 // Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCProfileService.SimpleServiceProtocol {
-    internal func createProfile(
+    public func createProfile(
         request: GRPCCore.ServerRequest<VCCreateProfileRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCCreateProfileResponse> {
@@ -733,7 +733,7 @@ extension VCProfileService.SimpleServiceProtocol {
         )
     }
 
-    internal func getProfile(
+    public func getProfile(
         request: GRPCCore.ServerRequest<VCGetProfileRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCProfile> {
@@ -746,7 +746,7 @@ extension VCProfileService.SimpleServiceProtocol {
         )
     }
 
-    internal func updateProfile(
+    public func updateProfile(
         request: GRPCCore.ServerRequest<VCUpdateProfileRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCProfile> {
@@ -759,7 +759,7 @@ extension VCProfileService.SimpleServiceProtocol {
         )
     }
 
-    internal func deleteProfile(
+    public func deleteProfile(
         request: GRPCCore.ServerRequest<VCDeleteProfileRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -772,7 +772,7 @@ extension VCProfileService.SimpleServiceProtocol {
         )
     }
 
-    internal func listProfiles(
+    public func listProfiles(
         request: GRPCCore.ServerRequest<VCListProfilesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCListProfilesResponse> {
@@ -785,7 +785,7 @@ extension VCProfileService.SimpleServiceProtocol {
         )
     }
 
-    internal func registerDevice(
+    public func registerDevice(
         request: GRPCCore.ServerRequest<VCRegisterDeviceRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCDevice> {
@@ -798,7 +798,7 @@ extension VCProfileService.SimpleServiceProtocol {
         )
     }
 
-    internal func unregisterDevice(
+    public func unregisterDevice(
         request: GRPCCore.ServerRequest<VCUnregisterDeviceRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -811,7 +811,7 @@ extension VCProfileService.SimpleServiceProtocol {
         )
     }
 
-    internal func listDevices(
+    public func listDevices(
         request: GRPCCore.ServerRequest<VCListDevicesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCListDevicesResponse> {
@@ -833,7 +833,7 @@ extension VCProfileService {
     ///
     /// You don't need to implement this protocol directly, use the generated
     /// implementation, ``Client``.
-    internal protocol ClientProtocol: Sendable {
+    public protocol ClientProtocol: Sendable {
         /// Call the "CreateProfile" method.
         ///
         /// > Source IDL Documentation:
@@ -1000,14 +1000,14 @@ extension VCProfileService {
     /// The ``Client`` provides an implementation of ``ClientProtocol`` which wraps
     /// a `GRPCCore.GRPCCClient`. The underlying `GRPCClient` provides the long-lived
     /// means of communication with the remote peer.
-    internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
         /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
         ///
         /// - Parameters:
         ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
-        internal init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
             self.client = client
         }
 
@@ -1026,7 +1026,7 @@ extension VCProfileService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func createProfile<Result>(
+        public func createProfile<Result>(
             request: GRPCCore.ClientRequest<VCCreateProfileRequest>,
             serializer: some GRPCCore.MessageSerializer<VCCreateProfileRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCCreateProfileResponse>,
@@ -1056,7 +1056,7 @@ extension VCProfileService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func getProfile<Result>(
+        public func getProfile<Result>(
             request: GRPCCore.ClientRequest<VCGetProfileRequest>,
             serializer: some GRPCCore.MessageSerializer<VCGetProfileRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCProfile>,
@@ -1086,7 +1086,7 @@ extension VCProfileService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func updateProfile<Result>(
+        public func updateProfile<Result>(
             request: GRPCCore.ClientRequest<VCUpdateProfileRequest>,
             serializer: some GRPCCore.MessageSerializer<VCUpdateProfileRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCProfile>,
@@ -1116,7 +1116,7 @@ extension VCProfileService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func deleteProfile<Result>(
+        public func deleteProfile<Result>(
             request: GRPCCore.ClientRequest<VCDeleteProfileRequest>,
             serializer: some GRPCCore.MessageSerializer<VCDeleteProfileRequest>,
             deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
@@ -1146,7 +1146,7 @@ extension VCProfileService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func listProfiles<Result>(
+        public func listProfiles<Result>(
             request: GRPCCore.ClientRequest<VCListProfilesRequest>,
             serializer: some GRPCCore.MessageSerializer<VCListProfilesRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCListProfilesResponse>,
@@ -1180,7 +1180,7 @@ extension VCProfileService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func registerDevice<Result>(
+        public func registerDevice<Result>(
             request: GRPCCore.ClientRequest<VCRegisterDeviceRequest>,
             serializer: some GRPCCore.MessageSerializer<VCRegisterDeviceRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCDevice>,
@@ -1210,7 +1210,7 @@ extension VCProfileService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func unregisterDevice<Result>(
+        public func unregisterDevice<Result>(
             request: GRPCCore.ClientRequest<VCUnregisterDeviceRequest>,
             serializer: some GRPCCore.MessageSerializer<VCUnregisterDeviceRequest>,
             deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
@@ -1240,7 +1240,7 @@ extension VCProfileService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func listDevices<Result>(
+        public func listDevices<Result>(
             request: GRPCCore.ClientRequest<VCListDevicesRequest>,
             serializer: some GRPCCore.MessageSerializer<VCListDevicesRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCListDevicesResponse>,
@@ -1277,7 +1277,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func createProfile<Result>(
+    public func createProfile<Result>(
         request: GRPCCore.ClientRequest<VCCreateProfileRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCCreateProfileResponse>) async throws -> Result = { response in
@@ -1302,7 +1302,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getProfile<Result>(
+    public func getProfile<Result>(
         request: GRPCCore.ClientRequest<VCGetProfileRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCProfile>) async throws -> Result = { response in
@@ -1327,7 +1327,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func updateProfile<Result>(
+    public func updateProfile<Result>(
         request: GRPCCore.ClientRequest<VCUpdateProfileRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCProfile>) async throws -> Result = { response in
@@ -1352,7 +1352,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func deleteProfile<Result>(
+    public func deleteProfile<Result>(
         request: GRPCCore.ClientRequest<VCDeleteProfileRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
@@ -1377,7 +1377,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listProfiles<Result>(
+    public func listProfiles<Result>(
         request: GRPCCore.ClientRequest<VCListProfilesRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListProfilesResponse>) async throws -> Result = { response in
@@ -1406,7 +1406,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func registerDevice<Result>(
+    public func registerDevice<Result>(
         request: GRPCCore.ClientRequest<VCRegisterDeviceRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCDevice>) async throws -> Result = { response in
@@ -1431,7 +1431,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func unregisterDevice<Result>(
+    public func unregisterDevice<Result>(
         request: GRPCCore.ClientRequest<VCUnregisterDeviceRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
@@ -1456,7 +1456,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listDevices<Result>(
+    public func listDevices<Result>(
         request: GRPCCore.ClientRequest<VCListDevicesRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListDevicesResponse>) async throws -> Result = { response in
@@ -1490,7 +1490,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func createProfile<Result>(
+    public func createProfile<Result>(
         _ message: VCCreateProfileRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -1519,7 +1519,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getProfile<Result>(
+    public func getProfile<Result>(
         _ message: VCGetProfileRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -1548,7 +1548,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func updateProfile<Result>(
+    public func updateProfile<Result>(
         _ message: VCUpdateProfileRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -1577,7 +1577,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func deleteProfile<Result>(
+    public func deleteProfile<Result>(
         _ message: VCDeleteProfileRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -1606,7 +1606,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listProfiles<Result>(
+    public func listProfiles<Result>(
         _ message: VCListProfilesRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -1639,7 +1639,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func registerDevice<Result>(
+    public func registerDevice<Result>(
         _ message: VCRegisterDeviceRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -1668,7 +1668,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func unregisterDevice<Result>(
+    public func unregisterDevice<Result>(
         _ message: VCUnregisterDeviceRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -1697,7 +1697,7 @@ extension VCProfileService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listDevices<Result>(
+    public func listDevices<Result>(
         _ message: VCListDevicesRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -1721,121 +1721,121 @@ extension VCProfileService.ClientProtocol {
 
 /// Namespace containing generated types for the "vibecare.v1.RoutineService" service.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-internal enum VCRoutineService {
+public enum VCRoutineService {
     /// Service descriptor for the "vibecare.v1.RoutineService" service.
-    internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService")
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService")
     /// Namespace for method metadata.
-    internal enum Method {
+    public enum Method {
         /// Namespace for "CreateRoutine" metadata.
-        internal enum CreateRoutine {
+        public enum CreateRoutine {
             /// Request type for "CreateRoutine".
-            internal typealias Input = VCCreateRoutineRequest
+            public typealias Input = VCCreateRoutineRequest
             /// Response type for "CreateRoutine".
-            internal typealias Output = VCCreateRoutineResponse
+            public typealias Output = VCCreateRoutineResponse
             /// Descriptor for "CreateRoutine".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService"),
                 method: "CreateRoutine"
             )
         }
         /// Namespace for "GetRoutine" metadata.
-        internal enum GetRoutine {
+        public enum GetRoutine {
             /// Request type for "GetRoutine".
-            internal typealias Input = VCGetRoutineRequest
+            public typealias Input = VCGetRoutineRequest
             /// Response type for "GetRoutine".
-            internal typealias Output = VCGetRoutineResponse
+            public typealias Output = VCGetRoutineResponse
             /// Descriptor for "GetRoutine".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService"),
                 method: "GetRoutine"
             )
         }
         /// Namespace for "UpdateRoutine" metadata.
-        internal enum UpdateRoutine {
+        public enum UpdateRoutine {
             /// Request type for "UpdateRoutine".
-            internal typealias Input = VCUpdateRoutineRequest
+            public typealias Input = VCUpdateRoutineRequest
             /// Response type for "UpdateRoutine".
-            internal typealias Output = VCRoutine
+            public typealias Output = VCRoutine
             /// Descriptor for "UpdateRoutine".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService"),
                 method: "UpdateRoutine"
             )
         }
         /// Namespace for "DeleteRoutine" metadata.
-        internal enum DeleteRoutine {
+        public enum DeleteRoutine {
             /// Request type for "DeleteRoutine".
-            internal typealias Input = VCDeleteRoutineRequest
+            public typealias Input = VCDeleteRoutineRequest
             /// Response type for "DeleteRoutine".
-            internal typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
             /// Descriptor for "DeleteRoutine".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService"),
                 method: "DeleteRoutine"
             )
         }
         /// Namespace for "ListRoutines" metadata.
-        internal enum ListRoutines {
+        public enum ListRoutines {
             /// Request type for "ListRoutines".
-            internal typealias Input = VCListRoutinesRequest
+            public typealias Input = VCListRoutinesRequest
             /// Response type for "ListRoutines".
-            internal typealias Output = VCListRoutinesResponse
+            public typealias Output = VCListRoutinesResponse
             /// Descriptor for "ListRoutines".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService"),
                 method: "ListRoutines"
             )
         }
         /// Namespace for "EnableRoutine" metadata.
-        internal enum EnableRoutine {
+        public enum EnableRoutine {
             /// Request type for "EnableRoutine".
-            internal typealias Input = VCEnableRoutineRequest
+            public typealias Input = VCEnableRoutineRequest
             /// Response type for "EnableRoutine".
-            internal typealias Output = VCRoutine
+            public typealias Output = VCRoutine
             /// Descriptor for "EnableRoutine".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService"),
                 method: "EnableRoutine"
             )
         }
         /// Namespace for "DisableRoutine" metadata.
-        internal enum DisableRoutine {
+        public enum DisableRoutine {
             /// Request type for "DisableRoutine".
-            internal typealias Input = VCDisableRoutineRequest
+            public typealias Input = VCDisableRoutineRequest
             /// Response type for "DisableRoutine".
-            internal typealias Output = VCRoutine
+            public typealias Output = VCRoutine
             /// Descriptor for "DisableRoutine".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService"),
                 method: "DisableRoutine"
             )
         }
         /// Namespace for "ExecuteRoutine" metadata.
-        internal enum ExecuteRoutine {
+        public enum ExecuteRoutine {
             /// Request type for "ExecuteRoutine".
-            internal typealias Input = VCExecuteRoutineRequest
+            public typealias Input = VCExecuteRoutineRequest
             /// Response type for "ExecuteRoutine".
-            internal typealias Output = VCExecutionLog
+            public typealias Output = VCExecutionLog
             /// Descriptor for "ExecuteRoutine".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService"),
                 method: "ExecuteRoutine"
             )
         }
         /// Namespace for "GetExecutionLogs" metadata.
-        internal enum GetExecutionLogs {
+        public enum GetExecutionLogs {
             /// Request type for "GetExecutionLogs".
-            internal typealias Input = VCGetExecutionLogsRequest
+            public typealias Input = VCGetExecutionLogsRequest
             /// Response type for "GetExecutionLogs".
-            internal typealias Output = VCGetExecutionLogsResponse
+            public typealias Output = VCGetExecutionLogsResponse
             /// Descriptor for "GetExecutionLogs".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService"),
                 method: "GetExecutionLogs"
             )
         }
         /// Descriptors for all methods in the "vibecare.v1.RoutineService" service.
-        internal static let descriptors: [GRPCCore.MethodDescriptor] = [
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
             CreateRoutine.descriptor,
             GetRoutine.descriptor,
             UpdateRoutine.descriptor,
@@ -1852,7 +1852,7 @@ internal enum VCRoutineService {
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension GRPCCore.ServiceDescriptor {
     /// Service descriptor for the "vibecare.v1.RoutineService" service.
-    internal static let vcRoutineService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService")
+    public static let vcRoutineService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.RoutineService")
 }
 
 // MARK: vibecare.v1.RoutineService (server)
@@ -1869,7 +1869,7 @@ extension VCRoutineService {
     ///
     /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
     /// or ``SimpleServiceProtocol`` instead.
-    internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
         /// Handle the "CreateRoutine" method.
         ///
         /// > Source IDL Documentation:
@@ -2016,7 +2016,7 @@ extension VCRoutineService {
     /// trailing response metadata. If you don't need these then consider using
     /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
     /// use ``StreamingServiceProtocol``.
-    internal protocol ServiceProtocol: VCRoutineService.StreamingServiceProtocol {
+    public protocol ServiceProtocol: VCRoutineService.StreamingServiceProtocol {
         /// Handle the "CreateRoutine" method.
         ///
         /// > Source IDL Documentation:
@@ -2161,7 +2161,7 @@ extension VCRoutineService {
     /// This is the highest level protocol for the service. The API is the easiest to use but
     /// doesn't provide access to request or response metadata. If you need access to these
     /// then use ``ServiceProtocol`` instead.
-    internal protocol SimpleServiceProtocol: VCRoutineService.ServiceProtocol {
+    public protocol SimpleServiceProtocol: VCRoutineService.ServiceProtocol {
         /// Handle the "CreateRoutine" method.
         ///
         /// > Source IDL Documentation:
@@ -2305,7 +2305,7 @@ extension VCRoutineService {
 // Default implementation of 'registerMethods(with:)'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCRoutineService.StreamingServiceProtocol {
-    internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
         router.registerHandler(
             forMethod: VCRoutineService.Method.CreateRoutine.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<VCCreateRoutineRequest>(),
@@ -2411,7 +2411,7 @@ extension VCRoutineService.StreamingServiceProtocol {
 // Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCRoutineService.ServiceProtocol {
-    internal func createRoutine(
+    public func createRoutine(
         request: GRPCCore.StreamingServerRequest<VCCreateRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCCreateRoutineResponse> {
@@ -2422,7 +2422,7 @@ extension VCRoutineService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func getRoutine(
+    public func getRoutine(
         request: GRPCCore.StreamingServerRequest<VCGetRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCGetRoutineResponse> {
@@ -2433,7 +2433,7 @@ extension VCRoutineService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func updateRoutine(
+    public func updateRoutine(
         request: GRPCCore.StreamingServerRequest<VCUpdateRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCRoutine> {
@@ -2444,7 +2444,7 @@ extension VCRoutineService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func deleteRoutine(
+    public func deleteRoutine(
         request: GRPCCore.StreamingServerRequest<VCDeleteRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -2455,7 +2455,7 @@ extension VCRoutineService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func listRoutines(
+    public func listRoutines(
         request: GRPCCore.StreamingServerRequest<VCListRoutinesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCListRoutinesResponse> {
@@ -2466,7 +2466,7 @@ extension VCRoutineService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func enableRoutine(
+    public func enableRoutine(
         request: GRPCCore.StreamingServerRequest<VCEnableRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCRoutine> {
@@ -2477,7 +2477,7 @@ extension VCRoutineService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func disableRoutine(
+    public func disableRoutine(
         request: GRPCCore.StreamingServerRequest<VCDisableRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCRoutine> {
@@ -2488,7 +2488,7 @@ extension VCRoutineService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func executeRoutine(
+    public func executeRoutine(
         request: GRPCCore.StreamingServerRequest<VCExecuteRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCExecutionLog> {
@@ -2499,7 +2499,7 @@ extension VCRoutineService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func getExecutionLogs(
+    public func getExecutionLogs(
         request: GRPCCore.StreamingServerRequest<VCGetExecutionLogsRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCGetExecutionLogsResponse> {
@@ -2514,7 +2514,7 @@ extension VCRoutineService.ServiceProtocol {
 // Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCRoutineService.SimpleServiceProtocol {
-    internal func createRoutine(
+    public func createRoutine(
         request: GRPCCore.ServerRequest<VCCreateRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCCreateRoutineResponse> {
@@ -2527,7 +2527,7 @@ extension VCRoutineService.SimpleServiceProtocol {
         )
     }
 
-    internal func getRoutine(
+    public func getRoutine(
         request: GRPCCore.ServerRequest<VCGetRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCGetRoutineResponse> {
@@ -2540,7 +2540,7 @@ extension VCRoutineService.SimpleServiceProtocol {
         )
     }
 
-    internal func updateRoutine(
+    public func updateRoutine(
         request: GRPCCore.ServerRequest<VCUpdateRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCRoutine> {
@@ -2553,7 +2553,7 @@ extension VCRoutineService.SimpleServiceProtocol {
         )
     }
 
-    internal func deleteRoutine(
+    public func deleteRoutine(
         request: GRPCCore.ServerRequest<VCDeleteRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -2566,7 +2566,7 @@ extension VCRoutineService.SimpleServiceProtocol {
         )
     }
 
-    internal func listRoutines(
+    public func listRoutines(
         request: GRPCCore.ServerRequest<VCListRoutinesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCListRoutinesResponse> {
@@ -2579,7 +2579,7 @@ extension VCRoutineService.SimpleServiceProtocol {
         )
     }
 
-    internal func enableRoutine(
+    public func enableRoutine(
         request: GRPCCore.ServerRequest<VCEnableRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCRoutine> {
@@ -2592,7 +2592,7 @@ extension VCRoutineService.SimpleServiceProtocol {
         )
     }
 
-    internal func disableRoutine(
+    public func disableRoutine(
         request: GRPCCore.ServerRequest<VCDisableRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCRoutine> {
@@ -2605,7 +2605,7 @@ extension VCRoutineService.SimpleServiceProtocol {
         )
     }
 
-    internal func executeRoutine(
+    public func executeRoutine(
         request: GRPCCore.ServerRequest<VCExecuteRoutineRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCExecutionLog> {
@@ -2618,7 +2618,7 @@ extension VCRoutineService.SimpleServiceProtocol {
         )
     }
 
-    internal func getExecutionLogs(
+    public func getExecutionLogs(
         request: GRPCCore.ServerRequest<VCGetExecutionLogsRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCGetExecutionLogsResponse> {
@@ -2640,7 +2640,7 @@ extension VCRoutineService {
     ///
     /// You don't need to implement this protocol directly, use the generated
     /// implementation, ``Client``.
-    internal protocol ClientProtocol: Sendable {
+    public protocol ClientProtocol: Sendable {
         /// Call the "CreateRoutine" method.
         ///
         /// > Source IDL Documentation:
@@ -2830,14 +2830,14 @@ extension VCRoutineService {
     /// The ``Client`` provides an implementation of ``ClientProtocol`` which wraps
     /// a `GRPCCore.GRPCCClient`. The underlying `GRPCClient` provides the long-lived
     /// means of communication with the remote peer.
-    internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
         /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
         ///
         /// - Parameters:
         ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
-        internal init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
             self.client = client
         }
 
@@ -2856,7 +2856,7 @@ extension VCRoutineService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func createRoutine<Result>(
+        public func createRoutine<Result>(
             request: GRPCCore.ClientRequest<VCCreateRoutineRequest>,
             serializer: some GRPCCore.MessageSerializer<VCCreateRoutineRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCCreateRoutineResponse>,
@@ -2886,7 +2886,7 @@ extension VCRoutineService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func getRoutine<Result>(
+        public func getRoutine<Result>(
             request: GRPCCore.ClientRequest<VCGetRoutineRequest>,
             serializer: some GRPCCore.MessageSerializer<VCGetRoutineRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCGetRoutineResponse>,
@@ -2916,7 +2916,7 @@ extension VCRoutineService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func updateRoutine<Result>(
+        public func updateRoutine<Result>(
             request: GRPCCore.ClientRequest<VCUpdateRoutineRequest>,
             serializer: some GRPCCore.MessageSerializer<VCUpdateRoutineRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCRoutine>,
@@ -2946,7 +2946,7 @@ extension VCRoutineService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func deleteRoutine<Result>(
+        public func deleteRoutine<Result>(
             request: GRPCCore.ClientRequest<VCDeleteRoutineRequest>,
             serializer: some GRPCCore.MessageSerializer<VCDeleteRoutineRequest>,
             deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
@@ -2976,7 +2976,7 @@ extension VCRoutineService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func listRoutines<Result>(
+        public func listRoutines<Result>(
             request: GRPCCore.ClientRequest<VCListRoutinesRequest>,
             serializer: some GRPCCore.MessageSerializer<VCListRoutinesRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCListRoutinesResponse>,
@@ -3010,7 +3010,7 @@ extension VCRoutineService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func enableRoutine<Result>(
+        public func enableRoutine<Result>(
             request: GRPCCore.ClientRequest<VCEnableRoutineRequest>,
             serializer: some GRPCCore.MessageSerializer<VCEnableRoutineRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCRoutine>,
@@ -3040,7 +3040,7 @@ extension VCRoutineService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func disableRoutine<Result>(
+        public func disableRoutine<Result>(
             request: GRPCCore.ClientRequest<VCDisableRoutineRequest>,
             serializer: some GRPCCore.MessageSerializer<VCDisableRoutineRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCRoutine>,
@@ -3070,7 +3070,7 @@ extension VCRoutineService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func executeRoutine<Result>(
+        public func executeRoutine<Result>(
             request: GRPCCore.ClientRequest<VCExecuteRoutineRequest>,
             serializer: some GRPCCore.MessageSerializer<VCExecuteRoutineRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCExecutionLog>,
@@ -3104,7 +3104,7 @@ extension VCRoutineService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func getExecutionLogs<Result>(
+        public func getExecutionLogs<Result>(
             request: GRPCCore.ClientRequest<VCGetExecutionLogsRequest>,
             serializer: some GRPCCore.MessageSerializer<VCGetExecutionLogsRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCGetExecutionLogsResponse>,
@@ -3141,7 +3141,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func createRoutine<Result>(
+    public func createRoutine<Result>(
         request: GRPCCore.ClientRequest<VCCreateRoutineRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCCreateRoutineResponse>) async throws -> Result = { response in
@@ -3166,7 +3166,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getRoutine<Result>(
+    public func getRoutine<Result>(
         request: GRPCCore.ClientRequest<VCGetRoutineRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCGetRoutineResponse>) async throws -> Result = { response in
@@ -3191,7 +3191,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func updateRoutine<Result>(
+    public func updateRoutine<Result>(
         request: GRPCCore.ClientRequest<VCUpdateRoutineRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCRoutine>) async throws -> Result = { response in
@@ -3216,7 +3216,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func deleteRoutine<Result>(
+    public func deleteRoutine<Result>(
         request: GRPCCore.ClientRequest<VCDeleteRoutineRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
@@ -3241,7 +3241,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listRoutines<Result>(
+    public func listRoutines<Result>(
         request: GRPCCore.ClientRequest<VCListRoutinesRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListRoutinesResponse>) async throws -> Result = { response in
@@ -3270,7 +3270,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func enableRoutine<Result>(
+    public func enableRoutine<Result>(
         request: GRPCCore.ClientRequest<VCEnableRoutineRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCRoutine>) async throws -> Result = { response in
@@ -3295,7 +3295,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func disableRoutine<Result>(
+    public func disableRoutine<Result>(
         request: GRPCCore.ClientRequest<VCDisableRoutineRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCRoutine>) async throws -> Result = { response in
@@ -3320,7 +3320,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func executeRoutine<Result>(
+    public func executeRoutine<Result>(
         request: GRPCCore.ClientRequest<VCExecuteRoutineRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCExecutionLog>) async throws -> Result = { response in
@@ -3349,7 +3349,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getExecutionLogs<Result>(
+    public func getExecutionLogs<Result>(
         request: GRPCCore.ClientRequest<VCGetExecutionLogsRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCGetExecutionLogsResponse>) async throws -> Result = { response in
@@ -3383,7 +3383,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func createRoutine<Result>(
+    public func createRoutine<Result>(
         _ message: VCCreateRoutineRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -3412,7 +3412,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getRoutine<Result>(
+    public func getRoutine<Result>(
         _ message: VCGetRoutineRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -3441,7 +3441,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func updateRoutine<Result>(
+    public func updateRoutine<Result>(
         _ message: VCUpdateRoutineRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -3470,7 +3470,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func deleteRoutine<Result>(
+    public func deleteRoutine<Result>(
         _ message: VCDeleteRoutineRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -3499,7 +3499,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listRoutines<Result>(
+    public func listRoutines<Result>(
         _ message: VCListRoutinesRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -3532,7 +3532,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func enableRoutine<Result>(
+    public func enableRoutine<Result>(
         _ message: VCEnableRoutineRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -3561,7 +3561,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func disableRoutine<Result>(
+    public func disableRoutine<Result>(
         _ message: VCDisableRoutineRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -3590,7 +3590,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func executeRoutine<Result>(
+    public func executeRoutine<Result>(
         _ message: VCExecuteRoutineRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -3623,7 +3623,7 @@ extension VCRoutineService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getExecutionLogs<Result>(
+    public func getExecutionLogs<Result>(
         _ message: VCGetExecutionLogsRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -3647,133 +3647,133 @@ extension VCRoutineService.ClientProtocol {
 
 /// Namespace containing generated types for the "vibecare.v1.ScheduleService" service.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-internal enum VCScheduleService {
+public enum VCScheduleService {
     /// Service descriptor for the "vibecare.v1.ScheduleService" service.
-    internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService")
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService")
     /// Namespace for method metadata.
-    internal enum Method {
+    public enum Method {
         /// Namespace for "CreateSchedule" metadata.
-        internal enum CreateSchedule {
+        public enum CreateSchedule {
             /// Request type for "CreateSchedule".
-            internal typealias Input = VCCreateScheduleRequest
+            public typealias Input = VCCreateScheduleRequest
             /// Response type for "CreateSchedule".
-            internal typealias Output = VCSchedule
+            public typealias Output = VCSchedule
             /// Descriptor for "CreateSchedule".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "CreateSchedule"
             )
         }
         /// Namespace for "GetSchedule" metadata.
-        internal enum GetSchedule {
+        public enum GetSchedule {
             /// Request type for "GetSchedule".
-            internal typealias Input = VCGetScheduleRequest
+            public typealias Input = VCGetScheduleRequest
             /// Response type for "GetSchedule".
-            internal typealias Output = VCSchedule
+            public typealias Output = VCSchedule
             /// Descriptor for "GetSchedule".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "GetSchedule"
             )
         }
         /// Namespace for "UpdateSchedule" metadata.
-        internal enum UpdateSchedule {
+        public enum UpdateSchedule {
             /// Request type for "UpdateSchedule".
-            internal typealias Input = VCUpdateScheduleRequest
+            public typealias Input = VCUpdateScheduleRequest
             /// Response type for "UpdateSchedule".
-            internal typealias Output = VCSchedule
+            public typealias Output = VCSchedule
             /// Descriptor for "UpdateSchedule".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "UpdateSchedule"
             )
         }
         /// Namespace for "DeleteSchedule" metadata.
-        internal enum DeleteSchedule {
+        public enum DeleteSchedule {
             /// Request type for "DeleteSchedule".
-            internal typealias Input = VCDeleteScheduleRequest
+            public typealias Input = VCDeleteScheduleRequest
             /// Response type for "DeleteSchedule".
-            internal typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
             /// Descriptor for "DeleteSchedule".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "DeleteSchedule"
             )
         }
         /// Namespace for "ListSchedules" metadata.
-        internal enum ListSchedules {
+        public enum ListSchedules {
             /// Request type for "ListSchedules".
-            internal typealias Input = VCListSchedulesRequest
+            public typealias Input = VCListSchedulesRequest
             /// Response type for "ListSchedules".
-            internal typealias Output = VCListSchedulesResponse
+            public typealias Output = VCListSchedulesResponse
             /// Descriptor for "ListSchedules".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "ListSchedules"
             )
         }
         /// Namespace for "GetNextExecution" metadata.
-        internal enum GetNextExecution {
+        public enum GetNextExecution {
             /// Request type for "GetNextExecution".
-            internal typealias Input = VCGetNextExecutionRequest
+            public typealias Input = VCGetNextExecutionRequest
             /// Response type for "GetNextExecution".
-            internal typealias Output = VCGetNextExecutionResponse
+            public typealias Output = VCGetNextExecutionResponse
             /// Descriptor for "GetNextExecution".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "GetNextExecution"
             )
         }
         /// Namespace for "PauseSchedule" metadata.
-        internal enum PauseSchedule {
+        public enum PauseSchedule {
             /// Request type for "PauseSchedule".
-            internal typealias Input = VCPauseScheduleRequest
+            public typealias Input = VCPauseScheduleRequest
             /// Response type for "PauseSchedule".
-            internal typealias Output = VCSchedule
+            public typealias Output = VCSchedule
             /// Descriptor for "PauseSchedule".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "PauseSchedule"
             )
         }
         /// Namespace for "ResumeSchedule" metadata.
-        internal enum ResumeSchedule {
+        public enum ResumeSchedule {
             /// Request type for "ResumeSchedule".
-            internal typealias Input = VCResumeScheduleRequest
+            public typealias Input = VCResumeScheduleRequest
             /// Response type for "ResumeSchedule".
-            internal typealias Output = VCSchedule
+            public typealias Output = VCSchedule
             /// Descriptor for "ResumeSchedule".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "ResumeSchedule"
             )
         }
         /// Namespace for "PauseAllSchedules" metadata.
-        internal enum PauseAllSchedules {
+        public enum PauseAllSchedules {
             /// Request type for "PauseAllSchedules".
-            internal typealias Input = VCPauseAllSchedulesRequest
+            public typealias Input = VCPauseAllSchedulesRequest
             /// Response type for "PauseAllSchedules".
-            internal typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
             /// Descriptor for "PauseAllSchedules".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "PauseAllSchedules"
             )
         }
         /// Namespace for "ResumeAllSchedules" metadata.
-        internal enum ResumeAllSchedules {
+        public enum ResumeAllSchedules {
             /// Request type for "ResumeAllSchedules".
-            internal typealias Input = VCResumeAllSchedulesRequest
+            public typealias Input = VCResumeAllSchedulesRequest
             /// Response type for "ResumeAllSchedules".
-            internal typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
             /// Descriptor for "ResumeAllSchedules".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
                 method: "ResumeAllSchedules"
             )
         }
         /// Descriptors for all methods in the "vibecare.v1.ScheduleService" service.
-        internal static let descriptors: [GRPCCore.MethodDescriptor] = [
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
             CreateSchedule.descriptor,
             GetSchedule.descriptor,
             UpdateSchedule.descriptor,
@@ -3791,7 +3791,7 @@ internal enum VCScheduleService {
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension GRPCCore.ServiceDescriptor {
     /// Service descriptor for the "vibecare.v1.ScheduleService" service.
-    internal static let vcScheduleService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService")
+    public static let vcScheduleService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService")
 }
 
 // MARK: vibecare.v1.ScheduleService (server)
@@ -3808,7 +3808,7 @@ extension VCScheduleService {
     ///
     /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
     /// or ``SimpleServiceProtocol`` instead.
-    internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
         /// Handle the "CreateSchedule" method.
         ///
         /// > Source IDL Documentation:
@@ -3969,7 +3969,7 @@ extension VCScheduleService {
     /// trailing response metadata. If you don't need these then consider using
     /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
     /// use ``StreamingServiceProtocol``.
-    internal protocol ServiceProtocol: VCScheduleService.StreamingServiceProtocol {
+    public protocol ServiceProtocol: VCScheduleService.StreamingServiceProtocol {
         /// Handle the "CreateSchedule" method.
         ///
         /// > Source IDL Documentation:
@@ -4128,7 +4128,7 @@ extension VCScheduleService {
     /// This is the highest level protocol for the service. The API is the easiest to use but
     /// doesn't provide access to request or response metadata. If you need access to these
     /// then use ``ServiceProtocol`` instead.
-    internal protocol SimpleServiceProtocol: VCScheduleService.ServiceProtocol {
+    public protocol SimpleServiceProtocol: VCScheduleService.ServiceProtocol {
         /// Handle the "CreateSchedule" method.
         ///
         /// > Source IDL Documentation:
@@ -4286,7 +4286,7 @@ extension VCScheduleService {
 // Default implementation of 'registerMethods(with:)'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCScheduleService.StreamingServiceProtocol {
-    internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
         router.registerHandler(
             forMethod: VCScheduleService.Method.CreateSchedule.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<VCCreateScheduleRequest>(),
@@ -4403,7 +4403,7 @@ extension VCScheduleService.StreamingServiceProtocol {
 // Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCScheduleService.ServiceProtocol {
-    internal func createSchedule(
+    public func createSchedule(
         request: GRPCCore.StreamingServerRequest<VCCreateScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCSchedule> {
@@ -4414,7 +4414,7 @@ extension VCScheduleService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func getSchedule(
+    public func getSchedule(
         request: GRPCCore.StreamingServerRequest<VCGetScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCSchedule> {
@@ -4425,7 +4425,7 @@ extension VCScheduleService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func updateSchedule(
+    public func updateSchedule(
         request: GRPCCore.StreamingServerRequest<VCUpdateScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCSchedule> {
@@ -4436,7 +4436,7 @@ extension VCScheduleService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func deleteSchedule(
+    public func deleteSchedule(
         request: GRPCCore.StreamingServerRequest<VCDeleteScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -4447,7 +4447,7 @@ extension VCScheduleService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func listSchedules(
+    public func listSchedules(
         request: GRPCCore.StreamingServerRequest<VCListSchedulesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCListSchedulesResponse> {
@@ -4458,7 +4458,7 @@ extension VCScheduleService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func getNextExecution(
+    public func getNextExecution(
         request: GRPCCore.StreamingServerRequest<VCGetNextExecutionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCGetNextExecutionResponse> {
@@ -4469,7 +4469,7 @@ extension VCScheduleService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func pauseSchedule(
+    public func pauseSchedule(
         request: GRPCCore.StreamingServerRequest<VCPauseScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCSchedule> {
@@ -4480,7 +4480,7 @@ extension VCScheduleService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func resumeSchedule(
+    public func resumeSchedule(
         request: GRPCCore.StreamingServerRequest<VCResumeScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCSchedule> {
@@ -4491,7 +4491,7 @@ extension VCScheduleService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func pauseAllSchedules(
+    public func pauseAllSchedules(
         request: GRPCCore.StreamingServerRequest<VCPauseAllSchedulesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -4502,7 +4502,7 @@ extension VCScheduleService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func resumeAllSchedules(
+    public func resumeAllSchedules(
         request: GRPCCore.StreamingServerRequest<VCResumeAllSchedulesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -4517,7 +4517,7 @@ extension VCScheduleService.ServiceProtocol {
 // Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCScheduleService.SimpleServiceProtocol {
-    internal func createSchedule(
+    public func createSchedule(
         request: GRPCCore.ServerRequest<VCCreateScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCSchedule> {
@@ -4530,7 +4530,7 @@ extension VCScheduleService.SimpleServiceProtocol {
         )
     }
 
-    internal func getSchedule(
+    public func getSchedule(
         request: GRPCCore.ServerRequest<VCGetScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCSchedule> {
@@ -4543,7 +4543,7 @@ extension VCScheduleService.SimpleServiceProtocol {
         )
     }
 
-    internal func updateSchedule(
+    public func updateSchedule(
         request: GRPCCore.ServerRequest<VCUpdateScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCSchedule> {
@@ -4556,7 +4556,7 @@ extension VCScheduleService.SimpleServiceProtocol {
         )
     }
 
-    internal func deleteSchedule(
+    public func deleteSchedule(
         request: GRPCCore.ServerRequest<VCDeleteScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -4569,7 +4569,7 @@ extension VCScheduleService.SimpleServiceProtocol {
         )
     }
 
-    internal func listSchedules(
+    public func listSchedules(
         request: GRPCCore.ServerRequest<VCListSchedulesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCListSchedulesResponse> {
@@ -4582,7 +4582,7 @@ extension VCScheduleService.SimpleServiceProtocol {
         )
     }
 
-    internal func getNextExecution(
+    public func getNextExecution(
         request: GRPCCore.ServerRequest<VCGetNextExecutionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCGetNextExecutionResponse> {
@@ -4595,7 +4595,7 @@ extension VCScheduleService.SimpleServiceProtocol {
         )
     }
 
-    internal func pauseSchedule(
+    public func pauseSchedule(
         request: GRPCCore.ServerRequest<VCPauseScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCSchedule> {
@@ -4608,7 +4608,7 @@ extension VCScheduleService.SimpleServiceProtocol {
         )
     }
 
-    internal func resumeSchedule(
+    public func resumeSchedule(
         request: GRPCCore.ServerRequest<VCResumeScheduleRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCSchedule> {
@@ -4621,7 +4621,7 @@ extension VCScheduleService.SimpleServiceProtocol {
         )
     }
 
-    internal func pauseAllSchedules(
+    public func pauseAllSchedules(
         request: GRPCCore.ServerRequest<VCPauseAllSchedulesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -4634,7 +4634,7 @@ extension VCScheduleService.SimpleServiceProtocol {
         )
     }
 
-    internal func resumeAllSchedules(
+    public func resumeAllSchedules(
         request: GRPCCore.ServerRequest<VCResumeAllSchedulesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -4656,7 +4656,7 @@ extension VCScheduleService {
     ///
     /// You don't need to implement this protocol directly, use the generated
     /// implementation, ``Client``.
-    internal protocol ClientProtocol: Sendable {
+    public protocol ClientProtocol: Sendable {
         /// Call the "CreateSchedule" method.
         ///
         /// > Source IDL Documentation:
@@ -4865,14 +4865,14 @@ extension VCScheduleService {
     /// The ``Client`` provides an implementation of ``ClientProtocol`` which wraps
     /// a `GRPCCore.GRPCCClient`. The underlying `GRPCClient` provides the long-lived
     /// means of communication with the remote peer.
-    internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
         /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
         ///
         /// - Parameters:
         ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
-        internal init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
             self.client = client
         }
 
@@ -4891,7 +4891,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func createSchedule<Result>(
+        public func createSchedule<Result>(
             request: GRPCCore.ClientRequest<VCCreateScheduleRequest>,
             serializer: some GRPCCore.MessageSerializer<VCCreateScheduleRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCSchedule>,
@@ -4921,7 +4921,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func getSchedule<Result>(
+        public func getSchedule<Result>(
             request: GRPCCore.ClientRequest<VCGetScheduleRequest>,
             serializer: some GRPCCore.MessageSerializer<VCGetScheduleRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCSchedule>,
@@ -4951,7 +4951,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func updateSchedule<Result>(
+        public func updateSchedule<Result>(
             request: GRPCCore.ClientRequest<VCUpdateScheduleRequest>,
             serializer: some GRPCCore.MessageSerializer<VCUpdateScheduleRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCSchedule>,
@@ -4981,7 +4981,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func deleteSchedule<Result>(
+        public func deleteSchedule<Result>(
             request: GRPCCore.ClientRequest<VCDeleteScheduleRequest>,
             serializer: some GRPCCore.MessageSerializer<VCDeleteScheduleRequest>,
             deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
@@ -5011,7 +5011,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func listSchedules<Result>(
+        public func listSchedules<Result>(
             request: GRPCCore.ClientRequest<VCListSchedulesRequest>,
             serializer: some GRPCCore.MessageSerializer<VCListSchedulesRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCListSchedulesResponse>,
@@ -5045,7 +5045,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func getNextExecution<Result>(
+        public func getNextExecution<Result>(
             request: GRPCCore.ClientRequest<VCGetNextExecutionRequest>,
             serializer: some GRPCCore.MessageSerializer<VCGetNextExecutionRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCGetNextExecutionResponse>,
@@ -5075,7 +5075,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func pauseSchedule<Result>(
+        public func pauseSchedule<Result>(
             request: GRPCCore.ClientRequest<VCPauseScheduleRequest>,
             serializer: some GRPCCore.MessageSerializer<VCPauseScheduleRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCSchedule>,
@@ -5105,7 +5105,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func resumeSchedule<Result>(
+        public func resumeSchedule<Result>(
             request: GRPCCore.ClientRequest<VCResumeScheduleRequest>,
             serializer: some GRPCCore.MessageSerializer<VCResumeScheduleRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCSchedule>,
@@ -5139,7 +5139,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func pauseAllSchedules<Result>(
+        public func pauseAllSchedules<Result>(
             request: GRPCCore.ClientRequest<VCPauseAllSchedulesRequest>,
             serializer: some GRPCCore.MessageSerializer<VCPauseAllSchedulesRequest>,
             deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
@@ -5169,7 +5169,7 @@ extension VCScheduleService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func resumeAllSchedules<Result>(
+        public func resumeAllSchedules<Result>(
             request: GRPCCore.ClientRequest<VCResumeAllSchedulesRequest>,
             serializer: some GRPCCore.MessageSerializer<VCResumeAllSchedulesRequest>,
             deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
@@ -5206,7 +5206,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func createSchedule<Result>(
+    public func createSchedule<Result>(
         request: GRPCCore.ClientRequest<VCCreateScheduleRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCSchedule>) async throws -> Result = { response in
@@ -5231,7 +5231,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getSchedule<Result>(
+    public func getSchedule<Result>(
         request: GRPCCore.ClientRequest<VCGetScheduleRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCSchedule>) async throws -> Result = { response in
@@ -5256,7 +5256,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func updateSchedule<Result>(
+    public func updateSchedule<Result>(
         request: GRPCCore.ClientRequest<VCUpdateScheduleRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCSchedule>) async throws -> Result = { response in
@@ -5281,7 +5281,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func deleteSchedule<Result>(
+    public func deleteSchedule<Result>(
         request: GRPCCore.ClientRequest<VCDeleteScheduleRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
@@ -5306,7 +5306,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listSchedules<Result>(
+    public func listSchedules<Result>(
         request: GRPCCore.ClientRequest<VCListSchedulesRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListSchedulesResponse>) async throws -> Result = { response in
@@ -5335,7 +5335,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getNextExecution<Result>(
+    public func getNextExecution<Result>(
         request: GRPCCore.ClientRequest<VCGetNextExecutionRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCGetNextExecutionResponse>) async throws -> Result = { response in
@@ -5360,7 +5360,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func pauseSchedule<Result>(
+    public func pauseSchedule<Result>(
         request: GRPCCore.ClientRequest<VCPauseScheduleRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCSchedule>) async throws -> Result = { response in
@@ -5385,7 +5385,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func resumeSchedule<Result>(
+    public func resumeSchedule<Result>(
         request: GRPCCore.ClientRequest<VCResumeScheduleRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCSchedule>) async throws -> Result = { response in
@@ -5414,7 +5414,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func pauseAllSchedules<Result>(
+    public func pauseAllSchedules<Result>(
         request: GRPCCore.ClientRequest<VCPauseAllSchedulesRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
@@ -5439,7 +5439,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func resumeAllSchedules<Result>(
+    public func resumeAllSchedules<Result>(
         request: GRPCCore.ClientRequest<VCResumeAllSchedulesRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
@@ -5473,7 +5473,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func createSchedule<Result>(
+    public func createSchedule<Result>(
         _ message: VCCreateScheduleRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5502,7 +5502,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getSchedule<Result>(
+    public func getSchedule<Result>(
         _ message: VCGetScheduleRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5531,7 +5531,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func updateSchedule<Result>(
+    public func updateSchedule<Result>(
         _ message: VCUpdateScheduleRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5560,7 +5560,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func deleteSchedule<Result>(
+    public func deleteSchedule<Result>(
         _ message: VCDeleteScheduleRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5589,7 +5589,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listSchedules<Result>(
+    public func listSchedules<Result>(
         _ message: VCListSchedulesRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5622,7 +5622,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getNextExecution<Result>(
+    public func getNextExecution<Result>(
         _ message: VCGetNextExecutionRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5651,7 +5651,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func pauseSchedule<Result>(
+    public func pauseSchedule<Result>(
         _ message: VCPauseScheduleRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5680,7 +5680,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func resumeSchedule<Result>(
+    public func resumeSchedule<Result>(
         _ message: VCResumeScheduleRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5713,7 +5713,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func pauseAllSchedules<Result>(
+    public func pauseAllSchedules<Result>(
         _ message: VCPauseAllSchedulesRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5742,7 +5742,7 @@ extension VCScheduleService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func resumeAllSchedules<Result>(
+    public func resumeAllSchedules<Result>(
         _ message: VCResumeAllSchedulesRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -5766,121 +5766,121 @@ extension VCScheduleService.ClientProtocol {
 
 /// Namespace containing generated types for the "vibecare.v1.ActionService" service.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
-internal enum VCActionService {
+public enum VCActionService {
     /// Service descriptor for the "vibecare.v1.ActionService" service.
-    internal static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService")
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService")
     /// Namespace for method metadata.
-    internal enum Method {
+    public enum Method {
         /// Namespace for "CreateAction" metadata.
-        internal enum CreateAction {
+        public enum CreateAction {
             /// Request type for "CreateAction".
-            internal typealias Input = VCCreateActionRequest
+            public typealias Input = VCCreateActionRequest
             /// Response type for "CreateAction".
-            internal typealias Output = VCAction
+            public typealias Output = VCAction
             /// Descriptor for "CreateAction".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService"),
                 method: "CreateAction"
             )
         }
         /// Namespace for "GetAction" metadata.
-        internal enum GetAction {
+        public enum GetAction {
             /// Request type for "GetAction".
-            internal typealias Input = VCGetActionRequest
+            public typealias Input = VCGetActionRequest
             /// Response type for "GetAction".
-            internal typealias Output = VCAction
+            public typealias Output = VCAction
             /// Descriptor for "GetAction".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService"),
                 method: "GetAction"
             )
         }
         /// Namespace for "UpdateAction" metadata.
-        internal enum UpdateAction {
+        public enum UpdateAction {
             /// Request type for "UpdateAction".
-            internal typealias Input = VCUpdateActionRequest
+            public typealias Input = VCUpdateActionRequest
             /// Response type for "UpdateAction".
-            internal typealias Output = VCAction
+            public typealias Output = VCAction
             /// Descriptor for "UpdateAction".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService"),
                 method: "UpdateAction"
             )
         }
         /// Namespace for "DeleteAction" metadata.
-        internal enum DeleteAction {
+        public enum DeleteAction {
             /// Request type for "DeleteAction".
-            internal typealias Input = VCDeleteActionRequest
+            public typealias Input = VCDeleteActionRequest
             /// Response type for "DeleteAction".
-            internal typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
             /// Descriptor for "DeleteAction".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService"),
                 method: "DeleteAction"
             )
         }
         /// Namespace for "ListActions" metadata.
-        internal enum ListActions {
+        public enum ListActions {
             /// Request type for "ListActions".
-            internal typealias Input = VCListActionsRequest
+            public typealias Input = VCListActionsRequest
             /// Response type for "ListActions".
-            internal typealias Output = VCListActionsResponse
+            public typealias Output = VCListActionsResponse
             /// Descriptor for "ListActions".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService"),
                 method: "ListActions"
             )
         }
         /// Namespace for "ExecuteAction" metadata.
-        internal enum ExecuteAction {
+        public enum ExecuteAction {
             /// Request type for "ExecuteAction".
-            internal typealias Input = VCExecuteActionRequest
+            public typealias Input = VCExecuteActionRequest
             /// Response type for "ExecuteAction".
-            internal typealias Output = VCExecuteActionResponse
+            public typealias Output = VCExecuteActionResponse
             /// Descriptor for "ExecuteAction".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService"),
                 method: "ExecuteAction"
             )
         }
         /// Namespace for "ValidateAction" metadata.
-        internal enum ValidateAction {
+        public enum ValidateAction {
             /// Request type for "ValidateAction".
-            internal typealias Input = VCValidateActionRequest
+            public typealias Input = VCValidateActionRequest
             /// Response type for "ValidateAction".
-            internal typealias Output = VCValidateActionResponse
+            public typealias Output = VCValidateActionResponse
             /// Descriptor for "ValidateAction".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService"),
                 method: "ValidateAction"
             )
         }
         /// Namespace for "ListActionTypes" metadata.
-        internal enum ListActionTypes {
+        public enum ListActionTypes {
             /// Request type for "ListActionTypes".
-            internal typealias Input = VCListActionTypesRequest
+            public typealias Input = VCListActionTypesRequest
             /// Response type for "ListActionTypes".
-            internal typealias Output = VCListActionTypesResponse
+            public typealias Output = VCListActionTypesResponse
             /// Descriptor for "ListActionTypes".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService"),
                 method: "ListActionTypes"
             )
         }
         /// Namespace for "GetActionParameters" metadata.
-        internal enum GetActionParameters {
+        public enum GetActionParameters {
             /// Request type for "GetActionParameters".
-            internal typealias Input = VCGetActionParametersRequest
+            public typealias Input = VCGetActionParametersRequest
             /// Response type for "GetActionParameters".
-            internal typealias Output = VCGetActionParametersResponse
+            public typealias Output = VCGetActionParametersResponse
             /// Descriptor for "GetActionParameters".
-            internal static let descriptor = GRPCCore.MethodDescriptor(
+            public static let descriptor = GRPCCore.MethodDescriptor(
                 service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService"),
                 method: "GetActionParameters"
             )
         }
         /// Descriptors for all methods in the "vibecare.v1.ActionService" service.
-        internal static let descriptors: [GRPCCore.MethodDescriptor] = [
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
             CreateAction.descriptor,
             GetAction.descriptor,
             UpdateAction.descriptor,
@@ -5897,7 +5897,7 @@ internal enum VCActionService {
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension GRPCCore.ServiceDescriptor {
     /// Service descriptor for the "vibecare.v1.ActionService" service.
-    internal static let vcActionService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService")
+    public static let vcActionService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ActionService")
 }
 
 // MARK: vibecare.v1.ActionService (server)
@@ -5914,7 +5914,7 @@ extension VCActionService {
     ///
     /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
     /// or ``SimpleServiceProtocol`` instead.
-    internal protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
         /// Handle the "CreateAction" method.
         ///
         /// > Source IDL Documentation:
@@ -6061,7 +6061,7 @@ extension VCActionService {
     /// trailing response metadata. If you don't need these then consider using
     /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
     /// use ``StreamingServiceProtocol``.
-    internal protocol ServiceProtocol: VCActionService.StreamingServiceProtocol {
+    public protocol ServiceProtocol: VCActionService.StreamingServiceProtocol {
         /// Handle the "CreateAction" method.
         ///
         /// > Source IDL Documentation:
@@ -6206,7 +6206,7 @@ extension VCActionService {
     /// This is the highest level protocol for the service. The API is the easiest to use but
     /// doesn't provide access to request or response metadata. If you need access to these
     /// then use ``ServiceProtocol`` instead.
-    internal protocol SimpleServiceProtocol: VCActionService.ServiceProtocol {
+    public protocol SimpleServiceProtocol: VCActionService.ServiceProtocol {
         /// Handle the "CreateAction" method.
         ///
         /// > Source IDL Documentation:
@@ -6350,7 +6350,7 @@ extension VCActionService {
 // Default implementation of 'registerMethods(with:)'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCActionService.StreamingServiceProtocol {
-    internal func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
         router.registerHandler(
             forMethod: VCActionService.Method.CreateAction.descriptor,
             deserializer: GRPCProtobuf.ProtobufDeserializer<VCCreateActionRequest>(),
@@ -6456,7 +6456,7 @@ extension VCActionService.StreamingServiceProtocol {
 // Default implementation of streaming methods from 'StreamingServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCActionService.ServiceProtocol {
-    internal func createAction(
+    public func createAction(
         request: GRPCCore.StreamingServerRequest<VCCreateActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCAction> {
@@ -6467,7 +6467,7 @@ extension VCActionService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func getAction(
+    public func getAction(
         request: GRPCCore.StreamingServerRequest<VCGetActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCAction> {
@@ -6478,7 +6478,7 @@ extension VCActionService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func updateAction(
+    public func updateAction(
         request: GRPCCore.StreamingServerRequest<VCUpdateActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCAction> {
@@ -6489,7 +6489,7 @@ extension VCActionService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func deleteAction(
+    public func deleteAction(
         request: GRPCCore.StreamingServerRequest<VCDeleteActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -6500,7 +6500,7 @@ extension VCActionService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func listActions(
+    public func listActions(
         request: GRPCCore.StreamingServerRequest<VCListActionsRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCListActionsResponse> {
@@ -6511,7 +6511,7 @@ extension VCActionService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func executeAction(
+    public func executeAction(
         request: GRPCCore.StreamingServerRequest<VCExecuteActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCExecuteActionResponse> {
@@ -6522,7 +6522,7 @@ extension VCActionService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func validateAction(
+    public func validateAction(
         request: GRPCCore.StreamingServerRequest<VCValidateActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCValidateActionResponse> {
@@ -6533,7 +6533,7 @@ extension VCActionService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func listActionTypes(
+    public func listActionTypes(
         request: GRPCCore.StreamingServerRequest<VCListActionTypesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCListActionTypesResponse> {
@@ -6544,7 +6544,7 @@ extension VCActionService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
-    internal func getActionParameters(
+    public func getActionParameters(
         request: GRPCCore.StreamingServerRequest<VCGetActionParametersRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<VCGetActionParametersResponse> {
@@ -6559,7 +6559,7 @@ extension VCActionService.ServiceProtocol {
 // Default implementation of methods from 'ServiceProtocol'.
 @available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
 extension VCActionService.SimpleServiceProtocol {
-    internal func createAction(
+    public func createAction(
         request: GRPCCore.ServerRequest<VCCreateActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCAction> {
@@ -6572,7 +6572,7 @@ extension VCActionService.SimpleServiceProtocol {
         )
     }
 
-    internal func getAction(
+    public func getAction(
         request: GRPCCore.ServerRequest<VCGetActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCAction> {
@@ -6585,7 +6585,7 @@ extension VCActionService.SimpleServiceProtocol {
         )
     }
 
-    internal func updateAction(
+    public func updateAction(
         request: GRPCCore.ServerRequest<VCUpdateActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCAction> {
@@ -6598,7 +6598,7 @@ extension VCActionService.SimpleServiceProtocol {
         )
     }
 
-    internal func deleteAction(
+    public func deleteAction(
         request: GRPCCore.ServerRequest<VCDeleteActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
@@ -6611,7 +6611,7 @@ extension VCActionService.SimpleServiceProtocol {
         )
     }
 
-    internal func listActions(
+    public func listActions(
         request: GRPCCore.ServerRequest<VCListActionsRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCListActionsResponse> {
@@ -6624,7 +6624,7 @@ extension VCActionService.SimpleServiceProtocol {
         )
     }
 
-    internal func executeAction(
+    public func executeAction(
         request: GRPCCore.ServerRequest<VCExecuteActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCExecuteActionResponse> {
@@ -6637,7 +6637,7 @@ extension VCActionService.SimpleServiceProtocol {
         )
     }
 
-    internal func validateAction(
+    public func validateAction(
         request: GRPCCore.ServerRequest<VCValidateActionRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCValidateActionResponse> {
@@ -6650,7 +6650,7 @@ extension VCActionService.SimpleServiceProtocol {
         )
     }
 
-    internal func listActionTypes(
+    public func listActionTypes(
         request: GRPCCore.ServerRequest<VCListActionTypesRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCListActionTypesResponse> {
@@ -6663,7 +6663,7 @@ extension VCActionService.SimpleServiceProtocol {
         )
     }
 
-    internal func getActionParameters(
+    public func getActionParameters(
         request: GRPCCore.ServerRequest<VCGetActionParametersRequest>,
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.ServerResponse<VCGetActionParametersResponse> {
@@ -6685,7 +6685,7 @@ extension VCActionService {
     ///
     /// You don't need to implement this protocol directly, use the generated
     /// implementation, ``Client``.
-    internal protocol ClientProtocol: Sendable {
+    public protocol ClientProtocol: Sendable {
         /// Call the "CreateAction" method.
         ///
         /// > Source IDL Documentation:
@@ -6875,14 +6875,14 @@ extension VCActionService {
     /// The ``Client`` provides an implementation of ``ClientProtocol`` which wraps
     /// a `GRPCCore.GRPCCClient`. The underlying `GRPCClient` provides the long-lived
     /// means of communication with the remote peer.
-    internal struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
         private let client: GRPCCore.GRPCClient<Transport>
 
         /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
         ///
         /// - Parameters:
         ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
-        internal init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
             self.client = client
         }
 
@@ -6901,7 +6901,7 @@ extension VCActionService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func createAction<Result>(
+        public func createAction<Result>(
             request: GRPCCore.ClientRequest<VCCreateActionRequest>,
             serializer: some GRPCCore.MessageSerializer<VCCreateActionRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCAction>,
@@ -6931,7 +6931,7 @@ extension VCActionService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func getAction<Result>(
+        public func getAction<Result>(
             request: GRPCCore.ClientRequest<VCGetActionRequest>,
             serializer: some GRPCCore.MessageSerializer<VCGetActionRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCAction>,
@@ -6961,7 +6961,7 @@ extension VCActionService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func updateAction<Result>(
+        public func updateAction<Result>(
             request: GRPCCore.ClientRequest<VCUpdateActionRequest>,
             serializer: some GRPCCore.MessageSerializer<VCUpdateActionRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCAction>,
@@ -6991,7 +6991,7 @@ extension VCActionService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func deleteAction<Result>(
+        public func deleteAction<Result>(
             request: GRPCCore.ClientRequest<VCDeleteActionRequest>,
             serializer: some GRPCCore.MessageSerializer<VCDeleteActionRequest>,
             deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
@@ -7021,7 +7021,7 @@ extension VCActionService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func listActions<Result>(
+        public func listActions<Result>(
             request: GRPCCore.ClientRequest<VCListActionsRequest>,
             serializer: some GRPCCore.MessageSerializer<VCListActionsRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCListActionsResponse>,
@@ -7055,7 +7055,7 @@ extension VCActionService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func executeAction<Result>(
+        public func executeAction<Result>(
             request: GRPCCore.ClientRequest<VCExecuteActionRequest>,
             serializer: some GRPCCore.MessageSerializer<VCExecuteActionRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCExecuteActionResponse>,
@@ -7085,7 +7085,7 @@ extension VCActionService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func validateAction<Result>(
+        public func validateAction<Result>(
             request: GRPCCore.ClientRequest<VCValidateActionRequest>,
             serializer: some GRPCCore.MessageSerializer<VCValidateActionRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCValidateActionResponse>,
@@ -7119,7 +7119,7 @@ extension VCActionService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func listActionTypes<Result>(
+        public func listActionTypes<Result>(
             request: GRPCCore.ClientRequest<VCListActionTypesRequest>,
             serializer: some GRPCCore.MessageSerializer<VCListActionTypesRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCListActionTypesResponse>,
@@ -7149,7 +7149,7 @@ extension VCActionService {
         ///       returned to the caller. Returning from the closure will cancel the RPC if it
         ///       hasn't already finished.
         /// - Returns: The result of `handleResponse`.
-        internal func getActionParameters<Result>(
+        public func getActionParameters<Result>(
             request: GRPCCore.ClientRequest<VCGetActionParametersRequest>,
             serializer: some GRPCCore.MessageSerializer<VCGetActionParametersRequest>,
             deserializer: some GRPCCore.MessageDeserializer<VCGetActionParametersResponse>,
@@ -7186,7 +7186,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func createAction<Result>(
+    public func createAction<Result>(
         request: GRPCCore.ClientRequest<VCCreateActionRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCAction>) async throws -> Result = { response in
@@ -7211,7 +7211,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getAction<Result>(
+    public func getAction<Result>(
         request: GRPCCore.ClientRequest<VCGetActionRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCAction>) async throws -> Result = { response in
@@ -7236,7 +7236,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func updateAction<Result>(
+    public func updateAction<Result>(
         request: GRPCCore.ClientRequest<VCUpdateActionRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCAction>) async throws -> Result = { response in
@@ -7261,7 +7261,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func deleteAction<Result>(
+    public func deleteAction<Result>(
         request: GRPCCore.ClientRequest<VCDeleteActionRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
@@ -7286,7 +7286,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listActions<Result>(
+    public func listActions<Result>(
         request: GRPCCore.ClientRequest<VCListActionsRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListActionsResponse>) async throws -> Result = { response in
@@ -7315,7 +7315,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func executeAction<Result>(
+    public func executeAction<Result>(
         request: GRPCCore.ClientRequest<VCExecuteActionRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCExecuteActionResponse>) async throws -> Result = { response in
@@ -7340,7 +7340,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func validateAction<Result>(
+    public func validateAction<Result>(
         request: GRPCCore.ClientRequest<VCValidateActionRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCValidateActionResponse>) async throws -> Result = { response in
@@ -7369,7 +7369,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listActionTypes<Result>(
+    public func listActionTypes<Result>(
         request: GRPCCore.ClientRequest<VCListActionTypesRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListActionTypesResponse>) async throws -> Result = { response in
@@ -7394,7 +7394,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getActionParameters<Result>(
+    public func getActionParameters<Result>(
         request: GRPCCore.ClientRequest<VCGetActionParametersRequest>,
         options: GRPCCore.CallOptions = .defaults,
         onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCGetActionParametersResponse>) async throws -> Result = { response in
@@ -7428,7 +7428,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func createAction<Result>(
+    public func createAction<Result>(
         _ message: VCCreateActionRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -7457,7 +7457,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getAction<Result>(
+    public func getAction<Result>(
         _ message: VCGetActionRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -7486,7 +7486,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func updateAction<Result>(
+    public func updateAction<Result>(
         _ message: VCUpdateActionRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -7515,7 +7515,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func deleteAction<Result>(
+    public func deleteAction<Result>(
         _ message: VCDeleteActionRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -7544,7 +7544,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listActions<Result>(
+    public func listActions<Result>(
         _ message: VCListActionsRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -7577,7 +7577,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func executeAction<Result>(
+    public func executeAction<Result>(
         _ message: VCExecuteActionRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -7606,7 +7606,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func validateAction<Result>(
+    public func validateAction<Result>(
         _ message: VCValidateActionRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -7639,7 +7639,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func listActionTypes<Result>(
+    public func listActionTypes<Result>(
         _ message: VCListActionTypesRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,
@@ -7668,7 +7668,7 @@ extension VCActionService.ClientProtocol {
     ///       returned to the caller. Returning from the closure will cancel the RPC if it
     ///       hasn't already finished.
     /// - Returns: The result of `handleResponse`.
-    internal func getActionParameters<Result>(
+    public func getActionParameters<Result>(
         _ message: VCGetActionParametersRequest,
         metadata: GRPCCore.Metadata = [:],
         options: GRPCCore.CallOptions = .defaults,

@@ -3,6 +3,7 @@ import GRPCCore
 import GRPCNIOTransportHTTP2
 import GRPCProtobuf
 import Logging
+import VCStubs
 
 @available(macOS 15.0, *)
 public final class GRPCTest: @unchecked Sendable {

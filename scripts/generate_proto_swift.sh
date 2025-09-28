@@ -16,7 +16,7 @@ echo -e "${GREEN}Generating Swift protobuf code...${NC}"
 # Paths
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 PROTO_DIR="${SCRIPT_DIR}/../proto"
-OUTPUT_DIR="${SCRIPT_DIR}/../clients/macos-swift/VibeCare/vibecare/Generated"
+OUTPUT_DIR="${SCRIPT_DIR}/../clients/macos-swift/VibeCare/VCStubs"
 
 echo "Script dir: $SCRIPT_DIR"
 echo "Proto dir: $PROTO_DIR"
