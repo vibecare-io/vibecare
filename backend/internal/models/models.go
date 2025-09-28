@@ -42,14 +42,14 @@ type Action struct {
 type ActionType string
 
 const (
-	ActionTypeNotification   ActionType = "notification"
-	ActionTypeOpenLink       ActionType = "open_link"
-	ActionTypeSendEmail      ActionType = "send_email"
-	ActionTypeRunScript      ActionType = "run_script"
-	ActionTypePlaySound      ActionType = "play_sound"
-	ActionTypeSystemCommand  ActionType = "system_command"
-	ActionTypeAPICall        ActionType = "api_call"
-	ActionTypeLogEntry       ActionType = "log_entry"
+	ActionTypeNotification  ActionType = "notification"
+	ActionTypeOpenLink      ActionType = "open_link"
+	ActionTypeSendEmail     ActionType = "send_email"
+	ActionTypeRunScript     ActionType = "run_script"
+	ActionTypePlaySound     ActionType = "play_sound"
+	ActionTypeSystemCommand ActionType = "system_command"
+	ActionTypeAPICall       ActionType = "api_call"
+	ActionTypeLogEntry      ActionType = "log_entry"
 )
 
 // Routine represents a routine with actions
@@ -83,18 +83,18 @@ type Schedule struct {
 
 // RRule represents the recurrence rule
 type RRule struct {
-	Freq       string     `json:"freq"`        // YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY
-	Interval   int        `json:"interval"`    // e.g., every 2 days
-	ByHour     []int      `json:"byhour"`      // hours (0-23)
-	ByMinute   []int      `json:"byminute"`    // minutes (0-59)
-	ByDay      []string   `json:"byday"`       // MO, TU, WE, TH, FR, SA, SU
-	ByMonthDay []int      `json:"bymonthday"`  // day of month (1-31)
-	ByMonth    []int      `json:"bymonth"`     // month (1-12)
-	Until      *time.Time `json:"until"`       // End date
-	Count      *int       `json:"count"`       // Number of occurrences
-	ByWeekNo   []int      `json:"byweekno"`    // Week number
-	ByYearDay  []int      `json:"byyearday"`   // Day of year
-	WkSt       string     `json:"wkst"`        // Week start day (MO, TU, etc.)
+	Freq       string     `json:"freq"`       // YEARLY, MONTHLY, WEEKLY, DAILY, HOURLY, MINUTELY
+	Interval   int        `json:"interval"`   // e.g., every 2 days
+	ByHour     []int      `json:"byhour"`     // hours (0-23)
+	ByMinute   []int      `json:"byminute"`   // minutes (0-59)
+	ByDay      []string   `json:"byday"`      // MO, TU, WE, TH, FR, SA, SU
+	ByMonthDay []int      `json:"bymonthday"` // day of month (1-31)
+	ByMonth    []int      `json:"bymonth"`    // month (1-12)
+	Until      *time.Time `json:"until"`      // End date
+	Count      *int       `json:"count"`      // Number of occurrences
+	ByWeekNo   []int      `json:"byweekno"`   // Week number
+	ByYearDay  []int      `json:"byyearday"`  // Day of year
+	WkSt       string     `json:"wkst"`       // Week start day (MO, TU, etc.)
 }
 
 // ExecutionLog represents an execution log entry

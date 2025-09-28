@@ -17,7 +17,7 @@ export RED := '\033[0;31m'
 export NC := '\033[0m'
 
 # Install all dependencies
-[group('🔧 setup')]
+[group('🔧 Setup & Installation')]
 install:
     @echo "{{GREEN}}Installing Go dependencies...{{NC}}"
     cd {{backend_dir}} && go mod download
@@ -29,36 +29,36 @@ install:
     @echo "{{GREEN}}✓ Dependencies installed{{NC}}"
 
 # Generate protobuf code for all targets
-[group('🧬 proto')]
+[group('🧬 Protocol Buffers')]
 proto-gen:
     @echo "{{GREEN}}Generating protobuf code for all targets...{{NC}}"
     @chmod +x scripts/generate_proto.sh
     @scripts/generate_proto.sh
 
 # Generate protobuf code for backend only
-[group('🧬 proto')]
+[group('🧬 Protocol Buffers')]
 proto-gen-backend:
     @echo "{{GREEN}}Generating protobuf code for backend...{{NC}}"
     @chmod +x scripts/generate_proto.sh
     @scripts/generate_proto.sh -t backend
 
 # Generate protobuf code for macOS client only
-[group('🧬 proto')]
+[group('🧬 Protocol Buffers')]
 proto-gen-macos:
     @echo "{{GREEN}}Generating protobuf code for macOS client...{{NC}}"
     @chmod +x scripts/generate_proto.sh
     @scripts/generate_proto.sh -t client-macos
 
 # Alias for generating all protobuf code
-[group('🧬 proto')]
+[group('🧬 Protocol Buffers')]
 proto-gen-all: proto-gen
 
 # Backward compatibility alias
-[group('🧬 proto')]
+[group('🧬 Protocol Buffers')]
 proto: proto-gen
 
 # Run database migrations
-[group('🗄️ database')]
+[group('🗄️  Database')]
 migrate:
     @echo "{{GREEN}}Running database migrations...{{NC}}"
     @mkdir -p {{data_dir}}
@@ -66,44 +66,44 @@ migrate:
     @echo "{{GREEN}}✓ Migrations complete{{NC}}"
 
 # Rollback last migration
-[group('🗄️ database')]
+[group('🗄️  Database')]
 migrate-down:
     @echo "{{YELLOW}}Rolling back last migration...{{NC}}"
     cd {{backend_dir}} && goose -dir internal/storage/migrations sqlite3 ~/.vibecare/vibecare.db down
 
 # Create a new migration
-[group('🗄️ database')]
+[group('🗄️  Database')]
 new-migration name:
     @echo "{{GREEN}}Creating new migration: {{name}}{{NC}}"
     cd {{backend_dir}} && goose -dir internal/storage/migrations create {{name}} sql
 
 # Build the backend server
-[group('📦 build')]
+[group('📦 Build & Run')]
 build:
     @echo "{{GREEN}}Building VibeCare server...{{NC}}"
     cd {{backend_dir}} && go build -o ../bin/vibecare-server cmd/server/main.go
     @echo "{{GREEN}}✓ Server built: bin/vibecare-server{{NC}}"
 
 # Run the server in development mode
-[group('📦 build')]
+[group('📦 Build & Run')]
 run: proto-gen
     @echo "{{GREEN}}Starting VibeCare server...{{NC}}"
     cd {{backend_dir}} && go run cmd/server/main.go
 
 # Run the server with custom port
-[group('📦 build')]
+[group('📦 Build & Run')]
 run-port port="50051":
     @echo "{{GREEN}}Starting VibeCare server on port {{port}}...{{NC}}"
     cd {{backend_dir}} && go run cmd/server/main.go -port={{port}}
 
 # Run tests
-[group('🧪 testing')]
+[group('🧪 Testing')]
 test:
     @echo "{{GREEN}}Running tests...{{NC}}"
     cd {{backend_dir}} && go test -v ./...
 
 # Run tests with coverage
-[group('🧪 testing')]
+[group('🧪 Testing')]
 test-coverage:
     @echo "{{GREEN}}Running tests with coverage...{{NC}}"
     cd {{backend_dir}} && go test -v -coverprofile=coverage.out ./...
@@ -111,14 +111,14 @@ test-coverage:
     @echo "{{GREEN}}✓ Coverage report: backend/coverage.html{{NC}}"
 
 # Format Go code
-[group('🛠️ utils')]
+[group('🛠️  Utilities')]
 fmt:
     @echo "{{GREEN}}Formatting Go code...{{NC}}"
     cd {{backend_dir}} && go fmt ./...
     @echo "{{GREEN}}✓ Code formatted{{NC}}"
 
 # Lint Go code
-[group('🛠️ utils')]
+[group('🛠️  Utilities')]
 lint:
     @echo "{{GREEN}}Linting Go code...{{NC}}"
     @if ! command -v golangci-lint &> /dev/null; then \
@@ -128,7 +128,7 @@ lint:
     cd {{backend_dir}} && golangci-lint run ./...
 
 # Clean build artifacts
-[group('🛠️ utils')]
+[group('🛠️  Utilities')]
 clean:
     @echo "{{YELLOW}}Cleaning build artifacts...{{NC}}"
     rm -rf bin/
@@ -136,7 +136,7 @@ clean:
     @echo "{{GREEN}}✓ Clean complete{{NC}}"
 
 # Check if all tools are installed
-[group('🔧 setup')]
+[group('🔧 Setup & Installation')]
 check:
     @echo "{{GREEN}}Checking development environment...{{NC}}"
     @echo -n "Go: "
@@ -150,13 +150,13 @@ check:
     @echo "{{GREEN}}✓ Environment check complete{{NC}}"
 
 # Development setup - install everything and run initial setup
-[group('🔧 setup')]
+[group('🔧 Setup & Installation')]
 setup: install proto-gen migrate
     @echo "{{GREEN}}✓ Development environment ready!{{NC}}"
     @echo "Run 'just run' to start the server"
 
 # Watch for changes and restart server (requires entr)
-[group('📦 build')]
+[group('📦 Build & Run')]
 watch:
     @if ! command -v entr &> /dev/null; then \
         echo "{{RED}}entr is not installed. Install with: brew install entr{{NC}}"; \
@@ -166,17 +166,17 @@ watch:
     find {{backend_dir}} -name '*.go' | entr -r just run
 
 # Connect to SQLite database
-[group('🗄️ database')]
+[group('🗄️  Database')]
 db:
     sqlite3 ~/.vibecare/vibecare.db
 
 # Show database schema
-[group('🗄️ database')]
+[group('🗄️  Database')]
 db-schema:
     sqlite3 ~/.vibecare/vibecare.db ".schema"
 
 # Test gRPC connection with grpcurl
-[group('🔌 grpc')]
+[group('🔌 gRPC Tools')]
 grpc-test:
     @if ! command -v grpcurl &> /dev/null; then \
         echo "{{YELLOW}}Installing grpcurl...{{NC}}"; \
@@ -186,14 +186,14 @@ grpc-test:
     grpcurl -plaintext localhost:50051 list
 
 # Create a sample profile via gRPC
-[group('🔌 grpc')]
+[group('🔌 gRPC Tools')]
 grpc-create-profile name="Test User" email="test@example.com":
     @echo "{{GREEN}}Creating profile: {{name}} ({{email}}){{NC}}"
     grpcurl -plaintext -d '{"name":"{{name}}","email":"{{email}}","preferences":{}}' \
         localhost:50051 vibecare.v1.ProfileService/CreateProfile
 
 # List all profiles via gRPC
-[group('🔌 grpc')]
+[group('🔌 gRPC Tools')]
 grpc-list-profiles:
     @if ! command -v grpcurl &> /dev/null; then \
         echo "{{YELLOW}}Installing grpcurl...{{NC}}"; \
@@ -203,35 +203,35 @@ grpc-list-profiles:
     grpcurl -plaintext -d '{}' localhost:50051 vibecare.v1.ProfileService/ListProfiles
 
 # Docker build
-[group('🐳 docker')]
+[group('🐳 Docker')]
 docker-build:
     @echo "{{GREEN}}Building Docker image...{{NC}}"
     docker build -t vibecare-server:latest .
 
 # Docker run
-[group('🐳 docker')]
+[group('🐳 Docker')]
 docker-run:
     @echo "{{GREEN}}Running Docker container...{{NC}}"
     docker run -p 50051:50051 -v ~/.vibecare:/data vibecare-server:latest
 
 # macOS Swift client commands
-[group('🍎 macos')]
+[group('🍎 macOS / Swift')]
 swift-build:
     @echo "{{GREEN}}Building Swift client...{{NC}}"
     cd clients/macos-swift/VibeCare && swift build
 
-[group('🍎 macos')]
+[group('🍎 macOS / Swift')]
 swift-run:
     @echo "{{GREEN}}Running Swift client...{{NC}}"
     cd clients/macos-swift/VibeCare && swift run VibeCare
 
-[group('🍎 macos')]
+[group('🍎 macOS / Swift')]
 swift-test:
     @echo "{{GREEN}}Testing Swift client...{{NC}}"
     cd clients/macos-swift/VibeCare && swift test
 
 # Test the complete stack
-[group('🧪 testing')]
+[group('🧪 Testing')]
 test-stack: proto-gen migrate
     @echo "{{GREEN}}Testing complete VibeCare stack...{{NC}}"
     @echo "{{YELLOW}}Starting backend server in background...{{NC}}"
@@ -245,7 +245,7 @@ test-stack: proto-gen migrate
     @echo "{{YELLOW}}Note: Backend server is still running. Press Ctrl+C to stop.{{NC}}"
 
 # Open test setup guide
-[group('🧪 testing')]
+[group('🧪 Testing')]
 test-guide:
     @echo "{{GREEN}}Opening test setup guide...{{NC}}"
     @if command -v open &> /dev/null; then \
@@ -255,17 +255,17 @@ test-guide:
     fi
 
 # Generate macOS app (Swift client)
-[group('🍎 macos')]
+[group('🍎 macOS / Swift')]
 macos-build:
     @echo "{{GREEN}}Building macOS app...{{NC}}"
     cd clients/macos-swift && xcodebuild -scheme VibeCare -configuration Release
 
 # Open Xcode project
-[group('🍎 macos')]
+[group('🍎 macOS / Swift')]
 xcode:
     open clients/macos-swift/VibeCare.xcodeproj
 
 # Full build: backend and macOS client
-[group('📦 build')]
+[group('📦 Build & Run')]
 build-all: build swift-build
     @echo "{{GREEN}}✓ All components built{{NC}}"

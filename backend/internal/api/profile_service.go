@@ -31,7 +31,6 @@ func (s *Server) CreateProfile(ctx context.Context, req *pb.CreateProfileRequest
 		return nil, status.Errorf(codes.Internal, "failed to create profile: %v", err)
 	}
 
-
 	return &pb.CreateProfileResponse{
 		Profile: &pb.Profile{
 			Id:          profile.ID,
