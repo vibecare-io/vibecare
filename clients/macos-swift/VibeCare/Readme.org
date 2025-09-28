@@ -1,0 +1,42 @@
+#+TITLE: VibeCare macOS Client
+#+DATE: Sunday, Sep 28 2025
+
+* Summary
+
+VibeCare macOS client built with Swift Package Manager and SwiftUI. This is a hybrid SPM/Xcode project that provides a native macOS interface for the VibeCare backend.
+
+** Project Structure
+
+ - =Package.swift= - Swift Package Manager configuration (ultra-minimal: VCStubs library + VibeCare executable)
+ - =VCStubs/= - Generated gRPC protobuf stubs (public types, auto-generated from proto definitions)
+ - =vibecare/= - Main application source code
+   - =App.swift= - SwiftUI app entry point
+   - =ContentView.swift= - Main content view
+   - =Services/= - gRPC client services (ProfileService, GRPCClientManager)
+   - =ViewModels/= - App state management (AppState)
+   - =Views/= - SwiftUI views and components
+   - =vibecare.entitlements= - macOS app permissions
+   - =Assets.xcassets= - App icons and assets
+
+** Build & Run Instructions
+
+*** Swift Package Manager (Command Line)
+#+begin_src bash
+swift build          # Build the project
+swift run VibeCare    # Run the app
+#+end_src
+
+*** Xcode Development
+Open the project in Xcode for full IDE support and visual development.
+
+** Key Dependencies
+
+- =grpc-swift-2= - Modern gRPC client library
+- =swift-protobuf= - Protocol Buffers for Swift
+- =swift-log= - Structured logging
+
+** Notes
+
+- Generated stubs in =VCStubs/= are created by =scripts/generate_proto.sh -t client-macos=
+  or with ~just proto-gen-macos~ 
+- Project supports both SPM builds and full Xcode development workflow
