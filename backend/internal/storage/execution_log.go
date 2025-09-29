@@ -1,23 +1,27 @@
 package storage
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/vibecare-io/vibecare/backend/internal/models"
 )
 
 // CreateExecutionLog creates a new execution log entry
-func (db *DB) CreateExecutionLog(routineID string, completed bool, notes string) (*models.ExecutionLog, error) {
+func (db *DB) CreateExecutionLog(routineID string, completed bool, notes string, actionResults map[string]string) (*models.ExecutionLog, error) {
 	log := &models.ExecutionLog{
-		RoutineID: routineID,
-		Timestamp: time.Now(),
-		Completed: completed,
-		Notes:     notes,
+		RoutineID:     routineID,
+		Timestamp:     time.Now(),
+		Completed:     completed,
+		Notes:         notes,
+		ActionResults: actionResults,
 	}
 
+	actionResultsJSON, _ := json.Marshal(actionResults)
+
 	query := `
-		INSERT INTO execution_logs (routine_id, timestamp, completed, notes)
-		VALUES (?, ?, ?, ?)
+		INSERT INTO execution_logs (routine_id, timestamp, completed, notes, action_results)
+		VALUES (?, ?, ?, ?, ?)
 	`
 
 	result, err := db.Exec(query,
@@ -25,6 +29,7 @@ func (db *DB) CreateExecutionLog(routineID string, completed bool, notes string)
 		log.Timestamp.Format(time.RFC3339),
 		log.Completed,
 		log.Notes,
+		string(actionResultsJSON),
 	)
 
 	if err != nil {
@@ -38,7 +43,7 @@ func (db *DB) CreateExecutionLog(routineID string, completed bool, notes string)
 // GetExecutionLogs retrieves execution logs for a routine
 func (db *DB) GetExecutionLogs(routineID string, limit int) ([]*models.ExecutionLog, error) {
 	query := `
-		SELECT log_id, routine_id, timestamp, completed, notes
+		SELECT log_id, routine_id, timestamp, completed, notes, COALESCE(action_results, '{}')
 		FROM execution_logs
 		WHERE routine_id = ?
 		ORDER BY timestamp DESC
@@ -58,7 +63,7 @@ func (db *DB) GetExecutionLogs(routineID string, limit int) ([]*models.Execution
 	var logs []*models.ExecutionLog
 	for rows.Next() {
 		var log models.ExecutionLog
-		var timestamp string
+		var timestamp, actionResultsJSON string
 
 		err := rows.Scan(
 			&log.LogID,
@@ -66,12 +71,14 @@ func (db *DB) GetExecutionLogs(routineID string, limit int) ([]*models.Execution
 			&timestamp,
 			&log.Completed,
 			&log.Notes,
+			&actionResultsJSON,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		log.Timestamp, _ = time.Parse(time.RFC3339, timestamp)
+		json.Unmarshal([]byte(actionResultsJSON), &log.ActionResults)
 		logs = append(logs, &log)
 	}
 
@@ -81,7 +88,7 @@ func (db *DB) GetExecutionLogs(routineID string, limit int) ([]*models.Execution
 // GetRecentExecutions retrieves recent execution logs across all routines
 func (db *DB) GetRecentExecutions(profileID string, limit int) ([]*models.ExecutionLog, error) {
 	query := `
-		SELECT el.log_id, el.routine_id, el.timestamp, el.completed, el.notes
+		SELECT el.log_id, el.routine_id, el.timestamp, el.completed, el.notes, COALESCE(el.action_results, '{}')
 		FROM execution_logs el
 		INNER JOIN routines r ON el.routine_id = r.id
 		WHERE r.profile_id = ?
@@ -102,7 +109,7 @@ func (db *DB) GetRecentExecutions(profileID string, limit int) ([]*models.Execut
 	var logs []*models.ExecutionLog
 	for rows.Next() {
 		var log models.ExecutionLog
-		var timestamp string
+		var timestamp, actionResultsJSON string
 
 		err := rows.Scan(
 			&log.LogID,
@@ -110,12 +117,14 @@ func (db *DB) GetRecentExecutions(profileID string, limit int) ([]*models.Execut
 			&timestamp,
 			&log.Completed,
 			&log.Notes,
+			&actionResultsJSON,
 		)
 		if err != nil {
 			return nil, err
 		}
 
 		log.Timestamp, _ = time.Parse(time.RFC3339, timestamp)
+		json.Unmarshal([]byte(actionResultsJSON), &log.ActionResults)
 		logs = append(logs, &log)
 	}
 

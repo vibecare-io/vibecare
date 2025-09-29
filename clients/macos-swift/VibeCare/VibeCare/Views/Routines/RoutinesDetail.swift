@@ -551,7 +551,13 @@ struct ExecutionHistoryRow: View {
 #Preview {
     NavigationStack {
         RoutineDetailView(
-            routine: Routine.samples(for: "sample", with: []).first!,
+            routine: Routine(
+                profileId: "preview-profile",
+                name: "Sample Routine",
+                description: "A preview routine for testing",
+                actionIds: [],
+                enabled: true
+            ),
             viewModel: RoutineViewModel()
         )
     }

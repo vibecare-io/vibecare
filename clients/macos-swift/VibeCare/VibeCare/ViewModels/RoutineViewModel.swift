@@ -7,13 +7,22 @@ class RoutineViewModel: ObservableObject {
     @Published var routines: [Routine] = []
     @Published var isLoading = false
     @Published var errorMessage: String?
+    @Published var syncStatus: [String: SyncStatus] = [:]
 
     private let logger = Logger(label: "com.vibecare.routine-viewmodel")
     private var cancellables = Set<AnyCancellable>()
 
+    // Local-first services
+    private let localStorage = RoutineLocalStorage.shared
+    private let syncManager = RoutineSyncManager.shared
+    private let routineService = RoutineService()
+
     init() {
-        // Load sample data initially
-        loadSampleData()
+        // Initialize sync manager with routine service
+        syncManager.initialize(with: routineService)
+
+        // Load from local storage first
+        loadFromLocalStorage()
 
         // Listen for profile changes
         NotificationCenter.default.publisher(for: .profileChanged)
@@ -24,30 +33,29 @@ class RoutineViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        // Listen for sync manager updates
+        syncManager.$isSyncing
+            .sink { [weak self] isSyncing in
+                if !isSyncing {
+                    // Refresh from local storage after sync completes
+                    self?.loadFromLocalStorage()
+                }
+            }
+            .store(in: &cancellables)
     }
 
     // MARK: - Data Loading
 
     func loadRoutines(for profileId: String) async {
-        isLoading = true
-        errorMessage = nil
+        // Load from local storage first (instant)
+        loadFromLocalStorage(profileId: profileId)
 
-        do {
-            // Simulate API call - replace with actual RoutineService call
-            try await Task.sleep(nanoseconds: 500_000_000)
+        // Trigger background sync
+        syncManager.triggerSync()
 
-            let sampleActions = Action.samples(for: profileId)
-            let sampleRoutines = Routine.samples(for: profileId, with: sampleActions)
-
-            routines = sampleRoutines
-            logger.info("Loaded \(routines.count) routines for profile: \(profileId)")
-
-        } catch {
-            logger.error("Failed to load routines: \(error)")
-            errorMessage = "Failed to load routines: \(error.localizedDescription)"
-        }
-
-        isLoading = false
+        // Also pull any new routines from server
+        await syncManager.pullFromServer(profileId: profileId)
     }
 
     func refreshData() async {
@@ -55,20 +63,71 @@ class RoutineViewModel: ObservableObject {
         await loadRoutines(for: currentProfile.id)
     }
 
-    private func loadSampleData() {
-        let profileId = "sample-profile"
-        let sampleActions = Action.samples(for: profileId)
-        routines = Routine.samples(for: profileId, with: sampleActions)
+    private func loadFromLocalStorage(profileId: String? = nil) {
+        let targetProfileId = profileId ?? AppState.shared.currentProfile?.id ?? "sample-profile"
+
+        do {
+            routines = try localStorage.getAllRoutines(for: targetProfileId)
+            updateSyncStatus()
+            logger.info("Loaded \(routines.count) routines from local storage (including pending deletion)")
+
+            // No fallback sample data - start with empty state
+        } catch {
+            logger.error("Failed to load from local storage: \(error)")
+            // Start with empty routines list
+            routines = []
+        }
+    }
+
+
+    private func updateSyncStatus() {
+        var newSyncStatus: [String: SyncStatus] = [:]
+        for routine in routines {
+            newSyncStatus[routine.id] = localStorage.getSyncStatus(for: routine.id) ?? .localOnly
+        }
+        syncStatus = newSyncStatus
     }
 
     // MARK: - Filtering and Search
 
     func filteredRoutines(searchText: String) -> [Routine] {
+        // Get only active routines (exclude pending deletion)
+        let activeRoutines = getActiveRoutines()
+
         if searchText.isEmpty {
-            return routines.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            return activeRoutines.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         }
 
+        return activeRoutines.filter { routine in
+            routine.name.localizedCaseInsensitiveContains(searchText) ||
+            routine.description.localizedCaseInsensitiveContains(searchText) ||
+            routine.category.localizedCaseInsensitiveContains(searchText) ||
+            routine.tags.contains { $0.localizedCaseInsensitiveContains(searchText) }
+        }.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+    }
+
+    func getActiveRoutines() -> [Routine] {
         return routines.filter { routine in
+            let status = syncStatus[routine.id] ?? .localOnly
+            return status != .pendingDelete
+        }
+    }
+
+    func getPendingDeletionRoutines() -> [Routine] {
+        return routines.filter { routine in
+            let status = syncStatus[routine.id] ?? .localOnly
+            return status == .pendingDelete
+        }
+    }
+
+    func filteredPendingDeletionRoutines(searchText: String) -> [Routine] {
+        let pendingDeletionRoutines = getPendingDeletionRoutines()
+
+        if searchText.isEmpty {
+            return pendingDeletionRoutines.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        }
+
+        return pendingDeletionRoutines.filter { routine in
             routine.name.localizedCaseInsensitiveContains(searchText) ||
             routine.description.localizedCaseInsensitiveContains(searchText) ||
             routine.category.localizedCaseInsensitiveContains(searchText) ||
@@ -91,12 +150,8 @@ class RoutineViewModel: ObservableObject {
     ) async {
         guard let profileId = AppState.shared.currentProfile?.id else { return }
 
-        isLoading = true
-
         do {
-            // Simulate API call
-            try await Task.sleep(nanoseconds: 300_000_000)
-
+            // Create routine locally first (instant response)
             var newRoutine = Routine(
                 profileId: profileId,
                 name: name,
@@ -107,37 +162,52 @@ class RoutineViewModel: ObservableObject {
 
             newRoutine.updateMetadata(category: category)
 
-            routines.append(newRoutine)
-            logger.info("Created routine: \(name)")
+            // Save to local storage immediately
+            let savedRoutine = try localStorage.createRoutine(newRoutine)
+
+            // Update UI immediately
+            routines.append(savedRoutine)
+            updateSyncStatus()
+
+            logger.info("Created routine locally: \(name)")
+
+            // Show immediate feedback
+            StatusBarManager.shared.showSuccess("Routine '\(name)' saved")
+
+            // Trigger background sync
+            syncManager.syncRoutine(savedRoutine)
 
         } catch {
             logger.error("Failed to create routine: \(error)")
             errorMessage = "Failed to create routine: \(error.localizedDescription)"
+            StatusBarManager.shared.showError("Failed to create routine")
         }
-
-        isLoading = false
     }
 
     func updateRoutine(_ routine: Routine) async {
-        isLoading = true
-
         do {
-            // Simulate API call
-            try await Task.sleep(nanoseconds: 300_000_000)
+            // Update locally first (instant response)
+            var updatedRoutine = routine
+            updatedRoutine.updatedAt = Date()
 
+            let savedRoutine = try localStorage.updateRoutine(updatedRoutine)
+
+            // Update UI immediately
             if let index = routines.firstIndex(where: { $0.id == routine.id }) {
-                var updatedRoutine = routine
-                updatedRoutine.updatedAt = Date()
-                routines[index] = updatedRoutine
-                logger.info("Updated routine: \(routine.name)")
+                routines[index] = savedRoutine
             }
+            updateSyncStatus()
+
+            logger.info("Updated routine locally: \(routine.name)")
+
+            // Trigger background sync
+            syncManager.syncRoutine(savedRoutine)
 
         } catch {
             logger.error("Failed to update routine: \(error)")
             errorMessage = "Failed to update routine: \(error.localizedDescription)"
+            StatusBarManager.shared.showError("Failed to update routine")
         }
-
-        isLoading = false
     }
 
     func updateRoutineName(_ routine: Routine, newName: String) async {
@@ -152,43 +222,58 @@ class RoutineViewModel: ObservableObject {
         if routines.contains(where: { $0.id != routine.id && $0.name.lowercased() == trimmedName.lowercased() }) {
             logger.warning("Attempted to update routine with duplicate name: \(trimmedName)")
             errorMessage = "A routine with this name already exists"
+            StatusBarManager.shared.showError("A routine with this name already exists")
             return
         }
 
         do {
-            // Simulate API call for name update (lighter than full update)
-            try await Task.sleep(nanoseconds: 200_000_000)
+            // Update locally first
+            var updatedRoutine = routine
+            updatedRoutine.name = trimmedName
+            updatedRoutine.updatedAt = Date()
 
+            let savedRoutine = try localStorage.updateRoutine(updatedRoutine)
+
+            // Update UI immediately
             if let index = routines.firstIndex(where: { $0.id == routine.id }) {
-                var updatedRoutine = routine
-                updatedRoutine.name = trimmedName
-                updatedRoutine.updatedAt = Date()
-                routines[index] = updatedRoutine
-                logger.info("Updated routine name: \(routine.name) -> \(trimmedName)")
+                routines[index] = savedRoutine
             }
+            updateSyncStatus()
+
+            logger.info("Updated routine name locally: \(routine.name) -> \(trimmedName)")
+
+            // Trigger background sync
+            syncManager.syncRoutine(savedRoutine)
 
         } catch {
             logger.error("Failed to update routine name: \(error)")
             errorMessage = "Failed to update routine name: \(error.localizedDescription)"
+            StatusBarManager.shared.showError("Failed to update routine name")
         }
     }
 
     func deleteRoutine(_ routine: Routine) async {
-        isLoading = true
-
         do {
-            // Simulate API call
-            try await Task.sleep(nanoseconds: 300_000_000)
+            // Delete locally first (instant response)
+            try localStorage.deleteRoutine(id: routine.id)
 
+            // Update UI immediately
             routines.removeAll { $0.id == routine.id }
-            logger.info("Deleted routine: \(routine.name)")
+            updateSyncStatus()
+
+            logger.info("Deleted routine locally: \(routine.name)")
+
+            // Show immediate feedback
+            StatusBarManager.shared.showSuccess("Routine '\(routine.name)' deleted")
+
+            // Note: For deletions, we should sync to server to ensure consistency
+            // But the UI is already updated for immediate response
 
         } catch {
             logger.error("Failed to delete routine: \(error)")
             errorMessage = "Failed to delete routine: \(error.localizedDescription)"
+            StatusBarManager.shared.showError("Failed to delete routine")
         }
-
-        isLoading = false
     }
 
     func toggleRoutineEnabled(_ routine: Routine) async {
@@ -219,11 +304,8 @@ class RoutineViewModel: ObservableObject {
     func testRoutine(_ routine: Routine) async {
         logger.info("Testing routine: \(routine.name)")
 
-        // Simulate routine execution
         do {
-            try await Task.sleep(nanoseconds: 1_000_000_000) // 1 second
-
-            // Update last execution time
+            // Update last execution time locally first
             var updatedRoutine = routine
             updatedRoutine.lastExecutedAt = Date()
             await updateRoutine(updatedRoutine)
@@ -231,11 +313,15 @@ class RoutineViewModel: ObservableObject {
             logger.info("Routine test completed: \(routine.name)")
 
             // Show success notification
+            StatusBarManager.shared.showSuccess("Routine '\(routine.name)' executed successfully")
+
+            // TODO: Integrate with actual execution service
             await showTestNotification(for: routine)
 
         } catch {
             logger.error("Failed to test routine: \(error)")
             errorMessage = "Failed to test routine: \(error.localizedDescription)"
+            StatusBarManager.shared.showError("Failed to test routine")
         }
     }
 
@@ -294,6 +380,48 @@ class RoutineViewModel: ObservableObject {
         // Check if routine has active schedules
         // For now, always allow deletion
         return true
+    }
+
+    // MARK: - Sync Status
+
+    func getSyncStatus(for routineId: String) -> SyncStatus? {
+        return syncStatus[routineId]
+    }
+
+    func getSyncStatistics() async -> SyncStatistics {
+        return await syncManager.getSyncStatistics()
+    }
+
+    var hasPendingSync: Bool {
+        return syncStatus.values.contains { status in
+            status == .localOnly || status == .pendingSync || status == .syncFailed
+        }
+    }
+
+    var isSyncing: Bool {
+        return syncManager.isSyncing
+    }
+
+    func forceSyncAll() {
+        syncManager.triggerSync()
+    }
+
+    // MARK: - Data Management
+
+    func clearAllData() async {
+        guard let profileId = AppState.shared.currentProfile?.id else { return }
+
+        do {
+            try localStorage.clearAllRoutines(for: profileId)
+            routines = []
+            syncStatus = [:]
+            logger.info("Cleared all local routine data")
+            StatusBarManager.shared.showSuccess("All routines cleared")
+        } catch {
+            logger.error("Failed to clear all data: \(error)")
+            errorMessage = "Failed to clear data: \(error.localizedDescription)"
+            StatusBarManager.shared.showError("Failed to clear data")
+        }
     }
 }
 

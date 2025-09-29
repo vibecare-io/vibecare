@@ -48,9 +48,9 @@ public final class ProfileService: @unchecked Sendable {
         } catch {
             logger.error("Failed to list profiles: \(error)")
 
-            // Fallback to sample data if server is unavailable
-            logger.info("Falling back to sample data")
-            return [Profile.sample]
+            // Return empty list if server is unavailable
+            logger.info("Server unavailable, returning empty profile list")
+            return []
         }
     }
 

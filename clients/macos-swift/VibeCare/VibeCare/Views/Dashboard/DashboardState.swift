@@ -32,6 +32,10 @@ final class DashboardState: ObservableObject {
             return selectedTestResult != nil
         case .settings:
             return selectedSettingCategory != nil
+        #if DEBUG
+        case .debugStorage:
+            return false // Debug storage doesn't have sub-selections
+        #endif
         case .none:
             return false
         }

@@ -11,7 +11,6 @@ class ScheduleViewModel: ObservableObject {
     private let logger = Logger(label: "com.vibecare.schedule-viewmodel")
 
     init() {
-        loadSampleData()
     }
 
     func loadSchedules(for profileId: String) async {
@@ -19,13 +18,9 @@ class ScheduleViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            // Simulate API call
-            try await Task.sleep(nanoseconds: 500_000_000)
-
-            // Load sample schedules
-            let sampleRoutines = Routine.samples(for: profileId, with: [])
-            schedules = Schedule.samples(for: sampleRoutines)
-
+            // TODO: Load schedules from backend API
+            // For now, start with empty schedules list
+            schedules = []
             logger.info("Loaded \(schedules.count) schedules")
         } catch {
             logger.error("Failed to load schedules: \(error)")
@@ -40,8 +35,4 @@ class ScheduleViewModel: ObservableObject {
         await loadSchedules(for: currentProfile.id)
     }
 
-    private func loadSampleData() {
-        let sampleRoutines = Routine.samples(for: "sample", with: [])
-        schedules = Schedule.samples(for: sampleRoutines)
-    }
 }

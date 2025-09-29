@@ -117,7 +117,9 @@ class StatusBarManager: ObservableObject {
 
         // Set up auto-dismiss timer
         dismissTimer = Timer.scheduledTimer(withTimeInterval: message.duration, repeats: false) { [weak self] _ in
-            self?.dismiss()
+            Task { @MainActor in
+                self?.dismiss()
+            }
         }
     }
 
@@ -160,5 +162,43 @@ class StatusBarManager: ObservableObject {
 
     func savingInProgress() {
         showLoading("Saving...")
+    }
+
+    // MARK: - Sync Status Messages
+
+    func syncInProgress() {
+        showLoading("Syncing with server...")
+    }
+
+    func syncCompleted(count: Int) {
+        if count > 0 {
+            showSuccess("Synced \(count) routine\(count == 1 ? "" : "s") to server")
+        } else {
+            showMessage("All routines are up to date", type: .info, duration: 3.0)
+        }
+    }
+
+    func syncFailed(_ error: String) {
+        showError("Sync failed: \(error)")
+    }
+
+    func routineSynced(_ name: String) {
+        showSuccess("'\(name)' synced to server")
+    }
+
+    func routineSyncFailed(_ name: String) {
+        showError("Failed to sync '\(name)'")
+    }
+
+    func offlineMode() {
+        showMessage("Working offline - changes will sync when connected", type: .warning, duration: 5.0)
+    }
+
+    func backOnline() {
+        showSuccess("Back online - syncing changes...")
+    }
+
+    func conflictDetected(_ routineName: String) {
+        showMessage("Conflict detected for '\(routineName)' - please resolve", type: .warning, duration: 7.0)
     }
 }

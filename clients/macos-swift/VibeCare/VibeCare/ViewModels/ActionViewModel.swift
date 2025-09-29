@@ -11,7 +11,6 @@ class ActionViewModel: ObservableObject {
     private let logger = Logger(label: "com.vibecare.action-viewmodel")
 
     init() {
-        loadSampleData()
     }
 
     func loadActions(for profileId: String) async {
@@ -19,10 +18,9 @@ class ActionViewModel: ObservableObject {
         errorMessage = nil
 
         do {
-            // Simulate API call
-            try await Task.sleep(nanoseconds: 500_000_000)
-
-            actions = Action.samples(for: profileId)
+            // TODO: Load actions from backend API
+            // For now, start with empty actions list
+            actions = []
             logger.info("Loaded \(actions.count) actions")
         } catch {
             logger.error("Failed to load actions: \(error)")
@@ -37,7 +35,4 @@ class ActionViewModel: ObservableObject {
         await loadActions(for: currentProfile.id)
     }
 
-    private func loadSampleData() {
-        actions = Action.samples(for: "sample")
-    }
 }

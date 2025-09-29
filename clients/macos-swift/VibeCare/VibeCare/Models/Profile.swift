@@ -81,27 +81,3 @@ public enum DeviceType: String, Codable, CaseIterable, Sendable {
     }
 }
 
-// MARK: - Sample Data
-extension Profile {
-    static let sample = Profile(
-        name: "John Doe",
-        email: "john@example.com",
-        preferences: [
-            "theme": "dark",
-            "notifications": "enabled",
-            "autoStart": "true"
-        ],
-        devices: [
-            Device(
-                name: "MacBook Pro",
-                type: .macOS,
-                lastSeen: Date()
-            ),
-            Device(
-                name: "iPhone 15",
-                type: .iOS,
-                lastSeen: Date().addingTimeInterval(-3600)
-            )
-        ]
-    )
-}

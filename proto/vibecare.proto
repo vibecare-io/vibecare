@@ -263,6 +263,7 @@ message CreateRoutineRequest {
   repeated string action_ids = 4;
   bool enabled = 5;
   map<string, string> metadata = 6;
+  string id = 7;  // Optional: Client-provided ID for local-first architecture
 }
 
 message CreateRoutineResponse {

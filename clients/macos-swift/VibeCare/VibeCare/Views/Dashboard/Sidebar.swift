@@ -8,6 +8,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case logs = "Execution Logs"
     case testing = "gRPC Testing"
     case settings = "Settings"
+    #if DEBUG
+    case debugStorage = "🔧 Storage Debug"
+    #endif
 
     var id: String { rawValue }
 
@@ -19,6 +22,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .logs: return "doc.text"
         case .testing: return "network"
         case .settings: return "gearshape.fill"
+        #if DEBUG
+        case .debugStorage: return "internaldrive"
+        #endif
         }
     }
 
@@ -30,6 +36,9 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .logs: return .green
         case .testing: return .red
         case .settings: return .gray
+        #if DEBUG
+        case .debugStorage: return .pink
+        #endif
         }
     }
 }
@@ -82,6 +91,10 @@ struct DashboardSidebar: View {
             return nil // Don't show count for testing
         case .settings:
             return nil
+        #if DEBUG
+        case .debugStorage:
+            return nil // Don't show count for debug storage
+        #endif
         }
     }
 }

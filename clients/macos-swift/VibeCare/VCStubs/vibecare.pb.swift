@@ -659,6 +659,9 @@ public struct VCCreateRoutineRequest: Sendable {
 
   public var metadata: Dictionary<String,String> = [:]
 
+  /// Optional: Client-provided ID for local-first architecture
+  public var id: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -2260,7 +2263,7 @@ extension VCListDevicesResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
 
 extension VCCreateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CreateRoutineRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{1}name\0\u{1}description\0\u{3}action_ids\0\u{1}enabled\0\u{1}metadata\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{1}name\0\u{1}description\0\u{3}action_ids\0\u{1}enabled\0\u{1}metadata\0\u{1}id\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2274,6 +2277,7 @@ extension VCCreateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       case 4: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
       case 5: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       case 6: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.metadata) }()
+      case 7: try { try decoder.decodeSingularStringField(value: &self.id) }()
       default: break
       }
     }
@@ -2298,6 +2302,9 @@ extension VCCreateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     if !self.metadata.isEmpty {
       try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.metadata, fieldNumber: 6)
     }
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2308,6 +2315,7 @@ extension VCCreateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     if lhs.actionIds != rhs.actionIds {return false}
     if lhs.enabled != rhs.enabled {return false}
     if lhs.metadata != rhs.metadata {return false}
+    if lhs.id != rhs.id {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -95,6 +95,10 @@ public struct Dashboard: View {
             testingContentView
         case .settings:
             settingsContentView
+        #if DEBUG
+        case .debugStorage:
+            debugStorageContentView
+        #endif
         case .none:
             emptyContentView
         }
@@ -146,6 +150,12 @@ public struct Dashboard: View {
         SettingsContentView(selectedCategory: $dashboardState.selectedSettingCategory)
     }
 
+    #if DEBUG
+    private var debugStorageContentView: some View {
+        DebugStorageView()
+    }
+    #endif
+
     private var emptyContentView: some View {
         EmptyStateView(
             title: "Welcome to VibeCare",
@@ -185,6 +195,10 @@ public struct Dashboard: View {
             testingDetailView
         case .settings:
             settingsDetailView
+        #if DEBUG
+        case .debugStorage:
+            emptyDetailView // Debug storage view doesn't need a separate detail view
+        #endif
         case .none:
             emptyDetailView
         }
