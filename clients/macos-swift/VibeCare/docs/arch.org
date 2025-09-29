@@ -1,0 +1,356 @@
+#+TITLE: VibeCare macOS Client Architecture
+#+AUTHOR: VibeCare Team
+#+DATE: 2025-01-16
+
+* Overview
+
+The VibeCare macOS client implements a local-first architecture using SwiftUI and SwiftData for reactive data management and offline-first user experience.
+
+* Architecture Principles
+
+** Local-First Design
+- All user operations are executed locally first for immediate UI feedback
+- Background synchronization ensures data consistency with the server
+- Offline functionality with automatic sync when connection is restored
+- Optimistic UI updates with conflict resolution
+
+** Data Flow Pattern
+#+BEGIN_SRC
+User Action → ViewModel → LocalStorage → UI Update (Immediate)
+                     ↓
+              Background Sync → gRPC Backend
+#+END_SRC
+
+* Layer Architecture
+
+** 1. Presentation Layer (SwiftUI Views)
+*** Purpose
+- User interface and interaction handling
+- Reactive UI updates through @Published properties
+- Platform-specific UI components
+
+*** Key Components
+- =ContentView.swift= - Main app container
+- =Dashboard.swift= - Primary navigation and overview
+- =RoutinesContent.swift= - Routine management interface
+- =DebugStorageView.swift= - Development storage inspection (DEBUG only)
+
+*** Example: Routine List View
+#+BEGIN_SRC swift
+struct RoutineListView: View {
+    @ObservedObject var viewModel: RoutineViewModel
+
+    var body: some View {
+        VStack {
+            // Active Routines Section
+            if !filteredRoutines.isEmpty {
+                ForEach(filteredRoutines) { routine in
+                    RoutineRowView(routine: routine, ...)
+                }
+            }
+
+            // Recently Deleted Section
+            if !filteredPendingDeletionRoutines.isEmpty {
+                ForEach(filteredPendingDeletionRoutines) { routine in
+                    RoutineRowView(routine: routine, isPendingDeletion: true, ...)
+                }
+            }
+        }
+    }
+}
+#+END_SRC
+
+** 2. Business Logic Layer (ViewModels)
+*** Purpose
+- Application state management
+- Business logic orchestration
+- Coordination between UI and data layers
+
+*** Key Components
+- =RoutineViewModel.swift= - Routine management state and operations
+- =AppState.swift= - Global application state
+
+*** Responsibilities
+- Immediate local operations (create, update, delete)
+- UI state management (@Published properties)
+- Background sync coordination
+- Data filtering and presentation logic
+
+*** Example: RoutineViewModel Pattern
+#+BEGIN_SRC swift
+@MainActor
+class RoutineViewModel: ObservableObject {
+    @Published var routines: [Routine] = []
+    @Published var syncStatus: [String: SyncStatus] = [:]
+
+    private let localStorage = RoutineLocalStorage.shared
+    private let syncManager = RoutineSyncManager.shared
+
+    func createRoutine(...) async {
+        // 1. Create locally (immediate UI feedback)
+        let savedRoutine = try localStorage.createRoutine(newRoutine)
+        routines.append(savedRoutine)
+
+        // 2. Trigger background sync
+        syncManager.syncRoutine(savedRoutine)
+    }
+}
+#+END_SRC
+
+** 3. Data Storage Layer (SwiftData)
+*** Purpose
+- Local data persistence
+- Sync status tracking
+- CRUD operations with transaction management
+
+*** Key Components
+- =RoutineLocalStorage.swift= - Storage operations and sync status management
+- =RoutineEntity.swift= - SwiftData model definition
+
+*** Storage Schema
+#+BEGIN_SRC swift
+@Model
+class RoutineEntity {
+    @Attribute(.unique) var id: String
+    var profileId: String
+    var name: String
+    var routineDescription: String
+    var actionIds: [String]
+    var enabled: Bool
+    var metadata: [String: String]
+    var createdAt: Date
+    var updatedAt: Date
+    var lastExecutedAt: Date?
+    var syncStatus: SyncStatus    // Key for sync management
+    var lastSyncAttempt: Date?
+    var lastModified: Date
+}
+#+END_SRC
+
+*** Sync Status Management
+#+BEGIN_SRC swift
+enum SyncStatus: String, CaseIterable, Codable {
+    case localOnly = "local_only"        // New, not yet synced
+    case synced = "synced"               // Synchronized with server
+    case pendingSync = "pending_sync"    // Modified, needs sync
+    case conflict = "conflict"           // Sync conflict detected
+    case syncFailed = "sync_failed"      // Sync attempt failed
+    case pendingDelete = "pending_delete" // Tombstone for deletion
+}
+#+END_SRC
+
+** 4. Synchronization Layer
+*** Purpose
+- Background data synchronization
+- Conflict detection and resolution
+- Network state management
+
+*** Key Components
+- =RoutineSyncManager.swift= - Sync orchestration and retry logic
+- =RoutineService.swift= - gRPC client wrapper
+
+*** Sync Strategies
+
+**** Push Sync (Local → Server)
+1. Periodic background sync (30 seconds)
+2. Immediate sync on user actions
+3. Retry with exponential backoff on failures
+
+**** Pull Sync (Server → Local)
+1. On app launch and profile changes
+2. Conflict detection based on update timestamps
+3. Merge strategy for non-conflicting changes
+
+**** Deletion Sync (Tombstone Pattern)
+1. Soft delete: Mark as =pendingDelete= instead of removal
+2. Sync deletion to server
+3. Permanent local removal after server confirmation
+
+*** Example: Sync Flow
+#+BEGIN_SRC swift
+// 1. User deletes routine
+await viewModel.deleteRoutine(routine)
+// → Marks as pendingDelete in local storage
+// → UI immediately hides from active list
+// → Shows in "Recently Deleted" section
+
+// 2. Background sync
+syncManager.performSync()
+// → Calls server to delete routine
+// → On success: permanently removes from local storage
+// → On failure: keeps in pendingDelete for retry
+#+END_SRC
+
+** 5. Network Layer (gRPC)
+*** Purpose
+- Server communication
+- Protocol buffer serialization
+- Client-authoritative ID generation
+
+*** Key Components
+- =GRPCClientManager.swift= - Connection management and configuration
+- Generated protobuf stubs - Type-safe API definitions
+
+*** Client-Server ID Strategy
+#+BEGIN_SRC protobuf
+message CreateRoutineRequest {
+    string profile_id = 1;
+    string name = 2;
+    string description = 3;
+    repeated string action_ids = 4;
+    bool enabled = 5;
+    map<string, string> metadata = 6;
+    optional string id = 7;  // Client-generated UUID
+}
+#+END_SRC
+
+**** Benefits
+- Eliminates ID mismatch issues
+- Enables true offline operation
+- Simplifies sync logic
+
+**** Security Considerations
+- Server validates UUID format
+- Collision detection and rejection
+- Prevents ID injection attacks
+
+* Data Flow Examples
+
+** Routine Creation Flow
+#+BEGIN_SRC
+1. User Action: "Create Routine"
+   ↓
+2. RoutineViewModel.createRoutine()
+   ↓
+3. RoutineLocalStorage.createRoutine() → Sets syncStatus = .localOnly
+   ↓
+4. UI Update: Routine appears immediately with "Local" status
+   ↓
+5. RoutineSyncManager.syncRoutine() (background)
+   ↓
+6. gRPC CreateRoutine call with client-generated ID
+   ↓
+7. On Success: syncStatus = .synced
+8. On Failure: syncStatus = .syncFailed (retry later)
+#+END_SRC
+
+** Routine Deletion Flow
+#+BEGIN_SRC
+1. User Action: "Delete Routine"
+   ↓
+2. RoutineViewModel.deleteRoutine()
+   ↓
+3. RoutineLocalStorage.deleteRoutine() → Sets syncStatus = .pendingDelete
+   ↓
+4. UI Update: Routine moves to "Recently Deleted" section
+   ↓
+5. RoutineSyncManager.syncRoutineDeletion() (background)
+   ↓
+6. gRPC DeleteRoutine call
+   ↓
+7. On Success: RoutineLocalStorage.permanentlyDeleteRoutine()
+8. On Failure: Keeps in pendingDelete for retry
+#+END_SRC
+
+** Data Filtering Strategy
+#+BEGIN_SRC swift
+// ViewModel maintains complete dataset
+var routines: [Routine] = [] // ALL routines from getAllRoutines()
+
+// UI filtering methods
+func getActiveRoutines() -> [Routine] {
+    return routines.filter { routine in
+        let status = syncStatus[routine.id] ?? .localOnly
+        return status != .pendingDelete
+    }
+}
+
+func getPendingDeletionRoutines() -> [Routine] {
+    return routines.filter { routine in
+        let status = syncStatus[routine.id] ?? .localOnly
+        return status == .pendingDelete
+    }
+}
+#+END_SRC
+
+* Key Design Decisions
+
+** 1. SwiftData vs Core Data
+- *Choice*: SwiftData for modern Swift integration
+- *Benefits*: Type safety, reduced boilerplate, automatic migrations
+
+** 2. Local-First Architecture
+- *Choice*: Immediate local operations with background sync
+- *Benefits*: Responsive UI, offline capability, better UX
+- *Trade-offs*: Increased complexity, conflict resolution needed
+
+** 3. Client-Authoritative IDs
+- *Choice*: Client generates UUIDs, server accepts or rejects
+- *Benefits*: Eliminates ID mismatches, enables offline creation
+- *Trade-offs*: Server-side validation required
+
+** 4. Tombstone Deletion Pattern
+- *Choice*: Soft delete with background sync
+- *Benefits*: Prevents data resurrection, recoverable deletions
+- *Trade-offs*: More complex deletion logic
+
+** 5. Reactive UI with Combine
+- *Choice*: @Published properties with SwiftUI observation
+- *Benefits*: Automatic UI updates, declarative patterns
+- *Trade-offs*: Memory management considerations
+
+* Debugging and Development
+
+** Debug Storage Viewer
+- *Location*: Views/Debug/DebugStorageView.swift
+- *Purpose*: Inspect local storage state and sync status
+- *Access*: DEBUG builds only, via sidebar menu
+
+** Storage Inspection
+#+BEGIN_SRC swift
+#if DEBUG
+func getAllRoutineEntities() throws -> [RoutineEntity] {
+    // Returns raw SwiftData entities with full sync metadata
+    // Useful for debugging sync issues
+}
+#endif
+#+END_SRC
+
+** Logging Strategy
+- Structured logging with =swift-log=
+- Component-specific loggers (storage, sync, viewmodel)
+- Configurable log levels for development vs production
+
+* Future Considerations
+
+** Scalability
+- Pagination for large datasets
+- Incremental sync strategies
+- Background processing optimization
+
+** Offline-First Enhancements
+- Conflict resolution UI
+- Manual sync controls
+- Network state indicators
+
+** Security
+- End-to-end encryption for sensitive data
+- Certificate pinning for gRPC connections
+- Audit logging for data modifications
+
+** Testing
+- Unit tests for business logic
+- Integration tests for sync scenarios
+- UI tests for critical user flows
+
+* Conclusion
+
+This architecture provides a robust foundation for a local-first macOS application with the following key benefits:
+
+1. *Responsive UX*: Immediate local operations with background sync
+2. *Offline Capability*: Full functionality without network connectivity
+3. *Data Consistency*: Reliable sync with conflict detection
+4. *Developer Experience*: Clear separation of concerns and debugging tools
+5. *Scalability*: Modular design supporting future enhancements
+
+The combination of SwiftUI's reactive patterns, SwiftData's modern persistence, and gRPC's type-safe networking creates a maintainable and performant client architecture.
