@@ -133,3 +133,5 @@ data/
 .data/
 /clients/macos-swift/VibeCare/.build/
 /clients/macos-swift/VibeCare/.swiftpm/
+/clients/macos-swift/minimal-test/
+/clients/old-mac-client

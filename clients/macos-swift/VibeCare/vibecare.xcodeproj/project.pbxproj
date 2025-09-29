@@ -95,17 +95,9 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		A06263D22E86179D00338507 /* New Group */ = {
-			isa = PBXGroup;
-			children = (
-			);
-			path = "New Group";
-			sourceTree = "<group>";
-		};
 		A0E35D0A2E824FC80028D792 = {
 			isa = PBXGroup;
 			children = (
-				A06263D22E86179D00338507 /* New Group */,
 				A0E35D152E824FC80028D792 /* vibecare */,
 				A0E35D242E824FC90028D792 /* vibecareTests */,
 				A0E35D2E2E824FC90028D792 /* vibecareUITests */,

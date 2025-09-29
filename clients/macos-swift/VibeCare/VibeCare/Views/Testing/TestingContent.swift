@@ -3,9 +3,12 @@ import Logging
 
 @available(macOS 15.0, *)
 struct GRPCTestView: View {
+    @Binding var selectedResult: TestResult?
+
     @State private var testResults: [TestResult] = []
     @State private var isRunning = false
     @State private var currentTest: String = ""
+    @State private var hoveredResultId: UUID?
 
     private let logger = Logger(label: "grpc-test-view")
 
@@ -91,7 +94,17 @@ struct GRPCTestView: View {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 8) {
                         ForEach(testResults) { result in
-                            TestResultRow(result: result)
+                            TestResultRow(
+                                result: result,
+                                isSelected: selectedResult?.id == result.id,
+                                isHovered: hoveredResultId == result.id,
+                                onSelect: {
+                                    selectedResult = result
+                                }
+                            )
+                            .onHover { isHovered in
+                                hoveredResultId = isHovered ? result.id : nil
+                            }
                         }
                     }
                 }
@@ -203,6 +216,9 @@ struct TestResult: Identifiable {
 
 struct TestResultRow: View {
     let result: TestResult
+    let isSelected: Bool
+    let isHovered: Bool
+    let onSelect: () -> Void
 
     var body: some View {
         HStack {
@@ -235,8 +251,18 @@ struct TestResultRow: View {
         .padding(8)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(NSColor.controlBackgroundColor))
+                .fill(isSelected ? Color.accentColor.opacity(0.1) : (isHovered ? Color.secondary.opacity(0.05) : Color(NSColor.controlBackgroundColor)))
         )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            onSelect()
+        }
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 }
 
@@ -250,5 +276,5 @@ extension DateFormatter {
 }
 
 #Preview {
-    GRPCTestView()
+    GRPCTestView(selectedResult: .constant(nil))
 }

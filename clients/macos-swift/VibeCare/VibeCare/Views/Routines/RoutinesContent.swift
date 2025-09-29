@@ -4,7 +4,6 @@ struct RoutineListView: View {
     @ObservedObject var viewModel: RoutineViewModel
     let searchText: String
     @Binding var selectedId: String?
-    @Binding var showInspector: Bool
 
     @State private var hoveredRoutineId: String?
     @State private var showDeleteAlert = false
@@ -47,13 +46,10 @@ struct RoutineListView: View {
     private var headerView: some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                Text("Routines")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
                 Text("\(filteredRoutines.count) routine\(filteredRoutines.count != 1 ? "s" : "")")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                    .foregroundColor(.primary)
             }
 
             Spacer()
@@ -71,6 +67,11 @@ struct RoutineListView: View {
                     label: "Disabled",
                     color: .orange
                 )
+            }
+
+            // Create new routine button
+            FloatingActionButtonSmall(systemImage: "plus") {
+                createNewRoutine()
             }
         }
         .padding(.horizontal, 16)
@@ -101,7 +102,7 @@ struct RoutineListView: View {
 
             if searchText.isEmpty {
                 Button("Create Routine") {
-                    showInspector = true
+                    createNewRoutine()
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
@@ -123,7 +124,6 @@ struct RoutineListView: View {
                         isHovered: hoveredRoutineId == routine.id,
                         onSelect: {
                             selectedId = routine.id
-                            showInspector = true
                         },
                         onToggleEnabled: {
                             Task {
@@ -319,8 +319,16 @@ struct RoutineRowView: View {
     RoutineListView(
         viewModel: RoutineViewModel(),
         searchText: "",
-        selectedId: .constant(nil),
-        showInspector: .constant(false)
+        selectedId: .constant(nil)
     )
     .frame(width: 400, height: 600)
+}
+
+// MARK: - Actions
+
+extension RoutineListView {
+    private func createNewRoutine() {
+        // Set selectedId to a special "new" value to trigger creation mode
+        selectedId = "new-routine"
+    }
 }

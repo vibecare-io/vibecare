@@ -140,6 +140,39 @@ class RoutineViewModel: ObservableObject {
         isLoading = false
     }
 
+    func updateRoutineName(_ routine: Routine, newName: String) async {
+        // Validate the new name
+        let trimmedName = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else {
+            logger.warning("Attempted to update routine with empty name")
+            return
+        }
+
+        // Check for duplicate names (excluding current routine)
+        if routines.contains(where: { $0.id != routine.id && $0.name.lowercased() == trimmedName.lowercased() }) {
+            logger.warning("Attempted to update routine with duplicate name: \(trimmedName)")
+            errorMessage = "A routine with this name already exists"
+            return
+        }
+
+        do {
+            // Simulate API call for name update (lighter than full update)
+            try await Task.sleep(nanoseconds: 200_000_000)
+
+            if let index = routines.firstIndex(where: { $0.id == routine.id }) {
+                var updatedRoutine = routine
+                updatedRoutine.name = trimmedName
+                updatedRoutine.updatedAt = Date()
+                routines[index] = updatedRoutine
+                logger.info("Updated routine name: \(routine.name) -> \(trimmedName)")
+            }
+
+        } catch {
+            logger.error("Failed to update routine name: \(error)")
+            errorMessage = "Failed to update routine name: \(error.localizedDescription)"
+        }
+    }
+
     func deleteRoutine(_ routine: Routine) async {
         isLoading = true
 
@@ -165,7 +198,7 @@ class RoutineViewModel: ObservableObject {
     }
 
     func duplicateRoutine(_ routine: Routine) async {
-        guard let profileId = AppState.shared.currentProfile?.id else { return }
+        guard AppState.shared.currentProfile?.id != nil else { return }
 
         let duplicatedRoutine = Routine(
             id: UUID().uuidString,
