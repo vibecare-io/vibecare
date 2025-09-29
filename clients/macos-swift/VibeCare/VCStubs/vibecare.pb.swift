@@ -322,7 +322,8 @@ public struct VCSchedule: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var scheduleID: Int64 = 0
+  /// UUID for local-first architecture
+  public var scheduleID: String = String()
 
   public var routineID: String = String()
 
@@ -902,6 +903,9 @@ public struct VCCreateScheduleRequest: Sendable {
 
   public var enabled: Bool = false
 
+  /// Optional: Client-provided ID for local-first architecture
+  public var id: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -912,7 +916,7 @@ public struct VCGetScheduleRequest: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var scheduleID: Int64 = 0
+  public var scheduleID: String = String()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -924,7 +928,7 @@ public struct VCUpdateScheduleRequest: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var scheduleID: Int64 = 0
+  public var scheduleID: String = String()
 
   public var name: String = String()
 
@@ -946,7 +950,7 @@ public struct VCDeleteScheduleRequest: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var scheduleID: Int64 = 0
+  public var scheduleID: String = String()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -990,7 +994,7 @@ public struct VCGetNextExecutionRequest: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var scheduleID: Int64 = 0
+  public var scheduleID: String = String()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1035,7 +1039,7 @@ public struct VCPauseScheduleRequest: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var scheduleID: Int64 = 0
+  public var scheduleID: String = String()
 
   /// 0 for indefinite
   public var durationMinutes: Int32 = 0
@@ -1050,7 +1054,7 @@ public struct VCResumeScheduleRequest: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var scheduleID: Int64 = 0
+  public var scheduleID: String = String()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1645,7 +1649,7 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularInt64Field(value: &self.scheduleID) }()
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.recurrenceJson) }()
@@ -1666,8 +1670,8 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     // allocates stack space for every if/case branch local when no optimizations
     // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
     // https://github.com/apple/swift-protobuf/issues/1182
-    if self.scheduleID != 0 {
-      try visitor.visitSingularInt64Field(value: self.scheduleID, fieldNumber: 1)
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
     }
     if !self.routineID.isEmpty {
       try visitor.visitSingularStringField(value: self.routineID, fieldNumber: 2)
@@ -2775,7 +2779,7 @@ extension VCGetExecutionLogsResponse: SwiftProtobuf.Message, SwiftProtobuf._Mess
 
 extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CreateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}routine_id\0\u{1}name\0\u{3}recurrence_json\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}routine_id\0\u{1}name\0\u{3}recurrence_json\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{1}id\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2790,6 +2794,7 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
       case 7: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.id) }()
       default: break
       }
     }
@@ -2817,6 +2822,9 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if self.enabled != false {
       try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 7)
     }
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 8)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -2828,6 +2836,7 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if lhs.exdates != rhs.exdates {return false}
     if lhs.notes != rhs.notes {return false}
     if lhs.enabled != rhs.enabled {return false}
+    if lhs.id != rhs.id {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2843,15 +2852,15 @@ extension VCGetScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularInt64Field(value: &self.scheduleID) }()
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if self.scheduleID != 0 {
-      try visitor.visitSingularInt64Field(value: self.scheduleID, fieldNumber: 1)
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2873,7 +2882,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularInt64Field(value: &self.scheduleID) }()
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.recurrenceJson) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.dtstart) }()
@@ -2885,8 +2894,8 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if self.scheduleID != 0 {
-      try visitor.visitSingularInt64Field(value: self.scheduleID, fieldNumber: 1)
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
     }
     if !self.name.isEmpty {
       try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
@@ -2928,15 +2937,15 @@ extension VCDeleteScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularInt64Field(value: &self.scheduleID) }()
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if self.scheduleID != 0 {
-      try visitor.visitSingularInt64Field(value: self.scheduleID, fieldNumber: 1)
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -3038,15 +3047,15 @@ extension VCGetNextExecutionRequest: SwiftProtobuf.Message, SwiftProtobuf._Messa
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularInt64Field(value: &self.scheduleID) }()
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if self.scheduleID != 0 {
-      try visitor.visitSingularInt64Field(value: self.scheduleID, fieldNumber: 1)
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -3112,7 +3121,7 @@ extension VCPauseScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularInt64Field(value: &self.scheduleID) }()
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
       case 2: try { try decoder.decodeSingularInt32Field(value: &self.durationMinutes) }()
       default: break
       }
@@ -3120,8 +3129,8 @@ extension VCPauseScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if self.scheduleID != 0 {
-      try visitor.visitSingularInt64Field(value: self.scheduleID, fieldNumber: 1)
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
     }
     if self.durationMinutes != 0 {
       try visitor.visitSingularInt32Field(value: self.durationMinutes, fieldNumber: 2)
@@ -3147,15 +3156,15 @@ extension VCResumeScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularInt64Field(value: &self.scheduleID) }()
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    if self.scheduleID != 0 {
-      try visitor.visitSingularInt64Field(value: self.scheduleID, fieldNumber: 1)
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
     }
     try unknownFields.traverse(visitor: &visitor)
   }

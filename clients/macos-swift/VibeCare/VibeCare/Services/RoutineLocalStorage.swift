@@ -24,9 +24,9 @@ class RoutineEntity {
     var profileId: String
     var name: String
     var routineDescription: String
-    var actionIds: [String]
+    @Attribute(.transformable(by: "NSSecureUnarchiveFromDataTransformer")) var actionIds: [String]
     var enabled: Bool
-    var metadata: [String: String]
+    @Attribute(.transformable(by: "NSSecureUnarchiveFromDataTransformer")) var metadata: [String: String]
     var createdAt: Date
     var updatedAt: Date
     var lastExecutedAt: Date?
@@ -86,17 +86,12 @@ class RoutineLocalStorage: ObservableObject {
 
     private let logger = Logger(label: "com.vibecare.routine-storage")
 
-    private var modelContainer: ModelContainer
-    private var context: ModelContext
+    private var context: ModelContext {
+        SharedDataStorage.shared.context
+    }
 
     private init() {
-        do {
-            let configuration = ModelConfiguration(isStoredInMemoryOnly: false)
-            self.modelContainer = try ModelContainer(for: RoutineEntity.self, configurations: configuration)
-            self.context = ModelContext(modelContainer)
-        } catch {
-            fatalError("Failed to initialize SwiftData container: \(error)")
-        }
+        logger.info("RoutineLocalStorage initialized with shared context")
     }
 
     // MARK: - CRUD Operations
@@ -377,7 +372,7 @@ class RoutineLocalStorage: ObservableObject {
     }
 
     func saveContext() throws {
-        try context.save()
+        try SharedDataStorage.shared.save()
     }
 
     // MARK: - Data Management

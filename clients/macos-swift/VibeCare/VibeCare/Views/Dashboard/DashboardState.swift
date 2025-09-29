@@ -4,7 +4,7 @@ final class DashboardState: ObservableObject {
     // MARK: - Selection State
     @Published var selectedSidebarItem: SidebarItem? = .routines
     @Published var selectedRoutineId: String?
-    @Published var selectedScheduleId: Int64?
+    @Published var selectedScheduleId: String?
     @Published var selectedActionId: String?
     @Published var selectedLogId: Int64?
     @Published var selectedTestResult: TestResult?
@@ -66,7 +66,7 @@ final class DashboardState: ObservableObject {
         updateColumnVisibility()
     }
 
-    func selectSchedule(_ id: Int64?) {
+    func selectSchedule(_ id: String?) {
         selectedScheduleId = id
         updateColumnVisibility()
     }

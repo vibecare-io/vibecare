@@ -3,19 +3,12 @@ import SwiftUI
 struct ScheduleListView: View {
     @ObservedObject var viewModel: ScheduleViewModel
     let searchText: String
-    @Binding var selectedId: Int64?
+    @Binding var selectedId: String?
 
-    @State private var hoveredScheduleId: Int64?
+    @State private var hoveredScheduleId: String?
 
     var filteredSchedules: [Schedule] {
-        if searchText.isEmpty {
-            return viewModel.schedules
-        } else {
-            return viewModel.schedules.filter { schedule in
-                schedule.displayName.localizedCaseInsensitiveContains(searchText) ||
-                (schedule.notes?.localizedCaseInsensitiveContains(searchText) ?? false)
-            }
-        }
+        return viewModel.filteredSchedules(searchText: searchText)
     }
 
     var body: some View {
@@ -27,17 +20,17 @@ struct ScheduleListView: View {
                     systemImage: "calendar.badge.clock"
                 )
             } else {
-                List(filteredSchedules, id: \.scheduleId) { schedule in
-                    ScheduleRowView(
+                List(filteredSchedules, id: \.id) { schedule in
+                    ScheduleRowSimpleView(
                         schedule: schedule,
-                        isSelected: selectedId == schedule.scheduleId,
-                        isHovered: hoveredScheduleId == schedule.scheduleId,
-                        onSelect: {
-                            selectedId = schedule.scheduleId
+                        onToggle: {
+                            Task {
+                                await viewModel.toggleScheduleEnabled(schedule)
+                            }
                         }
                     )
                     .onHover { isHovered in
-                        hoveredScheduleId = isHovered ? schedule.scheduleId : nil
+                        hoveredScheduleId = isHovered ? schedule.id : nil
                     }
                 }
                 .listStyle(.plain)
@@ -47,57 +40,7 @@ struct ScheduleListView: View {
     }
 }
 
-struct ScheduleRowView: View {
-    let schedule: Schedule
-    let isSelected: Bool
-    let isHovered: Bool
-    let onSelect: () -> Void
-
-    var body: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text(schedule.displayName)
-                    .font(.headline)
-
-                if let rrule = schedule.rrule {
-                    Text(rrule.humanReadableDescription)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            Spacer()
-
-            VStack(alignment: .trailing) {
-                Circle()
-                    .fill(schedule.enabled ? .green : .gray)
-                    .frame(width: 8, height: 8)
-
-                if let nextRun = schedule.nextExecution {
-                    Text(nextRun, style: .relative)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? Color.accentColor.opacity(0.1) : (isHovered ? Color.secondary.opacity(0.05) : Color.clear))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
-    }
-}
+// ScheduleRowView is now defined in Views/Schedules/ScheduleRowView.swift
 
 #Preview {
     ScheduleListView(

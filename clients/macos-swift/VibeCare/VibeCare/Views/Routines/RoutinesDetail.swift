@@ -16,6 +16,8 @@ struct RoutineDetailView: View {
     @State private var isSaving = false
     @State private var routineIdTracker: String = ""  // Track routine changes
     @State private var hasCreatedRoutine = false  // Track if we've already created the routine
+    @State private var showAddScheduleSheet = false
+    @StateObject private var scheduleViewModel = ScheduleViewModel()
 
     init(routine: Routine? = nil, viewModel: RoutineViewModel, isCreating: Bool = false, onCancel: (() -> Void)? = nil) {
         self.routine = routine
@@ -84,6 +86,11 @@ struct RoutineDetailView: View {
 
                 // Actions
                 actionsSection
+
+                // Schedules (only for existing routines)
+                if !isCreating {
+                    schedulesSection
+                }
 
                 // Execution History (only for existing routines)
                 if !isCreating {
@@ -210,6 +217,17 @@ struct RoutineDetailView: View {
         .sheet(isPresented: $showAddActionSheet) {
             Text("Add action form") // TODO: Implement add action form
         }
+        .sheet(isPresented: $showAddScheduleSheet) {
+            if let routine = routine {
+                ScheduleEditView(
+                    routineId: routine.id,
+                    scheduleViewModel: scheduleViewModel,
+                    isCreating: true
+                ) {
+                    showAddScheduleSheet = false
+                }
+            }
+        }
         .alert("Delete Routine", isPresented: $showDeleteAlert) {
             Button("Cancel", role: .cancel) { }
             Button("Delete", role: .destructive) {
@@ -331,6 +349,59 @@ struct RoutineDetailView: View {
     }
 
 
+    // MARK: - Schedules Section
+
+    private var schedulesSection: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack {
+                Text("Schedules (\(scheduleViewModel.totalSchedulesCount))")
+                    .font(.headline)
+
+                Spacer()
+
+                FloatingActionButton(
+                    title: "Add Schedule",
+                    systemImage: "calendar.badge.plus"
+                ) {
+                    showAddScheduleSheet = true
+                }
+            }
+
+            if scheduleViewModel.getActiveSchedules().isEmpty {
+                EmptyStateView(
+                    title: "No Schedules",
+                    subtitle: "Add schedules to automatically trigger notifications for this routine",
+                    systemImage: "calendar.circle"
+                )
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(scheduleViewModel.getActiveSchedules()) { schedule in
+                        ScheduleRowView(
+                            schedule: schedule,
+                            onEdit: { editSchedule(schedule) },
+                            onDelete: { deleteSchedule(schedule) },
+                            onToggle: { toggleSchedule(schedule) }
+                        )
+                    }
+                }
+            }
+        }
+        .onAppear {
+            if let routine = routine {
+                Task {
+                    await scheduleViewModel.loadSchedules(for: routine.id)
+                }
+            }
+        }
+        .onChange(of: routine?.id) { oldValue, newValue in
+            if let routineId = newValue {
+                Task {
+                    await scheduleViewModel.loadSchedules(for: routineId)
+                }
+            }
+        }
+    }
+
     // MARK: - Actions Section
 
     private var actionsSection: some View {
@@ -421,6 +492,25 @@ struct RoutineDetailView: View {
             return [] // New routines start with no actions
         } else {
             return routine?.actionIds ?? []
+        }
+    }
+
+    // MARK: - Schedule Actions
+
+    private func editSchedule(_ schedule: Schedule) {
+        // TODO: Implement edit schedule functionality
+        // Could show the same ScheduleEditView but in edit mode
+    }
+
+    private func deleteSchedule(_ schedule: Schedule) {
+        Task {
+            await scheduleViewModel.deleteSchedule(schedule)
+        }
+    }
+
+    private func toggleSchedule(_ schedule: Schedule) {
+        Task {
+            await scheduleViewModel.toggleScheduleEnabled(schedule)
         }
     }
 

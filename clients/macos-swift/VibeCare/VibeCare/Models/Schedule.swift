@@ -1,33 +1,32 @@
 import Foundation
 
 struct Schedule: Identifiable, Codable, Equatable, Hashable {
-    var id: Int64 { scheduleId }  // Computed property for Identifiable
-    let scheduleId: Int64
+    let id: String  // Client-authoritative ID for local-first architecture
     let routineId: String
-    var name: String?
+    var name: String
     var recurrenceJSON: String
-    var dtstart: Date?
+    var dtstart: Date
     var exdates: [String]
     var lastExecution: Date?
-    var notes: String?
+    var notes: String
     var enabled: Bool
     let createdAt: Date
     var updatedAt: Date
 
     init(
-        scheduleId: Int64 = 0,
+        id: String = UUID().uuidString,
         routineId: String,
-        name: String? = nil,
+        name: String,
         recurrenceJSON: String,
-        dtstart: Date? = nil,
+        dtstart: Date = Date(),
         exdates: [String] = [],
         lastExecution: Date? = nil,
-        notes: String? = nil,
+        notes: String = "",
         enabled: Bool = true,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
-        self.scheduleId = scheduleId
+        self.id = id
         self.routineId = routineId
         self.name = name
         self.recurrenceJSON = recurrenceJSON
@@ -142,7 +141,10 @@ extension Schedule {
     }
 
     var displayName: String {
-        name ?? rrule?.humanReadableDescription ?? "Untitled Schedule"
+        if !name.isEmpty {
+            return name
+        }
+        return rrule?.humanReadableDescription ?? "Untitled Schedule"
     }
 
     var nextExecution: Date? {
@@ -276,6 +278,130 @@ extension RRule {
         }
 
         return parts.joined(separator: " ")
+    }
+
+    // MARK: - Execution Calculation
+
+    func nextExecution(after date: Date) -> Date? {
+        // Basic implementation - in production would use a proper RRule library
+        let calendar = Calendar.current
+        var nextDate = date
+
+        switch freq {
+        case .minutely:
+            nextDate = calendar.date(byAdding: .minute, value: interval, to: nextDate) ?? nextDate
+        case .hourly:
+            nextDate = calendar.date(byAdding: .hour, value: interval, to: nextDate) ?? nextDate
+        case .daily:
+            nextDate = calendar.date(byAdding: .day, value: interval, to: nextDate) ?? nextDate
+            if !byhour.isEmpty, let hour = byhour.first {
+                nextDate = calendar.date(bySettingHour: hour, minute: byminute.first ?? 0, second: 0, of: nextDate) ?? nextDate
+            }
+        case .weekly:
+            nextDate = calendar.date(byAdding: .weekOfYear, value: interval, to: nextDate) ?? nextDate
+        case .monthly:
+            nextDate = calendar.date(byAdding: .month, value: interval, to: nextDate) ?? nextDate
+        case .yearly:
+            nextDate = calendar.date(byAdding: .year, value: interval, to: nextDate) ?? nextDate
+        }
+
+        // Check count and until constraints
+        if let until = until, nextDate > until {
+            return nil
+        }
+
+        return nextDate
+    }
+
+    // MARK: - Common Templates
+
+    static let templates: [String: RRule] = [
+        "Every 20 minutes": RRule(freq: .minutely, interval: 20),
+        "Every hour": RRule(freq: .hourly, interval: 1),
+        "Every 2 hours": RRule(freq: .hourly, interval: 2),
+        "Daily at 9 AM": RRule(freq: .daily, byhour: [9], byminute: [0]),
+        "Daily at 2 PM": RRule(freq: .daily, byhour: [14], byminute: [0]),
+        "Daily at 6 PM": RRule(freq: .daily, byhour: [18], byminute: [0]),
+        "Weekdays at 9 AM": RRule(freq: .weekly, byhour: [9], byminute: [0], byday: ["MO", "TU", "WE", "TH", "FR"]),
+        "Weekdays at 2 PM": RRule(freq: .weekly, byhour: [14], byminute: [0], byday: ["MO", "TU", "WE", "TH", "FR"]),
+        "Weekly on Monday": RRule(freq: .weekly, byhour: [9], byminute: [0], byday: ["MO"]),
+        "Weekly on Friday": RRule(freq: .weekly, byhour: [17], byminute: [0], byday: ["FR"]),
+        "Monthly on 1st": RRule(freq: .monthly, byhour: [9], byminute: [0], bymonthday: [1]),
+        "Monthly on 15th": RRule(freq: .monthly, byhour: [9], byminute: [0], bymonthday: [15])
+    ]
+
+    static var templateNames: [String] {
+        return Array(templates.keys).sorted()
+    }
+}
+
+// MARK: - Schedule Extensions
+
+extension Schedule {
+    // MARK: - Convenience Methods
+
+    mutating func updateLastExecution(_ date: Date = Date()) {
+        lastExecution = date
+        updatedAt = Date()
+    }
+
+    func isActiveAt(_ date: Date) -> Bool {
+        guard enabled else { return false }
+
+        // Check if date is in excluded dates
+        let dateFormatter = ISO8601DateFormatter()
+        let dateString = dateFormatter.string(from: date)
+        return !exdates.contains(dateString)
+    }
+
+    var recurrenceRule: RRule? {
+        get {
+            return rrule
+        }
+        set {
+            if let rule = newValue {
+                do {
+                    recurrenceJSON = try rule.toJSON()
+                    updatedAt = Date()
+                } catch {
+                    // Keep existing JSON if conversion fails
+                }
+            }
+        }
+    }
+
+    // MARK: - Factory Methods
+
+    static func createFromTemplate(
+        templateName: String,
+        routineId: String,
+        name: String? = nil
+    ) -> Schedule? {
+        guard let template = RRule.templates[templateName] else { return nil }
+
+        do {
+            return Schedule(
+                routineId: routineId,
+                name: name ?? templateName,
+                recurrenceJSON: try template.toJSON(),
+                dtstart: Date(),
+                notes: "Created from template: \(templateName)"
+            )
+        } catch {
+            return nil
+        }
+    }
+
+    static func example(routineId: String) -> Schedule {
+        return Schedule(
+            routineId: routineId,
+            name: "Every 20 minutes",
+            recurrenceJSON: """
+            {"freq":"MINUTELY","interval":20}
+            """,
+            dtstart: Date(),
+            notes: "Regular notification reminder"
+        )
     }
 }
 

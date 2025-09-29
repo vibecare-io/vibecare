@@ -249,7 +249,7 @@ public struct Dashboard: View {
     @ViewBuilder
     private var scheduleDetailView: some View {
         if let scheduleId = dashboardState.selectedScheduleId,
-           let schedule = scheduleViewModel.schedules.first(where: { $0.scheduleId == scheduleId }) {
+           let schedule = scheduleViewModel.schedules.first(where: { $0.id == scheduleId }) {
             ScheduleDetailView(schedule: schedule, viewModel: scheduleViewModel)
         } else {
             EmptyStateView(

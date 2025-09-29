@@ -15,8 +15,8 @@ struct ScheduleDetailView: View {
                                 .font(.largeTitle)
                                 .fontWeight(.bold)
 
-                            if let notes = schedule.notes, !notes.isEmpty {
-                                Text(notes)
+                            if !schedule.notes.isEmpty {
+                                Text(schedule.notes)
                                     .font(.body)
                                     .foregroundColor(.secondary)
                             }
