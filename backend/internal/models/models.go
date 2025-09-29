@@ -68,7 +68,7 @@ type Routine struct {
 
 // Schedule represents a schedule for a routine
 type Schedule struct {
-	ScheduleID     int64      `json:"schedule_id"`
+	ScheduleID     string     `json:"schedule_id"` // UUID for local-first architecture
 	RoutineID      string     `json:"routine_id"`
 	Name           string     `json:"name"`
 	RecurrenceJSON string     `json:"recurrence_json"` // RRule JSON

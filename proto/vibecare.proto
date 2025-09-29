@@ -81,7 +81,7 @@ message Routine {
 
 // Schedule - RRule-based scheduling aligned with SQLite schema
 message Schedule {
-  int64 schedule_id = 1;
+  string schedule_id = 1;  // UUID for local-first architecture
   string routine_id = 2;
   string name = 3;
 
@@ -339,14 +339,15 @@ message CreateScheduleRequest {
   repeated string exdates = 5;  // ISO 8601 dates to exclude
   string notes = 6;
   bool enabled = 7;
+  string id = 8;  // Optional: Client-provided ID for local-first architecture
 }
 
 message GetScheduleRequest {
-  int64 schedule_id = 1;
+  string schedule_id = 1;
 }
 
 message UpdateScheduleRequest {
-  int64 schedule_id = 1;
+  string schedule_id = 1;
   string name = 2;
   string recurrence_json = 3;
   string dtstart = 4;
@@ -355,7 +356,7 @@ message UpdateScheduleRequest {
 }
 
 message DeleteScheduleRequest {
-  int64 schedule_id = 1;
+  string schedule_id = 1;
 }
 
 message ListSchedulesRequest {
@@ -371,7 +372,7 @@ message ListSchedulesResponse {
 }
 
 message GetNextExecutionRequest {
-  int64 schedule_id = 1;
+  string schedule_id = 1;
 }
 
 message GetNextExecutionResponse {
@@ -381,12 +382,12 @@ message GetNextExecutionResponse {
 }
 
 message PauseScheduleRequest {
-  int64 schedule_id = 1;
+  string schedule_id = 1;
   int32 duration_minutes = 2;  // 0 for indefinite
 }
 
 message ResumeScheduleRequest {
-  int64 schedule_id = 1;
+  string schedule_id = 1;
 }
 
 message PauseAllSchedulesRequest {
