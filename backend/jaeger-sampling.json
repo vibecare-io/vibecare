@@ -1,0 +1,13 @@
+{
+  "service_strategies": [
+    {
+      "service": "vibecare-backend",
+      "type": "probabilistic",
+      "param": 1.0
+    }
+  ],
+  "default_strategy": {
+    "type": "probabilistic",
+    "param": 1.0
+  }
+}

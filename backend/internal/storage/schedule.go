@@ -8,10 +8,38 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/vibecare-io/vibecare/backend/internal/models"
+	"github.com/vibecare-io/vibecare/backend/internal/validation"
 )
 
 // CreateSchedule creates a new schedule
 func (db *DB) CreateSchedule(scheduleID, routineID, name, recurrenceJSON string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
+	// Validate and sanitize inputs
+	if err := validation.ValidateUUID("schedule_id", scheduleID); err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateRequired("routine_id", routineID); err != nil {
+		return nil, err
+	}
+
+	sanitizedName, err := validation.ValidateAndSanitizeName("name", name)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateJSON("recurrence_json", recurrenceJSON); err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateStringArray("exdates", exdates, validation.MaxArraySize); err != nil {
+		return nil, err
+	}
+
+	sanitizedNotes, err := validation.ValidateAndSanitizeNotes(notes)
+	if err != nil {
+		return nil, err
+	}
+
 	// Generate UUID if not provided (client-authoritative ID pattern)
 	if scheduleID == "" {
 		scheduleID = uuid.New().String()
@@ -43,11 +71,11 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, recurrenceJSON string,
 	schedule := &models.Schedule{
 		ScheduleID:     scheduleID,
 		RoutineID:      routineID,
-		Name:           name,
+		Name:           sanitizedName,
 		RecurrenceJSON: recurrenceJSON,
 		DTStart:        dtstart,
 		ExDates:        exdates,
-		Notes:          notes,
+		Notes:          sanitizedNotes,
 		Enabled:        enabled,
 		CreatedAt:      time.Now(),
 		UpdatedAt:      time.Now(),
@@ -125,12 +153,18 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 	}
 
 	if dtstart.Valid {
-		t, _ := time.Parse(time.RFC3339, dtstart.String)
+		t, parseErr := time.Parse(time.RFC3339, dtstart.String)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse dtstart: %w", parseErr)
+		}
 		schedule.DTStart = &t
 	}
 
 	if lastExecution.Valid {
-		t, _ := time.Parse(time.RFC3339, lastExecution.String)
+		t, parseErr := time.Parse(time.RFC3339, lastExecution.String)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse last_execution: %w", parseErr)
+		}
 		schedule.LastExecution = &t
 	}
 
@@ -138,8 +172,16 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 		schedule.ExDates = strings.Split(exdatesStr.String, ",")
 	}
 
-	schedule.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	schedule.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	var parseErr error
+	schedule.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAt)
+	if parseErr != nil {
+		return nil, fmt.Errorf("failed to parse created_at: %w", parseErr)
+	}
+
+	schedule.UpdatedAt, parseErr = time.Parse(time.RFC3339, updatedAt)
+	if parseErr != nil {
+		return nil, fmt.Errorf("failed to parse updated_at: %w", parseErr)
+	}
 
 	return &schedule, nil
 }
@@ -184,12 +226,18 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 		}
 
 		if dtstart.Valid {
-			t, _ := time.Parse(time.RFC3339, dtstart.String)
+			t, parseErr := time.Parse(time.RFC3339, dtstart.String)
+			if parseErr != nil {
+				return nil, fmt.Errorf("failed to parse dtstart for schedule %s: %w", schedule.ScheduleID, parseErr)
+			}
 			schedule.DTStart = &t
 		}
 
 		if lastExecution.Valid {
-			t, _ := time.Parse(time.RFC3339, lastExecution.String)
+			t, parseErr := time.Parse(time.RFC3339, lastExecution.String)
+			if parseErr != nil {
+				return nil, fmt.Errorf("failed to parse last_execution for schedule %s: %w", schedule.ScheduleID, parseErr)
+			}
 			schedule.LastExecution = &t
 		}
 
@@ -197,8 +245,16 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 			schedule.ExDates = strings.Split(exdatesStr.String, ",")
 		}
 
-		schedule.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		schedule.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		var parseErr error
+		schedule.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAt)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse created_at for schedule %s: %w", schedule.ScheduleID, parseErr)
+		}
+
+		schedule.UpdatedAt, parseErr = time.Parse(time.RFC3339, updatedAt)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse updated_at for schedule %s: %w", schedule.ScheduleID, parseErr)
+		}
 
 		schedules = append(schedules, &schedule)
 	}
@@ -208,6 +264,27 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 
 // UpdateSchedule updates an existing schedule
 func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error) {
+	// Validate and sanitize inputs
+	sanitizedName, err := validation.ValidateAndSanitizeName("name", schedule.Name)
+	if err != nil {
+		return nil, err
+	}
+	schedule.Name = sanitizedName
+
+	if err := validation.ValidateJSON("recurrence_json", schedule.RecurrenceJSON); err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateStringArray("exdates", schedule.ExDates, validation.MaxArraySize); err != nil {
+		return nil, err
+	}
+
+	sanitizedNotes, err := validation.ValidateAndSanitizeNotes(schedule.Notes)
+	if err != nil {
+		return nil, err
+	}
+	schedule.Notes = sanitizedNotes
+
 	schedule.UpdatedAt = time.Now()
 
 	query := `
@@ -228,7 +305,7 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 		exdatesStr.String = strings.Join(schedule.ExDates, ",")
 	}
 
-	_, err := db.Exec(query,
+	_, err = db.Exec(query,
 		schedule.Name,
 		schedule.RecurrenceJSON,
 		dtStartStr,
@@ -321,12 +398,18 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 		}
 
 		if dtstart.Valid {
-			t, _ := time.Parse(time.RFC3339, dtstart.String)
+			t, parseErr := time.Parse(time.RFC3339, dtstart.String)
+			if parseErr != nil {
+				return nil, fmt.Errorf("failed to parse dtstart for schedule %s: %w", schedule.ScheduleID, parseErr)
+			}
 			schedule.DTStart = &t
 		}
 
 		if lastExecution.Valid {
-			t, _ := time.Parse(time.RFC3339, lastExecution.String)
+			t, parseErr := time.Parse(time.RFC3339, lastExecution.String)
+			if parseErr != nil {
+				return nil, fmt.Errorf("failed to parse last_execution for schedule %s: %w", schedule.ScheduleID, parseErr)
+			}
 			schedule.LastExecution = &t
 		}
 
@@ -334,8 +417,16 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 			schedule.ExDates = strings.Split(exdatesStr.String, ",")
 		}
 
-		schedule.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		schedule.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		var parseErr error
+		schedule.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAt)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse created_at for schedule %s: %w", schedule.ScheduleID, parseErr)
+		}
+
+		schedule.UpdatedAt, parseErr = time.Parse(time.RFC3339, updatedAt)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse updated_at for schedule %s: %w", schedule.ScheduleID, parseErr)
+		}
 
 		schedules = append(schedules, &schedule)
 	}

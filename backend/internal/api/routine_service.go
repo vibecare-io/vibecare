@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/vibecare-io/vibecare/backend/internal/models"
+	"github.com/vibecare-io/vibecare/backend/internal/validation"
 	pb "github.com/vibecare-io/vibecare/backend/pkg/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -28,12 +29,29 @@ func (s *Server) CreateRoutine(ctx context.Context, req *pb.CreateRoutineRequest
 			zap.String("name", req.Name))
 	}
 
-	// Validate the request
-	if req.ProfileId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "profile_id is required")
+	// Validate the request at API layer
+	if err := validation.ValidateUUID("id", req.Id); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid id: %v", err)
 	}
-	if req.Name == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "name is required")
+
+	if err := validation.ValidateRequired("profile_id", req.ProfileId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid profile_id: %v", err)
+	}
+
+	if err := validation.ValidateName("name", req.Name); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
+	}
+
+	if err := validation.ValidateDescription(req.Description); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid description: %v", err)
+	}
+
+	if err := validation.ValidateStringArray("action_ids", req.ActionIds, validation.MaxArraySize); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid action_ids: %v", err)
+	}
+
+	if err := validation.ValidateJSONMap("metadata", req.Metadata); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
 
 	// Create the routine (passing client ID which may be empty)
@@ -86,6 +104,23 @@ func (s *Server) GetRoutine(ctx context.Context, req *pb.GetRoutineRequest) (*pb
 // UpdateRoutine updates a routine
 func (s *Server) UpdateRoutine(ctx context.Context, req *pb.UpdateRoutineRequest) (*pb.Routine, error) {
 	s.logger.Info("Updating routine", zap.String("id", req.Id))
+
+	// Validate inputs at API layer
+	if err := validation.ValidateName("name", req.Name); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
+	}
+
+	if err := validation.ValidateDescription(req.Description); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid description: %v", err)
+	}
+
+	if err := validation.ValidateStringArray("action_ids", req.ActionIds, validation.MaxArraySize); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid action_ids: %v", err)
+	}
+
+	if err := validation.ValidateJSONMap("metadata", req.Metadata); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
+	}
 
 	// Get existing routine
 	routine, err := s.db.GetRoutine(req.Id)
@@ -212,6 +247,11 @@ func (s *Server) ExecuteRoutine(ctx context.Context, req *pb.ExecuteRoutineReque
 	s.logger.Info("Executing routine",
 		zap.String("routine_id", req.RoutineId),
 		zap.Bool("force", req.Force))
+
+	// Validate inputs at API layer
+	if err := validation.ValidateNotes(req.Notes); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid notes: %v", err)
+	}
 
 	// Check if routine exists
 	routine, err := s.db.GetRoutine(req.RoutineId)

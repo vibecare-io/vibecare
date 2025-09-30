@@ -3,31 +3,50 @@ package storage
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/vibecare-io/vibecare/backend/internal/models"
+	"github.com/vibecare-io/vibecare/backend/internal/validation"
 )
 
 // CreateProfile creates a new profile
 func (db *DB) CreateProfile(name, email string, preferences map[string]string) (*models.Profile, error) {
+	// Validate and sanitize inputs
+	sanitizedName, err := validation.ValidateAndSanitizeName("name", name)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateEmail(email); err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateJSONMap("preferences", preferences); err != nil {
+		return nil, err
+	}
+
 	profile := &models.Profile{
 		ID:          uuid.New().String(),
-		Name:        name,
+		Name:        sanitizedName,
 		Email:       email,
 		Preferences: preferences,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
-	prefsJSON, _ := json.Marshal(preferences)
+	prefsJSON, err := json.Marshal(preferences)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal preferences: %w", err)
+	}
 
 	query := `
 		INSERT INTO profiles (id, name, email, preferences_json, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
 	`
 
-	_, err := db.Exec(query,
+	_, err = db.Exec(query,
 		profile.ID,
 		profile.Name,
 		profile.Email,
@@ -71,9 +90,20 @@ func (db *DB) GetProfile(id string) (*models.Profile, error) {
 		return nil, err
 	}
 
-	json.Unmarshal([]byte(prefsJSON), &profile.Preferences)
-	profile.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	profile.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if err := json.Unmarshal([]byte(prefsJSON), &profile.Preferences); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal preferences: %w", err)
+	}
+
+	var parseErr error
+	profile.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAt)
+	if parseErr != nil {
+		return nil, fmt.Errorf("failed to parse created_at: %w", parseErr)
+	}
+
+	profile.UpdatedAt, parseErr = time.Parse(time.RFC3339, updatedAt)
+	if parseErr != nil {
+		return nil, fmt.Errorf("failed to parse updated_at: %w", parseErr)
+	}
 
 	return &profile, nil
 }
@@ -106,9 +136,20 @@ func (db *DB) GetProfileByEmail(email string) (*models.Profile, error) {
 		return nil, err
 	}
 
-	json.Unmarshal([]byte(prefsJSON), &profile.Preferences)
-	profile.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-	profile.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+	if err := json.Unmarshal([]byte(prefsJSON), &profile.Preferences); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal preferences: %w", err)
+	}
+
+	var parseErr error
+	profile.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAt)
+	if parseErr != nil {
+		return nil, fmt.Errorf("failed to parse created_at: %w", parseErr)
+	}
+
+	profile.UpdatedAt, parseErr = time.Parse(time.RFC3339, updatedAt)
+	if parseErr != nil {
+		return nil, fmt.Errorf("failed to parse updated_at: %w", parseErr)
+	}
 
 	return &profile, nil
 }
@@ -145,9 +186,20 @@ func (db *DB) ListProfiles() ([]*models.Profile, error) {
 			return nil, err
 		}
 
-		json.Unmarshal([]byte(prefsJSON), &profile.Preferences)
-		profile.CreatedAt, _ = time.Parse(time.RFC3339, createdAt)
-		profile.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
+		if err := json.Unmarshal([]byte(prefsJSON), &profile.Preferences); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal preferences for profile %s: %w", profile.ID, err)
+		}
+
+		var parseErr error
+		profile.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAt)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse created_at for profile %s: %w", profile.ID, parseErr)
+		}
+
+		profile.UpdatedAt, parseErr = time.Parse(time.RFC3339, updatedAt)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse updated_at for profile %s: %w", profile.ID, parseErr)
+		}
 
 		profiles = append(profiles, &profile)
 	}

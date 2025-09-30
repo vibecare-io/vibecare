@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
@@ -13,6 +14,8 @@ import (
 	"github.com/vibecare-io/vibecare/backend/internal/api"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
+	"github.com/vibecare-io/vibecare/backend/internal/telemetry"
+	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
@@ -20,8 +23,10 @@ import (
 
 func main() {
 	var (
-		port   = flag.Int("port", 50051, "The server port")
-		dbPath = flag.String("db", "", "Path to SQLite database")
+		port         = flag.Int("port", 50051, "The server port")
+		dbPath       = flag.String("db", "", "Path to SQLite database")
+		otlpEndpoint = flag.String("otel-endpoint", "localhost:4317", "OpenTelemetry OTLP endpoint")
+		enableTracing = flag.Bool("enable-tracing", true, "Enable OpenTelemetry tracing")
 	)
 	flag.Parse()
 
@@ -31,6 +36,21 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
+
+	// Initialize OpenTelemetry tracing
+	var shutdownTracer func(context.Context) error
+	if *enableTracing {
+		shutdownTracer, err = telemetry.InitTracer("vibecare-backend", *otlpEndpoint, logger)
+		if err != nil {
+			logger.Warn("Failed to initialize tracing, continuing without it", zap.Error(err))
+		} else {
+			defer func() {
+				if err := shutdownTracer(context.Background()); err != nil {
+					logger.Error("Failed to shutdown tracer", zap.Error(err))
+				}
+			}()
+		}
+	}
 
 	// Determine database path
 	if *dbPath == "" {
@@ -63,8 +83,19 @@ func main() {
 	go sched.Start()
 	defer sched.Stop()
 
-	// Create gRPC server
-	grpcServer := grpc.NewServer()
+	// Create gRPC server with OpenTelemetry interceptors
+	// Order matters: panic recovery first, then OTel, then custom
+	serverOpts := []grpc.ServerOption{}
+	if *enableTracing {
+		serverOpts = append(serverOpts,
+			grpc.ChainUnaryInterceptor(
+				telemetry.PanicRecoveryInterceptor(logger), // First: catch panics
+				otelgrpc.UnaryServerInterceptor(),          // Second: create spans
+				telemetry.UnaryServerInterceptor(logger),   // Third: add custom attributes
+			),
+		)
+	}
+	grpcServer := grpc.NewServer(serverOpts...)
 
 	// Register services
 	api.RegisterServices(grpcServer, db, eventHub, logger)

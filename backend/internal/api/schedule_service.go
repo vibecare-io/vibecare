@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/vibecare-io/vibecare/backend/internal/models"
+	"github.com/vibecare-io/vibecare/backend/internal/validation"
 	pb "github.com/vibecare-io/vibecare/backend/pkg/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -28,12 +29,29 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 			zap.String("name", req.Name))
 	}
 
-	// Validate the request
-	if req.RoutineId == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "routine_id is required")
+	// Validate the request at API layer
+	if err := validation.ValidateUUID("id", req.Id); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid id: %v", err)
 	}
-	if req.Name == "" {
-		return nil, status.Errorf(codes.InvalidArgument, "name is required")
+
+	if err := validation.ValidateRequired("routine_id", req.RoutineId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid routine_id: %v", err)
+	}
+
+	if err := validation.ValidateName("name", req.Name); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
+	}
+
+	if err := validation.ValidateJSON("recurrence_json", req.RecurrenceJson); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid recurrence_json: %v", err)
+	}
+
+	if err := validation.ValidateStringArray("exdates", req.Exdates, validation.MaxArraySize); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid exdates: %v", err)
+	}
+
+	if err := validation.ValidateNotes(req.Notes); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid notes: %v", err)
 	}
 
 	// Parse dtstart if provided
@@ -97,6 +115,23 @@ func (s *Server) GetSchedule(ctx context.Context, req *pb.GetScheduleRequest) (*
 // UpdateSchedule updates a schedule
 func (s *Server) UpdateSchedule(ctx context.Context, req *pb.UpdateScheduleRequest) (*pb.Schedule, error) {
 	s.logger.Info("Updating schedule", zap.String("schedule_id", req.ScheduleId))
+
+	// Validate inputs at API layer
+	if err := validation.ValidateName("name", req.Name); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
+	}
+
+	if err := validation.ValidateJSON("recurrence_json", req.RecurrenceJson); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid recurrence_json: %v", err)
+	}
+
+	if err := validation.ValidateStringArray("exdates", req.Exdates, validation.MaxArraySize); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid exdates: %v", err)
+	}
+
+	if err := validation.ValidateNotes(req.Notes); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid notes: %v", err)
+	}
 
 	// Get existing schedule
 	schedule, err := s.db.GetSchedule(req.ScheduleId)

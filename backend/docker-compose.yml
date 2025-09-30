@@ -1,0 +1,40 @@
+version: '3.8'
+services:
+  jaeger:
+    image: cr.jaegertracing.io/jaegertracing/jaeger:2.10.0
+    container_name: jaeger
+    environment:
+      # Use Badger as the storage type
+      - SPAN_STORAGE_TYPE=badger 
+      # Set to false for persistent storage (default is true for ephemeral)
+      - BADGER_EPHEMERAL=false 
+      # Directory for value log data
+      - BADGER_DIRECTORY_VALUE=/badger/data/values 
+      # Directory for key log data
+      - BADGER_DIRECTORY_KEY=/badger/data/keys 
+      # Enable OTLP gRPC and HTTP receivers for OpenTelemetry
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      # Jaeger UI
+      - "16686:16686"
+      # OTLP gRPC (OpenTelemetry)
+      - "4317:4317"
+      # OTLP HTTP (OpenTelemetry)
+      - "4318:4318"
+      # Thrift HTTP (Legacy Jaeger)
+      - "5778:5778"
+      # Zipkin HTTP
+      - "9411:9411"
+    volumes:
+      # Mount a volume to persist the Badger database files on the host
+      - jaeger-badger-data:/badger/data
+    networks:
+      - jaeger-net
+    
+networks:
+  jaeger-net:
+    driver: bridge
+
+volumes:
+  # Define the named volume for persistence
+  jaeger-badger-data:

@@ -2,22 +2,41 @@ package storage
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/vibecare-io/vibecare/backend/internal/models"
+	"github.com/vibecare-io/vibecare/backend/internal/validation"
 )
 
 // CreateExecutionLog creates a new execution log entry
 func (db *DB) CreateExecutionLog(routineID string, completed bool, notes string, actionResults map[string]string) (*models.ExecutionLog, error) {
+	// Validate and sanitize inputs
+	if err := validation.ValidateRequired("routine_id", routineID); err != nil {
+		return nil, err
+	}
+
+	sanitizedNotes, err := validation.ValidateAndSanitizeNotes(notes)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateJSONMap("action_results", actionResults); err != nil {
+		return nil, err
+	}
+
 	log := &models.ExecutionLog{
 		RoutineID:     routineID,
 		Timestamp:     time.Now(),
 		Completed:     completed,
-		Notes:         notes,
+		Notes:         sanitizedNotes,
 		ActionResults: actionResults,
 	}
 
-	actionResultsJSON, _ := json.Marshal(actionResults)
+	actionResultsJSON, err := json.Marshal(actionResults)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal action results: %w", err)
+	}
 
 	query := `
 		INSERT INTO execution_logs (routine_id, timestamp, completed, notes, action_results)
@@ -77,8 +96,16 @@ func (db *DB) GetExecutionLogs(routineID string, limit int) ([]*models.Execution
 			return nil, err
 		}
 
-		log.Timestamp, _ = time.Parse(time.RFC3339, timestamp)
-		json.Unmarshal([]byte(actionResultsJSON), &log.ActionResults)
+		var parseErr error
+		log.Timestamp, parseErr = time.Parse(time.RFC3339, timestamp)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse timestamp for log %d: %w", log.LogID, parseErr)
+		}
+
+		if err := json.Unmarshal([]byte(actionResultsJSON), &log.ActionResults); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal action results for log %d: %w", log.LogID, err)
+		}
+
 		logs = append(logs, &log)
 	}
 
@@ -123,8 +150,16 @@ func (db *DB) GetRecentExecutions(profileID string, limit int) ([]*models.Execut
 			return nil, err
 		}
 
-		log.Timestamp, _ = time.Parse(time.RFC3339, timestamp)
-		json.Unmarshal([]byte(actionResultsJSON), &log.ActionResults)
+		var parseErr error
+		log.Timestamp, parseErr = time.Parse(time.RFC3339, timestamp)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse timestamp for log %d: %w", log.LogID, parseErr)
+		}
+
+		if err := json.Unmarshal([]byte(actionResultsJSON), &log.ActionResults); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal action results for log %d: %w", log.LogID, err)
+		}
+
 		logs = append(logs, &log)
 	}
 

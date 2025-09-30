@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 
+	"github.com/vibecare-io/vibecare/backend/internal/validation"
 	pb "github.com/vibecare-io/vibecare/backend/pkg/proto"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/codes"
@@ -14,6 +15,19 @@ import (
 // CreateProfile creates a new profile
 func (s *Server) CreateProfile(ctx context.Context, req *pb.CreateProfileRequest) (*pb.CreateProfileResponse, error) {
 	s.logger.Info("Creating profile", zap.String("name", req.Name))
+
+	// Validate inputs at API layer
+	if err := validation.ValidateName("name", req.Name); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
+	}
+
+	if err := validation.ValidateEmail(req.Email); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid email: %v", err)
+	}
+
+	if err := validation.ValidateJSONMap("preferences", req.Preferences); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid preferences: %v", err)
+	}
 
 	// Check if profile with email already exists
 	existing, err := s.db.GetProfileByEmail(req.Email)
