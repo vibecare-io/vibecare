@@ -100,7 +100,9 @@ class ScheduleViewModel: ObservableObject {
     }
 
     deinit {
-        refreshTimer?.invalidate()
+        // Store a local reference to avoid sendability issues
+        let timer = refreshTimer
+        timer?.invalidate()
     }
 
     // MARK: - Data Loading
@@ -159,7 +161,9 @@ class ScheduleViewModel: ObservableObject {
 
     private func setupPeriodicRefresh() {
         refreshTimer = Timer.scheduledTimer(withTimeInterval: 60.0, repeats: true) { [weak self] _ in
-            self?.refreshAllData()
+            Task { @MainActor in
+                self?.refreshAllData()
+            }
         }
     }
 

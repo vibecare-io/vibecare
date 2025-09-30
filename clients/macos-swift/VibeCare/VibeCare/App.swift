@@ -1,9 +1,12 @@
 import SwiftUI
 import Logging
+import UserNotifications
 
 @main
 struct VibeCareApp: App {
     @StateObject private var appState = AppState.shared
+    @StateObject private var notificationManager = NotificationManager.shared
+    private let logger = Logger(label: "com.vibecare.app")
 
     init() {
         // Setup logging
@@ -20,11 +23,26 @@ struct VibeCareApp: App {
         WindowGroup("VibeCare", id: "main") {
             ContentView()
                 .environmentObject(appState)
+                .environmentObject(notificationManager)
                 .onAppear {
-                    // Load initial data
+                    // Load initial data and setup notifications
                     Task {
                         await appState.loadInitialData()
+
+                        // Request notification permissions
+                        let granted = await notificationManager.requestPermissions()
+                        if granted {
+                            logger.info("Notification permissions granted")
+                        } else {
+                            logger.warning("Notification permissions not granted")
+                        }
                     }
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    appState.handleAppBecameActive()
+                }
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
+                    appState.handleAppWillResignActive()
                 }
         }
         .defaultSize(width: 1200, height: 800)

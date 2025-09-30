@@ -190,6 +190,58 @@ class GRPCClientManager: ObservableObject {
         }
     }
 
+    // MARK: - Event Service
+
+    nonisolated func withEventServiceClient<T: Sendable>(_ operation: @Sendable (VCEventService.Client<HTTP2ClientTransport.Posix>) async throws -> T) async throws -> T {
+        let host = await self.host
+        let port = await self.port
+        let useTLS = await self.useTLS
+        let logger = await self.logger
+
+        logger.info("Creating gRPC connection to \(host):\(port) for EventService")
+
+        await MainActor.run {
+            self.connectionStatus = .connecting
+        }
+
+        do {
+            // Configure the gRPC client transport
+            let transport = try HTTP2ClientTransport.Posix(
+                target: .dns(host: host, port: port),
+                transportSecurity: useTLS ? .tls : .plaintext
+            )
+
+            await MainActor.run {
+                self.isConnected = true
+                self.connectionStatus = .connected
+                self.lastError = nil
+            }
+
+            // Use withGRPCClient to manage the client lifecycle
+            let result = try await withGRPCClient(transport: transport) { client in
+                // Wrap the raw client with the generated, type-safe EventService.Client
+                let eventServiceClient = VCEventService.Client(wrapping: client)
+                return try await operation(eventServiceClient)
+            }
+
+            await MainActor.run {
+                self.isConnected = false
+                self.connectionStatus = .disconnected
+            }
+
+            return result
+
+        } catch {
+            await MainActor.run {
+                self.isConnected = false
+                self.connectionStatus = .failed
+                self.lastError = error
+            }
+            logger.error("gRPC EventService operation failed: \(error)")
+            throw error
+        }
+    }
+
     // MARK: - Configuration
 
     func updateConnectionSettings(host: String, port: Int, useTLS: Bool) {
