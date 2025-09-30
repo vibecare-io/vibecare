@@ -115,6 +115,9 @@ class ScheduleSyncManager: ObservableObject {
                 StatusBarManager.shared.syncFailed("Some schedules failed to sync")
             }
 
+            // Notify that sync operation completed (success or with errors)
+            NotificationCenter.default.post(name: .scheduleDataChanged, object: nil)
+
         } catch {
             logger.error("Schedule sync failed: \(error)")
             syncErrors.append(error.localizedDescription)
@@ -150,6 +153,10 @@ class ScheduleSyncManager: ObservableObject {
             }
         } catch {
             logger.error("Failed to sync schedule \(schedule.name): \(error)")
+
+            // Record detailed error history
+            let currentRetryCount = (try? localStorage.getRetryCount(for: schedule.id)) ?? 0
+            try? localStorage.recordSyncError(scheduleId: schedule.id, error: error, retryAttempt: currentRetryCount + 1)
             try? localStorage.updateSyncStatus(scheduleId: schedule.id, status: .syncFailed)
         }
     }
@@ -182,6 +189,10 @@ class ScheduleSyncManager: ObservableObject {
 
         } catch {
             logger.error("Failed to sync new schedule: \(error)")
+
+            // Record detailed error history
+            let currentRetryCount = (try? localStorage.getRetryCount(for: schedule.id)) ?? 0
+            try? localStorage.recordSyncError(scheduleId: schedule.id, error: error, retryAttempt: currentRetryCount + 1)
             try? localStorage.updateSyncStatus(scheduleId: schedule.id, status: .syncFailed)
             StatusBarManager.shared.routineSyncFailed(schedule.name)
         }
@@ -197,6 +208,10 @@ class ScheduleSyncManager: ObservableObject {
 
         } catch {
             logger.error("Failed to sync updated schedule: \(error)")
+
+            // Record detailed error history
+            let currentRetryCount = (try? localStorage.getRetryCount(for: schedule.id)) ?? 0
+            try? localStorage.recordSyncError(scheduleId: schedule.id, error: error, retryAttempt: currentRetryCount + 1)
             try? localStorage.updateSyncStatus(scheduleId: schedule.id, status: .syncFailed)
         }
     }
@@ -215,6 +230,10 @@ class ScheduleSyncManager: ObservableObject {
             }
         } catch {
             logger.error("Failed to retry sync for schedule: \(error)")
+
+            // Record detailed error history for retry failure
+            let currentRetryCount = (try? localStorage.getRetryCount(for: schedule.id)) ?? 0
+            try? localStorage.recordSyncError(scheduleId: schedule.id, error: error, retryAttempt: currentRetryCount + 1)
             try? localStorage.updateSyncStatus(scheduleId: schedule.id, status: .syncFailed)
         }
     }
@@ -278,6 +297,9 @@ class ScheduleSyncManager: ObservableObject {
 
             if !newServerSchedules.isEmpty {
                 logger.info("Pulled \(newServerSchedules.count) new schedules from server")
+
+                // Notify that new schedules were pulled from server
+                NotificationCenter.default.post(name: .scheduleDataChanged, object: nil)
             }
 
             // Log if we skipped any server schedules due to pending local deletion

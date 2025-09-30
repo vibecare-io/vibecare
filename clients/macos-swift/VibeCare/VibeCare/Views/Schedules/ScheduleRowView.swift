@@ -2,75 +2,118 @@ import SwiftUI
 
 struct ScheduleRowView: View {
     let schedule: Schedule
-    let onEdit: () -> Void
+    let isSelected: Bool
+    let isHovered: Bool
+    let showSyncStatus: Bool
+    let isPendingDeletion: Bool
+    let syncStatus: SyncStatus?
+    let retryCount: Int
+    let onSelect: () -> Void
+    let onToggleEnabled: () -> Void
     let onDelete: () -> Void
-    let onToggle: () -> Void
+    let onDuplicate: () -> Void
+    let onTest: () -> Void
+
+    init(
+        schedule: Schedule,
+        isSelected: Bool,
+        isHovered: Bool,
+        showSyncStatus: Bool = false,
+        isPendingDeletion: Bool = false,
+        syncStatus: SyncStatus? = nil,
+        retryCount: Int = 0,
+        onSelect: @escaping () -> Void,
+        onToggleEnabled: @escaping () -> Void,
+        onDelete: @escaping () -> Void,
+        onDuplicate: @escaping () -> Void,
+        onTest: @escaping () -> Void
+    ) {
+        self.schedule = schedule
+        self.isSelected = isSelected
+        self.isHovered = isHovered
+        self.showSyncStatus = showSyncStatus
+        self.isPendingDeletion = isPendingDeletion
+        self.syncStatus = syncStatus
+        self.retryCount = retryCount
+        self.onSelect = onSelect
+        self.onToggleEnabled = onToggleEnabled
+        self.onDelete = onDelete
+        self.onDuplicate = onDuplicate
+        self.onTest = onTest
+    }
 
     @State private var showActionMenu = false
-    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
             // Status indicator
             Circle()
-                .fill(schedule.enabled ? .green : .orange)
+                .fill(isPendingDeletion ? .red.opacity(0.5) : (schedule.enabled ? .green : .orange))
                 .frame(width: 8, height: 8)
 
             VStack(alignment: .leading, spacing: 4) {
-                // Title and status
+                // Title and routine context
                 HStack {
                     Text(schedule.name)
                         .font(.body)
                         .fontWeight(.medium)
                         .lineLimit(1)
+                        .foregroundColor(isPendingDeletion ? .secondary : .primary)
+                        .strikethrough(isPendingDeletion, color: .secondary)
 
                     Spacer()
 
-                    // Status tag
-                    scheduleStatusTag
+                    // Status tags
+                    HStack(spacing: 4) {
+                        // Sync status tags
+                        if showSyncStatus {
+                            syncStatusTag
+                        }
+
+                        // Routine context tag
+                        Text("Routine: \(routineDisplayName)")
+                            .font(.caption)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(isPendingDeletion ? Color.secondary.opacity(0.1) : Color.accentColor.opacity(0.1))
+                            .foregroundColor(isPendingDeletion ? .secondary : .accentColor)
+                            .clipShape(Capsule())
+                    }
                 }
 
                 // Recurrence description
-                Text(schedule.displayName)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+                if !schedule.notes.isEmpty {
+                    Text(schedule.notes)
+                        .font(.caption)
+                        .foregroundColor(isPendingDeletion ? .secondary.opacity(0.7) : .secondary)
+                        .lineLimit(2)
+                }
 
-                // Next execution and notes
+                // Schedule details and execution info
                 HStack {
-                    // Next execution time
-                    if let nextExecution = schedule.nextExecution {
-                        Label(
-                            "Next: \(nextExecution, style: .relative)",
-                            systemImage: "clock"
-                        )
+                    Label(schedule.displayName, systemImage: "calendar")
                         .font(.caption)
                         .foregroundColor(.secondary)
-                    } else {
-                        Label(
-                            "No upcoming executions",
-                            systemImage: "clock.badge.xmark"
-                        )
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    }
 
                     Spacer()
 
-                    // Notes indicator
-                    if !schedule.notes.isEmpty {
-                        Image(systemName: "note.text")
+                    if let nextExecution = schedule.nextExecution {
+                        Text("Next: \(nextExecution, style: .relative)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    } else {
+                        Text("No upcoming execution")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
                 }
             }
 
-            // Action buttons (visible on hover)
-            if isHovered {
+            // Action buttons (visible on hover or selection, disabled for pending deletion)
+            if (isHovered || isSelected) && !isPendingDeletion {
                 HStack(spacing: 4) {
                     Button {
-                        onToggle()
+                        onToggleEnabled()
                     } label: {
                         Image(systemName: schedule.enabled ? "pause.circle" : "play.circle")
                             .foregroundColor(schedule.enabled ? .orange : .green)
@@ -78,12 +121,21 @@ struct ScheduleRowView: View {
                     .buttonStyle(.plain)
                     .help(schedule.enabled ? "Disable schedule" : "Enable schedule")
 
+                    Button {
+                        onTest()
+                    } label: {
+                        Image(systemName: "play.fill")
+                            .foregroundColor(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Test schedule")
+
                     Menu {
-                        Button("Edit") {
-                            onEdit()
-                        }
                         Button("Duplicate") {
-                            // TODO: Implement duplicate functionality
+                            onDuplicate()
+                        }
+                        Button("Edit") {
+                            onSelect()
                         }
                         Divider()
                         Button("Delete", role: .destructive) {
@@ -97,58 +149,127 @@ struct ScheduleRowView: View {
                     .help("More actions")
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
+            } else if isPendingDeletion && (isHovered || isSelected) {
+                // Show retry count for pending deletion
+                if retryCount > 0 {
+                    Text("Retry \(retryCount)")
+                        .font(.caption)
+                        .foregroundColor(.red)
+                        .fontWeight(.medium)
+                } else {
+                    Text("Syncing...")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                        .italic()
+                }
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color(NSColor.controlBackgroundColor))
+                .fill(isPendingDeletion
+                      ? Color.red.opacity(0.05)
+                      : (isSelected ? Color.accentColor.opacity(0.1) : Color.clear))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(schedule.enabled ? Color.clear : Color.orange.opacity(0.3), lineWidth: 1)
+                .stroke(isPendingDeletion
+                        ? Color.red.opacity(0.2)
+                        : (isSelected ? Color.accentColor : Color.clear), lineWidth: 1)
         )
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hovering
+        .opacity(isPendingDeletion ? 0.7 : 1.0)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if !isPendingDeletion {
+                onSelect()
             }
         }
+        .animation(.easeInOut(duration: 0.2), value: isHovered)
+        .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 
-    // MARK: - Schedule Status Tag
+    // MARK: - Helper Properties
 
-    private var scheduleStatusTag: some View {
-        Group {
-            switch schedule.status {
-            case .scheduled:
-                statusTag(text: "Scheduled", color: .blue, icon: "clock")
-            case .upcoming:
-                statusTag(text: "Upcoming", color: .orange, icon: "clock.badge.exclamationmark")
-            case .overdue:
-                statusTag(text: "Overdue", color: .red, icon: "clock.badge.xmark")
-            case .disabled:
-                statusTag(text: "Disabled", color: .gray, icon: "pause.circle")
-            case .noSchedule:
-                statusTag(text: "No Schedule", color: .gray, icon: "clock.arrow.circlepath")
-            }
-        }
-    }
-
-    private func statusTag(text: String, color: Color, icon: String) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: icon)
-                .font(.caption2)
-            Text(text)
-                .font(.caption2)
+    @ViewBuilder
+    private var syncStatusTag: some View {
+        if let syncStatus = syncStatus {
+            switch syncStatus {
+            case .pendingDelete:
+                HStack(spacing: 2) {
+                    Text("Pending Deletion")
+                    if retryCount > 0 {
+                        Text("(\(retryCount))")
+                            .fontWeight(.bold)
+                    }
+                }
+                .font(.caption)
                 .fontWeight(.medium)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.red.opacity(0.1))
+                .foregroundColor(.red)
+                .clipShape(Capsule())
+
+            case .syncFailed:
+                HStack(spacing: 2) {
+                    Text("Sync Failed")
+                    if retryCount > 0 {
+                        Text("(\(retryCount))")
+                            .fontWeight(.bold)
+                    }
+                }
+                .font(.caption)
+                .fontWeight(.medium)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 2)
+                .background(Color.red.opacity(0.1))
+                .foregroundColor(.red)
+                .clipShape(Capsule())
+
+            case .pendingSync:
+                Text("Pending Sync")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.1))
+                    .foregroundColor(.orange)
+                    .clipShape(Capsule())
+
+            case .conflict:
+                Text("Conflict")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.purple.opacity(0.1))
+                    .foregroundColor(.purple)
+                    .clipShape(Capsule())
+
+            case .localOnly:
+                Text("Local Only")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.blue.opacity(0.1))
+                    .foregroundColor(.blue)
+                    .clipShape(Capsule())
+
+            case .synced:
+                // Don't show tag for successfully synced items to reduce clutter
+                EmptyView()
+            }
         }
-        .padding(.horizontal, 6)
-        .padding(.vertical, 2)
-        .background(color.opacity(0.1))
-        .foregroundColor(color)
-        .clipShape(Capsule())
     }
+
+    private var routineDisplayName: String {
+        // TODO: Get actual routine name from routine ID
+        // For now, return a truncated routine ID
+        return String(schedule.routineId.prefix(8))
+    }
+
 }
 
 // MARK: - Simplified Schedule Row for Lists
@@ -233,9 +354,37 @@ struct ScheduleRowSimpleView: View {
     VStack(spacing: 16) {
         ScheduleRowView(
             schedule: Schedule.example(routineId: "preview-routine"),
-            onEdit: {},
+            isSelected: false,
+            isHovered: false,
+            onSelect: {},
+            onToggleEnabled: {},
             onDelete: {},
-            onToggle: {}
+            onDuplicate: {},
+            onTest: {}
+        )
+
+        ScheduleRowView(
+            schedule: Schedule.example(routineId: "preview-routine"),
+            isSelected: true,
+            isHovered: true,
+            onSelect: {},
+            onToggleEnabled: {},
+            onDelete: {},
+            onDuplicate: {},
+            onTest: {}
+        )
+
+        ScheduleRowView(
+            schedule: Schedule.example(routineId: "preview-routine"),
+            isSelected: false,
+            isHovered: false,
+            showSyncStatus: true,
+            isPendingDeletion: true,
+            onSelect: {},
+            onToggleEnabled: {},
+            onDelete: {},
+            onDuplicate: {},
+            onTest: {}
         )
 
         ScheduleRowSimpleView(

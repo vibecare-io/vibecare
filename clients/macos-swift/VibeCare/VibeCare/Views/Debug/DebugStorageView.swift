@@ -4,10 +4,14 @@ import Logging
 
 #if DEBUG
 struct DebugStorageView: View {
-    @ObservedObject private var localStorage = RoutineLocalStorage.shared
+    @ObservedObject private var routineStorage = RoutineLocalStorage.shared
+    @ObservedObject private var scheduleStorage = ScheduleLocalStorage.shared
     @State private var routines: [RoutineEntity] = []
-    @State private var syncStatistics: [SyncStatus: Int] = [:]
+    @State private var schedules: [ScheduleEntity] = []
+    @State private var routineSyncStatistics: [SyncStatus: Int] = [:]
+    @State private var scheduleSyncStatistics: [SyncStatus: Int] = [:]
     @State private var selectedRoutine: RoutineEntity?
+    @State private var selectedSchedule: ScheduleEntity?
     @State private var isLoading = false
 
     private let logger = Logger(label: "com.vibecare.debug-storage")
@@ -19,6 +23,7 @@ struct DebugStorageView: View {
                 headerSection
                 statisticsSection
                 routinesListSection
+                schedulesListSection
 
                 Divider()
 
@@ -30,13 +35,17 @@ struct DebugStorageView: View {
             .navigationTitle("Storage Debug")
 
         } detail: {
-            // Detail view for selected routine
+            // Detail view for selected item
             if let selectedRoutine = selectedRoutine {
                 RoutineDetailDebugView(routine: selectedRoutine)
+            } else if let selectedSchedule = selectedSchedule {
+                ScheduleDetailDebugView(schedule: selectedSchedule)
             } else {
                 StorageOverviewDetailView(
                     routines: routines,
-                    syncStatistics: syncStatistics
+                    schedules: schedules,
+                    routineSyncStatistics: routineSyncStatistics,
+                    scheduleSyncStatistics: scheduleSyncStatistics
                 )
             }
         }
@@ -78,29 +87,66 @@ struct DebugStorageView: View {
     // MARK: - Statistics Section
 
     private var statisticsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 12) {
             Text("Sync Statistics")
                 .font(.subheadline)
                 .fontWeight(.medium)
 
-            if syncStatistics.isEmpty {
-                Text("No data")
-                    .foregroundColor(.secondary)
+            // Routines Statistics
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Routines")
                     .font(.caption)
-            } else {
-                VStack(alignment: .leading, spacing: 4) {
+                    .fontWeight(.medium)
+                    .foregroundColor(.blue)
+
+                if routineSyncStatistics.isEmpty {
+                    Text("No routine data")
+                        .foregroundColor(.secondary)
+                        .font(.caption2)
+                } else {
                     ForEach(SyncStatus.allCases, id: \.self) { status in
-                        let count = syncStatistics[status] ?? 0
+                        let count = routineSyncStatistics[status] ?? 0
                         if count > 0 {
                             HStack {
                                 Circle()
                                     .fill(colorFor(status: status))
-                                    .frame(width: 8, height: 8)
+                                    .frame(width: 6, height: 6)
                                 Text(status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
-                                    .font(.caption)
+                                    .font(.caption2)
                                 Spacer()
                                 Text("\(count)")
-                                    .font(.caption)
+                                    .font(.caption2)
+                                    .fontWeight(.medium)
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Schedules Statistics
+            VStack(alignment: .leading, spacing: 4) {
+                Text("Schedules")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.green)
+
+                if scheduleSyncStatistics.isEmpty {
+                    Text("No schedule data")
+                        .foregroundColor(.secondary)
+                        .font(.caption2)
+                } else {
+                    ForEach(SyncStatus.allCases, id: \.self) { status in
+                        let count = scheduleSyncStatistics[status] ?? 0
+                        if count > 0 {
+                            HStack {
+                                Circle()
+                                    .fill(colorFor(status: status))
+                                    .frame(width: 6, height: 6)
+                                Text(status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized)
+                                    .font(.caption2)
+                                Spacer()
+                                Text("\(count)")
+                                    .font(.caption2)
                                     .fontWeight(.medium)
                             }
                         }
@@ -135,6 +181,29 @@ struct DebugStorageView: View {
         }
     }
 
+    // MARK: - Schedules List Section
+
+    private var schedulesListSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Schedules (\(schedules.count))")
+                .font(.subheadline)
+                .fontWeight(.medium)
+
+            if schedules.isEmpty {
+                ContentUnavailableView("No Schedules",
+                                     systemImage: "calendar",
+                                     description: Text("No schedules found in local storage"))
+                .frame(maxHeight: 150)
+            } else {
+                List(schedules, id: \.id, selection: $selectedSchedule) { schedule in
+                    ScheduleRowDebugView(schedule: schedule)
+                }
+                .listStyle(.sidebar)
+                .frame(maxHeight: 200)
+            }
+        }
+    }
+
     // MARK: - All Data Section
 
     private var allDataSection: some View {
@@ -145,7 +214,8 @@ struct DebugStorageView: View {
 
             VStack(spacing: 4) {
                 Button("Show All Data") {
-                    selectedRoutine = nil // This will show the overview
+                    selectedRoutine = nil
+                    selectedSchedule = nil // This will show the overview
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.small)
@@ -158,11 +228,19 @@ struct DebugStorageView: View {
                 .controlSize(.small)
             }
 
-            if !routines.isEmpty {
-                Text("Sample: \(routines.first?.name ?? "N/A")")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+            VStack(alignment: .leading, spacing: 2) {
+                if !routines.isEmpty {
+                    Text("Sample Routine: \(routines.first?.name ?? "N/A")")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                if !schedules.isEmpty {
+                    Text("Sample Schedule: \(schedules.first?.name ?? "N/A")")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
             }
         }
         .padding()
@@ -211,6 +289,54 @@ struct RoutineRowDebugView: View {
                 Spacer()
 
                 Text("\(routine.actionIds.count) actions")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+}
+
+// MARK: - Schedule Row Debug View
+
+struct ScheduleRowDebugView: View {
+    let schedule: ScheduleEntity
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack {
+                Circle()
+                    .fill(schedule.enabled ? .green : .orange)
+                    .frame(width: 6, height: 6)
+
+                Text(schedule.name)
+                    .font(.body)
+                    .lineLimit(1)
+
+                Spacer()
+
+                Circle()
+                    .fill(colorFor(status: schedule.syncStatus))
+                    .frame(width: 8, height: 8)
+            }
+
+            Text("ID: \(schedule.id.prefix(8))...")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+
+            HStack {
+                Text(schedule.syncStatus.rawValue.capitalized)
+                    .font(.caption2)
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 1)
+                    .background(colorFor(status: schedule.syncStatus).opacity(0.2))
+                    .foregroundColor(colorFor(status: schedule.syncStatus))
+                    .cornerRadius(4)
+
+                Spacer()
+
+                Text("Routine: \(schedule.routineId.prefix(8))...")
                     .font(.caption2)
                     .foregroundColor(.secondary)
             }
@@ -356,6 +482,127 @@ struct RoutineDetailDebugView: View {
     }
 }
 
+// MARK: - Schedule Detail Debug View
+
+struct ScheduleDetailDebugView: View {
+    let schedule: ScheduleEntity
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                // Basic Info
+                basicInfoSection
+
+                // Schedule Info
+                scheduleInfoSection
+
+                // Sync Info
+                syncInfoSection
+
+                // Raw Data
+                rawDataSection
+            }
+            .padding()
+        }
+        .navigationTitle(schedule.name)
+    }
+
+    private var basicInfoSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Basic Information", systemImage: "info.circle")
+                .font(.headline)
+
+            InfoRow(label: "ID", value: schedule.id)
+            InfoRow(label: "Routine ID", value: schedule.routineId)
+            InfoRow(label: "Name", value: schedule.name)
+            InfoRow(label: "Notes", value: schedule.notes.isEmpty ? "None" : schedule.notes)
+            InfoRow(label: "Enabled", value: schedule.enabled ? "Yes" : "No")
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private var scheduleInfoSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Schedule Information", systemImage: "calendar")
+                .font(.headline)
+
+            InfoRow(label: "Recurrence JSON", value: schedule.recurrenceJSON.isEmpty ? "None" : schedule.recurrenceJSON)
+
+            InfoRow(label: "Start Date", value: schedule.dtstart.formatted())
+
+            if !schedule.exdates.isEmpty {
+                InfoRow(label: "Exclusion Dates", value: "\(schedule.exdates.count) dates")
+
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(Array(schedule.exdates.enumerated()), id: \.offset) { index, exdate in
+                        Text("• \(exdate)")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.leading, 16)
+            } else {
+                InfoRow(label: "Exclusion Dates", value: "None")
+            }
+
+            if let lastExecution = schedule.lastExecution {
+                InfoRow(label: "Last Execution", value: lastExecution.formatted())
+            } else {
+                InfoRow(label: "Last Execution", value: "Never")
+            }
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private var syncInfoSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Sync Information", systemImage: "arrow.triangle.2.circlepath")
+                .font(.headline)
+
+            InfoRow(label: "Status", value: schedule.syncStatus.rawValue.capitalized)
+            InfoRow(label: "Created", value: schedule.createdAt.formatted())
+            InfoRow(label: "Updated", value: schedule.updatedAt.formatted())
+            InfoRow(label: "Last Modified", value: schedule.lastModified.formatted())
+
+            if let lastSyncAttempt = schedule.lastSyncAttempt {
+                InfoRow(label: "Last Sync Attempt", value: lastSyncAttempt.formatted())
+            }
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+
+    private var rawDataSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Label("Raw Data", systemImage: "doc.text")
+                .font(.headline)
+
+            Text("Entity properties as stored in SwiftData")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Recurrence JSON: \(schedule.recurrenceJSON)")
+                    .font(.caption.monospaced())
+
+                Text("Exclusion Dates: \(schedule.exdates)")
+                    .font(.caption.monospaced())
+            }
+            .padding(8)
+            .background(Color.black.opacity(0.05))
+            .cornerRadius(4)
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(8)
+    }
+}
+
 // MARK: - Helper Views
 
 struct InfoRow: View {
@@ -411,11 +658,13 @@ extension DebugStorageView {
                 // Convert to entities for inspection
                 // We need to access the underlying SwiftData entities
                 routines = try await fetchRoutineEntities(for: profileId)
+                schedules = try await fetchScheduleEntities(for: profileId)
 
                 // Get sync statistics
-                syncStatistics = try localStorage.getSyncStatistics()
+                routineSyncStatistics = try routineStorage.getSyncStatistics()
+                scheduleSyncStatistics = try scheduleStorage.getSyncStatistics()
 
-                logger.info("Refreshed debug storage view: \(routines.count) routines")
+                logger.info("Refreshed debug storage view: \(routines.count) routines, \(schedules.count) schedules")
 
             } catch {
                 logger.error("Failed to refresh debug storage data: \(error)")
@@ -426,16 +675,38 @@ extension DebugStorageView {
     }
 
     private func fetchRoutineEntities(for profileId: String) async throws -> [RoutineEntity] {
-        return try localStorage.getAllRoutineEntities(for: profileId)
+        return try routineStorage.getAllRoutineEntities(for: profileId)
+    }
+
+    private func fetchScheduleEntities(for profileId: String) async throws -> [ScheduleEntity] {
+        // Get all routines for this profile, then get schedules for all routines
+        let allRoutines = try routineStorage.getAllRoutineEntities(for: profileId)
+        var allSchedules: [ScheduleEntity] = []
+
+        for routine in allRoutines {
+            let routineSchedules = try scheduleStorage.getAllScheduleEntities(for: routine.id)
+            allSchedules.append(contentsOf: routineSchedules)
+        }
+
+        return allSchedules
     }
 
     private func clearAllData() {
         Task { @MainActor in
             do {
                 let profileId = AppState.shared.currentProfile?.id ?? "unknown"
-                try localStorage.clearAllRoutines(for: profileId)
+
+                // Clear schedules first (they reference routines)
+                let allRoutines = try routineStorage.getAllRoutineEntities(for: profileId)
+                for routine in allRoutines {
+                    try scheduleStorage.clearAllSchedules(for: routine.id)
+                }
+
+                // Then clear routines
+                try routineStorage.clearAllRoutines(for: profileId)
+
                 refreshData()
-                logger.info("Cleared all debug storage data")
+                logger.info("Cleared all debug storage data (routines and schedules)")
             } catch {
                 logger.error("Failed to clear debug storage data: \(error)")
             }
@@ -447,7 +718,9 @@ extension DebugStorageView {
 
 struct StorageOverviewDetailView: View {
     let routines: [RoutineEntity]
-    let syncStatistics: [SyncStatus: Int]
+    let schedules: [ScheduleEntity]
+    let routineSyncStatistics: [SyncStatus: Int]
+    let scheduleSyncStatistics: [SyncStatus: Int]
 
     var body: some View {
         ScrollView {
@@ -460,6 +733,9 @@ struct StorageOverviewDetailView: View {
 
                 // All Routines Data
                 allRoutinesSection
+
+                // All Schedules Data
+                allSchedulesSection
             }
             .padding()
         }
@@ -493,24 +769,51 @@ struct StorageOverviewDetailView: View {
             Label("Storage Statistics", systemImage: "chart.bar")
                 .font(.headline)
 
+            // Combined statistics grid
             LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 3), spacing: 12) {
                 ForEach(SyncStatus.allCases, id: \.self) { status in
-                    let count = syncStatistics[status] ?? 0
+                    let routineCount = routineSyncStatistics[status] ?? 0
+                    let scheduleCount = scheduleSyncStatistics[status] ?? 0
+                    let totalCount = routineCount + scheduleCount
+
                     StatCard(
                         title: status.rawValue.replacingOccurrences(of: "_", with: " ").capitalized,
-                        count: count,
+                        count: totalCount,
                         color: colorFor(status: status)
                     )
                 }
             }
 
-            HStack {
-                Text("Total Records:")
-                    .fontWeight(.medium)
-                Spacer()
-                Text("\(routines.count)")
-                    .fontWeight(.bold)
-                    .foregroundColor(.primary)
+            // Record counts
+            VStack(spacing: 8) {
+                HStack {
+                    Text("Routines:")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Text("\(routines.count)")
+                        .fontWeight(.bold)
+                        .foregroundColor(.blue)
+                }
+
+                HStack {
+                    Text("Schedules:")
+                        .fontWeight(.medium)
+                    Spacer()
+                    Text("\(schedules.count)")
+                        .fontWeight(.bold)
+                        .foregroundColor(.green)
+                }
+
+                Divider()
+
+                HStack {
+                    Text("Total Records:")
+                        .fontWeight(.bold)
+                    Spacer()
+                    Text("\(routines.count + schedules.count)")
+                        .fontWeight(.bold)
+                        .foregroundColor(.primary)
+                }
             }
             .padding()
             .background(Color.secondary.opacity(0.1))
@@ -531,6 +834,24 @@ struct StorageOverviewDetailView: View {
             } else {
                 ForEach(routines, id: \.id) { routine in
                     RoutineDataCard(routine: routine)
+                }
+            }
+        }
+        .padding()
+        .background(Color.secondary.opacity(0.05))
+        .cornerRadius(12)
+    }
+
+    private var allSchedulesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Label("All Cached Schedules (\(schedules.count))", systemImage: "calendar.badge.clock")
+                .font(.headline)
+
+            if schedules.isEmpty {
+                EmptyScheduleStorageView()
+            } else {
+                ForEach(schedules, id: \.id) { schedule in
+                    ScheduleDataCard(schedule: schedule)
                 }
             }
         }
@@ -696,6 +1017,109 @@ struct EmptyStorageView: View {
                 .foregroundColor(.primary)
 
             Text("Local SwiftData storage is empty. Create some routines to see them here.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 40)
+    }
+}
+
+struct ScheduleDataCard: View {
+    let schedule: ScheduleEntity
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // Header with name and sync status
+            HStack {
+                Circle()
+                    .fill(schedule.enabled ? .green : .orange)
+                    .frame(width: 8, height: 8)
+
+                Text(schedule.name)
+                    .font(.body)
+                    .fontWeight(.medium)
+                    .lineLimit(2)
+
+                Spacer()
+
+                Text(schedule.syncStatus.rawValue)
+                    .font(.caption2)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(colorFor(status: schedule.syncStatus).opacity(0.2))
+                    .foregroundColor(colorFor(status: schedule.syncStatus))
+                    .cornerRadius(4)
+            }
+
+            // Key details
+            VStack(alignment: .leading, spacing: 4) {
+                DebugDetailRow(label: "ID", value: schedule.id)
+                DebugDetailRow(label: "Routine ID", value: schedule.routineId)
+
+                if !schedule.notes.isEmpty {
+                    DebugDetailRow(label: "Notes", value: schedule.notes)
+                }
+
+                if !schedule.recurrenceJSON.isEmpty {
+                    DebugDetailRow(label: "Recurrence", value: schedule.recurrenceJSON)
+                }
+
+                DebugDetailRow(label: "Start Date", value: schedule.dtstart.formatted(date: .abbreviated, time: .shortened))
+
+                DebugDetailRow(label: "Enabled", value: schedule.enabled ? "Yes" : "No")
+                DebugDetailRow(label: "Created", value: schedule.createdAt.formatted(date: .abbreviated, time: .shortened))
+                DebugDetailRow(label: "Updated", value: schedule.updatedAt.formatted(date: .abbreviated, time: .shortened))
+
+                if let lastExecution = schedule.lastExecution {
+                    DebugDetailRow(label: "Last Executed", value: lastExecution.formatted(date: .abbreviated, time: .shortened))
+                }
+
+                if let lastSync = schedule.lastSyncAttempt {
+                    DebugDetailRow(label: "Last Sync Attempt", value: lastSync.formatted(date: .abbreviated, time: .shortened))
+                }
+            }
+
+            // Exclusion dates
+            if !schedule.exdates.isEmpty {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Exclusion Dates:")
+                        .font(.caption)
+                        .fontWeight(.medium)
+                        .foregroundColor(.secondary)
+
+                    Text(schedule.exdates.joined(separator: ", "))
+                        .font(.caption2.monospaced())
+                        .foregroundColor(.primary)
+                        .textSelection(.enabled)
+                        .lineLimit(nil)
+                }
+                .padding(.top, 4)
+            }
+        }
+        .padding()
+        .background(Color.primary.opacity(0.05))
+        .cornerRadius(8)
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(colorFor(status: schedule.syncStatus).opacity(0.3), lineWidth: 1)
+        )
+    }
+}
+
+struct EmptyScheduleStorageView: View {
+    var body: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "calendar")
+                .font(.largeTitle)
+                .foregroundColor(.secondary)
+
+            Text("No Schedules in Storage")
+                .font(.headline)
+                .foregroundColor(.primary)
+
+            Text("Local SwiftData storage has no schedules. Create some schedules for routines to see them here.")
                 .font(.caption)
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)

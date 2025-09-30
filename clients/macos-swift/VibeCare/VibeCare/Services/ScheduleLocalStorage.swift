@@ -9,10 +9,25 @@ enum ScheduleStorageError: Error {
     case invalidData
 }
 
+struct SyncError: Codable, Identifiable {
+    let id = UUID()
+    let timestamp: Date
+    let errorMessage: String
+    let errorCode: String?
+    let retryAttempt: Int
+
+    init(errorMessage: String, errorCode: String? = nil, retryAttempt: Int) {
+        self.timestamp = Date()
+        self.errorMessage = errorMessage
+        self.errorCode = errorCode
+        self.retryAttempt = retryAttempt
+    }
+}
+
 @Model
 class ScheduleEntity {
     @Attribute(.unique) var id: String
-    var routineId: String
+    var routineId: String // Keep for backward compatibility
     var name: String
     var recurrenceJSON: String
     var dtstart: Date
@@ -25,6 +40,15 @@ class ScheduleEntity {
     var syncStatus: SyncStatus
     var lastSyncAttempt: Date?
     var lastModified: Date
+
+    // Error tracking fields (optional for migration compatibility)
+    var retryCount: Int?
+    var lastError: String?
+    @Attribute(.transformable(by: "NSSecureUnarchiveFromDataTransformer")) var syncErrors: [SyncError]?
+
+    // SwiftData relationship to routine
+    @Relationship
+    var routine: RoutineEntity?
 
     init(schedule: Schedule, syncStatus: SyncStatus = .localOnly) {
         self.id = schedule.id
@@ -40,6 +64,11 @@ class ScheduleEntity {
         self.updatedAt = schedule.updatedAt
         self.syncStatus = syncStatus
         self.lastModified = Date()
+
+        // Initialize error tracking fields
+        self.retryCount = 0
+        self.lastError = nil
+        self.syncErrors = []
     }
 
     func toSchedule() -> Schedule {
@@ -93,6 +122,16 @@ class ScheduleLocalStorage: ObservableObject {
 
     func createSchedule(_ schedule: Schedule) throws -> Schedule {
         let entity = ScheduleEntity(schedule: schedule, syncStatus: .localOnly)
+
+        // Link to routine entity if it exists
+        if let routineEntity = try findRoutineEntity(id: schedule.routineId) {
+            entity.routine = routineEntity
+            routineEntity.schedules.append(entity)
+            logger.debug("Linked schedule to routine entity: \(schedule.routineId)")
+        } else {
+            logger.warning("Creating schedule without routine entity link - routine not found: \(schedule.routineId)")
+        }
+
         context.insert(entity)
 
         do {
@@ -237,6 +276,22 @@ class ScheduleLocalStorage: ObservableObject {
             return entities.map { $0.toSchedule() }
         } catch {
             logger.error("Failed to get all schedules: \(error)")
+            throw ScheduleStorageError.persistenceError(error)
+        }
+    }
+
+    func getAllSchedulesAcrossAllRoutines() throws -> [Schedule] {
+        // Fetch ALL schedules across all routines, including pending deletion
+        let descriptor = FetchDescriptor<ScheduleEntity>(
+            sortBy: [SortDescriptor(\ScheduleEntity.updatedAt, order: .reverse)]
+        )
+
+        do {
+            let entities = try context.fetch(descriptor)
+            // Return ALL schedules without filtering
+            return entities.map { $0.toSchedule() }
+        } catch {
+            logger.error("Failed to get all schedules across all routines: \(error)")
             throw ScheduleStorageError.persistenceError(error)
         }
     }
@@ -387,6 +442,146 @@ class ScheduleLocalStorage: ObservableObject {
             logger.info("Cleared \(entities.count) schedules for routine: \(routineId)")
         } catch {
             logger.error("Failed to clear schedules: \(error)")
+            throw ScheduleStorageError.persistenceError(error)
+        }
+    }
+
+    // MARK: - Error Tracking
+
+    func recordSyncError(scheduleId: String, error: Error, retryAttempt: Int) throws {
+        let predicate = #Predicate<ScheduleEntity> { entity in
+            entity.id == scheduleId
+        }
+
+        let descriptor = FetchDescriptor(predicate: predicate)
+
+        do {
+            let entities = try context.fetch(descriptor)
+            guard let entity = entities.first else {
+                throw ScheduleStorageError.scheduleNotFound
+            }
+
+            // Increment retry count
+            entity.retryCount = (entity.retryCount ?? 0) + 1
+
+            // Record last error
+            entity.lastError = error.localizedDescription
+
+            // Create new sync error
+            let syncError = SyncError(
+                errorMessage: error.localizedDescription,
+                errorCode: extractErrorCode(from: error),
+                retryAttempt: retryAttempt
+            )
+
+            // Add to error history (keep only last 5)
+            if entity.syncErrors == nil {
+                entity.syncErrors = []
+            }
+            entity.syncErrors!.append(syncError)
+            if entity.syncErrors!.count > 5 {
+                entity.syncErrors!.removeFirst()
+            }
+
+            // Update last sync attempt
+            entity.lastSyncAttempt = Date()
+
+            try context.save()
+            logger.info("Recorded sync error for schedule \\(scheduleId): \\(error.localizedDescription)")
+
+        } catch {
+            logger.error("Failed to record sync error: \\(error)")
+            throw ScheduleStorageError.persistenceError(error)
+        }
+    }
+
+    func clearSyncErrors(scheduleId: String) throws {
+        let predicate = #Predicate<ScheduleEntity> { entity in
+            entity.id == scheduleId
+        }
+
+        let descriptor = FetchDescriptor(predicate: predicate)
+
+        do {
+            let entities = try context.fetch(descriptor)
+            guard let entity = entities.first else {
+                throw ScheduleStorageError.scheduleNotFound
+            }
+
+            // Reset error tracking on successful sync
+            entity.retryCount = 0
+            entity.lastError = nil
+            entity.syncErrors = []
+
+            try context.save()
+            logger.info("Cleared sync errors for schedule \\(scheduleId)")
+
+        } catch {
+            logger.error("Failed to clear sync errors: \\(error)")
+            throw ScheduleStorageError.persistenceError(error)
+        }
+    }
+
+    private func extractErrorCode(from error: Error) -> String? {
+        // Extract error code from various error types
+        if let nsError = error as NSError? {
+            return "\\(nsError.domain)-\\(nsError.code)"
+        }
+        return nil
+    }
+
+    func getSyncErrorHistory(for scheduleId: String) throws -> [SyncError] {
+        let predicate = #Predicate<ScheduleEntity> { entity in
+            entity.id == scheduleId
+        }
+
+        let descriptor = FetchDescriptor(predicate: predicate)
+
+        do {
+            let entities = try context.fetch(descriptor)
+            guard let entity = entities.first else {
+                return []
+            }
+            return entity.syncErrors ?? []
+        } catch {
+            logger.error("Failed to get sync error history: \\(error)")
+            throw ScheduleStorageError.persistenceError(error)
+        }
+    }
+
+    func getRetryCount(for scheduleId: String) throws -> Int {
+        let predicate = #Predicate<ScheduleEntity> { entity in
+            entity.id == scheduleId
+        }
+
+        let descriptor = FetchDescriptor(predicate: predicate)
+
+        do {
+            let entities = try context.fetch(descriptor)
+            guard let entity = entities.first else {
+                return 0
+            }
+            return entity.retryCount ?? 0
+        } catch {
+            logger.error("Failed to get retry count: \\(error)")
+            throw ScheduleStorageError.persistenceError(error)
+        }
+    }
+
+    // MARK: - Helper Methods
+
+    private func findRoutineEntity(id: String) throws -> RoutineEntity? {
+        let predicate = #Predicate<RoutineEntity> { entity in
+            entity.id == id
+        }
+
+        let descriptor = FetchDescriptor(predicate: predicate)
+
+        do {
+            let entities = try context.fetch(descriptor)
+            return entities.first
+        } catch {
+            logger.error("Failed to find routine entity: \(error)")
             throw ScheduleStorageError.persistenceError(error)
         }
     }

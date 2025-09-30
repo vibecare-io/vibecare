@@ -408,7 +408,7 @@ public struct Dashboard: View {
 
         Task {
             await routineViewModel.loadRoutines(for: profile.id)
-            await scheduleViewModel.loadSchedules(for: profile.id)
+            await scheduleViewModel.loadAllSchedules(for: profile.id)
             await actionViewModel.loadActions(for: profile.id)
         }
     }

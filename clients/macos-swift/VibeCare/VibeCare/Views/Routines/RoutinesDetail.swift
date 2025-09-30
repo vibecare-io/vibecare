@@ -376,11 +376,13 @@ struct RoutineDetailView: View {
             } else {
                 VStack(spacing: 8) {
                     ForEach(scheduleViewModel.getActiveSchedules()) { schedule in
-                        ScheduleRowView(
+                        ScheduleRowSimpleView(
                             schedule: schedule,
-                            onEdit: { editSchedule(schedule) },
-                            onDelete: { deleteSchedule(schedule) },
-                            onToggle: { toggleSchedule(schedule) }
+                            onToggle: {
+                                Task {
+                                    await scheduleViewModel.toggleScheduleEnabled(schedule)
+                                }
+                            }
                         )
                     }
                 }

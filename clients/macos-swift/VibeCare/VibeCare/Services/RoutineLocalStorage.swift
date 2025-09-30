@@ -34,6 +34,10 @@ class RoutineEntity {
     var lastSyncAttempt: Date?
     var lastModified: Date
 
+    // SwiftData relationship to schedules with cascade delete
+    @Relationship(deleteRule: .cascade)
+    var schedules: [ScheduleEntity] = []
+
     init(routine: Routine, syncStatus: SyncStatus = .localOnly) {
         self.id = routine.id
         self.profileId = routine.profileId
