@@ -31,6 +31,15 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, recurrenceJSON string,
 		return nil, fmt.Errorf("schedule with ID %s already exists", scheduleID)
 	}
 
+	// Validate that the routine exists (FOREIGN KEY validation)
+	routine, err := db.GetRoutine(routineID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to validate routine: %w", err)
+	}
+	if routine == nil {
+		return nil, fmt.Errorf("routine with ID %s does not exist", routineID)
+	}
+
 	schedule := &models.Schedule{
 		ScheduleID:     scheduleID,
 		RoutineID:      routineID,

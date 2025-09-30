@@ -148,6 +148,44 @@ public enum VCActionType: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 }
 
+public enum VCEventType: SwiftProtobuf.Enum, Swift.CaseIterable {
+  public typealias RawValue = Int
+  case unspecified // = 0
+  case scheduleTriggered // = 1
+  case routineExecuted // = 2
+  case UNRECOGNIZED(Int)
+
+  public init() {
+    self = .unspecified
+  }
+
+  public init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .scheduleTriggered
+    case 2: self = .routineExecuted
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  public var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .scheduleTriggered: return 1
+    case .routineExecuted: return 2
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  public static let allCases: [VCEventType] = [
+    .unspecified,
+    .scheduleTriggered,
+    .routineExecuted,
+  ]
+
+}
+
 /// Profile entity - binds to a user
 public struct VCProfile: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
@@ -1361,6 +1399,134 @@ public struct VCGetActionParametersResponse: Sendable {
   public init() {}
 }
 
+/// DispatchEvent represents an event dispatched from the server to clients
+public struct VCDispatchEvent: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var eventID: String = String()
+
+  public var eventType: VCEventType = .unspecified
+
+  public var timestamp: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {return _timestamp ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_timestamp = newValue}
+  }
+  /// Returns true if `timestamp` has been explicitly set.
+  public var hasTimestamp: Bool {return self._timestamp != nil}
+  /// Clears the value of `timestamp`. Subsequent reads from it will return its default value.
+  public mutating func clearTimestamp() {self._timestamp = nil}
+
+  /// Event-specific payload
+  public var payload: VCDispatchEvent.OneOf_Payload? = nil
+
+  public var scheduleTriggered: VCScheduleTriggeredEvent {
+    get {
+      if case .scheduleTriggered(let v)? = payload {return v}
+      return VCScheduleTriggeredEvent()
+    }
+    set {payload = .scheduleTriggered(newValue)}
+  }
+
+  public var routineExecuted: VCRoutineExecutedEvent {
+    get {
+      if case .routineExecuted(let v)? = payload {return v}
+      return VCRoutineExecutedEvent()
+    }
+    set {payload = .routineExecuted(newValue)}
+  }
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  /// Event-specific payload
+  public enum OneOf_Payload: Equatable, Sendable {
+    case scheduleTriggered(VCScheduleTriggeredEvent)
+    case routineExecuted(VCRoutineExecutedEvent)
+
+  }
+
+  public init() {}
+
+  fileprivate var _timestamp: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+}
+
+/// ScheduleTriggeredEvent is dispatched when a schedule is triggered
+public struct VCScheduleTriggeredEvent: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var scheduleID: String = String()
+
+  public var routineID: String = String()
+
+  public var routineName: String = String()
+
+  public var scheduledTime: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {return _scheduledTime ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_scheduledTime = newValue}
+  }
+  /// Returns true if `scheduledTime` has been explicitly set.
+  public var hasScheduledTime: Bool {return self._scheduledTime != nil}
+  /// Clears the value of `scheduledTime`. Subsequent reads from it will return its default value.
+  public mutating func clearScheduledTime() {self._scheduledTime = nil}
+
+  public var actionIds: [String] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _scheduledTime: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+}
+
+/// RoutineExecutedEvent is dispatched when a routine completes execution
+public struct VCRoutineExecutedEvent: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var routineID: String = String()
+
+  public var routineName: String = String()
+
+  public var executionTime: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {return _executionTime ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_executionTime = newValue}
+  }
+  /// Returns true if `executionTime` has been explicitly set.
+  public var hasExecutionTime: Bool {return self._executionTime != nil}
+  /// Clears the value of `executionTime`. Subsequent reads from it will return its default value.
+  public mutating func clearExecutionTime() {self._executionTime = nil}
+
+  public var success: Bool = false
+
+  public var errorMessage: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _executionTime: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+}
+
+/// SubscribeEventsRequest allows clients to subscribe to specific event types
+public struct VCSubscribeEventsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var profileID: String = String()
+
+  /// Empty means subscribe to all events
+  public var eventTypes: [VCEventType] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate let _protobuf_package = "vibecare.v1"
@@ -1371,6 +1537,10 @@ extension VCDeviceType: SwiftProtobuf._ProtoNameProviding {
 
 extension VCActionType: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0ACTION_TYPE_UNSPECIFIED\0\u{1}ACTION_TYPE_NOTIFICATION\0\u{1}ACTION_TYPE_OPEN_LINK\0\u{1}ACTION_TYPE_SEND_EMAIL\0\u{1}ACTION_TYPE_RUN_SCRIPT\0\u{1}ACTION_TYPE_PLAY_SOUND\0\u{1}ACTION_TYPE_SYSTEM_COMMAND\0\u{1}ACTION_TYPE_API_CALL\0\u{1}ACTION_TYPE_LOG_ENTRY\0")
+}
+
+extension VCEventType: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0EVENT_TYPE_UNSPECIFIED\0\u{1}EVENT_TYPE_SCHEDULE_TRIGGERED\0\u{1}EVENT_TYPE_ROUTINE_EXECUTED\0")
 }
 
 extension VCProfile: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -3863,6 +4033,231 @@ extension VCGetActionParametersResponse: SwiftProtobuf.Message, SwiftProtobuf._M
   public static func ==(lhs: VCGetActionParametersResponse, rhs: VCGetActionParametersResponse) -> Bool {
     if lhs.parameters != rhs.parameters {return false}
     if lhs.defaultValues != rhs.defaultValues {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCDispatchEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".DispatchEvent"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}event_id\0\u{3}event_type\0\u{1}timestamp\0\u{4}\u{7}schedule_triggered\0\u{3}routine_executed\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.eventID) }()
+      case 2: try { try decoder.decodeSingularEnumField(value: &self.eventType) }()
+      case 3: try { try decoder.decodeSingularMessageField(value: &self._timestamp) }()
+      case 10: try {
+        var v: VCScheduleTriggeredEvent?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .scheduleTriggered(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .scheduleTriggered(v)
+        }
+      }()
+      case 11: try {
+        var v: VCRoutineExecutedEvent?
+        var hadOneofValue = false
+        if let current = self.payload {
+          hadOneofValue = true
+          if case .routineExecuted(let m) = current {v = m}
+        }
+        try decoder.decodeSingularMessageField(value: &v)
+        if let v = v {
+          if hadOneofValue {try decoder.handleConflictingOneOf()}
+          self.payload = .routineExecuted(v)
+        }
+      }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.eventID.isEmpty {
+      try visitor.visitSingularStringField(value: self.eventID, fieldNumber: 1)
+    }
+    if self.eventType != .unspecified {
+      try visitor.visitSingularEnumField(value: self.eventType, fieldNumber: 2)
+    }
+    try { if let v = self._timestamp {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+    } }()
+    switch self.payload {
+    case .scheduleTriggered?: try {
+      guard case .scheduleTriggered(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
+    }()
+    case .routineExecuted?: try {
+      guard case .routineExecuted(let v)? = self.payload else { preconditionFailure() }
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+    }()
+    case nil: break
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCDispatchEvent, rhs: VCDispatchEvent) -> Bool {
+    if lhs.eventID != rhs.eventID {return false}
+    if lhs.eventType != rhs.eventType {return false}
+    if lhs._timestamp != rhs._timestamp {return false}
+    if lhs.payload != rhs.payload {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCScheduleTriggeredEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".ScheduleTriggeredEvent"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}routine_id\0\u{3}routine_name\0\u{3}scheduled_time\0\u{3}action_ids\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.routineName) }()
+      case 4: try { try decoder.decodeSingularMessageField(value: &self._scheduledTime) }()
+      case 5: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
+    }
+    if !self.routineID.isEmpty {
+      try visitor.visitSingularStringField(value: self.routineID, fieldNumber: 2)
+    }
+    if !self.routineName.isEmpty {
+      try visitor.visitSingularStringField(value: self.routineName, fieldNumber: 3)
+    }
+    try { if let v = self._scheduledTime {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 4)
+    } }()
+    if !self.actionIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCScheduleTriggeredEvent, rhs: VCScheduleTriggeredEvent) -> Bool {
+    if lhs.scheduleID != rhs.scheduleID {return false}
+    if lhs.routineID != rhs.routineID {return false}
+    if lhs.routineName != rhs.routineName {return false}
+    if lhs._scheduledTime != rhs._scheduledTime {return false}
+    if lhs.actionIds != rhs.actionIds {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCRoutineExecutedEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".RoutineExecutedEvent"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}routine_id\0\u{3}routine_name\0\u{3}execution_time\0\u{1}success\0\u{3}error_message\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.routineName) }()
+      case 3: try { try decoder.decodeSingularMessageField(value: &self._executionTime) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.success) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.errorMessage) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    if !self.routineID.isEmpty {
+      try visitor.visitSingularStringField(value: self.routineID, fieldNumber: 1)
+    }
+    if !self.routineName.isEmpty {
+      try visitor.visitSingularStringField(value: self.routineName, fieldNumber: 2)
+    }
+    try { if let v = self._executionTime {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 3)
+    } }()
+    if self.success != false {
+      try visitor.visitSingularBoolField(value: self.success, fieldNumber: 4)
+    }
+    if !self.errorMessage.isEmpty {
+      try visitor.visitSingularStringField(value: self.errorMessage, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCRoutineExecutedEvent, rhs: VCRoutineExecutedEvent) -> Bool {
+    if lhs.routineID != rhs.routineID {return false}
+    if lhs.routineName != rhs.routineName {return false}
+    if lhs._executionTime != rhs._executionTime {return false}
+    if lhs.success != rhs.success {return false}
+    if lhs.errorMessage != rhs.errorMessage {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCSubscribeEventsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".SubscribeEventsRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{3}event_types\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.profileID) }()
+      case 2: try { try decoder.decodeRepeatedEnumField(value: &self.eventTypes) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.profileID.isEmpty {
+      try visitor.visitSingularStringField(value: self.profileID, fieldNumber: 1)
+    }
+    if !self.eventTypes.isEmpty {
+      try visitor.visitPackedEnumField(value: self.eventTypes, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCSubscribeEventsRequest, rhs: VCSubscribeEventsRequest) -> Bool {
+    if lhs.profileID != rhs.profileID {return false}
+    if lhs.eventTypes != rhs.eventTypes {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

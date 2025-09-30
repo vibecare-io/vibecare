@@ -11,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/vibecare-io/vibecare/backend/internal/api"
+	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -54,11 +55,19 @@ func main() {
 	}
 	defer db.Close()
 
+	// Initialize event hub
+	eventHub := scheduler.NewEventHub(logger)
+
+	// Initialize and start scheduler
+	sched := scheduler.NewScheduler(db, eventHub, logger)
+	go sched.Start()
+	defer sched.Stop()
+
 	// Create gRPC server
 	grpcServer := grpc.NewServer()
 
 	// Register services
-	api.RegisterServices(grpcServer, db, logger)
+	api.RegisterServices(grpcServer, db, eventHub, logger)
 
 	// Register reflection service for debugging
 	reflection.Register(grpcServer)

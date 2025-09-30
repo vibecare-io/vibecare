@@ -493,3 +493,55 @@ message GetActionParametersResponse {
   repeated ParameterInfo parameters = 1;
   map<string, string> default_values = 2;
 }
+
+// ============================================================================
+// Event Service - for dispatching schedule notifications to clients
+// ============================================================================
+
+service EventService {
+  // Subscribe to dispatch events (server-streaming)
+  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream DispatchEvent);
+}
+
+// DispatchEvent represents an event dispatched from the server to clients
+message DispatchEvent {
+  string event_id = 1;
+  EventType event_type = 2;
+  google.protobuf.Timestamp timestamp = 3;
+
+  // Event-specific payload
+  oneof payload {
+    ScheduleTriggeredEvent schedule_triggered = 10;
+    RoutineExecutedEvent routine_executed = 11;
+  }
+}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_SCHEDULE_TRIGGERED = 1;
+  EVENT_TYPE_ROUTINE_EXECUTED = 2;
+}
+
+// ScheduleTriggeredEvent is dispatched when a schedule is triggered
+message ScheduleTriggeredEvent {
+  string schedule_id = 1;
+  string routine_id = 2;
+  string routine_name = 3;
+  google.protobuf.Timestamp scheduled_time = 4;
+  repeated string action_ids = 5;
+}
+
+// RoutineExecutedEvent is dispatched when a routine completes execution
+message RoutineExecutedEvent {
+  string routine_id = 1;
+  string routine_name = 2;
+  google.protobuf.Timestamp execution_time = 3;
+  bool success = 4;
+  string error_message = 5;
+}
+
+// SubscribeEventsRequest allows clients to subscribe to specific event types
+message SubscribeEventsRequest {
+  string profile_id = 1;
+  repeated EventType event_types = 2;  // Empty means subscribe to all events
+}

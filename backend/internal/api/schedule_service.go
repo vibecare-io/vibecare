@@ -69,6 +69,10 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 		if req.Id != "" && strings.Contains(errMsg, "invalid schedule ID format") {
 			return nil, status.Errorf(codes.InvalidArgument, "invalid schedule ID format - must be valid UUID")
 		}
+		// Check if error is due to routine not existing (FK constraint)
+		if strings.Contains(errMsg, "does not exist") {
+			return nil, status.Errorf(codes.NotFound, "routine not found")
+		}
 		return nil, status.Errorf(codes.Internal, "failed to create schedule: %v", err)
 	}
 

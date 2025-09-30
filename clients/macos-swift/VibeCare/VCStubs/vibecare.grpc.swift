@@ -7687,3 +7687,328 @@ extension VCActionService.ClientProtocol {
         )
     }
 }
+
+// MARK: - vibecare.v1.EventService
+
+/// Namespace containing generated types for the "vibecare.v1.EventService" service.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+public enum VCEventService {
+    /// Service descriptor for the "vibecare.v1.EventService" service.
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.EventService")
+    /// Namespace for method metadata.
+    public enum Method {
+        /// Namespace for "SubscribeEvents" metadata.
+        public enum SubscribeEvents {
+            /// Request type for "SubscribeEvents".
+            public typealias Input = VCSubscribeEventsRequest
+            /// Response type for "SubscribeEvents".
+            public typealias Output = VCDispatchEvent
+            /// Descriptor for "SubscribeEvents".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.EventService"),
+                method: "SubscribeEvents"
+            )
+        }
+        /// Descriptors for all methods in the "vibecare.v1.EventService" service.
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
+            SubscribeEvents.descriptor
+        ]
+    }
+}
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension GRPCCore.ServiceDescriptor {
+    /// Service descriptor for the "vibecare.v1.EventService" service.
+    public static let vcEventService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.EventService")
+}
+
+// MARK: vibecare.v1.EventService (server)
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCEventService {
+    /// Streaming variant of the service protocol for the "vibecare.v1.EventService" service.
+    ///
+    /// This protocol is the lowest-level of the service protocols generated for this service
+    /// giving you the most flexibility over the implementation of your service. This comes at
+    /// the cost of more verbose and less strict APIs. Each RPC requires you to implement it in
+    /// terms of a request stream and response stream. Where only a single request or response
+    /// message is expected, you are responsible for enforcing this invariant is maintained.
+    ///
+    /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
+    /// or ``SimpleServiceProtocol`` instead.
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+        /// Handle the "SubscribeEvents" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Subscribe to dispatch events (server-streaming)
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCSubscribeEventsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `VCDispatchEvent` messages.
+        func subscribeEvents(
+            request: GRPCCore.StreamingServerRequest<VCSubscribeEventsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<VCDispatchEvent>
+    }
+
+    /// Service protocol for the "vibecare.v1.EventService" service.
+    ///
+    /// This protocol is higher level than ``StreamingServiceProtocol`` but lower level than
+    /// the ``SimpleServiceProtocol``, it provides access to request and response metadata and
+    /// trailing response metadata. If you don't need these then consider using
+    /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
+    /// use ``StreamingServiceProtocol``.
+    public protocol ServiceProtocol: VCEventService.StreamingServiceProtocol {
+        /// Handle the "SubscribeEvents" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Subscribe to dispatch events (server-streaming)
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCSubscribeEventsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `VCDispatchEvent` messages.
+        func subscribeEvents(
+            request: GRPCCore.ServerRequest<VCSubscribeEventsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<VCDispatchEvent>
+    }
+
+    /// Simple service protocol for the "vibecare.v1.EventService" service.
+    ///
+    /// This is the highest level protocol for the service. The API is the easiest to use but
+    /// doesn't provide access to request or response metadata. If you need access to these
+    /// then use ``ServiceProtocol`` instead.
+    public protocol SimpleServiceProtocol: VCEventService.ServiceProtocol {
+        /// Handle the "SubscribeEvents" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Subscribe to dispatch events (server-streaming)
+        ///
+        /// - Parameters:
+        ///   - request: A `VCSubscribeEventsRequest` message.
+        ///   - response: A response stream of `VCDispatchEvent` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        func subscribeEvents(
+            request: VCSubscribeEventsRequest,
+            response: GRPCCore.RPCWriter<VCDispatchEvent>,
+            context: GRPCCore.ServerContext
+        ) async throws
+    }
+}
+
+// Default implementation of 'registerMethods(with:)'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCEventService.StreamingServiceProtocol {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+        router.registerHandler(
+            forMethod: VCEventService.Method.SubscribeEvents.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCSubscribeEventsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<VCDispatchEvent>(),
+            handler: { request, context in
+                try await self.subscribeEvents(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+    }
+}
+
+// Default implementation of streaming methods from 'StreamingServiceProtocol'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCEventService.ServiceProtocol {
+    public func subscribeEvents(
+        request: GRPCCore.StreamingServerRequest<VCSubscribeEventsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<VCDispatchEvent> {
+        let response = try await self.subscribeEvents(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return response
+    }
+}
+
+// Default implementation of methods from 'ServiceProtocol'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCEventService.SimpleServiceProtocol {
+    public func subscribeEvents(
+        request: GRPCCore.ServerRequest<VCSubscribeEventsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<VCDispatchEvent> {
+        return GRPCCore.StreamingServerResponse<VCDispatchEvent>(
+            metadata: [:],
+            producer: { writer in
+                try await self.subscribeEvents(
+                    request: request.message,
+                    response: writer,
+                    context: context
+                )
+                return [:]
+            }
+        )
+    }
+}
+
+// MARK: vibecare.v1.EventService (client)
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCEventService {
+    /// Generated client protocol for the "vibecare.v1.EventService" service.
+    ///
+    /// You don't need to implement this protocol directly, use the generated
+    /// implementation, ``Client``.
+    public protocol ClientProtocol: Sendable {
+        /// Call the "SubscribeEvents" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Subscribe to dispatch events (server-streaming)
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCSubscribeEventsRequest` message.
+        ///   - serializer: A serializer for `VCSubscribeEventsRequest` messages.
+        ///   - deserializer: A deserializer for `VCDispatchEvent` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func subscribeEvents<Result>(
+            request: GRPCCore.ClientRequest<VCSubscribeEventsRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCSubscribeEventsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<VCDispatchEvent>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.StreamingClientResponse<VCDispatchEvent>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+    }
+
+    /// Generated client for the "vibecare.v1.EventService" service.
+    ///
+    /// The ``Client`` provides an implementation of ``ClientProtocol`` which wraps
+    /// a `GRPCCore.GRPCCClient`. The underlying `GRPCClient` provides the long-lived
+    /// means of communication with the remote peer.
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+        private let client: GRPCCore.GRPCClient<Transport>
+
+        /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
+        ///
+        /// - Parameters:
+        ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+            self.client = client
+        }
+
+        /// Call the "SubscribeEvents" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Subscribe to dispatch events (server-streaming)
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCSubscribeEventsRequest` message.
+        ///   - serializer: A serializer for `VCSubscribeEventsRequest` messages.
+        ///   - deserializer: A deserializer for `VCDispatchEvent` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func subscribeEvents<Result>(
+            request: GRPCCore.ClientRequest<VCSubscribeEventsRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCSubscribeEventsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<VCDispatchEvent>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.StreamingClientResponse<VCDispatchEvent>) async throws -> Result
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.serverStreaming(
+                request: request,
+                descriptor: VCEventService.Method.SubscribeEvents.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+    }
+}
+
+// Helpers providing default arguments to 'ClientProtocol' methods.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCEventService.ClientProtocol {
+    /// Call the "SubscribeEvents" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Subscribe to dispatch events (server-streaming)
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCSubscribeEventsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func subscribeEvents<Result>(
+        request: GRPCCore.ClientRequest<VCSubscribeEventsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.StreamingClientResponse<VCDispatchEvent>) async throws -> Result
+    ) async throws -> Result where Result: Sendable {
+        try await self.subscribeEvents(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCSubscribeEventsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCDispatchEvent>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+}
+
+// Helpers providing sugared APIs for 'ClientProtocol' methods.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCEventService.ClientProtocol {
+    /// Call the "SubscribeEvents" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Subscribe to dispatch events (server-streaming)
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func subscribeEvents<Result>(
+        _ message: VCSubscribeEventsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.StreamingClientResponse<VCDispatchEvent>) async throws -> Result
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCSubscribeEventsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.subscribeEvents(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+}
