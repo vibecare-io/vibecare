@@ -44,20 +44,7 @@ struct RoutineDetailView: View {
     }
 
     var body: some View {
-        let bodySpan = OTELManager.shared.startSpan("swiftui_update_cycle.routines_detail_body")
-        bodySpan.setAttribute(key: "body_call_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
-        bodySpan.setAttribute(key: "is_creating", value: AttributeValue.bool(isCreating))
-        bodySpan.setAttribute(key: "routine.id", value: AttributeValue.string(routine?.id ?? "nil"))
-        bodySpan.setAttribute(key: "show_edit_schedule_sheet", value: AttributeValue.bool(showEditScheduleSheet))
-        bodySpan.setAttribute(key: "has_schedule_to_edit", value: AttributeValue.bool(scheduleToEdit != nil))
-        bodySpan.setAttribute(key: "has_parent_span", value: AttributeValue.bool(editScheduleParentSpan != nil))
-        bodySpan.setAttribute(key: "thread_is_main", value: AttributeValue.bool(Thread.isMainThread))
-        defer {
-            bodySpan.status = .ok
-            bodySpan.end()
-        }
-
-        return mainView
+        mainView
             .onChange(of: routine?.id) { oldValue, newValue in
                 handleRoutineIdChange(oldValue: oldValue, newValue: newValue)
             }
@@ -65,25 +52,12 @@ struct RoutineDetailView: View {
                 handleIsCreatingChange(oldValue: oldValue, newValue: newValue)
             }
             .onChange(of: showEditScheduleSheet) { oldValue, newValue in
-                let stateSpan = OTELManager.shared.startSpan("state_change.showEditScheduleSheet")
-                stateSpan.setAttribute(key: "old_value", value: AttributeValue.bool(oldValue))
-                stateSpan.setAttribute(key: "new_value", value: AttributeValue.bool(newValue))
-                stateSpan.setAttribute(key: "change_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
-                stateSpan.setAttribute(key: "has_schedule_to_edit", value: AttributeValue.bool(scheduleToEdit != nil))
-                stateSpan.setAttribute(key: "has_parent_span", value: AttributeValue.bool(editScheduleParentSpan != nil))
-                stateSpan.status = .ok
-                stateSpan.end()
+                // This onChange is critical for performance - preserving it
             }
             .onChange(of: scheduleToEdit) { oldValue, newValue in
-                let stateSpan = OTELManager.shared.startSpan("state_change.scheduleToEdit")
-                stateSpan.setAttribute(key: "old_value_id", value: AttributeValue.string(oldValue?.id ?? "nil"))
-                stateSpan.setAttribute(key: "new_value_id", value: AttributeValue.string(newValue?.id ?? "nil"))
-                stateSpan.setAttribute(key: "old_object_hash", value: AttributeValue.string(oldValue.map { String(ObjectIdentifier($0 as AnyObject).hashValue) } ?? "nil"))
-                stateSpan.setAttribute(key: "new_object_hash", value: AttributeValue.string(newValue.map { String(ObjectIdentifier($0 as AnyObject).hashValue) } ?? "nil"))
-                stateSpan.setAttribute(key: "change_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
-                stateSpan.status = .ok
-                stateSpan.end()
+                // This onChange is critical for performance - preserving it
             }
+            .withTracing(viewName: "RoutineDetailView")
             .onAppear(perform: handleOnAppear)
             .toolbar(content: toolbarContent)
             .sheet(isPresented: $showEditSheet, content: editSheetContent)
@@ -94,14 +68,7 @@ struct RoutineDetailView: View {
     }
 
     private var mainView: some View {
-        let mainViewSpan = OTELManager.shared.startSpan("swiftui_update_cycle.main_view_evaluation")
-        mainViewSpan.setAttribute(key: "evaluation_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
-        defer {
-            mainViewSpan.status = .ok
-            mainViewSpan.end()
-        }
-
-        return ZStack {
+        ZStack {
             ScrollView {
                 mainContentStack
                     .padding(24)
@@ -257,11 +224,6 @@ struct RoutineDetailView: View {
                 isCreating: false,
                 parentSpan: editScheduleParentSpan
             ) {
-                let dismissSpan = OTELManager.shared.startSpan("sheet_lifecycle.edit_schedule_dismiss")
-                dismissSpan.setAttribute(key: "dismiss_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
-                dismissSpan.setAttribute(key: "schedule.id", value: AttributeValue.string(scheduleToEdit.id))
-                dismissSpan.setAttribute(key: "had_parent_span", value: AttributeValue.bool(editScheduleParentSpan != nil))
-
                 // End the parent span when sheet is dismissed
                 if let parentSpan = editScheduleParentSpan {
                     parentSpan.status = .ok
@@ -271,37 +233,10 @@ struct RoutineDetailView: View {
                 showEditScheduleSheet = false
                 self.scheduleToEdit = nil
                 editScheduleParentSpan = nil
-
-                dismissSpan.status = .ok
-                dismissSpan.end()
             }
-            .onAppear {
-                let appearSpan = OTELManager.shared.startSpan("sheet_lifecycle.edit_schedule_appear")
-                appearSpan.setAttribute(key: "appear_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
-                appearSpan.setAttribute(key: "schedule.id", value: AttributeValue.string(scheduleToEdit.id))
-                appearSpan.setAttribute(key: "schedule.name", value: AttributeValue.string(scheduleToEdit.name))
-                appearSpan.setAttribute(key: "routine.id", value: AttributeValue.string(routine.id))
-                appearSpan.setAttribute(key: "has_parent_span", value: AttributeValue.bool(editScheduleParentSpan != nil))
-                appearSpan.status = .ok
-                appearSpan.end()
-            }
-            .onDisappear {
-                let disappearSpan = OTELManager.shared.startSpan("sheet_lifecycle.edit_schedule_disappear")
-                disappearSpan.setAttribute(key: "disappear_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
-                disappearSpan.setAttribute(key: "schedule.id", value: AttributeValue.string(scheduleToEdit.id))
-                disappearSpan.status = .ok
-                disappearSpan.end()
-            }
+            .withTracing(viewName: "ScheduleEditSheet")
         } else {
             EmptyView()
-                .onAppear {
-                    let errorSpan = OTELManager.shared.startSpan("sheet_lifecycle.edit_schedule_missing_data")
-                    errorSpan.setAttribute(key: "has_routine", value: AttributeValue.bool(routine != nil))
-                    errorSpan.setAttribute(key: "has_schedule_to_edit", value: AttributeValue.bool(scheduleToEdit != nil))
-                    errorSpan.setAttribute(key: "error_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
-                    errorSpan.status = .error(description: "Missing routine or scheduleToEdit")
-                    errorSpan.end()
-                }
         }
     }
 
@@ -507,54 +442,24 @@ struct RoutineDetailView: View {
                                 }
                             },
                             onEdit: {
-                                // Pre-action state capture
-                                let preActionSpan = OTELManager.shared.startSpan("edit_action.pre_state_capture")
-                                preActionSpan.setAttribute(key: "current_show_sheet", value: AttributeValue.bool(showEditScheduleSheet))
-                                preActionSpan.setAttribute(key: "current_schedule_to_edit", value: AttributeValue.string(scheduleToEdit?.id ?? "none"))
-                                preActionSpan.setAttribute(key: "current_parent_span_exists", value: AttributeValue.bool(editScheduleParentSpan != nil))
-                                preActionSpan.setAttribute(key: "target_schedule_id", value: AttributeValue.string(schedule.id))
-                                preActionSpan.setAttribute(key: "target_schedule_name", value: AttributeValue.string(schedule.name))
-                                preActionSpan.status = .ok
-                                preActionSpan.end()
+                                TraceableAction(
+                                    actionName: "edit_schedule",
+                                    component: "schedule_row"
+                                ).execute {
+                                    // Create the parent span for the entire edit schedule flow
+                                    let parentSpan = OTELManager.shared.startSpan("edit_schedule_user_action")
+                                    parentSpan.setAttribute(key: "schedule.id", value: AttributeValue.string(schedule.id))
+                                    parentSpan.setAttribute(key: "schedule.name", value: AttributeValue.string(schedule.name))
+                                    if let routine = routine {
+                                        parentSpan.setAttribute(key: "routine.id", value: AttributeValue.string(routine.id))
+                                        parentSpan.setAttribute(key: "routine.name", value: AttributeValue.string(routine.name))
+                                    }
 
-                                // Create the parent span for the entire edit schedule flow
-                                let parentSpan = OTELManager.shared.startSpan("edit_schedule_user_action")
-                                parentSpan.setAttribute(key: "schedule.id", value: AttributeValue.string(schedule.id))
-                                parentSpan.setAttribute(key: "schedule.name", value: AttributeValue.string(schedule.name))
-                                parentSpan.setAttribute(key: "schedule.object_hash", value: AttributeValue.string(String(ObjectIdentifier(schedule as AnyObject).hashValue)))
-                                parentSpan.setAttribute(key: "click_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
-                                parentSpan.setAttribute(key: "ui_thread", value: AttributeValue.bool(Thread.isMainThread))
-                                if let routine = routine {
-                                    parentSpan.setAttribute(key: "routine.id", value: AttributeValue.string(routine.id))
-                                    parentSpan.setAttribute(key: "routine.name", value: AttributeValue.string(routine.name))
+                                    // Store parent span and set schedule for editing
+                                    editScheduleParentSpan = parentSpan
+                                    scheduleToEdit = schedule
+                                    showEditScheduleSheet = true
                                 }
-
-                                // Create child span for the button click
-                                let clickSpan = OTELManager.shared.createChildSpan(parent: parentSpan, operationName: "edit_button_clicked")
-                                clickSpan.setAttribute(key: "trigger", value: AttributeValue.string("user_click"))
-
-                                // Track state changes with timing
-                                let stateChangeSpan = OTELManager.shared.createChildSpan(parent: parentSpan, operationName: "routine_detail.state_changes")
-                                let stateChangeStart = Date()
-                                stateChangeSpan.setAttribute(key: "before_edit_span", value: AttributeValue.string(editScheduleParentSpan?.description ?? "none"))
-                                stateChangeSpan.setAttribute(key: "before_schedule_to_edit", value: AttributeValue.string(scheduleToEdit?.id ?? "none"))
-                                stateChangeSpan.setAttribute(key: "before_show_sheet", value: AttributeValue.bool(showEditScheduleSheet))
-
-                                // Store parent span and set schedule for editing
-                                editScheduleParentSpan = parentSpan
-                                scheduleToEdit = schedule
-                                showEditScheduleSheet = true
-
-                                let stateChangeDuration = Date().timeIntervalSince(stateChangeStart)
-                                stateChangeSpan.setAttribute(key: "state_change_duration_ms", value: AttributeValue.double(stateChangeDuration * 1000))
-                                stateChangeSpan.setAttribute(key: "after_edit_span_set", value: AttributeValue.bool(true))
-                                stateChangeSpan.setAttribute(key: "after_schedule_to_edit", value: AttributeValue.string(schedule.id))
-                                stateChangeSpan.setAttribute(key: "after_show_sheet", value: AttributeValue.bool(true))
-                                stateChangeSpan.status = .ok
-                                stateChangeSpan.end()
-
-                                clickSpan.status = .ok
-                                clickSpan.end()
                             },
                             onDelete: {
                                 scheduleToDelete = schedule
