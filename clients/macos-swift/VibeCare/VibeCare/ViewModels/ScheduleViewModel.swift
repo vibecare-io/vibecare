@@ -99,11 +99,6 @@ class ScheduleViewModel: ObservableObject {
         setupPeriodicRefresh()
     }
 
-    deinit {
-        // Store a local reference to avoid sendability issues
-        let timer = refreshTimer
-        timer?.invalidate()
-    }
 
     // MARK: - Data Loading
 

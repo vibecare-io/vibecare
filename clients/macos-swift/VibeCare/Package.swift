@@ -4,45 +4,55 @@
 import PackageDescription
 
 let package = Package(
-    name: "VibeCare",
-    platforms: [
-        .macOS(.v15)
-    ],
-    products: [
-        .executable(
-            name: "VibeCare",
-            targets: ["VibeCare"]
-        ),
-        .library(
-            name: "VCStubs",
-            targets: ["VCStubs"]
-        )
-    ],
-    dependencies: [
-        .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.1.0"),
-        .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.1.1"),
-        .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.1.1"),
-        .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.28.0"),
-        .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
-    ],
-    targets: [
-        .target(
-            name: "VCStubs",
-            dependencies: [
-                .product(name: "GRPCCore", package: "grpc-swift-2"),
-                .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
-                .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
-                .product(name: "SwiftProtobuf", package: "swift-protobuf")
-            ],
-            path: "VCStubs"
-        ),
-        .executableTarget(
-            name: "VibeCare",
-            dependencies: [
-                "VCStubs",
-                .product(name: "Logging", package: "swift-log")
-            ],
-            path: "vibecare",
-        )
-    ]
+  name: "VibeCare",
+  platforms: [
+    .macOS(.v15)
+  ],
+  products: [
+    .executable(
+      name: "VibeCare",
+      targets: ["VibeCare"]
+    ),
+    .library(
+      name: "VCStubs",
+      targets: ["VCStubs"]
+    ),
+  ],
+  dependencies: [
+    .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.1.0"),
+    .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.1.1"),
+    .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.1.1"),
+    .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.28.0"),
+    .package(url: "https://github.com/apple/swift-log.git", from: "1.5.0"),
+    // Main package (contains OTLP gRPC exporter)
+    .package(url: "https://github.com/open-telemetry/opentelemetry-swift.git", from: "2.2.0"),
+    // Core package (contains OpenTelemetryApi and OpenTelemetrySdk)
+    .package(url: "https://github.com/open-telemetry/opentelemetry-swift-core.git", from: "2.2.0"),
+
+  ],
+  targets: [
+    .target(
+      name: "VCStubs",
+      dependencies: [
+        .product(name: "GRPCCore", package: "grpc-swift-2"),
+        .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
+        .product(name: "GRPCNIOTransportHTTP2", package: "grpc-swift-nio-transport"),
+        .product(name: "SwiftProtobuf", package: "swift-protobuf"),
+      ],
+      path: "VCStubs"
+    ),
+    .executableTarget(
+      name: "VibeCare",
+      dependencies: [
+        "VCStubs",
+        .product(name: "Logging", package: "swift-log"),
+        // Products OpenTelemetryApi and OpenTelemetrySdk are from the core package
+        .product(name: "OpenTelemetryApi", package: "opentelemetry-swift-core"),
+        .product(name: "OpenTelemetrySdk", package: "opentelemetry-swift-core"),
+        // The OTLP exporter is from the main package
+        .product(name: "OpenTelemetryProtocolExporterHTTP", package: "opentelemetry-swift"),
+      ],
+      path: "vibecare",
+    ),
+  ]
 )

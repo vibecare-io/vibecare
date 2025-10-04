@@ -8,6 +8,17 @@
 
 /* Begin PBXBuildFile section */
 		A06264282E899CC500338507 /* VCStubs in Frameworks */ = {isa = PBXBuildFile; productRef = A06264272E899CC500338507 /* VCStubs */; };
+		A06267182E918AA900338507 /* OpenTelemetryApi in Frameworks */ = {isa = PBXBuildFile; productRef = A06267172E918AA900338507 /* OpenTelemetryApi */; };
+		A062671A2E918AA900338507 /* OpenTelemetryConcurrency in Frameworks */ = {isa = PBXBuildFile; productRef = A06267192E918AA900338507 /* OpenTelemetryConcurrency */; };
+		A062671C2E918AA900338507 /* OpenTelemetrySdk in Frameworks */ = {isa = PBXBuildFile; productRef = A062671B2E918AA900338507 /* OpenTelemetrySdk */; };
+		A062671E2E918AA900338507 /* StdoutExporter in Frameworks */ = {isa = PBXBuildFile; productRef = A062671D2E918AA900338507 /* StdoutExporter */; };
+		A06267202E918AA900338507 /* ConcurrencyContext in Frameworks */ = {isa = PBXBuildFile; productRef = A062671F2E918AA900338507 /* ConcurrencyContext */; };
+		A06267242E918B0E00338507 /* BaggagePropagationProcessor in Frameworks */ = {isa = PBXBuildFile; productRef = A06267232E918B0E00338507 /* BaggagePropagationProcessor */; };
+		A06267262E918B0E00338507 /* InMemoryExporter in Frameworks */ = {isa = PBXBuildFile; productRef = A06267252E918B0E00338507 /* InMemoryExporter */; };
+		A06267282E918B0E00338507 /* JaegerExporter in Frameworks */ = {isa = PBXBuildFile; productRef = A06267272E918B0E00338507 /* JaegerExporter */; };
+		A062672A2E918B0E00338507 /* NetworkStatus in Frameworks */ = {isa = PBXBuildFile; productRef = A06267292E918B0E00338507 /* NetworkStatus */; };
+		A062672C2E918B0E00338507 /* OTelSwiftLog in Frameworks */ = {isa = PBXBuildFile; productRef = A062672B2E918B0E00338507 /* OTelSwiftLog */; };
+		A062672E2E918B2400338507 /* OpenTelemetryProtocolExporterHTTP in Frameworks */ = {isa = PBXBuildFile; productRef = A062672D2E918B2400338507 /* OpenTelemetryProtocolExporterHTTP */; };
 		A06956302E8613C7007838E7 /* GRPCCodeGen in Frameworks */ = {isa = PBXBuildFile; productRef = A069562F2E8613C7007838E7 /* GRPCCodeGen */; };
 		A06956342E8613C7007838E7 /* GRPCInProcessTransport in Frameworks */ = {isa = PBXBuildFile; productRef = A06956332E8613C7007838E7 /* GRPCInProcessTransport */; };
 		A06956372E8613E7007838E7 /* GRPCNIOTransportHTTP2 in Frameworks */ = {isa = PBXBuildFile; productRef = A06956362E8613E7007838E7 /* GRPCNIOTransportHTTP2 */; };
@@ -65,14 +76,25 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				A06267262E918B0E00338507 /* InMemoryExporter in Frameworks */,
+				A06267282E918B0E00338507 /* JaegerExporter in Frameworks */,
+				A062671A2E918AA900338507 /* OpenTelemetryConcurrency in Frameworks */,
+				A062672C2E918B0E00338507 /* OTelSwiftLog in Frameworks */,
+				A062672E2E918B2400338507 /* OpenTelemetryProtocolExporterHTTP in Frameworks */,
 				A06956392E8613E7007838E7 /* GRPCNIOTransportHTTP2Posix in Frameworks */,
 				A06956302E8613C7007838E7 /* GRPCCodeGen in Frameworks */,
+				A062672A2E918B0E00338507 /* NetworkStatus in Frameworks */,
 				A06956492E86145B007838E7 /* protoc-gen-grpc-swift-2 in Frameworks */,
+				A06267182E918AA900338507 /* OpenTelemetryApi in Frameworks */,
+				A062671C2E918AA900338507 /* OpenTelemetrySdk in Frameworks */,
 				A06956372E8613E7007838E7 /* GRPCNIOTransportHTTP2 in Frameworks */,
+				A06267202E918AA900338507 /* ConcurrencyContext in Frameworks */,
 				A06956402E861449007838E7 /* SwiftProtobufPluginLibrary in Frameworks */,
+				A062671E2E918AA900338507 /* StdoutExporter in Frameworks */,
 				A069563B2E8613E7007838E7 /* GRPCNIOTransportHTTP2TransportServices in Frameworks */,
 				A069563E2E861449007838E7 /* SwiftProtobuf in Frameworks */,
 				A06264282E899CC500338507 /* VCStubs in Frameworks */,
+				A06267242E918B0E00338507 /* BaggagePropagationProcessor in Frameworks */,
 				A06956342E8613C7007838E7 /* GRPCInProcessTransport in Frameworks */,
 				A06956472E86145B007838E7 /* GRPCProtobuf in Frameworks */,
 			);
@@ -95,12 +117,20 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		A06267212E918AD900338507 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		A0E35D0A2E824FC80028D792 = {
 			isa = PBXGroup;
 			children = (
 				A0E35D152E824FC80028D792 /* vibecare */,
 				A0E35D242E824FC90028D792 /* vibecareTests */,
 				A0E35D2E2E824FC90028D792 /* vibecareUITests */,
+				A06267212E918AD900338507 /* Frameworks */,
 				A0E35D142E824FC80028D792 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -145,6 +175,17 @@
 				A06956462E86145B007838E7 /* GRPCProtobuf */,
 				A06956482E86145B007838E7 /* protoc-gen-grpc-swift-2 */,
 				A06264272E899CC500338507 /* VCStubs */,
+				A06267172E918AA900338507 /* OpenTelemetryApi */,
+				A06267192E918AA900338507 /* OpenTelemetryConcurrency */,
+				A062671B2E918AA900338507 /* OpenTelemetrySdk */,
+				A062671D2E918AA900338507 /* StdoutExporter */,
+				A062671F2E918AA900338507 /* ConcurrencyContext */,
+				A06267232E918B0E00338507 /* BaggagePropagationProcessor */,
+				A06267252E918B0E00338507 /* InMemoryExporter */,
+				A06267272E918B0E00338507 /* JaegerExporter */,
+				A06267292E918B0E00338507 /* NetworkStatus */,
+				A062672B2E918B0E00338507 /* OTelSwiftLog */,
+				A062672D2E918B2400338507 /* OpenTelemetryProtocolExporterHTTP */,
 			);
 			productName = vibecare;
 			productReference = A0E35D132E824FC80028D792 /* vibecare.app */;
@@ -234,6 +275,8 @@
 				A069563C2E861449007838E7 /* XCRemoteSwiftPackageReference "swift-protobuf" */,
 				A06956452E86145B007838E7 /* XCRemoteSwiftPackageReference "grpc-swift-protobuf" */,
 				A06264262E899CC500338507 /* XCLocalSwiftPackageReference "../VibeCare" */,
+				A06267162E918AA900338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */,
+				A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A0E35D142E824FC80028D792 /* Products */;
@@ -600,6 +643,22 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		A06267162E918AA900338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/open-telemetry/opentelemetry-swift-core";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.2.0;
+			};
+		};
+		A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/open-telemetry/opentelemetry-swift.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 2.2.0;
+			};
+		};
 		A069562E2E8613C7007838E7 /* XCRemoteSwiftPackageReference "grpc-swift-2" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/grpc/grpc-swift-2.git";
@@ -638,6 +697,61 @@
 		A06264272E899CC500338507 /* VCStubs */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = VCStubs;
+		};
+		A06267172E918AA900338507 /* OpenTelemetryApi */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267162E918AA900338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */;
+			productName = OpenTelemetryApi;
+		};
+		A06267192E918AA900338507 /* OpenTelemetryConcurrency */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267162E918AA900338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */;
+			productName = OpenTelemetryConcurrency;
+		};
+		A062671B2E918AA900338507 /* OpenTelemetrySdk */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267162E918AA900338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */;
+			productName = OpenTelemetrySdk;
+		};
+		A062671D2E918AA900338507 /* StdoutExporter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267162E918AA900338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */;
+			productName = StdoutExporter;
+		};
+		A062671F2E918AA900338507 /* ConcurrencyContext */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267162E918AA900338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */;
+			productName = ConcurrencyContext;
+		};
+		A06267232E918B0E00338507 /* BaggagePropagationProcessor */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */;
+			productName = BaggagePropagationProcessor;
+		};
+		A06267252E918B0E00338507 /* InMemoryExporter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */;
+			productName = InMemoryExporter;
+		};
+		A06267272E918B0E00338507 /* JaegerExporter */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */;
+			productName = JaegerExporter;
+		};
+		A06267292E918B0E00338507 /* NetworkStatus */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */;
+			productName = NetworkStatus;
+		};
+		A062672B2E918B0E00338507 /* OTelSwiftLog */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */;
+			productName = OTelSwiftLog;
+		};
+		A062672D2E918B2400338507 /* OpenTelemetryProtocolExporterHTTP */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */;
+			productName = OpenTelemetryProtocolExporterHTTP;
 		};
 		A069562F2E8613C7007838E7 /* GRPCCodeGen */ = {
 			isa = XCSwiftPackageProductDependency;

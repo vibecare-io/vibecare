@@ -19,7 +19,7 @@ public class AppState: ObservableObject {
     private let logger = Logger(label: "com.vibecare.appstate")
     private var cancellables = Set<AnyCancellable>()
     private let eventService = EventService.shared
-    private let notificationManager = NotificationManager.shared
+    private var notificationManager: NotificationManager?
 
     private init() {
         loadCachedProfile()

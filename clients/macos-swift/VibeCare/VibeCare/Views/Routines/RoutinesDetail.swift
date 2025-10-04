@@ -1,4 +1,5 @@
 import SwiftUI
+import OpenTelemetryApi
 
 struct RoutineDetailView: View {
     let routine: Routine?
@@ -8,7 +9,6 @@ struct RoutineDetailView: View {
 
     @State private var showEditSheet = false
     @State private var showDeleteAlert = false
-    @State private var showAddActionSheet = false
     @State private var routineName: String = ""
     @State private var routineDescription: String = ""
     @State private var routineCategory: String = "General"
@@ -17,6 +17,11 @@ struct RoutineDetailView: View {
     @State private var routineIdTracker: String = ""  // Track routine changes
     @State private var hasCreatedRoutine = false  // Track if we've already created the routine
     @State private var showAddScheduleSheet = false
+    @State private var showEditScheduleSheet = false
+    @State private var showDeleteScheduleAlert = false
+    @State private var scheduleToEdit: Schedule?
+    @State private var scheduleToDelete: Schedule?
+    @State private var editScheduleParentSpan: Span?
     @StateObject private var scheduleViewModel = ScheduleViewModel()
 
     init(routine: Routine? = nil, viewModel: RoutineViewModel, isCreating: Bool = false, onCancel: (() -> Void)? = nil) {
@@ -39,67 +44,67 @@ struct RoutineDetailView: View {
     }
 
     var body: some View {
-        ZStack {
+        let bodySpan = OTELManager.shared.startSpan("swiftui_update_cycle.routines_detail_body")
+        bodySpan.setAttribute(key: "body_call_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
+        bodySpan.setAttribute(key: "is_creating", value: AttributeValue.bool(isCreating))
+        bodySpan.setAttribute(key: "routine.id", value: AttributeValue.string(routine?.id ?? "nil"))
+        bodySpan.setAttribute(key: "show_edit_schedule_sheet", value: AttributeValue.bool(showEditScheduleSheet))
+        bodySpan.setAttribute(key: "has_schedule_to_edit", value: AttributeValue.bool(scheduleToEdit != nil))
+        bodySpan.setAttribute(key: "has_parent_span", value: AttributeValue.bool(editScheduleParentSpan != nil))
+        bodySpan.setAttribute(key: "thread_is_main", value: AttributeValue.bool(Thread.isMainThread))
+        defer {
+            bodySpan.status = .ok
+            bodySpan.end()
+        }
+
+        return mainView
+            .onChange(of: routine?.id) { oldValue, newValue in
+                handleRoutineIdChange(oldValue: oldValue, newValue: newValue)
+            }
+            .onChange(of: isCreating) { oldValue, newValue in
+                handleIsCreatingChange(oldValue: oldValue, newValue: newValue)
+            }
+            .onChange(of: showEditScheduleSheet) { oldValue, newValue in
+                let stateSpan = OTELManager.shared.startSpan("state_change.showEditScheduleSheet")
+                stateSpan.setAttribute(key: "old_value", value: AttributeValue.bool(oldValue))
+                stateSpan.setAttribute(key: "new_value", value: AttributeValue.bool(newValue))
+                stateSpan.setAttribute(key: "change_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
+                stateSpan.setAttribute(key: "has_schedule_to_edit", value: AttributeValue.bool(scheduleToEdit != nil))
+                stateSpan.setAttribute(key: "has_parent_span", value: AttributeValue.bool(editScheduleParentSpan != nil))
+                stateSpan.status = .ok
+                stateSpan.end()
+            }
+            .onChange(of: scheduleToEdit) { oldValue, newValue in
+                let stateSpan = OTELManager.shared.startSpan("state_change.scheduleToEdit")
+                stateSpan.setAttribute(key: "old_value_id", value: AttributeValue.string(oldValue?.id ?? "nil"))
+                stateSpan.setAttribute(key: "new_value_id", value: AttributeValue.string(newValue?.id ?? "nil"))
+                stateSpan.setAttribute(key: "old_object_hash", value: AttributeValue.string(oldValue.map { String(ObjectIdentifier($0 as AnyObject).hashValue) } ?? "nil"))
+                stateSpan.setAttribute(key: "new_object_hash", value: AttributeValue.string(newValue.map { String(ObjectIdentifier($0 as AnyObject).hashValue) } ?? "nil"))
+                stateSpan.setAttribute(key: "change_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
+                stateSpan.status = .ok
+                stateSpan.end()
+            }
+            .onAppear(perform: handleOnAppear)
+            .toolbar(content: toolbarContent)
+            .sheet(isPresented: $showEditSheet, content: editSheetContent)
+            .sheet(isPresented: $showAddScheduleSheet, content: addScheduleSheetContent)
+            .sheet(isPresented: $showEditScheduleSheet, content: editScheduleSheetContent)
+            .alert("Delete Routine", isPresented: $showDeleteAlert, actions: deleteRoutineAlertActions, message: deleteRoutineAlertMessage)
+            .alert("Delete Schedule", isPresented: $showDeleteScheduleAlert, actions: deleteScheduleAlertActions, message: deleteScheduleAlertMessage)
+    }
+
+    private var mainView: some View {
+        let mainViewSpan = OTELManager.shared.startSpan("swiftui_update_cycle.main_view_evaluation")
+        mainViewSpan.setAttribute(key: "evaluation_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
+        defer {
+            mainViewSpan.status = .ok
+            mainViewSpan.end()
+        }
+
+        return ZStack {
             ScrollView {
-                VStack(alignment: .leading, spacing: 24) {
-                // Show "Create New Routine" header when creating
-                if isCreating {
-                    HStack {
-                        Spacer()
-                        Text("Create New Routine")
-                            .font(.largeTitle)
-                            .fontWeight(.bold)
-                        Spacer()
-
-                        // Auto-save indicator
-                        if isSaving {
-                            HStack(spacing: 4) {
-                                ProgressView()
-                                    .scaleEffect(0.7)
-                                Text("Saving...")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                        } else if hasCreatedRoutine {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.caption)
-                                Text("Auto-saved")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                            }
-                            .transition(.opacity.combined(with: .scale))
-                        }
-                    }
-                    .padding(.bottom, 8)
-                }
-
-                // Editable Title Header
-                editableTitleSection
-
-                // Status and Category
-                statusSection
-
-                // Description
-                descriptionSection
-
-                // Actions
-                actionsSection
-
-                // Schedules (only for existing routines)
-                if !isCreating {
-                    schedulesSection
-                }
-
-                // Execution History (only for existing routines)
-                if !isCreating {
-                    executionHistorySection
-                }
-
-                    Spacer(minLength: 40)
-                }
-                .padding(24)
+                mainContentStack
+                    .padding(24)
             }
 
             // Status bar at the bottom
@@ -108,60 +113,68 @@ struct RoutineDetailView: View {
                 StatusBarView()
             }
         }
-        .onChange(of: routine?.id) { oldValue, newValue in
-            // Track the change for forcing edit end
-            if oldValue != newValue {
-                routineIdTracker = newValue ?? "new"
-            }
+    }
 
-            // Update local state when routine changes
-            if let routine = routine {
-                routineName = routine.name
-                routineDescription = routine.description
-                routineCategory = routine.category
-                routineEnabled = routine.enabled
-            } else if isCreating {
-                // Reset to default values for new routine
-                routineName = "Your New Routine"
-                routineDescription = ""
-                routineCategory = "Health"
-                routineEnabled = true
-            }
-        }
-        .onChange(of: isCreating) { oldValue, newValue in
-            // Track the change
-            if oldValue != newValue {
-                routineIdTracker = routine?.id ?? "new"
-            }
+    // MARK: - Helper Functions
 
-            // Update state when switching between create and view modes
-            if newValue {
-                // Entering creation mode
-                routineName = "Your New Routine"
-                routineDescription = ""
-                routineCategory = "Health"
-                routineEnabled = true
-            } else if let routine = routine {
-                // Switching back to view mode
-                routineName = routine.name
-                routineDescription = routine.description
-                routineCategory = routine.category
-                routineEnabled = routine.enabled
-            }
+    private func handleRoutineIdChange(oldValue: String?, newValue: String?) {
+        // Track the change for forcing edit end
+        if oldValue != newValue {
+            routineIdTracker = newValue ?? "new"
         }
-        .onAppear {
-            // Initialize the tracker
+
+        // Update local state when routine changes
+        if let routine = routine {
+            routineName = routine.name
+            routineDescription = routine.description
+            routineCategory = routine.category
+            routineEnabled = routine.enabled
+        } else if isCreating {
+            // Reset to default values for new routine
+            routineName = "Your New Routine"
+            routineDescription = ""
+            routineCategory = "Health"
+            routineEnabled = true
+        }
+    }
+
+    private func handleIsCreatingChange(oldValue: Bool, newValue: Bool) {
+        // Track the change
+        if oldValue != newValue {
             routineIdTracker = routine?.id ?? "new"
         }
-        .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                if isCreating {
-                    // Creating mode toolbar - only show Cancel button
+
+        // Update state when switching between create and view modes
+        if newValue {
+            // Entering creation mode
+            routineName = "Your New Routine"
+            routineDescription = ""
+            routineCategory = "Health"
+            routineEnabled = true
+        } else if let routine = routine {
+            // Switching back to view mode
+            routineName = routine.name
+            routineDescription = routine.description
+            routineCategory = routine.category
+            routineEnabled = routine.enabled
+        }
+    }
+
+    private func handleOnAppear() {
+        // Initialize the tracker
+        routineIdTracker = routine?.id ?? "new"
+    }
+
+    @ToolbarContentBuilder
+    private func toolbarContent() -> some ToolbarContent {
+            if isCreating {
+                ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") {
                         onCancel?()
                     }
-                } else if let routine = routine {
-                    // Viewing mode toolbar
+                }
+            } else if let routine = routine {
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         Task {
                             await viewModel.testRoutine(routine)
@@ -170,14 +183,18 @@ struct RoutineDetailView: View {
                         Label("Test", systemImage: "play.circle")
                     }
                     .help("Test this routine")
+                }
 
+                ToolbarItem(placement: .primaryAction) {
                     Button {
                         showEditSheet = true
                     } label: {
                         Label("Edit", systemImage: "pencil")
                     }
                     .help("Edit routine")
+                }
 
+                ToolbarItem(placement: .primaryAction) {
                     Menu {
                         Button {
                             Task {
@@ -208,42 +225,148 @@ struct RoutineDetailView: View {
                     }
                 }
             }
+    }
+
+    @ViewBuilder
+    private func editSheetContent() -> some View {
+        if let routine = routine {
+            Text("Edit form for \(routine.name)") // TODO: Implement edit form
         }
-        .sheet(isPresented: $showEditSheet) {
-            if let routine = routine {
-                Text("Edit form for \(routine.name)") // TODO: Implement edit form
-            }
-        }
-        .sheet(isPresented: $showAddActionSheet) {
-            Text("Add action form") // TODO: Implement add action form
-        }
-        .sheet(isPresented: $showAddScheduleSheet) {
-            if let routine = routine {
-                ScheduleEditView(
-                    routineId: routine.id,
-                    scheduleViewModel: scheduleViewModel,
-                    isCreating: true
-                ) {
-                    showAddScheduleSheet = false
-                }
-            }
-        }
-        .alert("Delete Routine", isPresented: $showDeleteAlert) {
-            Button("Cancel", role: .cancel) { }
-            Button("Delete", role: .destructive) {
-                if let routine = routine {
-                    Task {
-                        await viewModel.deleteRoutine(routine)
-                    }
-                }
-            }
-        } message: {
-            if let routine = routine {
-                Text("Are you sure you want to delete '\(routine.name)'? This action cannot be undone.")
+    }
+
+    @ViewBuilder
+    private func addScheduleSheetContent() -> some View {
+        if let routine = routine {
+            ScheduleEditView(
+                routineId: routine.id,
+                scheduleViewModel: scheduleViewModel,
+                isCreating: true
+            ) {
+                showAddScheduleSheet = false
             }
         }
     }
 
+    @ViewBuilder
+    private func editScheduleSheetContent() -> some View {
+        if let routine = routine, let scheduleToEdit = scheduleToEdit {
+            ScheduleEditView(
+                routineId: routine.id,
+                scheduleViewModel: scheduleViewModel,
+                schedule: scheduleToEdit,
+                isCreating: false,
+                parentSpan: editScheduleParentSpan
+            ) {
+                let dismissSpan = OTELManager.shared.startSpan("sheet_lifecycle.edit_schedule_dismiss")
+                dismissSpan.setAttribute(key: "dismiss_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
+                dismissSpan.setAttribute(key: "schedule.id", value: AttributeValue.string(scheduleToEdit.id))
+                dismissSpan.setAttribute(key: "had_parent_span", value: AttributeValue.bool(editScheduleParentSpan != nil))
+
+                // End the parent span when sheet is dismissed
+                if let parentSpan = editScheduleParentSpan {
+                    parentSpan.status = .ok
+                    parentSpan.end()
+                }
+
+                showEditScheduleSheet = false
+                self.scheduleToEdit = nil
+                editScheduleParentSpan = nil
+
+                dismissSpan.status = .ok
+                dismissSpan.end()
+            }
+            .onAppear {
+                let appearSpan = OTELManager.shared.startSpan("sheet_lifecycle.edit_schedule_appear")
+                appearSpan.setAttribute(key: "appear_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
+                appearSpan.setAttribute(key: "schedule.id", value: AttributeValue.string(scheduleToEdit.id))
+                appearSpan.setAttribute(key: "schedule.name", value: AttributeValue.string(scheduleToEdit.name))
+                appearSpan.setAttribute(key: "routine.id", value: AttributeValue.string(routine.id))
+                appearSpan.setAttribute(key: "has_parent_span", value: AttributeValue.bool(editScheduleParentSpan != nil))
+                appearSpan.status = .ok
+                appearSpan.end()
+            }
+            .onDisappear {
+                let disappearSpan = OTELManager.shared.startSpan("sheet_lifecycle.edit_schedule_disappear")
+                disappearSpan.setAttribute(key: "disappear_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
+                disappearSpan.setAttribute(key: "schedule.id", value: AttributeValue.string(scheduleToEdit.id))
+                disappearSpan.status = .ok
+                disappearSpan.end()
+            }
+        } else {
+            EmptyView()
+                .onAppear {
+                    let errorSpan = OTELManager.shared.startSpan("sheet_lifecycle.edit_schedule_missing_data")
+                    errorSpan.setAttribute(key: "has_routine", value: AttributeValue.bool(routine != nil))
+                    errorSpan.setAttribute(key: "has_schedule_to_edit", value: AttributeValue.bool(scheduleToEdit != nil))
+                    errorSpan.setAttribute(key: "error_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
+                    errorSpan.status = .error(description: "Missing routine or scheduleToEdit")
+                    errorSpan.end()
+                }
+        }
+    }
+
+    // MARK: - Main Content
+
+    private var mainContentStack: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            // Header section
+            if isCreating {
+                createRoutineHeader
+            }
+
+            // Core sections
+            editableTitleSection
+            statusSection
+            descriptionSection
+
+            // Conditional sections for existing routines
+            if !isCreating {
+                Group {
+                    schedulesSection
+                    executionHistorySection
+                }
+            }
+
+            Spacer(minLength: 40)
+        }
+    }
+
+    private var createRoutineHeader: some View {
+        HStack {
+            Spacer()
+            Text("Create New Routine")
+                .font(.largeTitle)
+                .fontWeight(.bold)
+            Spacer()
+
+            // Auto-save indicator
+            autoSaveIndicator
+        }
+        .padding(.bottom, 8)
+    }
+
+    @ViewBuilder
+    private var autoSaveIndicator: some View {
+        if isSaving {
+            HStack(spacing: 4) {
+                ProgressView()
+                    .scaleEffect(0.7)
+                Text("Saving...")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        } else if hasCreatedRoutine {
+            HStack(spacing: 4) {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
+                Text("Auto-saved")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .transition(.opacity.combined(with: .scale))
+        }
+    }
 
     // MARK: - Editable Title Section
 
@@ -374,7 +497,7 @@ struct RoutineDetailView: View {
                     systemImage: "calendar.circle"
                 )
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: 12) {
                     ForEach(scheduleViewModel.getActiveSchedules()) { schedule in
                         ScheduleRowSimpleView(
                             schedule: schedule,
@@ -382,6 +505,60 @@ struct RoutineDetailView: View {
                                 Task {
                                     await scheduleViewModel.toggleScheduleEnabled(schedule)
                                 }
+                            },
+                            onEdit: {
+                                // Pre-action state capture
+                                let preActionSpan = OTELManager.shared.startSpan("edit_action.pre_state_capture")
+                                preActionSpan.setAttribute(key: "current_show_sheet", value: AttributeValue.bool(showEditScheduleSheet))
+                                preActionSpan.setAttribute(key: "current_schedule_to_edit", value: AttributeValue.string(scheduleToEdit?.id ?? "none"))
+                                preActionSpan.setAttribute(key: "current_parent_span_exists", value: AttributeValue.bool(editScheduleParentSpan != nil))
+                                preActionSpan.setAttribute(key: "target_schedule_id", value: AttributeValue.string(schedule.id))
+                                preActionSpan.setAttribute(key: "target_schedule_name", value: AttributeValue.string(schedule.name))
+                                preActionSpan.status = .ok
+                                preActionSpan.end()
+
+                                // Create the parent span for the entire edit schedule flow
+                                let parentSpan = OTELManager.shared.startSpan("edit_schedule_user_action")
+                                parentSpan.setAttribute(key: "schedule.id", value: AttributeValue.string(schedule.id))
+                                parentSpan.setAttribute(key: "schedule.name", value: AttributeValue.string(schedule.name))
+                                parentSpan.setAttribute(key: "schedule.object_hash", value: AttributeValue.string(String(ObjectIdentifier(schedule as AnyObject).hashValue)))
+                                parentSpan.setAttribute(key: "click_timestamp", value: AttributeValue.string(ISO8601DateFormatter().string(from: Date())))
+                                parentSpan.setAttribute(key: "ui_thread", value: AttributeValue.bool(Thread.isMainThread))
+                                if let routine = routine {
+                                    parentSpan.setAttribute(key: "routine.id", value: AttributeValue.string(routine.id))
+                                    parentSpan.setAttribute(key: "routine.name", value: AttributeValue.string(routine.name))
+                                }
+
+                                // Create child span for the button click
+                                let clickSpan = OTELManager.shared.createChildSpan(parent: parentSpan, operationName: "edit_button_clicked")
+                                clickSpan.setAttribute(key: "trigger", value: AttributeValue.string("user_click"))
+
+                                // Track state changes with timing
+                                let stateChangeSpan = OTELManager.shared.createChildSpan(parent: parentSpan, operationName: "routine_detail.state_changes")
+                                let stateChangeStart = Date()
+                                stateChangeSpan.setAttribute(key: "before_edit_span", value: AttributeValue.string(editScheduleParentSpan?.description ?? "none"))
+                                stateChangeSpan.setAttribute(key: "before_schedule_to_edit", value: AttributeValue.string(scheduleToEdit?.id ?? "none"))
+                                stateChangeSpan.setAttribute(key: "before_show_sheet", value: AttributeValue.bool(showEditScheduleSheet))
+
+                                // Store parent span and set schedule for editing
+                                editScheduleParentSpan = parentSpan
+                                scheduleToEdit = schedule
+                                showEditScheduleSheet = true
+
+                                let stateChangeDuration = Date().timeIntervalSince(stateChangeStart)
+                                stateChangeSpan.setAttribute(key: "state_change_duration_ms", value: AttributeValue.double(stateChangeDuration * 1000))
+                                stateChangeSpan.setAttribute(key: "after_edit_span_set", value: AttributeValue.bool(true))
+                                stateChangeSpan.setAttribute(key: "after_schedule_to_edit", value: AttributeValue.string(schedule.id))
+                                stateChangeSpan.setAttribute(key: "after_show_sheet", value: AttributeValue.bool(true))
+                                stateChangeSpan.status = .ok
+                                stateChangeSpan.end()
+
+                                clickSpan.status = .ok
+                                clickSpan.end()
+                            },
+                            onDelete: {
+                                scheduleToDelete = schedule
+                                showDeleteScheduleAlert = true
                             }
                         )
                     }
@@ -404,42 +581,6 @@ struct RoutineDetailView: View {
         }
     }
 
-    // MARK: - Actions Section
-
-    private var actionsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack {
-                Text("Actions (\(currentActionIds.count))")
-                    .font(.headline)
-
-                Spacer()
-
-                FloatingActionButton(
-                    title: "Add Action",
-                    systemImage: "plus"
-                ) {
-                    showAddActionSheet = true
-                }
-            }
-
-            if currentActionIds.isEmpty {
-                EmptyStateView(
-                    title: "No Actions",
-                    subtitle: "Add actions to this routine to define what happens when it executes",
-                    systemImage: "bolt.circle"
-                )
-            } else {
-                VStack(spacing: 8) {
-                    ForEach(currentActionIds.indices, id: \.self) { index in
-                        ActionPreviewCard(
-                            actionId: currentActionIds[index],
-                            index: index + 1
-                        )
-                    }
-                }
-            }
-        }
-    }
 
     // MARK: - Execution History Section
 
@@ -489,13 +630,6 @@ struct RoutineDetailView: View {
         }
     }
 
-    private var currentActionIds: [String] {
-        if isCreating {
-            return [] // New routines start with no actions
-        } else {
-            return routine?.actionIds ?? []
-        }
-    }
 
     // MARK: - Schedule Actions
 
@@ -513,6 +647,49 @@ struct RoutineDetailView: View {
     private func toggleSchedule(_ schedule: Schedule) {
         Task {
             await scheduleViewModel.toggleScheduleEnabled(schedule)
+        }
+    }
+
+    // MARK: - Alert Actions
+
+    @ViewBuilder
+    private func deleteRoutineAlertActions() -> some View {
+        Button("Cancel", role: .cancel) { }
+        Button("Delete", role: .destructive) {
+            if let routine = routine {
+                Task {
+                    await viewModel.deleteRoutine(routine)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func deleteRoutineAlertMessage() -> some View {
+        if let routine = routine {
+            Text("Are you sure you want to delete '\(routine.name)'? This action cannot be undone.")
+        }
+    }
+
+    @ViewBuilder
+    private func deleteScheduleAlertActions() -> some View {
+        Button("Cancel", role: .cancel) {
+            scheduleToDelete = nil
+        }
+        Button("Delete", role: .destructive) {
+            if let scheduleToDelete = scheduleToDelete {
+                Task {
+                    await scheduleViewModel.deleteSchedule(scheduleToDelete)
+                    self.scheduleToDelete = nil
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func deleteScheduleAlertMessage() -> some View {
+        if let scheduleToDelete = scheduleToDelete {
+            Text("Are you sure you want to delete the schedule '\(scheduleToDelete.name)'? This action cannot be undone.")
         }
     }
 

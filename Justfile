@@ -69,13 +69,18 @@ migrate:
 [group('🗄️  Database')]
 migrate-down:
     @echo "{{YELLOW}}Rolling back last migration...{{NC}}"
-    cd {{backend_dir}} && goose -dir internal/storage/migrations sqlite3 ~/.vibecare/vibecare.db down
+    cd {{backend_dir}} && goose -dir internal/storage/migrations sqlite3 {{data_dir}}/vibecare.db  down
 
 # Create a new migration
 [group('🗄️  Database')]
 new-migration name:
     @echo "{{GREEN}}Creating new migration: {{name}}{{NC}}"
     cd {{backend_dir}} && goose -dir internal/storage/migrations create {{name}} sql
+
+[group('🗄️  Database')]
+inspect-backend-db:
+    @echo "{{GREEN}}Inspect backend database...{{NC}}"
+    litecli {{data_dir}}/vibecare.db
 
 # Build the backend server
 [group('📦 Build & Run')]
@@ -224,6 +229,16 @@ swift-build:
 swift-run:
     @echo "{{GREEN}}Running Swift client...{{NC}}"
     cd clients/macos-swift/VibeCare && swift run VibeCare
+
+[group('🍎 macOS / Swift')]
+swift-inspect-app-db:
+    @echo "{{GREEN}}Inspect Swift client database...{{NC}}"
+    litecli ~/Library/Containers/io.vibecare.App.vibecare/Data/Library/Application\ Support/default.store
+
+[group('🍎 macOS / Swift')]
+swift-reset-app-db:
+    @echo "{{GREEN}}Cleaning up the client database...{{NC}}"
+    rm -rf ~/Library/Group\ Containers/com.vibecare.VibeCare/Library/Application\ Support/VibeCare/VibeCare.sqlite
 
 [group('🍎 macOS / Swift')]
 swift-test:

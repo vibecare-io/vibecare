@@ -1,11 +1,12 @@
 import SwiftUI
 import Logging
 import UserNotifications
+import OpenTelemetryApi
 
 @main
 struct VibeCareApp: App {
     @StateObject private var appState = AppState.shared
-    @StateObject private var notificationManager = NotificationManager.shared
+    @State private var notificationManager: NotificationManager?
     private let logger = Logger(label: "com.vibecare.app")
 
     init() {
@@ -13,6 +14,10 @@ struct VibeCareApp: App {
         LoggingSystem.bootstrap(StreamLogHandler.standardError)
         let logger = Logger(label: "com.vibecare.app")
         logger.info("VibeCare macOS app starting up")
+
+        // Initialize OpenTelemetry
+        let _ = OTELManager.shared
+        logger.info("OpenTelemetry initialized and connected to Jaeger")
 
         // gRPC connection will be initialized when app appears
 
@@ -23,19 +28,14 @@ struct VibeCareApp: App {
         WindowGroup("VibeCare", id: "main") {
             ContentView()
                 .environmentObject(appState)
-                .environmentObject(notificationManager)
                 .onAppear {
                     // Load initial data and setup notifications
                     Task {
                         await appState.loadInitialData()
 
-                        // Request notification permissions
-                        let granted = await notificationManager.requestPermissions()
-                        if granted {
-                            logger.info("Notification permissions granted")
-                        } else {
-                            logger.warning("Notification permissions not granted")
-                        }
+                        // Skip notification setup when running via swift run
+                        // TODO: Re-enable for proper app bundle builds
+                        logger.info("Skipping notification setup for development build")
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in

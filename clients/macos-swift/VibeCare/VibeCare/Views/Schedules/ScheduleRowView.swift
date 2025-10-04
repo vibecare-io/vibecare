@@ -279,18 +279,26 @@ struct ScheduleRowSimpleView: View {
     let showSyncStatus: Bool
     let isPendingDeletion: Bool
     let onToggle: (() -> Void)?
+    let onEdit: (() -> Void)?
+    let onDelete: (() -> Void)?
 
     init(
         schedule: Schedule,
         showSyncStatus: Bool = false,
         isPendingDeletion: Bool = false,
-        onToggle: (() -> Void)? = nil
+        onToggle: (() -> Void)? = nil,
+        onEdit: (() -> Void)? = nil,
+        onDelete: (() -> Void)? = nil
     ) {
         self.schedule = schedule
         self.showSyncStatus = showSyncStatus
         self.isPendingDeletion = isPendingDeletion
         self.onToggle = onToggle
+        self.onEdit = onEdit
+        self.onDelete = onDelete
     }
+
+    @State private var isHovered = false
 
     var body: some View {
         HStack(spacing: 12) {
@@ -333,18 +341,72 @@ struct ScheduleRowSimpleView: View {
                 }
             }
 
-            if !isPendingDeletion, let onToggle = onToggle {
-                Button {
-                    onToggle()
-                } label: {
-                    Image(systemName: schedule.enabled ? "pause.circle" : "play.circle")
-                        .foregroundColor(schedule.enabled ? .orange : .green)
+            if !isPendingDeletion && isHovered {
+                HStack(spacing: 8) {
+                    if let onToggle = onToggle {
+                        Button {
+                            onToggle()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: schedule.enabled ? "pause.circle" : "play.circle")
+                                Text(schedule.enabled ? "Pause" : "Enable")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(schedule.enabled ? .orange : .green)
+                        }
+                        .buttonStyle(.plain)
+                        .help(schedule.enabled ? "Disable schedule" : "Enable schedule")
+                    }
+
+                    if let onEdit = onEdit {
+                        Button {
+                            onEdit()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "pencil")
+                                Text("Edit")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.blue)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Edit schedule")
+                    }
+
+                    if let onDelete = onDelete {
+                        Button {
+                            onDelete()
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: "trash")
+                                Text("Delete")
+                                    .font(.caption)
+                            }
+                            .foregroundColor(.red)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Delete schedule")
+                    }
                 }
-                .buttonStyle(.plain)
+                .transition(.opacity.combined(with: .scale(scale: 0.8)))
             }
         }
-        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isPendingDeletion ? Color.red.opacity(0.05) : Color(NSColor.controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(isPendingDeletion ? Color.red.opacity(0.2) : (isHovered ? Color.accentColor.opacity(0.3) : Color.clear), lineWidth: 1)
+        )
         .opacity(isPendingDeletion ? 0.7 : 1.0)
+        .onHover { hovering in
+            withAnimation(.easeInOut(duration: 0.2)) {
+                isHovered = hovering
+            }
+        }
     }
 }
 
@@ -388,7 +450,10 @@ struct ScheduleRowSimpleView: View {
         )
 
         ScheduleRowSimpleView(
-            schedule: Schedule.example(routineId: "preview-routine")
+            schedule: Schedule.example(routineId: "preview-routine"),
+            onToggle: {},
+            onEdit: {},
+            onDelete: {}
         )
 
         ScheduleRowSimpleView(
