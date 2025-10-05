@@ -1474,11 +1474,21 @@ public struct VCScheduleTriggeredEvent: Sendable {
 
   public var actionIds: [String] = []
 
+  public var scheduleName: String {
+    get {return _scheduleName ?? String()}
+    set {_scheduleName = newValue}
+  }
+  /// Returns true if `scheduleName` has been explicitly set.
+  public var hasScheduleName: Bool {return self._scheduleName != nil}
+  /// Clears the value of `scheduleName`. Subsequent reads from it will return its default value.
+  public mutating func clearScheduleName() {self._scheduleName = nil}
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 
   fileprivate var _scheduledTime: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+  fileprivate var _scheduleName: String? = nil
 }
 
 /// RoutineExecutedEvent is dispatched when a routine completes execution
@@ -4122,7 +4132,7 @@ extension VCDispatchEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplemen
 
 extension VCScheduleTriggeredEvent: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".ScheduleTriggeredEvent"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}routine_id\0\u{3}routine_name\0\u{3}scheduled_time\0\u{3}action_ids\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}routine_id\0\u{3}routine_name\0\u{3}scheduled_time\0\u{3}action_ids\0\u{3}schedule_name\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -4135,6 +4145,7 @@ extension VCScheduleTriggeredEvent: SwiftProtobuf.Message, SwiftProtobuf._Messag
       case 3: try { try decoder.decodeSingularStringField(value: &self.routineName) }()
       case 4: try { try decoder.decodeSingularMessageField(value: &self._scheduledTime) }()
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self._scheduleName) }()
       default: break
       }
     }
@@ -4160,6 +4171,9 @@ extension VCScheduleTriggeredEvent: SwiftProtobuf.Message, SwiftProtobuf._Messag
     if !self.actionIds.isEmpty {
       try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 5)
     }
+    try { if let v = self._scheduleName {
+      try visitor.visitSingularStringField(value: v, fieldNumber: 6)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -4169,6 +4183,7 @@ extension VCScheduleTriggeredEvent: SwiftProtobuf.Message, SwiftProtobuf._Messag
     if lhs.routineName != rhs.routineName {return false}
     if lhs._scheduledTime != rhs._scheduledTime {return false}
     if lhs.actionIds != rhs.actionIds {return false}
+    if lhs._scheduleName != rhs._scheduleName {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

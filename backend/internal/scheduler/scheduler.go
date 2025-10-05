@@ -212,6 +212,7 @@ func (s *Scheduler) dispatchScheduleEvent(schedule *models.Schedule) {
 		Payload: &pb.DispatchEvent_ScheduleTriggered{
 			ScheduleTriggered: &pb.ScheduleTriggeredEvent{
 				ScheduleId:    schedule.ScheduleID,
+				ScheduleName:  &schedule.Name,
 				RoutineId:     routine.ID,
 				RoutineName:   routine.Name,
 				ScheduledTime: timestamppb.Now(),
