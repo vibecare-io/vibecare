@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/vibecare-io/vibecare/backend/internal/api"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
@@ -23,9 +24,9 @@ import (
 
 func main() {
 	var (
-		port         = flag.Int("port", 50051, "The server port")
-		dbPath       = flag.String("db", "", "Path to SQLite database")
-		otlpEndpoint = flag.String("otel-endpoint", "localhost:4317", "OpenTelemetry OTLP endpoint")
+		port          = flag.Int("port", 50051, "The server port")
+		dbPath        = flag.String("db", "", "Path to SQLite database")
+		otlpEndpoint  = flag.String("otel-endpoint", "localhost:4317", "OpenTelemetry OTLP endpoint")
 		enableTracing = flag.Bool("enable-tracing", true, "Enable OpenTelemetry tracing")
 	)
 	flag.Parse()
@@ -81,7 +82,6 @@ func main() {
 	// Initialize and start scheduler
 	sched := scheduler.NewScheduler(db, eventHub, logger)
 	go sched.Start()
-	defer sched.Stop()
 
 	// Create gRPC server with OpenTelemetry interceptors
 	// Order matters: panic recovery first, then OTel, then custom
@@ -116,7 +116,25 @@ func main() {
 	go func() {
 		<-sigChan
 		logger.Info("Shutting down server...")
-		grpcServer.GracefulStop()
+
+		// Stop scheduler first to prevent new events
+		logger.Info("Stopping scheduler...")
+		sched.Stop()
+
+		// Attempt graceful shutdown of gRPC server with 15s timeout
+		done := make(chan struct{})
+		go func() {
+			grpcServer.GracefulStop()
+			close(done)
+		}()
+
+		select {
+		case <-done:
+			logger.Info("Server gracefully stopped")
+		case <-time.After(15 * time.Second):
+			logger.Warn("Graceful shutdown timeout, forcing stop")
+			grpcServer.Stop()
+		}
 	}()
 
 	logger.Info("VibeCare server starting", zap.Int("port", *port))
