@@ -1,12 +1,10 @@
 import SwiftUI
 import Logging
-import UserNotifications
 import OpenTelemetryApi
 
 @main
 struct VibeCareApp: App {
     @StateObject private var appState = AppState.shared
-    @State private var notificationManager: NotificationManager?
     private let logger = Logger(label: "com.vibecare.app")
 
     init() {
@@ -29,13 +27,12 @@ struct VibeCareApp: App {
             ContentView()
                 .environmentObject(appState)
                 .onAppear {
-                    // Load initial data and setup notifications
+                    // Load initial data
                     Task {
                         await appState.loadInitialData()
 
-                        // Skip notification setup when running via swift run
-                        // TODO: Re-enable for proper app bundle builds
-                        logger.info("Skipping notification setup for development build")
+                        // VibeNotify requires no permission setup - ready to use!
+                        logger.info("App loaded - VibeNotify ready for notifications")
                     }
                 }
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in

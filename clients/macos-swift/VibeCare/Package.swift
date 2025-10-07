@@ -28,7 +28,8 @@ let package = Package(
     .package(url: "https://github.com/open-telemetry/opentelemetry-swift.git", from: "2.2.0"),
     // Core package (contains OpenTelemetryApi and OpenTelemetrySdk)
     .package(url: "https://github.com/open-telemetry/opentelemetry-swift-core.git", from: "2.2.0"),
-
+    // customized notification
+    .package(url: "https://github.com/vibecare-io/vibe-notify-macos.git", from: "0.0.1"),
   ],
   targets: [
     .target(
@@ -51,6 +52,8 @@ let package = Package(
         .product(name: "OpenTelemetrySdk", package: "opentelemetry-swift-core"),
         // The OTLP exporter is from the main package
         .product(name: "OpenTelemetryProtocolExporterHTTP", package: "opentelemetry-swift"),
+        // Custom notification library
+        .product(name: "VibeNotify", package: "vibe-notify-macos"),
       ],
       path: "vibecare",
     ),

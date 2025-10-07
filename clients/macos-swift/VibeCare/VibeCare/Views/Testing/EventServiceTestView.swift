@@ -37,22 +37,42 @@ struct EventServiceTestView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
 
-            // Notification Permissions
-            GroupBox("Notification Permissions") {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Text("Status:")
-                        Text(notificationManager.permissionStatus.description)
-                            .foregroundColor(notificationManager.permissionStatus == .authorized ? .green : .orange)
+            // VibeNotify Test Notifications
+            GroupBox("VibeNotify Notifications") {
+                VStack(spacing: 10) {
+                    Text("No permissions needed - VibeNotify ready!")
+                        .font(.caption)
+                        .foregroundColor(.green)
+
+                    HStack(spacing: 8) {
+                        Button("Success") {
+                            notificationManager.showSuccess(message: "Operation completed!")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.green)
+
+                        Button("Error") {
+                            notificationManager.showError(message: "Something went wrong!")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+
+                        Button("Warning") {
+                            notificationManager.showWarning(message: "Be careful!")
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.orange)
+
+                        Button("Info") {
+                            notificationManager.showInfo(message: "FYI notification")
+                        }
+                        .buttonStyle(.borderedProminent)
                     }
 
-                    if notificationManager.permissionStatus != .authorized {
-                        Button("Request Permissions") {
-                            Task {
-                                _ = await notificationManager.requestPermissions()
-                            }
-                        }
+                    Button("Toast") {
+                        notificationManager.showToast(message: "Quick toast notification!")
                     }
+                    .buttonStyle(.bordered)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
@@ -81,14 +101,11 @@ struct EventServiceTestView: View {
                             .foregroundColor(.secondary)
                     }
 
-                    Button("Test Notification") {
-                        Task {
-                            await notificationManager.showNotification(
-                                title: "Test Notification",
-                                subtitle: "VibeCare",
-                                body: "This is a test notification from EventService"
-                            )
-                        }
+                    Button("Test Schedule Notification") {
+                        notificationManager.showInfo(
+                            title: "Test Schedule Triggered",
+                            message: "This simulates a schedule notification"
+                        )
                     }
                     .buttonStyle(.bordered)
                 }

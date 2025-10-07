@@ -7,6 +7,7 @@ public struct Dashboard: View {
   @StateObject private var routineViewModel = RoutineViewModel()
   @StateObject private var scheduleViewModel = ScheduleViewModel()
   @StateObject private var actionViewModel = ActionViewModel()
+  @StateObject private var notificationPolicy = NotificationPolicy.shared
 
   public init() {}
 
@@ -167,6 +168,15 @@ public struct Dashboard: View {
 
   @ViewBuilder
   private var toolbarButtons: some View {
+    // Notification toggle (always visible)
+    Button {
+      notificationPolicy.toggle()
+    } label: {
+      Image(systemName: notificationPolicy.enabled ? "bell.fill" : "bell.slash.fill")
+    }
+    .help(notificationPolicy.enabled ? "Disable notifications" : "Enable notifications")
+
+    // Section-specific buttons
     switch dashboardState.selectedSidebarItem {
     case .routines:
       routineToolbarButtons

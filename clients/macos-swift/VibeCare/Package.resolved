@@ -1,5 +1,5 @@
 {
-  "originHash" : "e3a822358acd1ee5143927f9d355643fd4ea4b194f379bc1acae840d7fad7c21",
+  "originHash" : "b691547bcace26149c7d6a399246794429acf0952183cd26355c160c4a4a2c06",
   "pins" : [
     {
       "identity" : "grpc-swift",
@@ -62,6 +62,15 @@
       "state" : {
         "revision" : "18c1a35ca966236cee0c5a714a51a73ff33384c1",
         "version" : "0.5.2"
+      }
+    },
+    {
+      "identity" : "svgview",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/exyte/SVGView.git",
+      "state" : {
+        "revision" : "6465962facdd25cb96eaebc35603afa2f15d2c0d",
+        "version" : "1.0.6"
       }
     },
     {
@@ -251,6 +260,15 @@
       "state" : {
         "revision" : "18ff09e6b30e589ed38f90a1af23e193b8ecef8e",
         "version" : "1.1.2"
+      }
+    },
+    {
+      "identity" : "vibe-notify-macos",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/vibecare-io/vibe-notify-macos.git",
+      "state" : {
+        "revision" : "4558bc1d061253e3f44e89ba453c955378e3d19d",
+        "version" : "0.0.1"
       }
     }
   ],

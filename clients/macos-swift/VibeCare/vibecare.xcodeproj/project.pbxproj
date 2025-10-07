@@ -19,6 +19,7 @@
 		A062672A2E918B0E00338507 /* NetworkStatus in Frameworks */ = {isa = PBXBuildFile; productRef = A06267292E918B0E00338507 /* NetworkStatus */; };
 		A062672C2E918B0E00338507 /* OTelSwiftLog in Frameworks */ = {isa = PBXBuildFile; productRef = A062672B2E918B0E00338507 /* OTelSwiftLog */; };
 		A062672E2E918B2400338507 /* OpenTelemetryProtocolExporterHTTP in Frameworks */ = {isa = PBXBuildFile; productRef = A062672D2E918B2400338507 /* OpenTelemetryProtocolExporterHTTP */; };
+		A06267332E92F5C300338507 /* VibeNotify in Frameworks */ = {isa = PBXBuildFile; productRef = A06267322E92F5C300338507 /* VibeNotify */; };
 		A06956302E8613C7007838E7 /* GRPCCodeGen in Frameworks */ = {isa = PBXBuildFile; productRef = A069562F2E8613C7007838E7 /* GRPCCodeGen */; };
 		A06956342E8613C7007838E7 /* GRPCInProcessTransport in Frameworks */ = {isa = PBXBuildFile; productRef = A06956332E8613C7007838E7 /* GRPCInProcessTransport */; };
 		A06956372E8613E7007838E7 /* GRPCNIOTransportHTTP2 in Frameworks */ = {isa = PBXBuildFile; productRef = A06956362E8613E7007838E7 /* GRPCNIOTransportHTTP2 */; };
@@ -95,6 +96,7 @@
 				A069563E2E861449007838E7 /* SwiftProtobuf in Frameworks */,
 				A06264282E899CC500338507 /* VCStubs in Frameworks */,
 				A06267242E918B0E00338507 /* BaggagePropagationProcessor in Frameworks */,
+				A06267332E92F5C300338507 /* VibeNotify in Frameworks */,
 				A06956342E8613C7007838E7 /* GRPCInProcessTransport in Frameworks */,
 				A06956472E86145B007838E7 /* GRPCProtobuf in Frameworks */,
 			);
@@ -186,6 +188,7 @@
 				A06267292E918B0E00338507 /* NetworkStatus */,
 				A062672B2E918B0E00338507 /* OTelSwiftLog */,
 				A062672D2E918B2400338507 /* OpenTelemetryProtocolExporterHTTP */,
+				A06267322E92F5C300338507 /* VibeNotify */,
 			);
 			productName = vibecare;
 			productReference = A0E35D132E824FC80028D792 /* vibecare.app */;
@@ -277,6 +280,7 @@
 				A06264262E899CC500338507 /* XCLocalSwiftPackageReference "../VibeCare" */,
 				A06267162E918AA900338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift-core" */,
 				A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */,
+				A06267312E92F5C300338507 /* XCRemoteSwiftPackageReference "vibe-notify-macos" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A0E35D142E824FC80028D792 /* Products */;
@@ -659,6 +663,14 @@
 				minimumVersion = 2.2.0;
 			};
 		};
+		A06267312E92F5C300338507 /* XCRemoteSwiftPackageReference "vibe-notify-macos" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/vibecare-io/vibe-notify-macos.git";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 0.0.1;
+			};
+		};
 		A069562E2E8613C7007838E7 /* XCRemoteSwiftPackageReference "grpc-swift-2" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/grpc/grpc-swift-2.git";
@@ -752,6 +764,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A06267222E918B0E00338507 /* XCRemoteSwiftPackageReference "opentelemetry-swift" */;
 			productName = OpenTelemetryProtocolExporterHTTP;
+		};
+		A06267322E92F5C300338507 /* VibeNotify */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A06267312E92F5C300338507 /* XCRemoteSwiftPackageReference "vibe-notify-macos" */;
+			productName = VibeNotify;
 		};
 		A069562F2E8613C7007838E7 /* GRPCCodeGen */ = {
 			isa = XCSwiftPackageProductDependency;

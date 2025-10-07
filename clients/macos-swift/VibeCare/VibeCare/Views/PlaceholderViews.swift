@@ -122,42 +122,137 @@ struct CreateProfileView: View {
 
 public struct MenuBarView: View {
     @EnvironmentObject private var appState: AppState
+    @StateObject private var notificationPolicy = NotificationPolicy.shared
 
     public init() {}
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("VibeCare")
-                .font(.headline)
-                .padding(.horizontal)
-
-            Divider()
-
+        VStack(alignment: .leading, spacing: 0) {
+            // Profile info
             if let profile = appState.currentProfile {
-                Text("Profile: \(profile.name)")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .padding(.horizontal)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("VibeCare")
+                        .font(.headline)
+                    Text("Profile: \(profile.name)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 8)
+            } else {
+                Text("VibeCare")
+                    .font(.headline)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
             }
-
-            Button("Open Dashboard") {
-                // Open main window
-            }
-            .padding(.horizontal)
-
-            Button("Settings") {
-                // Open settings
-            }
-            .padding(.horizontal)
 
             Divider()
 
-            Button("Quit VibeCare") {
-                NSApplication.shared.terminate(nil)
+            // Notification status and toggle
+            Button {
+                notificationPolicy.toggle()
+            } label: {
+                HStack {
+                    Image(systemName: notificationPolicy.enabled ? "bell.fill" : "bell.slash.fill")
+                        .frame(width: 20)
+                    Text(notificationPolicy.enabled ? "Pause Notifications" : "Resume Notifications")
+                    Spacer()
+                    Text("⌘N")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
             }
-            .padding(.horizontal)
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            Divider()
+
+            // Open Dashboard
+            Button {
+                openMainWindow()
+            } label: {
+                HStack {
+                    Image(systemName: "calendar")
+                        .frame(width: 20)
+                    Text("Open VibeCare")
+                    Spacer()
+                    Text("⌘O")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            // Settings
+            Button {
+                openSettings()
+            } label: {
+                HStack {
+                    Image(systemName: "gearshape")
+                        .frame(width: 20)
+                    Text("Settings...")
+                    Spacer()
+                    Text("⌘,")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
+
+            Divider()
+
+            // Quit
+            Button {
+                NSApplication.shared.terminate(nil)
+            } label: {
+                HStack {
+                    Image(systemName: "power")
+                        .frame(width: 20)
+                    Text("Quit VibeCare")
+                    Spacer()
+                    Text("⌘Q")
+                        .font(.system(.caption, design: .monospaced))
+                        .foregroundColor(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 6)
         }
-        .padding(.vertical, 8)
+        .frame(width: 280)
+    }
+
+    private func openMainWindow() {
+        // Activate the app and open the main window
+        NSApp.activate(ignoringOtherApps: true)
+        if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
+            window.makeKeyAndOrderFront(nil)
+        } else {
+            // If no window exists, create one by opening a new window
+            if let url = URL(string: "vibecare://main") {
+                NSWorkspace.shared.open(url)
+            }
+        }
+    }
+
+    private func openSettings() {
+        // Open settings window
+        NSApp.activate(ignoringOtherApps: true)
+        if let settingsWindow = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
+            settingsWindow.makeKeyAndOrderFront(nil)
+        } else {
+            // Send action to open settings
+            NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
     }
 }
 

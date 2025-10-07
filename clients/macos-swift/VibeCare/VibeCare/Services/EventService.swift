@@ -136,10 +136,8 @@ class EventService: ObservableObject {
             // Call the registered handler
             self?.scheduleTriggeredHandler?(event)
 
-            // Show notification
-            Task {
-                await NotificationManager.shared.showScheduleNotification(for: event)
-            }
+            // Show VibeNotify notification (works in foreground and background)
+            NotificationManager.shared.showScheduleNotification(for: event)
         }
     }
 
