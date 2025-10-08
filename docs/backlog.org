@@ -1,10 +1,71 @@
 #+TITLE: backlog
 #+DATE: Tuesday, Sep 30 2025
+#+TODO: TODO(t) INPROGRESS(p@) | DONE(d@)
+#+TODO: NOTES(n@) | CANCELED(c@)
+#+STARTUP: logdrawer
+:PROPERTIES:
+:ID:       FA609D08-7B0D-4AF9-BE49-DD791393E765
+:END:
 
-- macos:
+* Backlog
+** Current
+1. macos: proper scheduler Rest
+2. backend: scheduler eval fix
+3. lib: vnm support svg
+4. lib: vnm support inputs
+5. macos: support open link
+
+** input
+*** macos:
   - proper offline mode(graceful retry of connection errors)
-  - data diff and sync plan  
-
-- backend:
+  - data diff and sync plan
+  - #+DATE: Monday, Oct 06 2025
+    - notification policy(pause/resume/auto-detect)
+  - menu/toolbar items fixes
+*** backend:
   - dispatch event to the client
     - eg: action: send_notification
+
+  - bug: scheduler is dispatching every one minute
+*** lib: vibe-notify-macos
+
+* dump:
+** svg animations with rive for different notification                :macos:
+    - rive animaiation imitate your eyes
+    - rive animaiation imitate your posture
+** actions inventory
+  - pluggable actions inventory
+  - browse via actions and exec things
+  - actions:
+    - send notification
+    - play sound
+    - play video
+    - send survey form
+
+** scheduler
+
+
+* Idea BrainStroming
+Lets
+- Persona Summary
+- Idea Revision
+- Feature Listing
+
+Working In front of coumputer/devices leads to:
+*** INPROGRESS Physical issues:
+:LOGBOOK:
+:END:
+  - Digital eye strain(dry eyes, headaches)
+  - Posture issues: Neck,shoulder and back pain
+  - Dehydration
+  - Repetitive strain injuries(damange tendon/soft tissues)
+*** Psycological:
+  - Mental fatigue (over exposure of social content)
+  - Dev of poor social skills (lack of interactions)
+  - Increased guilt/stress due to missed family priorities
+*** Mental:
+  - Distraction: less attents spans
+  - Development of Addiction(content consumption)
+
+    
+    
