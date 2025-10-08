@@ -249,7 +249,8 @@ class ScheduleViewModel: ObservableObject {
         recurrenceJSON: String,
         dtstart: Date = Date(),
         notes: String = "",
-        enabled: Bool = true
+        enabled: Bool = true,
+        priority: Priority = .none
     ) async {
         do {
             // Create schedule locally first (instant response)
@@ -259,7 +260,8 @@ class ScheduleViewModel: ObservableObject {
                 recurrenceJSON: recurrenceJSON,
                 dtstart: dtstart,
                 notes: notes,
-                enabled: enabled
+                enabled: enabled,
+                priority: priority
             )
 
             // Save to local storage immediately

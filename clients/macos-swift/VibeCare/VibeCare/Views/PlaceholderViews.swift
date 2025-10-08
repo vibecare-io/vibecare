@@ -128,116 +128,95 @@ public struct MenuBarView: View {
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Profile info
-            if let profile = appState.currentProfile {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("VibeCare")
-                        .font(.headline)
-                    Text("Profile: \(profile.name)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-            } else {
+            // Header with app name and status badge
+            HStack {
+                Image(systemName: "heart.circle.fill")
+                    .font(.title2)
+                    .foregroundColor(.accentColor)
+
                 Text("VibeCare")
-                    .font(.headline)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 8)
+                    .font(.title3)
+                    .fontWeight(.semibold)
+
+                Spacer()
+
+                // Status badge
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(notificationPolicy.enabled ? Color.green : Color.orange)
+                        .frame(width: 8, height: 8)
+                    Text(notificationPolicy.enabled ? "Enabled" : "Disabled")
+                        .font(.caption)
+                        .foregroundColor(notificationPolicy.enabled ? .green : .orange)
+                        .fontWeight(.medium)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                .background(
+                    RoundedRectangle(cornerRadius: 12)
+                        .fill(notificationPolicy.enabled ? Color.green.opacity(0.15) : Color.orange.opacity(0.15))
+                )
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 14)
+
+            Divider()
+
+            // Profile info (if available)
+            if let profile = appState.currentProfile {
+                HStack(spacing: 8) {
+                    Image(systemName: "person.circle.fill")
+                        .foregroundColor(.secondary)
+                    Text(profile.name)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
             }
 
             Divider()
 
-            // Notification status and toggle
-            Button {
-                notificationPolicy.toggle()
-            } label: {
-                HStack {
-                    Image(systemName: notificationPolicy.enabled ? "bell.fill" : "bell.slash.fill")
-                        .frame(width: 20)
-                    Text(notificationPolicy.enabled ? "Pause Notifications" : "Resume Notifications")
-                    Spacer()
-                    Text("⌘N")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-                .contentShape(Rectangle())
+            // Action buttons section
+            VStack(spacing: 2) {
+                MenuBarButton(
+                    icon: notificationPolicy.enabled ? "bell.slash.fill" : "bell.fill",
+                    title: notificationPolicy.enabled ? "Pause Notifications" : "Resume Notifications",
+                    action: { notificationPolicy.toggle() }
+                )
+
+                MenuBarButton(
+                    icon: "rectangle.on.rectangle",
+                    title: "Open VibeCare",
+                    action: openMainWindow
+                )
+
+                MenuBarButton(
+                    icon: "gearshape",
+                    title: "Settings",
+                    action: openSettings
+                )
             }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            .padding(.vertical, 4)
 
             Divider()
 
-            // Open Dashboard
-            Button {
-                openMainWindow()
-            } label: {
-                HStack {
-                    Image(systemName: "calendar")
-                        .frame(width: 20)
-                    Text("Open VibeCare")
-                    Spacer()
-                    Text("⌘O")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-
-            // Settings
-            Button {
-                openSettings()
-            } label: {
-                HStack {
-                    Image(systemName: "gearshape")
-                        .frame(width: 20)
-                    Text("Settings...")
-                    Spacer()
-                    Text("⌘,")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
-
-            Divider()
-
-            // Quit
-            Button {
-                NSApplication.shared.terminate(nil)
-            } label: {
-                HStack {
-                    Image(systemName: "power")
-                        .frame(width: 20)
-                    Text("Quit VibeCare")
-                    Spacer()
-                    Text("⌘Q")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundColor(.secondary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 6)
+            // Quit button
+            MenuBarButton(
+                icon: "power",
+                title: "Quit VibeCare",
+                action: { NSApplication.shared.terminate(nil) }
+            )
+            .padding(.vertical, 4)
         }
-        .frame(width: 280)
+        .frame(width: 320)
     }
 
     private func openMainWindow() {
-        // Activate the app and open the main window
         NSApp.activate(ignoringOtherApps: true)
         if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
             window.makeKeyAndOrderFront(nil)
         } else {
-            // If no window exists, create one by opening a new window
             if let url = URL(string: "vibecare://main") {
                 NSWorkspace.shared.open(url)
             }
@@ -245,13 +224,45 @@ public struct MenuBarView: View {
     }
 
     private func openSettings() {
-        // Open settings window
         NSApp.activate(ignoringOtherApps: true)
         if let settingsWindow = NSApp.windows.first(where: { $0.identifier?.rawValue == "settings" }) {
             settingsWindow.makeKeyAndOrderFront(nil)
         } else {
-            // Send action to open settings
             NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+        }
+    }
+}
+
+// Reusable menu bar button component
+struct MenuBarButton: View {
+    let icon: String
+    let title: String
+    let action: () -> Void
+
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .frame(width: 20)
+                    .foregroundColor(isHovered ? .primary : .secondary)
+
+                Text(title)
+                    .font(.body)
+
+                Spacer()
+            }
+            .contentShape(Rectangle())
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(
+                isHovered ? Color.accentColor.opacity(0.1) : Color.clear
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            isHovered = hovering
         }
     }
 }
