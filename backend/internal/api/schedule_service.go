@@ -42,8 +42,8 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
 	}
 
-	if err := validation.ValidateJSON("recurrence_json", req.RecurrenceJson); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid recurrence_json: %v", err)
+	if err := validation.ValidateRequired("rrule", req.Rrule); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid rrule: %v", err)
 	}
 
 	if err := validation.ValidateStringArray("exdates", req.Exdates, validation.MaxArraySize); err != nil {
@@ -69,7 +69,7 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 		req.Id, // Client-provided ID (optional)
 		req.RoutineId,
 		req.Name,
-		req.RecurrenceJson,
+		req.Rrule,
 		dtstart,
 		req.Exdates,
 		req.Notes,
@@ -121,8 +121,8 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.UpdateScheduleReque
 		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
 	}
 
-	if err := validation.ValidateJSON("recurrence_json", req.RecurrenceJson); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid recurrence_json: %v", err)
+	if err := validation.ValidateRequired("rrule", req.Rrule); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid rrule: %v", err)
 	}
 
 	if err := validation.ValidateStringArray("exdates", req.Exdates, validation.MaxArraySize); err != nil {
@@ -154,7 +154,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.UpdateScheduleReque
 
 	// Update fields
 	schedule.Name = req.Name
-	schedule.RecurrenceJSON = req.RecurrenceJson
+	schedule.RRule = req.Rrule
 	schedule.DTStart = dtstart
 	schedule.ExDates = req.Exdates
 	schedule.Notes = req.Notes
@@ -323,15 +323,15 @@ func (s *Server) ResumeAllSchedules(ctx context.Context, req *pb.ResumeAllSchedu
 // Helper function to convert between models and protobuf
 func convertToProtoSchedule(schedule *models.Schedule) *pb.Schedule {
 	pbSchedule := &pb.Schedule{
-		ScheduleId:     schedule.ScheduleID,
-		RoutineId:      schedule.RoutineID,
-		Name:           schedule.Name,
-		RecurrenceJson: schedule.RecurrenceJSON,
-		Exdates:        schedule.ExDates,
-		Notes:          schedule.Notes,
-		Enabled:        schedule.Enabled,
-		CreatedAt:      timestamppb.New(schedule.CreatedAt),
-		UpdatedAt:      timestamppb.New(schedule.UpdatedAt),
+		ScheduleId: schedule.ScheduleID,
+		RoutineId:  schedule.RoutineID,
+		Name:       schedule.Name,
+		Rrule:      schedule.RRule,
+		Exdates:    schedule.ExDates,
+		Notes:      schedule.Notes,
+		Enabled:    schedule.Enabled,
+		CreatedAt:  timestamppb.New(schedule.CreatedAt),
+		UpdatedAt:  timestamppb.New(schedule.UpdatedAt),
 	}
 
 	if schedule.DTStart != nil {

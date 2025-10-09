@@ -30,7 +30,7 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
     let id: String  // Client-authoritative ID for local-first architecture
     let routineId: String
     var name: String
-    var recurrenceJSON: String
+    var rrule: String  // RFC 5545 RRule string
     var dtstart: Date
     var exdates: [String]
     var lastExecution: Date?
@@ -44,7 +44,7 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         id: String = UUID().uuidString,
         routineId: String,
         name: String,
-        recurrenceJSON: String,
+        rrule: String,
         dtstart: Date = Date(),
         exdates: [String] = [],
         lastExecution: Date? = nil,
@@ -57,7 +57,7 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         self.id = id
         self.routineId = routineId
         self.name = name
-        self.recurrenceJSON = recurrenceJSON
+        self.rrule = rrule
         self.dtstart = dtstart
         self.exdates = exdates
         self.lastExecution = lastExecution
@@ -132,31 +132,143 @@ struct RRule: Codable, Equatable, Hashable {
         }
     }
 
-    func toJSON() throws -> String {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(self)
-        return String(data: data, encoding: .utf8) ?? ""
+    // Convert RRule struct to RFC 5545 string format
+    func toRRuleString() -> String {
+        var parts: [String] = []
+
+        // FREQ is required
+        parts.append("FREQ=\(freq.rawValue)")
+
+        // INTERVAL
+        if interval > 1 {
+            parts.append("INTERVAL=\(interval)")
+        }
+
+        // BYHOUR
+        if !byhour.isEmpty {
+            parts.append("BYHOUR=\(byhour.map(String.init).joined(separator: ","))")
+        }
+
+        // BYMINUTE
+        if !byminute.isEmpty {
+            parts.append("BYMINUTE=\(byminute.map(String.init).joined(separator: ","))")
+        }
+
+        // BYDAY
+        if !byday.isEmpty {
+            parts.append("BYDAY=\(byday.joined(separator: ","))")
+        }
+
+        // BYMONTHDAY
+        if !bymonthday.isEmpty {
+            parts.append("BYMONTHDAY=\(bymonthday.map(String.init).joined(separator: ","))")
+        }
+
+        // BYMONTH
+        if !bymonth.isEmpty {
+            parts.append("BYMONTH=\(bymonth.map(String.init).joined(separator: ","))")
+        }
+
+        // UNTIL
+        if let until = until {
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withYear, .withMonth, .withDay, .withTime]
+            parts.append("UNTIL=\(formatter.string(from: until))")
+        }
+
+        // COUNT
+        if let count = count {
+            parts.append("COUNT=\(count)")
+        }
+
+        // BYWEEKNO
+        if !byweekno.isEmpty {
+            parts.append("BYWEEKNO=\(byweekno.map(String.init).joined(separator: ","))")
+        }
+
+        // BYYEARDAY
+        if !byyearday.isEmpty {
+            parts.append("BYYEARDAY=\(byyearday.map(String.init).joined(separator: ","))")
+        }
+
+        // WKST
+        if wkst != "MO" {
+            parts.append("WKST=\(wkst)")
+        }
+
+        return parts.joined(separator: ";")
     }
 
-    static func fromJSON(_ json: String) throws -> RRule {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .iso8601
-        guard let data = json.data(using: .utf8) else {
-            throw RRuleError.invalidJSON
+    // Parse RFC 5545 RRule string into RRule struct
+    static func fromRRuleString(_ rruleString: String) throws -> RRule {
+        var rrule = RRule()
+
+        let components = rruleString.split(separator: ";")
+        for component in components {
+            let parts = component.split(separator: "=", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+
+            let key = String(parts[0]).uppercased()
+            let value = String(parts[1])
+
+            switch key {
+            case "FREQ":
+                guard let frequency = Frequency(rawValue: value) else {
+                    throw RRuleError.invalidFrequency
+                }
+                rrule.freq = frequency
+
+            case "INTERVAL":
+                rrule.interval = Int(value) ?? 1
+
+            case "BYHOUR":
+                rrule.byhour = value.split(separator: ",").compactMap { Int($0) }
+
+            case "BYMINUTE":
+                rrule.byminute = value.split(separator: ",").compactMap { Int($0) }
+
+            case "BYDAY":
+                rrule.byday = value.split(separator: ",").map { String($0) }
+
+            case "BYMONTHDAY":
+                rrule.bymonthday = value.split(separator: ",").compactMap { Int($0) }
+
+            case "BYMONTH":
+                rrule.bymonth = value.split(separator: ",").compactMap { Int($0) }
+
+            case "UNTIL":
+                let formatter = ISO8601DateFormatter()
+                rrule.until = formatter.date(from: value)
+
+            case "COUNT":
+                rrule.count = Int(value)
+
+            case "BYWEEKNO":
+                rrule.byweekno = value.split(separator: ",").compactMap { Int($0) }
+
+            case "BYYEARDAY":
+                rrule.byyearday = value.split(separator: ",").compactMap { Int($0) }
+
+            case "WKST":
+                rrule.wkst = value
+
+            default:
+                break
+            }
         }
-        return try decoder.decode(RRule.self, from: data)
+
+        return rrule
     }
 }
 
 enum RRuleError: LocalizedError {
-    case invalidJSON
+    case invalidRRuleString
     case invalidFrequency
 
     var errorDescription: String? {
         switch self {
-        case .invalidJSON:
-            return "Invalid RRule JSON format"
+        case .invalidRRuleString:
+            return "Invalid RRule format (expected RFC 5545 format)"
         case .invalidFrequency:
             return "Invalid frequency value"
         }
@@ -165,22 +277,22 @@ enum RRuleError: LocalizedError {
 
 // MARK: - Schedule Extensions
 extension Schedule {
-    var rrule: RRule? {
-        try? RRule.fromJSON(recurrenceJSON)
+    var parsedRRule: RRule? {
+        try? RRule.fromRRuleString(rrule)
     }
 
     var displayName: String {
         if !name.isEmpty {
             return name
         }
-        return rrule?.humanReadableDescription ?? "Untitled Schedule"
+        return parsedRRule?.humanReadableDescription ?? "Untitled Schedule"
     }
 
     var nextExecution: Date? {
         // This would be calculated based on the RRule and current time
         // For now, we'll return a placeholder
-        guard let rrule = rrule else { return nil }
-        let start = dtstart ?? Date()
+        guard let rrule = parsedRRule else { return nil }
+        let start = dtstart
 
         // Simplified next execution calculation
         switch rrule.freq {
@@ -385,16 +497,12 @@ extension Schedule {
 
     var recurrenceRule: RRule? {
         get {
-            return rrule
+            return parsedRRule
         }
         set {
             if let rule = newValue {
-                do {
-                    recurrenceJSON = try rule.toJSON()
-                    updatedAt = Date()
-                } catch {
-                    // Keep existing JSON if conversion fails
-                }
+                rrule = rule.toRRuleString()
+                updatedAt = Date()
             }
         }
     }
@@ -408,26 +516,20 @@ extension Schedule {
     ) -> Schedule? {
         guard let template = RRule.templates[templateName] else { return nil }
 
-        do {
-            return Schedule(
-                routineId: routineId,
-                name: name ?? templateName,
-                recurrenceJSON: try template.toJSON(),
-                dtstart: Date(),
-                notes: "Created from template: \(templateName)"
-            )
-        } catch {
-            return nil
-        }
+        return Schedule(
+            routineId: routineId,
+            name: name ?? templateName,
+            rrule: template.toRRuleString(),
+            dtstart: Date(),
+            notes: "Created from template: \(templateName)"
+        )
     }
 
     static func example(routineId: String) -> Schedule {
         return Schedule(
             routineId: routineId,
             name: "Every 20 minutes",
-            recurrenceJSON: """
-            {"freq":"MINUTELY","interval":20}
-            """,
+            rrule: "FREQ=MINUTELY;INTERVAL=20",
             dtstart: Date(),
             notes: "Regular notification reminder"
         )

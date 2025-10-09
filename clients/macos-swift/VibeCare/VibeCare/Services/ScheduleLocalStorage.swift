@@ -29,7 +29,7 @@ class ScheduleEntity {
     @Attribute(.unique) var id: String
     var routineId: String // Keep for backward compatibility
     var name: String
-    var recurrenceJSON: String
+    var rrule: String  // RFC 5545 RRule string
     var dtstart: Date
     @Attribute(.transformable(by: "NSSecureUnarchiveFromDataTransformer")) var exdates: [String]
     var lastExecution: Date?
@@ -54,7 +54,7 @@ class ScheduleEntity {
         self.id = schedule.id
         self.routineId = schedule.routineId
         self.name = schedule.name
-        self.recurrenceJSON = schedule.recurrenceJSON
+        self.rrule = schedule.rrule
         self.dtstart = schedule.dtstart
         self.exdates = schedule.exdates
         self.lastExecution = schedule.lastExecution
@@ -76,7 +76,7 @@ class ScheduleEntity {
             id: id,
             routineId: routineId,
             name: name,
-            recurrenceJSON: recurrenceJSON,
+            rrule: rrule,
             dtstart: dtstart,
             exdates: exdates,
             lastExecution: lastExecution,
@@ -89,7 +89,7 @@ class ScheduleEntity {
 
     func updateFromSchedule(_ schedule: Schedule, newSyncStatus: SyncStatus? = nil) {
         self.name = schedule.name
-        self.recurrenceJSON = schedule.recurrenceJSON
+        self.rrule = schedule.rrule
         self.dtstart = schedule.dtstart
         self.exdates = schedule.exdates
         self.lastExecution = schedule.lastExecution

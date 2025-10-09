@@ -12,7 +12,7 @@ import (
 )
 
 // CreateSchedule creates a new schedule
-func (db *DB) CreateSchedule(scheduleID, routineID, name, recurrenceJSON string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
+func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
 	// Validate and sanitize inputs
 	if err := validation.ValidateUUID("schedule_id", scheduleID); err != nil {
 		return nil, err
@@ -27,7 +27,7 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, recurrenceJSON string,
 		return nil, err
 	}
 
-	if err := validation.ValidateJSON("recurrence_json", recurrenceJSON); err != nil {
+	if err := validation.ValidateRequired("rrule", rrule); err != nil {
 		return nil, err
 	}
 
@@ -69,20 +69,20 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, recurrenceJSON string,
 	}
 
 	schedule := &models.Schedule{
-		ScheduleID:     scheduleID,
-		RoutineID:      routineID,
-		Name:           sanitizedName,
-		RecurrenceJSON: recurrenceJSON,
-		DTStart:        dtstart,
-		ExDates:        exdates,
-		Notes:          sanitizedNotes,
-		Enabled:        enabled,
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		ScheduleID: scheduleID,
+		RoutineID:  routineID,
+		Name:       sanitizedName,
+		RRule:      rrule,
+		DTStart:    dtstart,
+		ExDates:    exdates,
+		Notes:      sanitizedNotes,
+		Enabled:    enabled,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
 	}
 
 	query := `
-		INSERT INTO schedules (schedule_id, routine_id, name, recurrence_json, dtstart, exdates, notes, enabled, created_at, updated_at)
+		INSERT INTO schedules (schedule_id, routine_id, name, rrule, dtstart, exdates, notes, enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
@@ -102,7 +102,7 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, recurrenceJSON string,
 		schedule.ScheduleID,
 		schedule.RoutineID,
 		schedule.Name,
-		schedule.RecurrenceJSON,
+		schedule.RRule,
 		dtStartStr,
 		exdatesStr,
 		schedule.Notes,
@@ -121,7 +121,7 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, recurrenceJSON string,
 // GetSchedule retrieves a schedule by ID
 func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 	query := `
-		SELECT schedule_id, routine_id, name, recurrence_json, dtstart, exdates,
+		SELECT schedule_id, routine_id, name, rrule, dtstart, exdates,
 		       last_execution, notes, enabled, created_at, updated_at
 		FROM schedules
 		WHERE schedule_id = ?
@@ -135,7 +135,7 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 		&schedule.ScheduleID,
 		&schedule.RoutineID,
 		&schedule.Name,
-		&schedule.RecurrenceJSON,
+		&schedule.RRule,
 		&dtstart,
 		&exdatesStr,
 		&lastExecution,
@@ -189,7 +189,7 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 // ListSchedulesByRoutine lists all schedules for a routine
 func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, error) {
 	query := `
-		SELECT schedule_id, routine_id, name, recurrence_json, dtstart, exdates,
+		SELECT schedule_id, routine_id, name, rrule, dtstart, exdates,
 		       last_execution, notes, enabled, created_at, updated_at
 		FROM schedules
 		WHERE routine_id = ?
@@ -212,7 +212,7 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 			&schedule.ScheduleID,
 			&schedule.RoutineID,
 			&schedule.Name,
-			&schedule.RecurrenceJSON,
+			&schedule.RRule,
 			&dtstart,
 			&exdatesStr,
 			&lastExecution,
@@ -271,7 +271,7 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 	}
 	schedule.Name = sanitizedName
 
-	if err := validation.ValidateJSON("recurrence_json", schedule.RecurrenceJSON); err != nil {
+	if err := validation.ValidateRequired("rrule", schedule.RRule); err != nil {
 		return nil, err
 	}
 
@@ -289,7 +289,7 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 
 	query := `
 		UPDATE schedules
-		SET name = ?, recurrence_json = ?, dtstart = ?, exdates = ?, notes = ?, enabled = ?, updated_at = ?
+		SET name = ?, rrule = ?, dtstart = ?, exdates = ?, notes = ?, enabled = ?, updated_at = ?
 		WHERE schedule_id = ?
 	`
 
@@ -307,7 +307,7 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 
 	_, err = db.Exec(query,
 		schedule.Name,
-		schedule.RecurrenceJSON,
+		schedule.RRule,
 		dtStartStr,
 		exdatesStr,
 		schedule.Notes,
@@ -360,7 +360,7 @@ func (db *DB) UpdateLastExecution(scheduleID string, executionTime time.Time) er
 // GetActiveSchedules retrieves all enabled schedules
 func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 	query := `
-		SELECT s.schedule_id, s.routine_id, s.name, s.recurrence_json, s.dtstart, s.exdates,
+		SELECT s.schedule_id, s.routine_id, s.name, s.rrule, s.dtstart, s.exdates,
 		       s.last_execution, s.notes, s.enabled, s.created_at, s.updated_at
 		FROM schedules s
 		INNER JOIN routines r ON s.routine_id = r.id
@@ -384,7 +384,7 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 			&schedule.ScheduleID,
 			&schedule.RoutineID,
 			&schedule.Name,
-			&schedule.RecurrenceJSON,
+			&schedule.RRule,
 			&dtstart,
 			&exdatesStr,
 			&lastExecution,

@@ -4,7 +4,83 @@ import SwiftUI
 // MARK: - Recurrence Mode
 enum RecurrenceMode {
   case ui
-  case json
+  case rrule  // RFC 5545 RRule string mode
+}
+
+// MARK: - RRule Examples
+struct RRuleExample: Identifiable, Hashable {
+  let id = UUID()
+  let name: String
+  let rruleString: String
+  let description: String
+
+  static let examples: [RRuleExample] = [
+    // Daily routines
+    RRuleExample(
+      name: "Walk the pets",
+      rruleString: "FREQ=DAILY;BYHOUR=19;BYMINUTE=0",
+      description: "Daily at 7:00 PM"
+    ),
+    RRuleExample(
+      name: "Pushups 3x/day",
+      rruleString: "FREQ=DAILY;BYHOUR=7,12,19;BYMINUTE=0",
+      description: "Every day at 7am, 12pm, and 7pm"
+    ),
+    RRuleExample(
+      name: "Pick up kids",
+      rruleString: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=16;BYMINUTE=0",
+      description: "Weekdays at 4:00 PM"
+    ),
+
+    // Weekly routines
+    RRuleExample(
+      name: "Check mailbox",
+      rruleString: "FREQ=WEEKLY;BYDAY=FR;BYHOUR=7;BYMINUTE=0",
+      description: "Every Friday at 7:00 AM"
+    ),
+    RRuleExample(
+      name: "Take out trash",
+      rruleString: "FREQ=WEEKLY;BYDAY=TH;BYHOUR=20;BYMINUTE=0",
+      description: "Every Thursday at 8:00 PM"
+    ),
+    RRuleExample(
+      name: "Security training",
+      rruleString: "FREQ=WEEKLY;BYDAY=TU,TH;BYHOUR=14;BYMINUTE=0",
+      description: "Tuesday and Thursday at 2:00 PM"
+    ),
+    RRuleExample(
+      name: "Groceries",
+      rruleString: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=14;BYMINUTE=0",
+      description: "Every Saturday at 2:00 PM"
+    ),
+    RRuleExample(
+      name: "Bathroom cleanup",
+      rruleString: "FREQ=WEEKLY;BYDAY=WE,SA;BYHOUR=15;BYMINUTE=0",
+      description: "Wednesday and Saturday at 3:00 PM"
+    ),
+
+    // Monthly/Yearly
+    RRuleExample(
+      name: "Rent reminder",
+      rruleString: "FREQ=MONTHLY;BYDAY=-1MO;BYHOUR=9;BYMINUTE=0",
+      description: "Last Monday of every month at 9:00 AM"
+    ),
+    RRuleExample(
+      name: "Birthday",
+      rruleString: "FREQ=YEARLY;BYMONTH=1;BYMONTHDAY=1;BYHOUR=9;BYMINUTE=0",
+      description: "January 1st every year"
+    ),
+    RRuleExample(
+      name: "Anniversary",
+      rruleString: "FREQ=YEARLY;BYMONTH=10;BYMONTHDAY=3;BYHOUR=9;BYMINUTE=0",
+      description: "Week before Oct 10 (Oct 3) every year"
+    ),
+    RRuleExample(
+      name: "Declutter clothes",
+      rruleString: "FREQ=YEARLY;BYMONTH=7;BYMONTHDAY=1;BYHOUR=10;BYMINUTE=0",
+      description: "Annually on July 1st"
+    )
+  ]
 }
 
 // MARK: - Template definitions
@@ -12,7 +88,7 @@ struct ScheduleTemplate: Identifiable, Hashable {
   let id = UUID()
   let name: String
   let category: String
-  let rruleJSON: String
+  let rruleString: String  // RFC 5545 RRule string
   let icon: String
 
   static func == (lhs: ScheduleTemplate, rhs: ScheduleTemplate) -> Bool {
@@ -28,127 +104,127 @@ struct ScheduleTemplate: Identifiable, Hashable {
 // Predefined templates organized by category
 struct ScheduleTemplates {
   static let all: [ScheduleTemplate] = [
-    // One-Shot Events (use count=1 for one-time execution)
+    // One-Shot Events (no recurrence, just use dtstart time)
     ScheduleTemplate(
       name: "6pm Today", category: "One-Time",
-      rruleJSON: #"{"freq":"DAILY","interval":1,"count":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "",
       icon: "clock"
     ),
     ScheduleTemplate(
       name: "9am Tomorrow", category: "One-Time",
-      rruleJSON: #"{"freq":"DAILY","interval":1,"count":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "",
       icon: "calendar"
     ),
     ScheduleTemplate(
       name: "2pm Next Sunday", category: "One-Time",
-      rruleJSON: #"{"freq":"DAILY","interval":1,"count":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "",
       icon: "calendar"
     ),
     ScheduleTemplate(
       name: "Next Monday", category: "One-Time",
-      rruleJSON: #"{"freq":"DAILY","interval":1,"count":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "",
       icon: "calendar"
     ),
 
     // Frequent (Minutes)
     ScheduleTemplate(
       name: "Every 5 minutes", category: "Minutes",
-      rruleJSON: #"{"freq":"MINUTELY","interval":5,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=MINUTELY;INTERVAL=5",
       icon: "clock"
     ),
     ScheduleTemplate(
       name: "Every 15 minutes", category: "Minutes",
-      rruleJSON: #"{"freq":"MINUTELY","interval":15,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=MINUTELY;INTERVAL=15",
       icon: "clock"
     ),
     ScheduleTemplate(
       name: "Every 20 minutes", category: "Minutes",
-      rruleJSON: #"{"freq":"MINUTELY","interval":20,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=MINUTELY;INTERVAL=20",
       icon: "clock"
     ),
     ScheduleTemplate(
       name: "Every 30 minutes", category: "Minutes",
-      rruleJSON: #"{"freq":"MINUTELY","interval":30,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=MINUTELY;INTERVAL=30",
       icon: "clock"
     ),
 
     // Hourly
     ScheduleTemplate(
       name: "Every Hour", category: "Hourly",
-      rruleJSON: #"{"freq":"HOURLY","interval":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=HOURLY",
       icon: "clock"
     ),
     ScheduleTemplate(
       name: "Every 2 Hours", category: "Hourly",
-      rruleJSON: #"{"freq":"HOURLY","interval":2,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=HOURLY;INTERVAL=2",
       icon: "clock"
     ),
     ScheduleTemplate(
       name: "Every 4 Hours", category: "Hourly",
-      rruleJSON: #"{"freq":"HOURLY","interval":4,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=HOURLY;INTERVAL=4",
       icon: "clock"
     ),
 
     // Daily
     ScheduleTemplate(
       name: "Daily", category: "Daily",
-      rruleJSON: #"{"freq":"DAILY","interval":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=DAILY",
       icon: "sun.max"
     ),
     ScheduleTemplate(
       name: "Weekdays", category: "Daily",
-      rruleJSON: #"{"freq":"WEEKLY","interval":1,"byhour":[],"byminute":[],"byday":["MO","TU","WE","TH","FR"],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
       icon: "calendar"
     ),
     ScheduleTemplate(
       name: "Weekends", category: "Daily",
-      rruleJSON: #"{"freq":"WEEKLY","interval":1,"byhour":[],"byminute":[],"byday":["SA","SU"],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=WEEKLY;BYDAY=SA,SU",
       icon: "calendar"
     ),
     ScheduleTemplate(
       name: "Daily at 9am", category: "Daily",
-      rruleJSON: #"{"freq":"DAILY","interval":1,"byhour":[9],"byminute":[0],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=DAILY;BYHOUR=9;BYMINUTE=0",
       icon: "sun.max"
     ),
 
     // Weekly
     ScheduleTemplate(
       name: "Weekly", category: "Weekly",
-      rruleJSON: #"{"freq":"WEEKLY","interval":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=WEEKLY",
       icon: "repeat"
     ),
     ScheduleTemplate(
       name: "Every Monday at 9 AM", category: "Weekly",
-      rruleJSON: #"{"freq":"WEEKLY","interval":1,"byhour":[9],"byminute":[0],"byday":["MO"],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0",
       icon: "repeat"
     ),
     ScheduleTemplate(
       name: "Every Friday", category: "Weekly",
-      rruleJSON: #"{"freq":"WEEKLY","interval":1,"byhour":[],"byminute":[],"byday":["FR"],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=WEEKLY;BYDAY=FR",
       icon: "repeat"
     ),
 
     // Monthly
     ScheduleTemplate(
       name: "Monthly", category: "Monthly",
-      rruleJSON: #"{"freq":"MONTHLY","interval":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=MONTHLY",
       icon: "calendar"
     ),
     ScheduleTemplate(
       name: "First of Month", category: "Monthly",
-      rruleJSON: #"{"freq":"MONTHLY","interval":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[1],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=MONTHLY;BYMONTHDAY=1",
       icon: "calendar"
     ),
     ScheduleTemplate(
       name: "Last of Month", category: "Monthly",
-      rruleJSON: #"{"freq":"MONTHLY","interval":1,"byhour":[],"byminute":[],"byday":[],"bymonthday":[-1],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "FREQ=MONTHLY;BYMONTHDAY=-1",
       icon: "calendar"
     ),
 
     // One-time templates
     ScheduleTemplate(
       name: "Tomorrow at 9 AM", category: "Quick",
-      rruleJSON: #"{"freq":"DAILY","interval":1,"count":1,"byhour":[9],"byminute":[0],"byday":[],"bymonthday":[],"bymonth":[],"byweekno":[],"byyearday":[],"wkst":"MO"}"#,
+      rruleString: "",
       icon: "calendar"
     ),
   ]
@@ -160,10 +236,32 @@ struct ScheduleTemplates {
   static var quickTemplates: [ScheduleTemplate] {
     [
       all.first(where: { $0.name == "Every 20 minutes" }) ?? all[0],
-      all.first(where: { $0.name == "Tomorrow at 9 AM" }) ?? all[1],
+      all.first(where: { $0.name == "9am Tomorrow" }) ?? all[1],
       all.first(where: { $0.name == "Every Monday at 9 AM" }) ?? all[2],
     ]
   }
+
+  // Categorized templates for MORE expansion
+  static let dailyTemplates: [ScheduleTemplate] = [
+    ScheduleTemplate(name: "Walk the pets", category: "Daily", rruleString: "FREQ=DAILY;BYHOUR=19;BYMINUTE=0", icon: "pawprint.fill"),
+    ScheduleTemplate(name: "Pushups 3x/day", category: "Daily", rruleString: "FREQ=DAILY;BYHOUR=7,12,19;BYMINUTE=0", icon: "figure.strengthtraining.traditional"),
+    ScheduleTemplate(name: "Pick up kids", category: "Daily", rruleString: "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=16;BYMINUTE=0", icon: "figure.2.and.child.holdinghands"),
+  ]
+
+  static let weeklyTemplates: [ScheduleTemplate] = [
+    ScheduleTemplate(name: "Check mailbox", category: "Weekly", rruleString: "FREQ=WEEKLY;BYDAY=FR;BYHOUR=7;BYMINUTE=0", icon: "envelope.fill"),
+    ScheduleTemplate(name: "Take out trash", category: "Weekly", rruleString: "FREQ=WEEKLY;BYDAY=TH;BYHOUR=20;BYMINUTE=0", icon: "trash.fill"),
+    ScheduleTemplate(name: "Security training", category: "Weekly", rruleString: "FREQ=WEEKLY;BYDAY=TU,TH;BYHOUR=14;BYMINUTE=0", icon: "shield.fill"),
+    ScheduleTemplate(name: "Groceries", category: "Weekly", rruleString: "FREQ=WEEKLY;BYDAY=SA;BYHOUR=14;BYMINUTE=0", icon: "cart.fill"),
+    ScheduleTemplate(name: "Bathroom cleanup", category: "Weekly", rruleString: "FREQ=WEEKLY;BYDAY=WE,SA;BYHOUR=15;BYMINUTE=0", icon: "sparkles"),
+  ]
+
+  static let monthlyYearlyTemplates: [ScheduleTemplate] = [
+    ScheduleTemplate(name: "Rent reminder", category: "Monthly", rruleString: "FREQ=MONTHLY;BYDAY=-1MO;BYHOUR=9;BYMINUTE=0", icon: "dollarsign.circle.fill"),
+    ScheduleTemplate(name: "Birthday", category: "Yearly", rruleString: "FREQ=YEARLY;BYMONTH=1;BYMONTHDAY=1;BYHOUR=9;BYMINUTE=0", icon: "birthday.cake.fill"),
+    ScheduleTemplate(name: "Anniversary", category: "Yearly", rruleString: "FREQ=YEARLY;BYMONTH=10;BYMONTHDAY=3;BYHOUR=9;BYMINUTE=0", icon: "heart.fill"),
+    ScheduleTemplate(name: "Declutter clothes", category: "Yearly", rruleString: "FREQ=YEARLY;BYMONTH=7;BYMONTHDAY=1;BYHOUR=10;BYMINUTE=0", icon: "tshirt.fill"),
+  ]
 }
 
 struct ScheduleEditView: View {
@@ -202,10 +300,12 @@ struct ScheduleEditView: View {
   @State private var selectedWeekdays: Set<String> = []
   @State private var selectedMonthDays: Set<Int> = []
   @State private var selectedMonths: Set<Int> = []
-  @State private var atTime: Date? = nil
+  @State private var atTimes: [Date] = []
 
   // UI state
   @State private var selectedTemplate: ScheduleTemplate?
+  @State private var selectedRRuleExample: RRuleExample?
+  @State private var showMoreTemplates: Bool = false
   @State private var validationError: String?
 
   init(
@@ -255,24 +355,18 @@ struct ScheduleEditView: View {
     // Initialize state from existing schedule or defaults
     if let schedule = schedule {
       self._scheduleName = State(initialValue: schedule.name)
-      self._customRRule = State(initialValue: schedule.recurrenceJSON)
+      self._customRRule = State(initialValue: schedule.rrule)
       self._startDate = State(initialValue: schedule.dtstart)
       self._notes = State(initialValue: schedule.notes)
       self._enabled = State(initialValue: schedule.enabled)
       self._selectedPriority = State(initialValue: schedule.priority)
       self._selectedTemplate = State(initialValue: nil)
 
-      // Parse RRule to populate UI fields
-      if let rrule = try? RRule.fromJSON(schedule.recurrenceJSON) {
-        self._selectedFrequency = State(initialValue: rrule.freq)
-        self._intervalValue = State(initialValue: rrule.interval)
-        self._endDate = State(initialValue: rrule.until)
-        self._isOneTimeEvent = State(initialValue: rrule.count == 1)
-      }
+      // UI fields will be populated by syncRRuleStringToUI() in onAppear
     } else {
       let firstTemplate = ScheduleTemplates.quickTemplates.first
       self._selectedTemplate = State(initialValue: firstTemplate)
-      self._customRRule = State(initialValue: firstTemplate?.rruleJSON ?? "{}")
+      self._customRRule = State(initialValue: firstTemplate?.rruleString ?? "FREQ=DAILY")
 
       if let firstTemplate = firstTemplate {
         self._scheduleName = State(initialValue: firstTemplate.name)
@@ -335,6 +429,12 @@ struct ScheduleEditView: View {
         }
       }
       .withTracing(viewName: "ScheduleEditView", parentSpan: parentSpan)
+      .onAppear {
+        // Populate UI fields from RRule when editing existing schedule
+        if schedule != nil {
+          syncRRuleStringToUI()
+        }
+      }
     }
   }
 
@@ -421,6 +521,7 @@ struct ScheduleEditView: View {
         .font(.subheadline)
         .foregroundColor(.secondary)
 
+      // Quick templates row
       HStack(spacing: 12) {
         ForEach(ScheduleTemplates.quickTemplates, id: \.name) { template in
           QuickTemplateButton(
@@ -431,7 +532,95 @@ struct ScheduleEditView: View {
             }
           )
         }
+
+        // MORE button
+        Button(action: {
+          withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            showMoreTemplates.toggle()
+          }
+        }) {
+          Text(showMoreTemplates ? "LESS" : "MORE")
+            .font(.subheadline)
+            .fontWeight(.semibold)
+            .foregroundColor(.white)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(Color.accentColor)
+            .cornerRadius(20)
+        }
+        .buttonStyle(.plain)
+
         Spacer()
+      }
+
+      // Expanded templates
+      if showMoreTemplates {
+        VStack(alignment: .leading, spacing: 16) {
+          // Daily routines
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Daily Routines")
+              .font(.caption)
+              .fontWeight(.semibold)
+              .foregroundColor(.secondary)
+              .padding(.leading, 4)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+              ForEach(ScheduleTemplates.dailyTemplates, id: \.name) { template in
+                QuickTemplateButton(
+                  template: template,
+                  isSelected: selectedTemplate?.name == template.name,
+                  action: {
+                    selectTemplate(template)
+                  }
+                )
+              }
+            }
+          }
+
+          // Weekly routines
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Weekly Routines")
+              .font(.caption)
+              .fontWeight(.semibold)
+              .foregroundColor(.secondary)
+              .padding(.leading, 4)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+              ForEach(ScheduleTemplates.weeklyTemplates, id: \.name) { template in
+                QuickTemplateButton(
+                  template: template,
+                  isSelected: selectedTemplate?.name == template.name,
+                  action: {
+                    selectTemplate(template)
+                  }
+                )
+              }
+            }
+          }
+
+          // Monthly/Yearly routines
+          VStack(alignment: .leading, spacing: 8) {
+            Text("Monthly/Yearly")
+              .font(.caption)
+              .fontWeight(.semibold)
+              .foregroundColor(.secondary)
+              .padding(.leading, 4)
+
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 140), spacing: 8)], spacing: 8) {
+              ForEach(ScheduleTemplates.monthlyYearlyTemplates, id: \.name) { template in
+                QuickTemplateButton(
+                  template: template,
+                  isSelected: selectedTemplate?.name == template.name,
+                  action: {
+                    selectTemplate(template)
+                  }
+                )
+              }
+            }
+          }
+        }
+        .padding(.top, 8)
+        .transition(.opacity.combined(with: .move(edge: .top)))
       }
     }
   }
@@ -454,7 +643,7 @@ struct ScheduleEditView: View {
           HStack(spacing: 4) {
             Image(systemName: "chevron.left.slash.chevron.right")
               .font(.caption)
-            Text(recurrenceMode == .ui ? "JSON Mode" : "UI Mode")
+            Text(recurrenceMode == .ui ? "RRule Mode" : "UI Mode")
               .font(.subheadline)
           }
           .foregroundColor(.accentColor)
@@ -469,7 +658,7 @@ struct ScheduleEditView: View {
       if recurrenceMode == .ui {
         uiModeRecurrenceSection
       } else {
-        jsonModeRecurrenceSection
+        rruleModeRecurrenceSection
       }
     }
   }
@@ -553,14 +742,20 @@ struct ScheduleEditView: View {
           .cornerRadius(1.5),
         alignment: .leading
       )
+
+      // Note for complex patterns
+      Text("💡 For complex patterns (e.g., every 10 min during work hours), use RRule Mode")
+        .font(.caption)
+        .foregroundColor(.secondary)
+        .padding(.top, 8)
     }
-    .onChange(of: selectedFrequency) { _, _ in syncUIToJSON() }
-    .onChange(of: intervalValue) { _, _ in syncUIToJSON() }
-    .onChange(of: endDate) { _, _ in syncUIToJSON() }
-    .onChange(of: selectedWeekdays) { _, _ in syncUIToJSON() }
-    .onChange(of: selectedMonthDays) { _, _ in syncUIToJSON() }
-    .onChange(of: selectedMonths) { _, _ in syncUIToJSON() }
-    .onChange(of: atTime) { _, _ in syncUIToJSON() }
+    .onChange(of: selectedFrequency) { _, _ in syncUIToRRuleString() }
+    .onChange(of: intervalValue) { _, _ in syncUIToRRuleString() }
+    .onChange(of: endDate) { _, _ in syncUIToRRuleString() }
+    .onChange(of: selectedWeekdays) { _, _ in syncUIToRRuleString() }
+    .onChange(of: selectedMonthDays) { _, _ in syncUIToRRuleString() }
+    .onChange(of: selectedMonths) { _, _ in syncUIToRRuleString() }
+    .onChange(of: atTimes) { _, _ in syncUIToRRuleString() }
   }
 
   // MARK: - Frequency-Specific Controls
@@ -572,24 +767,42 @@ struct ScheduleEditView: View {
 
       WeekdaySelector(selectedDays: $selectedWeekdays)
 
-      if let atTime = atTime {
-        Text("At time")
-          .font(.subheadline)
-          .fontWeight(.medium)
+      Text("At times")
+        .font(.subheadline)
+        .fontWeight(.medium)
 
-        DatePicker("", selection: Binding(
-          get: { atTime },
-          set: { self.atTime = $0 }
-        ), displayedComponents: [.hourAndMinute])
+      // Show all times
+      ForEach(Array(atTimes.enumerated()), id: \.offset) { index, time in
+        HStack {
+          DatePicker(
+            "",
+            selection: Binding(
+              get: { time },
+              set: { atTimes[index] = $0 }
+            ),
+            displayedComponents: [.hourAndMinute]
+          )
           .datePickerStyle(.compact)
           .labelsHidden()
-      } else {
-        Button("Add time") {
-          self.atTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())
+
+          Button(action: {
+            atTimes.remove(at: index)
+          }) {
+            Image(systemName: "xmark.circle.fill")
+              .foregroundColor(.red)
+          }
+          .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
-        .foregroundColor(.accentColor)
+        .padding(8)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+        .cornerRadius(6)
       }
+
+      Button("Add time") {
+        atTimes.append(Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date())
+      }
+      .buttonStyle(.plain)
+      .foregroundColor(.accentColor)
     }
     .padding(.leading, 4)
     .overlay(
@@ -609,24 +822,42 @@ struct ScheduleEditView: View {
 
       MonthDaySelector(selectedDays: $selectedMonthDays)
 
-      if let atTime = atTime {
-        Text("At time")
-          .font(.subheadline)
-          .fontWeight(.medium)
+      Text("At times")
+        .font(.subheadline)
+        .fontWeight(.medium)
 
-        DatePicker("", selection: Binding(
-          get: { atTime },
-          set: { self.atTime = $0 }
-        ), displayedComponents: [.hourAndMinute])
+      // Show all times
+      ForEach(Array(atTimes.enumerated()), id: \.offset) { index, time in
+        HStack {
+          DatePicker(
+            "",
+            selection: Binding(
+              get: { time },
+              set: { atTimes[index] = $0 }
+            ),
+            displayedComponents: [.hourAndMinute]
+          )
           .datePickerStyle(.compact)
           .labelsHidden()
-      } else {
-        Button("Add time") {
-          self.atTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())
+
+          Button(action: {
+            atTimes.remove(at: index)
+          }) {
+            Image(systemName: "xmark.circle.fill")
+              .foregroundColor(.red)
+          }
+          .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
-        .foregroundColor(.accentColor)
+        .padding(8)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+        .cornerRadius(6)
       }
+
+      Button("Add time") {
+        atTimes.append(Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date())
+      }
+      .buttonStyle(.plain)
+      .foregroundColor(.accentColor)
     }
     .padding(.leading, 4)
     .overlay(
@@ -646,24 +877,42 @@ struct ScheduleEditView: View {
 
       MonthSelector(selectedMonths: $selectedMonths)
 
-      if let atTime = atTime {
-        Text("At time")
-          .font(.subheadline)
-          .fontWeight(.medium)
+      Text("At times")
+        .font(.subheadline)
+        .fontWeight(.medium)
 
-        DatePicker("", selection: Binding(
-          get: { atTime },
-          set: { self.atTime = $0 }
-        ), displayedComponents: [.hourAndMinute])
+      // Show all times
+      ForEach(Array(atTimes.enumerated()), id: \.offset) { index, time in
+        HStack {
+          DatePicker(
+            "",
+            selection: Binding(
+              get: { time },
+              set: { atTimes[index] = $0 }
+            ),
+            displayedComponents: [.hourAndMinute]
+          )
           .datePickerStyle(.compact)
           .labelsHidden()
-      } else {
-        Button("Add time") {
-          self.atTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())
+
+          Button(action: {
+            atTimes.remove(at: index)
+          }) {
+            Image(systemName: "xmark.circle.fill")
+              .foregroundColor(.red)
+          }
+          .buttonStyle(.plain)
         }
-        .buttonStyle(.plain)
-        .foregroundColor(.accentColor)
+        .padding(8)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+        .cornerRadius(6)
       }
+
+      Button("Add time") {
+        atTimes.append(Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date())
+      }
+      .buttonStyle(.plain)
+      .foregroundColor(.accentColor)
     }
     .padding(.leading, 4)
     .overlay(
@@ -677,47 +926,54 @@ struct ScheduleEditView: View {
 
   private var atTimeControl: some View {
     VStack(alignment: .leading, spacing: 8) {
-      Text("At time")
+      Text("At times")
         .font(.subheadline)
         .fontWeight(.medium)
 
-      if let atTime = atTime {
+      // Show all times
+      ForEach(Array(atTimes.enumerated()), id: \.offset) { index, time in
         HStack {
-          DatePicker("", selection: Binding(
-            get: { atTime },
-            set: { self.atTime = $0 }
-          ), displayedComponents: [.hourAndMinute])
-            .datePickerStyle(.compact)
-            .labelsHidden()
+          DatePicker(
+            "",
+            selection: Binding(
+              get: { time },
+              set: { atTimes[index] = $0 }
+            ),
+            displayedComponents: [.hourAndMinute]
+          )
+          .datePickerStyle(.compact)
+          .labelsHidden()
 
           Spacer()
 
-          Button("Remove") {
-            self.atTime = nil
+          Button(action: {
+            atTimes.remove(at: index)
+          }) {
+            Image(systemName: "xmark.circle.fill")
+              .foregroundColor(.red)
           }
           .buttonStyle(.plain)
-          .foregroundColor(.red)
         }
         .padding(12)
         .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
         .cornerRadius(8)
-      } else {
-        Button(action: {
-          self.atTime = Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date())
-        }) {
-          HStack {
-            Image(systemName: "clock")
-              .foregroundColor(.secondary)
-            Text("Add specific time")
-              .foregroundColor(.accentColor)
-            Spacer()
-          }
-          .padding(12)
-          .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-          .cornerRadius(8)
-        }
-        .buttonStyle(.plain)
       }
+
+      Button(action: {
+        atTimes.append(Calendar.current.date(bySettingHour: 9, minute: 0, second: 0, of: Date()) ?? Date())
+      }) {
+        HStack {
+          Image(systemName: "clock")
+            .foregroundColor(.secondary)
+          Text("Add specific time")
+            .foregroundColor(.accentColor)
+          Spacer()
+        }
+        .padding(12)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+        .cornerRadius(8)
+      }
+      .buttonStyle(.plain)
     }
     .padding(.leading, 4)
     .overlay(
@@ -729,9 +985,44 @@ struct ScheduleEditView: View {
     )
   }
 
-  // MARK: - JSON Mode Recurrence
-  private var jsonModeRecurrenceSection: some View {
-    VStack(alignment: .leading, spacing: 8) {
+  // MARK: - RRule Mode Recurrence
+  private var rruleModeRecurrenceSection: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("RFC 5545 RRule Format")
+        .font(.caption)
+        .foregroundColor(.secondary)
+
+      // Example dropdown
+      VStack(alignment: .leading, spacing: 6) {
+        Text("Quick Examples:")
+          .font(.subheadline)
+          .fontWeight(.medium)
+
+        Picker("", selection: $selectedRRuleExample) {
+          Text("Custom").tag(nil as RRuleExample?)
+          ForEach(RRuleExample.examples) { example in
+            Text(example.name).tag(example as RRuleExample?)
+          }
+        }
+        .pickerStyle(.menu)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .onChange(of: selectedRRuleExample) { _, newExample in
+          if let example = newExample {
+            customRRule = example.rruleString
+          }
+        }
+
+        if let example = selectedRRuleExample {
+          Text(example.description)
+            .font(.caption)
+            .foregroundColor(.secondary)
+            .padding(.leading, 4)
+        }
+      }
+      .padding(10)
+      .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+      .cornerRadius(8)
+
       TextEditor(text: $customRRule)
         .font(.system(.body, design: .monospaced))
         .padding(12)
@@ -741,7 +1032,23 @@ struct ScheduleEditView: View {
           RoundedRectangle(cornerRadius: 8)
             .stroke(Color.accentColor, lineWidth: 2)
         )
-        .onChange(of: customRRule) { _, _ in syncJSONToUI() }
+        .onChange(of: customRRule) { _, _ in
+          syncRRuleStringToUI()
+          // Reset example selection if user manually edits
+          if selectedRRuleExample != nil && customRRule != selectedRRuleExample?.rruleString {
+            selectedRRuleExample = nil
+          }
+        }
+
+      // Help link
+      HStack(spacing: 4) {
+        Text("Need help?")
+          .font(.caption)
+          .foregroundColor(.secondary)
+        Link("Visit RRule Generator", destination: URL(string: "https://rrule-wiz.lovable.app/")!)
+          .font(.caption)
+      }
+      .padding(.top, 4)
     }
   }
 
@@ -771,13 +1078,19 @@ struct ScheduleEditView: View {
     TraceableAction(actionName: "quick_template_select", component: "template_grid").execute {
       let wasOneTimeEvent = isOneTimeEvent
       selectedTemplate = template
-      customRRule = template.rruleJSON
+      customRRule = template.rruleString
       if scheduleName.isEmpty || scheduleName == selectedTemplate?.name {
         scheduleName = template.name
       }
 
-      // Check if this is a one-time event and parse RRule
-      if let rrule = try? RRule.fromJSON(template.rruleJSON) {
+      // Check if this is a one-time event (blank RRule or COUNT=1)
+      let isBlankRRule = template.rruleString.trimmingCharacters(in: .whitespacesAndNewlines)
+        .isEmpty
+
+      if isBlankRRule {
+        isOneTimeEvent = true
+        syncTimeFromTemplate(rrule: nil, templateName: template.name)
+      } else if let rrule = try? RRule.fromRRuleString(template.rruleString) {
         isOneTimeEvent = (rrule.count == 1)
 
         // Sync time from template for one-time events
@@ -788,13 +1101,13 @@ struct ScheduleEditView: View {
           if wasOneTimeEvent && isCreating {
             startDate = Calendar.current.date(byAdding: .minute, value: 5, to: Date()) ?? Date()
           }
-          syncJSONToUI()
+          syncRRuleStringToUI()
         }
       }
     }
   }
 
-  private func syncTimeFromTemplate(rrule: RRule, templateName: String) {
+  private func syncTimeFromTemplate(rrule: RRule?, templateName: String) {
     let calendar = Calendar.current
     var targetDate = Date()
 
@@ -807,22 +1120,38 @@ struct ScheduleEditView: View {
       let today = Date()
       let weekday = calendar.component(.weekday, from: today)
       let daysUntilMonday = (2 - weekday + 7) % 7
-      targetDate = calendar.date(byAdding: .day, value: daysUntilMonday == 0 ? 7 : daysUntilMonday, to: today) ?? Date()
+      targetDate =
+        calendar.date(byAdding: .day, value: daysUntilMonday == 0 ? 7 : daysUntilMonday, to: today)
+        ?? Date()
     } else if templateName.contains("Next Sunday") {
       // Set to next Sunday
       let today = Date()
       let weekday = calendar.component(.weekday, from: today)
       let daysUntilSunday = (1 - weekday + 7) % 7
-      targetDate = calendar.date(byAdding: .day, value: daysUntilSunday == 0 ? 7 : daysUntilSunday, to: today) ?? Date()
+      targetDate =
+        calendar.date(byAdding: .day, value: daysUntilSunday == 0 ? 7 : daysUntilSunday, to: today)
+        ?? Date()
     } else {
       // Today at specific time
       targetDate = Date()
     }
 
     // Apply time from RRule if specified
-    if !rrule.byhour.isEmpty, let hour = rrule.byhour.first {
+    if let rrule = rrule, !rrule.byhour.isEmpty, let hour = rrule.byhour.first {
       let minute = rrule.byminute.first ?? 0
-      if let dateWithTime = calendar.date(bySettingHour: hour, minute: minute, second: 0, of: targetDate) {
+      if let dateWithTime = calendar.date(
+        bySettingHour: hour, minute: minute, second: 0, of: targetDate)
+      {
+        startDate = dateWithTime
+        return
+      }
+    }
+
+    // Parse time from template name if it contains a specific time
+    if let timeMatch = extractTimeFromTemplateName(templateName) {
+      if let dateWithTime = calendar.date(
+        bySettingHour: timeMatch.hour, minute: timeMatch.minute, second: 0, of: targetDate)
+      {
         startDate = dateWithTime
         return
       }
@@ -832,25 +1161,63 @@ struct ScheduleEditView: View {
     startDate = calendar.date(byAdding: .minute, value: 5, to: Date()) ?? Date()
   }
 
+  private func extractTimeFromTemplateName(_ name: String) -> (hour: Int, minute: Int)? {
+    // Extract time like "6pm", "9am", "2pm" from template name
+    let lowercased = name.lowercased()
+
+    // Pattern: "6pm", "9am", "2pm", etc.
+    if let range = lowercased.range(of: #"\d{1,2}(am|pm)"#, options: .regularExpression) {
+      let timeStr = String(lowercased[range])
+      let isPM = timeStr.contains("pm")
+      let hourStr = timeStr.replacingOccurrences(of: "am", with: "").replacingOccurrences(
+        of: "pm", with: "")
+
+      if var hour = Int(hourStr) {
+        if isPM && hour != 12 {
+          hour += 12
+        } else if !isPM && hour == 12 {
+          hour = 0
+        }
+        return (hour: hour, minute: 0)
+      }
+    }
+
+    return nil
+  }
+
   private func toggleRecurrenceMode() {
     if recurrenceMode == .ui {
-      syncUIToJSON()
-      recurrenceMode = .json
+      syncUIToRRuleString()
+      recurrenceMode = .rrule
     } else {
-      syncJSONToUI()
+      syncRRuleStringToUI()
       recurrenceMode = .ui
     }
   }
 
-  private func syncUIToJSON() {
+  private func syncUIToRRuleString() {
     let calendar = Calendar.current
     var byhour: [Int] = []
     var byminute: [Int] = []
 
-    // Extract time if set
-    if let atTime = atTime {
-      byhour = [calendar.component(.hour, from: atTime)]
-      byminute = [calendar.component(.minute, from: atTime)]
+    // Extract all times from atTimes array
+    if !atTimes.isEmpty {
+      // Extract hours and minutes from all times
+      for time in atTimes {
+        let hour = calendar.component(.hour, from: time)
+        let minute = calendar.component(.minute, from: time)
+
+        if !byhour.contains(hour) {
+          byhour.append(hour)
+        }
+        if !byminute.contains(minute) {
+          byminute.append(minute)
+        }
+      }
+
+      // Sort for consistent output
+      byhour.sort()
+      byminute.sort()
     }
 
     let rrule = RRule(
@@ -864,11 +1231,19 @@ struct ScheduleEditView: View {
       until: endDate,
       count: isOneTimeEvent ? 1 : nil
     )
-    customRRule = (try? rrule.toJSON()) ?? customRRule
+    customRRule = rrule.toRRuleString()
   }
 
-  private func syncJSONToUI() {
-    if let rrule = try? RRule.fromJSON(customRRule) {
+  private func syncRRuleStringToUI() {
+    let trimmedRRule = customRRule.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    // If blank, it's a one-time event
+    if trimmedRRule.isEmpty {
+      isOneTimeEvent = true
+      return
+    }
+
+    if let rrule = try? RRule.fromRRuleString(trimmedRRule) {
       selectedFrequency = rrule.freq
       intervalValue = rrule.interval
       endDate = rrule.until
@@ -883,12 +1258,24 @@ struct ScheduleEditView: View {
       // Parse months
       selectedMonths = Set(rrule.bymonth)
 
-      // Parse time
-      if !rrule.byhour.isEmpty, let hour = rrule.byhour.first {
-        let minute = rrule.byminute.first ?? 0
-        atTime = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date())
-      } else {
-        atTime = nil
+      // Parse times - support multiple BYHOUR values
+      atTimes = []
+      if !rrule.byhour.isEmpty {
+        for hour in rrule.byhour {
+          // If BYMINUTE is specified, create a time for each hour/minute combination
+          if !rrule.byminute.isEmpty {
+            for minute in rrule.byminute {
+              if let time = Calendar.current.date(bySettingHour: hour, minute: minute, second: 0, of: Date()) {
+                atTimes.append(time)
+              }
+            }
+          } else {
+            // No BYMINUTE specified, use minute 0
+            if let time = Calendar.current.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) {
+              atTimes.append(time)
+            }
+          }
+        }
       }
     }
   }
@@ -903,10 +1290,18 @@ struct ScheduleEditView: View {
         return
       }
 
-      guard !customRRule.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-        validationError = "RRule JSON cannot be empty"
-        return
+      // Validate RRule (allow empty for one-time events)
+      let trimmedRRule = customRRule.trimmingCharacters(in: .whitespacesAndNewlines)
+      if !trimmedRRule.isEmpty {
+        // Validate RRule format if provided
+        do {
+          _ = try RRule.fromRRuleString(trimmedRRule)
+        } catch {
+          validationError = "Invalid RRule format: \(error.localizedDescription)"
+          return
+        }
       }
+      // If empty, it's a one-time event (just uses dtstart)
 
       validationError = nil
 
@@ -914,7 +1309,7 @@ struct ScheduleEditView: View {
         await scheduleViewModel.createSchedule(
           routineId: routineId,
           name: trimmedName,
-          recurrenceJSON: customRRule,
+          rrule: customRRule,
           dtstart: startDate,
           notes: trimmedNotes,
           enabled: enabled,
@@ -923,7 +1318,7 @@ struct ScheduleEditView: View {
       } else if let schedule = schedule {
         var updatedSchedule = schedule
         updatedSchedule.name = trimmedName
-        updatedSchedule.recurrenceJSON = customRRule
+        updatedSchedule.rrule = customRRule
         updatedSchedule.dtstart = startDate
         updatedSchedule.notes = trimmedNotes
         updatedSchedule.enabled = enabled
@@ -1038,7 +1433,7 @@ struct WeekdaySelector: View {
     ("W", "WE"),
     ("T", "TH"),
     ("F", "FR"),
-    ("S", "SA")
+    ("S", "SA"),
   ]
 
   var body: some View {
@@ -1109,7 +1504,7 @@ struct MonthSelector: View {
 
   private let months = [
     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+    "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
   ]
 
   private let columns = Array(repeating: GridItem(.flexible(), spacing: 8), count: 4)

@@ -507,7 +507,7 @@ enum DetailRowFormatter {
             schedule: Schedule(
                 routineId: "preview",
                 name: "Eye Care Schedule",
-                recurrenceJSON: "{\"freq\":\"MINUTELY\",\"interval\":20}",
+                rrule: "FREQ=MINUTELY;INTERVAL=20",
                 notes: "20-20-20 rule for eye health"
             ),
             viewModel: ScheduleViewModel()

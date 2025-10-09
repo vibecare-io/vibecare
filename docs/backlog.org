@@ -22,6 +22,7 @@
   - #+DATE: Monday, Oct 06 2025
     - notification policy(pause/resume/auto-detect)
   - menu/toolbar items fixes
+  - allow users to create their collection of rrules
 *** backend:
   - dispatch event to the client
     - eg: action: send_notification
@@ -68,4 +69,18 @@ Working In front of coumputer/devices leads to:
   - Development of Addiction(content consumption)
 
     
-    
+** RRule examples
+- Daily walk the pets(at 7pm)
+- Weekly check the mailbox (friday@7am)
+- Montly upcoming rent reminder (last monday of the month)
+- Pushup Reminder(everyday @7am, @12pm, @7pm)
+- Security Training (every tuesday and thursday @2pm)
+
+- Weekly: Take out trash (every thursday @8pm)  
+- Pickup kids from school (every weekday at 4pm)
+- Groceries (weekend/saturday 2pm) 
+- Bathroom Cleanup (twice a week preferably saturday and wed @3pm)
+
+- Birthday of special one( jan 01 of every year) 
+- Anniversaries Reminder (every year one week before oct 10)
+- Declutter Donate Clothes( annually around july frist week)

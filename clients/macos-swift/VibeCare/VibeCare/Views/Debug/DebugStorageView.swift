@@ -528,7 +528,7 @@ struct ScheduleDetailDebugView: View {
             Label("Schedule Information", systemImage: "calendar")
                 .font(.headline)
 
-            InfoRow(label: "Recurrence JSON", value: schedule.recurrenceJSON.isEmpty ? "None" : schedule.recurrenceJSON)
+            InfoRow(label: "RRule", value: schedule.rrule.isEmpty ? "None" : schedule.rrule)
 
             InfoRow(label: "Start Date", value: schedule.dtstart.formatted())
 
@@ -587,7 +587,7 @@ struct ScheduleDetailDebugView: View {
                 .foregroundColor(.secondary)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text("Recurrence JSON: \(schedule.recurrenceJSON)")
+                Text("RRule: \(schedule.rrule)")
                     .font(.caption.monospaced())
 
                 Text("Exclusion Dates: \(schedule.exdates)")
@@ -1062,8 +1062,8 @@ struct ScheduleDataCard: View {
                     DebugDetailRow(label: "Notes", value: schedule.notes)
                 }
 
-                if !schedule.recurrenceJSON.isEmpty {
-                    DebugDetailRow(label: "Recurrence", value: schedule.recurrenceJSON)
+                if !schedule.rrule.isEmpty {
+                    DebugDetailRow(label: "Recurrence", value: schedule.rrule)
                 }
 
                 DebugDetailRow(label: "Start Date", value: schedule.dtstart.formatted(date: .abbreviated, time: .shortened))

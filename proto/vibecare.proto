@@ -85,9 +85,10 @@ message Schedule {
   string routine_id = 2;
   string name = 3;
 
-  // RRule JSON for recurring rules (RFC 5545 compatible)
-  // Example: {"freq": "DAILY", "interval": 1, "byhour": [9, 18], "byminute": [0]}
-  string recurrence_json = 4;
+  // RRule string in RFC 5545 format
+  // Example: FREQ=DAILY;INTERVAL=1;BYHOUR=9,18;BYMINUTE=0
+  // See: https://tools.ietf.org/html/rfc5545#section-3.3.10
+  string rrule = 4;
 
   google.protobuf.Timestamp dtstart = 5;         // when schedule starts
   repeated string exdates = 6;  // Exclusion dates (ISO 8601 strings for simplicity)
@@ -334,7 +335,7 @@ message GetExecutionLogsResponse {
 message CreateScheduleRequest {
   string routine_id = 1;
   string name = 2;
-  string recurrence_json = 3;  // RRule JSON
+  string rrule = 3;  // RRule in RFC 5545 format
   string dtstart = 4;           // ISO 8601
   repeated string exdates = 5;  // ISO 8601 dates to exclude
   string notes = 6;
@@ -349,7 +350,7 @@ message GetScheduleRequest {
 message UpdateScheduleRequest {
   string schedule_id = 1;
   string name = 2;
-  string recurrence_json = 3;
+  string rrule = 3;
   string dtstart = 4;
   repeated string exdates = 5;
   string notes = 6;

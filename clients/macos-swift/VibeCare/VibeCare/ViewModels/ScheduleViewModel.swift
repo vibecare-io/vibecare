@@ -246,7 +246,7 @@ class ScheduleViewModel: ObservableObject {
     func createSchedule(
         routineId: String,
         name: String,
-        recurrenceJSON: String,
+        rrule: String,
         dtstart: Date = Date(),
         notes: String = "",
         enabled: Bool = true,
@@ -257,7 +257,7 @@ class ScheduleViewModel: ObservableObject {
             let newSchedule = Schedule(
                 routineId: routineId,
                 name: name,
-                recurrenceJSON: recurrenceJSON,
+                rrule: rrule,
                 dtstart: dtstart,
                 notes: notes,
                 enabled: enabled,
@@ -307,7 +307,7 @@ class ScheduleViewModel: ObservableObject {
         await createSchedule(
             routineId: template.routineId,
             name: template.name,
-            recurrenceJSON: template.recurrenceJSON,
+            rrule: template.rrule,
             dtstart: template.dtstart,
             notes: template.notes,
             enabled: template.enabled
@@ -379,7 +379,7 @@ class ScheduleViewModel: ObservableObject {
         let duplicatedSchedule = Schedule(
             routineId: schedule.routineId,
             name: "\(schedule.name) Copy",
-            recurrenceJSON: schedule.recurrenceJSON,
+            rrule: schedule.rrule,
             dtstart: schedule.dtstart,
             exdates: schedule.exdates,
             notes: schedule.notes,
@@ -399,7 +399,7 @@ class ScheduleViewModel: ObservableObject {
         await createSchedule(
             routineId: schedule.routineId,
             name: schedule.name,
-            recurrenceJSON: schedule.recurrenceJSON,
+            rrule: schedule.rrule,
             dtstart: schedule.dtstart,
             notes: schedule.notes,
             enabled: schedule.enabled
@@ -420,7 +420,7 @@ class ScheduleViewModel: ObservableObject {
 
     func validateSchedule(
         name: String,
-        recurrenceJSON: String
+        rrule: String
     ) -> ScheduleValidationResult {
         // Validate name
         let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -433,9 +433,9 @@ class ScheduleViewModel: ObservableObject {
             return .invalid("A schedule with this name already exists")
         }
 
-        // Validate RRule JSON
+        // Validate RRule string
         do {
-            _ = try RRule.fromJSON(recurrenceJSON)
+            _ = try RRule.fromRRuleString(rrule)
         } catch {
             return .invalid("Invalid recurrence rule format")
         }

@@ -15,7 +15,7 @@ class ScheduleService: @unchecked Sendable {
         id: String,
         routineId: String,
         name: String,
-        recurrenceJSON: String,
+        rrule: String,
         dtstart: String,
         exdates: [String] = [],
         notes: String = "",
@@ -27,7 +27,7 @@ class ScheduleService: @unchecked Sendable {
             req.id = id  // Client-provided UUID
             req.routineID = routineId
             req.name = name
-            req.recurrenceJson = recurrenceJSON
+            req.rrule = rrule
             req.dtstart = dtstart
             req.exdates = exdates
             req.notes = notes
@@ -43,7 +43,7 @@ class ScheduleService: @unchecked Sendable {
             id: response.scheduleID,  // Use the UUID from server response
             routineId: response.routineID,
             name: response.name,
-            recurrenceJSON: response.recurrenceJson,
+            rrule: response.rrule,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
@@ -70,7 +70,7 @@ class ScheduleService: @unchecked Sendable {
             id: response.scheduleID,
             routineId: response.routineID,
             name: response.name,
-            recurrenceJSON: response.recurrenceJson,
+            rrule: response.rrule,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
@@ -87,7 +87,7 @@ class ScheduleService: @unchecked Sendable {
         let request = VCUpdateScheduleRequest.with { req in
             req.scheduleID = schedule.id
             req.name = schedule.name
-            req.recurrenceJson = schedule.recurrenceJSON
+            req.rrule = schedule.rrule
             req.dtstart = ISO8601DateFormatter().string(from: schedule.dtstart)
             req.exdates = schedule.exdates
             req.notes = schedule.notes
@@ -103,7 +103,7 @@ class ScheduleService: @unchecked Sendable {
             id: response.scheduleID,
             routineId: response.routineID,
             name: response.name,
-            recurrenceJSON: response.recurrenceJson,
+            rrule: response.rrule,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
@@ -148,7 +148,7 @@ class ScheduleService: @unchecked Sendable {
                 id: schedule.scheduleID,
                 routineId: schedule.routineID,
                 name: schedule.name,
-                recurrenceJSON: schedule.recurrenceJson,
+                rrule: schedule.rrule,
                 dtstart: schedule.dtstart.date,
                 exdates: schedule.exdates,
                 lastExecution: schedule.hasLastExecution ? schedule.lastExecution.date : nil,
@@ -194,7 +194,7 @@ class ScheduleService: @unchecked Sendable {
             id: response.scheduleID,
             routineId: response.routineID,
             name: response.name,
-            recurrenceJSON: response.recurrenceJson,
+            rrule: response.rrule,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
@@ -222,7 +222,7 @@ class ScheduleService: @unchecked Sendable {
             id: response.scheduleID,
             routineId: response.routineID,
             name: response.name,
-            recurrenceJSON: response.recurrenceJson,
+            rrule: response.rrule,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,

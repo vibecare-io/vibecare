@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"context"
-	"encoding/json"
 	"time"
 
 	"github.com/google/uuid"
@@ -108,7 +107,8 @@ func (s *Scheduler) shouldTrigger(schedule *models.Schedule, now time.Time) bool
 	}
 
 	// Get all occurrences between last execution and now
-	occurrences := rruleSet.Between(startTime, now, true)
+	// Use false to exclude startTime (already dispatched) and avoid re-triggering
+	occurrences := rruleSet.Between(startTime, now, false)
 
 	// Check if there are any occurrences in this window
 	if len(occurrences) > 0 {
@@ -121,24 +121,18 @@ func (s *Scheduler) shouldTrigger(schedule *models.Schedule, now time.Time) bool
 	return false
 }
 
-// parseRRule parses the RRule JSON from a schedule
+// parseRRule parses the RRule RFC 5545 string from a schedule
 func (s *Scheduler) parseRRule(schedule *models.Schedule) (*rrule.Set, error) {
-	// Parse the RRule JSON
-	var rruleData models.RRule
-	if err := json.Unmarshal([]byte(schedule.RecurrenceJSON), &rruleData); err != nil {
-		return nil, err
-	}
-
-	// Build rrule options
+	// Determine dtstart
 	dtstart := time.Now()
 	if schedule.DTStart != nil {
 		dtstart = *schedule.DTStart
 	}
 
-	// Build the RRule string from JSON
-	rruleStr := s.buildRRuleString(rruleData, dtstart)
+	// Build the complete RRule string with DTSTART
+	rruleStr := "DTSTART:" + dtstart.Format("20060102T150405Z") + "\nRRULE:" + schedule.RRule
 
-	// Parse the RRule
+	// Parse the RRule using rrule-go
 	rule, err := rrule.StrToRRule(rruleStr)
 	if err != nil {
 		return nil, err
@@ -161,25 +155,6 @@ func (s *Scheduler) parseRRule(schedule *models.Schedule) (*rrule.Set, error) {
 	}
 
 	return rset, nil
-}
-
-// buildRRuleString builds an RFC 5545 RRule string from RRule data
-func (s *Scheduler) buildRRuleString(rruleData models.RRule, dtstart time.Time) string {
-	// Simple implementation - can be enhanced
-	rruleStr := "DTSTART:" + dtstart.Format("20060102T150405Z") + "\nRRULE:"
-
-	if rruleData.Freq != "" {
-		rruleStr += "FREQ=" + rruleData.Freq
-	}
-
-	if rruleData.Interval > 0 {
-		rruleStr += ";INTERVAL=" + string(rune(rruleData.Interval+'0'))
-	}
-
-	// Add other parameters as needed
-	// This is a simplified version - production code would need more complete parsing
-
-	return rruleStr
 }
 
 // dispatchScheduleEvent creates and dispatches a schedule triggered event

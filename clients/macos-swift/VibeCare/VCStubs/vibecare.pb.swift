@@ -367,9 +367,10 @@ public struct VCSchedule: Sendable {
 
   public var name: String = String()
 
-  /// RRule JSON for recurring rules (RFC 5545 compatible)
-  /// Example: {"freq": "DAILY", "interval": 1, "byhour": [9, 18], "byminute": [0]}
-  public var recurrenceJson: String = String()
+  /// RRule string in RFC 5545 format
+  /// Example: FREQ=DAILY;INTERVAL=1;BYHOUR=9,18;BYMINUTE=0
+  /// See: https://tools.ietf.org/html/rfc5545#section-3.3.10
+  public var rrule: String = String()
 
   /// when schedule starts
   public var dtstart: SwiftProtobuf.Google_Protobuf_Timestamp {
@@ -928,8 +929,8 @@ public struct VCCreateScheduleRequest: Sendable {
 
   public var name: String = String()
 
-  /// RRule JSON
-  public var recurrenceJson: String = String()
+  /// RRule in RFC 5545 format
+  public var rrule: String = String()
 
   /// ISO 8601
   public var dtstart: String = String()
@@ -970,7 +971,7 @@ public struct VCUpdateScheduleRequest: Sendable {
 
   public var name: String = String()
 
-  public var recurrenceJson: String = String()
+  public var rrule: String = String()
 
   public var dtstart: String = String()
 
@@ -1821,7 +1822,7 @@ extension VCRoutine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
 
 extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Schedule"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}routine_id\0\u{1}name\0\u{3}recurrence_json\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1832,7 +1833,7 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.recurrenceJson) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.rrule) }()
       case 5: try { try decoder.decodeSingularMessageField(value: &self._dtstart) }()
       case 6: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
       case 7: try { try decoder.decodeSingularMessageField(value: &self._lastExecution) }()
@@ -1859,8 +1860,8 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if !self.name.isEmpty {
       try visitor.visitSingularStringField(value: self.name, fieldNumber: 3)
     }
-    if !self.recurrenceJson.isEmpty {
-      try visitor.visitSingularStringField(value: self.recurrenceJson, fieldNumber: 4)
+    if !self.rrule.isEmpty {
+      try visitor.visitSingularStringField(value: self.rrule, fieldNumber: 4)
     }
     try { if let v = self._dtstart {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
@@ -1890,7 +1891,7 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if lhs.scheduleID != rhs.scheduleID {return false}
     if lhs.routineID != rhs.routineID {return false}
     if lhs.name != rhs.name {return false}
-    if lhs.recurrenceJson != rhs.recurrenceJson {return false}
+    if lhs.rrule != rhs.rrule {return false}
     if lhs._dtstart != rhs._dtstart {return false}
     if lhs.exdates != rhs.exdates {return false}
     if lhs._lastExecution != rhs._lastExecution {return false}
@@ -2959,7 +2960,7 @@ extension VCGetExecutionLogsResponse: SwiftProtobuf.Message, SwiftProtobuf._Mess
 
 extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CreateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}routine_id\0\u{1}name\0\u{3}recurrence_json\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{1}id\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{1}id\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2969,7 +2970,7 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 3: try { try decoder.decodeSingularStringField(value: &self.recurrenceJson) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.rrule) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.dtstart) }()
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
@@ -2987,8 +2988,8 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if !self.name.isEmpty {
       try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
     }
-    if !self.recurrenceJson.isEmpty {
-      try visitor.visitSingularStringField(value: self.recurrenceJson, fieldNumber: 3)
+    if !self.rrule.isEmpty {
+      try visitor.visitSingularStringField(value: self.rrule, fieldNumber: 3)
     }
     if !self.dtstart.isEmpty {
       try visitor.visitSingularStringField(value: self.dtstart, fieldNumber: 4)
@@ -3011,7 +3012,7 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
   public static func ==(lhs: VCCreateScheduleRequest, rhs: VCCreateScheduleRequest) -> Bool {
     if lhs.routineID != rhs.routineID {return false}
     if lhs.name != rhs.name {return false}
-    if lhs.recurrenceJson != rhs.recurrenceJson {return false}
+    if lhs.rrule != rhs.rrule {return false}
     if lhs.dtstart != rhs.dtstart {return false}
     if lhs.exdates != rhs.exdates {return false}
     if lhs.notes != rhs.notes {return false}
@@ -3054,7 +3055,7 @@ extension VCGetScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
 
 extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{3}recurrence_json\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3064,7 +3065,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 3: try { try decoder.decodeSingularStringField(value: &self.recurrenceJson) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.rrule) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.dtstart) }()
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
@@ -3080,8 +3081,8 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if !self.name.isEmpty {
       try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
     }
-    if !self.recurrenceJson.isEmpty {
-      try visitor.visitSingularStringField(value: self.recurrenceJson, fieldNumber: 3)
+    if !self.rrule.isEmpty {
+      try visitor.visitSingularStringField(value: self.rrule, fieldNumber: 3)
     }
     if !self.dtstart.isEmpty {
       try visitor.visitSingularStringField(value: self.dtstart, fieldNumber: 4)
@@ -3098,7 +3099,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
   public static func ==(lhs: VCUpdateScheduleRequest, rhs: VCUpdateScheduleRequest) -> Bool {
     if lhs.scheduleID != rhs.scheduleID {return false}
     if lhs.name != rhs.name {return false}
-    if lhs.recurrenceJson != rhs.recurrenceJson {return false}
+    if lhs.rrule != rhs.rrule {return false}
     if lhs.dtstart != rhs.dtstart {return false}
     if lhs.exdates != rhs.exdates {return false}
     if lhs.notes != rhs.notes {return false}

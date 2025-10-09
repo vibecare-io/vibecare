@@ -169,7 +169,7 @@ class ScheduleSyncManager: ObservableObject {
                 id: schedule.id,  // Pass client-generated ID
                 routineId: schedule.routineId,
                 name: schedule.name,
-                recurrenceJSON: schedule.recurrenceJSON,
+                rrule: schedule.rrule,
                 dtstart: ISO8601DateFormatter().string(from: schedule.dtstart),
                 exdates: schedule.exdates,
                 notes: schedule.notes,
@@ -328,7 +328,7 @@ class ScheduleSyncManager: ObservableObject {
                 // Check if there's a conflict (different update times and content)
                 if localSchedule.updatedAt != serverSchedule.updatedAt &&
                    (localSchedule.name != serverSchedule.name ||
-                    localSchedule.recurrenceJSON != serverSchedule.recurrenceJSON ||
+                    localSchedule.rrule != serverSchedule.rrule ||
                     localSchedule.enabled != serverSchedule.enabled) {
 
                     conflicts.append(ScheduleConflict(
