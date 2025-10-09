@@ -979,6 +979,8 @@ public struct VCUpdateScheduleRequest: Sendable {
 
   public var notes: String = String()
 
+  public var enabled: Bool = false
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -3055,7 +3057,7 @@ extension VCGetScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
 
 extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3069,6 +3071,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       case 4: try { try decoder.decodeSingularStringField(value: &self.dtstart) }()
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       default: break
       }
     }
@@ -3093,6 +3096,9 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if !self.notes.isEmpty {
       try visitor.visitSingularStringField(value: self.notes, fieldNumber: 6)
     }
+    if self.enabled != false {
+      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3103,6 +3109,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if lhs.dtstart != rhs.dtstart {return false}
     if lhs.exdates != rhs.exdates {return false}
     if lhs.notes != rhs.notes {return false}
+    if lhs.enabled != rhs.enabled {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

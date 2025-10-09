@@ -158,6 +158,7 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.UpdateScheduleReque
 	schedule.DTStart = dtstart
 	schedule.ExDates = req.Exdates
 	schedule.Notes = req.Notes
+	schedule.Enabled = req.Enabled
 
 	// Save updates
 	updatedSchedule, err := s.db.UpdateSchedule(schedule)

@@ -212,3 +212,30 @@ func (s *Scheduler) dispatchScheduleEvent(schedule *models.Schedule) {
 		zap.String("routine_name", routine.Name),
 		zap.String("profile_id", profileID))
 }
+
+// GetNextExecution calculates the next execution time for a schedule
+// Returns nil if schedule is disabled or has no future occurrences
+func (s *Scheduler) GetNextExecution(schedule *models.Schedule) (*time.Time, error) {
+	if !schedule.Enabled {
+		return nil, nil
+	}
+
+	rruleSet, err := s.parseRRule(schedule)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start from last execution or now, whichever is later
+	startTime := time.Now()
+	if schedule.LastExecution != nil && schedule.LastExecution.After(startTime) {
+		startTime = *schedule.LastExecution
+	}
+
+	// Get the next occurrence after the start time
+	next := rruleSet.After(startTime, false)
+	if next.IsZero() {
+		return nil, nil // No more occurrences
+	}
+
+	return &next, nil
+}

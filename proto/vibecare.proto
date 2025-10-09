@@ -354,6 +354,7 @@ message UpdateScheduleRequest {
   string dtstart = 4;
   repeated string exdates = 5;
   string notes = 6;
+  bool enabled = 7;
 }
 
 message DeleteScheduleRequest {

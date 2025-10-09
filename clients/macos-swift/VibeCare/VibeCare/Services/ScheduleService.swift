@@ -91,6 +91,7 @@ class ScheduleService: @unchecked Sendable {
             req.dtstart = ISO8601DateFormatter().string(from: schedule.dtstart)
             req.exdates = schedule.exdates
             req.notes = schedule.notes
+            req.enabled = schedule.enabled
         }
 
         let response = try await GRPCClientManager.shared.withScheduleServiceClient { client in
