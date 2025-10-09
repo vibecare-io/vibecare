@@ -237,7 +237,6 @@ struct ScheduleTemplates {
     [
       all.first(where: { $0.name == "Every 20 minutes" }) ?? all[0],
       all.first(where: { $0.name == "9am Tomorrow" }) ?? all[1],
-      all.first(where: { $0.name == "Every Monday at 9 AM" }) ?? all[2],
     ]
   }
 
@@ -1079,9 +1078,9 @@ struct ScheduleEditView: View {
       let wasOneTimeEvent = isOneTimeEvent
       selectedTemplate = template
       customRRule = template.rruleString
-      if scheduleName.isEmpty || scheduleName == selectedTemplate?.name {
-        scheduleName = template.name
-      }
+
+      // Always update the schedule name with the template name
+      scheduleName = template.name
 
       // Check if this is a one-time event (blank RRule or COUNT=1)
       let isBlankRRule = template.rruleString.trimmingCharacters(in: .whitespacesAndNewlines)
