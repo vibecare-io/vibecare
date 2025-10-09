@@ -16,6 +16,7 @@ import (
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
 	"github.com/vibecare-io/vibecare/backend/internal/telemetry"
+	"github.com/vibecare-io/vibecare/backend/internal/web"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -24,7 +25,8 @@ import (
 
 func main() {
 	var (
-		port          = flag.Int("port", 50051, "The server port")
+		port          = flag.Int("port", 50051, "The gRPC server port")
+		webPort       = flag.Int("web-port", 8080, "The HTTP web server port")
 		dbPath        = flag.String("db", "", "Path to SQLite database")
 		otlpEndpoint  = flag.String("otel-endpoint", "localhost:4317", "OpenTelemetry OTLP endpoint")
 		enableTracing = flag.Bool("enable-tracing", true, "Enable OpenTelemetry tracing")
@@ -83,6 +85,14 @@ func main() {
 	sched := scheduler.NewScheduler(db, eventHub, logger)
 	go sched.Start()
 
+	// Initialize and start web server
+	webServer := web.NewServer(*webPort, db, sched, logger)
+	go func() {
+		if err := webServer.Start(); err != nil {
+			logger.Error("Web server failed", zap.Error(err))
+		}
+	}()
+
 	// Create gRPC server with OpenTelemetry interceptors
 	// Order matters: panic recovery first, then OTel, then custom
 	serverOpts := []grpc.ServerOption{}
@@ -115,13 +125,23 @@ func main() {
 
 	go func() {
 		<-sigChan
-		logger.Info("Shutting down server...")
+		logger.Info("Shutting down servers...")
+
+		// Create shutdown context with timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+		defer cancel()
 
 		// Stop scheduler first to prevent new events
 		logger.Info("Stopping scheduler...")
 		sched.Stop()
 
-		// Attempt graceful shutdown of gRPC server with 15s timeout
+		// Shutdown web server
+		logger.Info("Stopping web server...")
+		if err := webServer.Shutdown(ctx); err != nil {
+			logger.Error("Failed to shutdown web server gracefully", zap.Error(err))
+		}
+
+		// Attempt graceful shutdown of gRPC server with timeout
 		done := make(chan struct{})
 		go func() {
 			grpcServer.GracefulStop()
@@ -130,14 +150,16 @@ func main() {
 
 		select {
 		case <-done:
-			logger.Info("Server gracefully stopped")
-		case <-time.After(15 * time.Second):
+			logger.Info("gRPC server gracefully stopped")
+		case <-ctx.Done():
 			logger.Warn("Graceful shutdown timeout, forcing stop")
 			grpcServer.Stop()
 		}
 	}()
 
-	logger.Info("VibeCare server starting", zap.Int("port", *port))
+	logger.Info("VibeCare servers starting",
+		zap.Int("grpc_port", *port),
+		zap.Int("web_port", *webPort))
 	if err := grpcServer.Serve(lis); err != nil {
 		logger.Fatal("Failed to serve", zap.Error(err))
 	}
