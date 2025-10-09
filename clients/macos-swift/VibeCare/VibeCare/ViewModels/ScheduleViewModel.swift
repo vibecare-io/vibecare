@@ -70,6 +70,17 @@ class ScheduleViewModel: ObservableObject {
             }
             .store(in: &cancellables)
 
+        // Listen for profile changes
+        NotificationCenter.default.publisher(for: .profileChanged)
+            .compactMap { $0.object as? Profile }
+            .sink { [weak self] profile in
+                // When profile changes, reload schedules for the new profile
+                Task { [weak self] in
+                    await self?.loadSchedulesForProfile(profile.id)
+                }
+            }
+            .store(in: &cancellables)
+
         // Listen for app lifecycle changes
         NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)
             .sink { [weak self] _ in
@@ -119,11 +130,17 @@ class ScheduleViewModel: ObservableObject {
         // Load all schedules across all routines for a profile
         currentRoutineId = nil // Clear routine context
 
-        // Load from local storage first (instant)
-        loadAllSchedulesFromLocalStorage()
+        // Load from local storage first (instant), filtered by profile
+        loadAllSchedulesFromLocalStorage(profileId: profileId)
 
         // Trigger background sync for all routines
         syncManager.triggerSync()
+    }
+
+    func loadSchedulesForProfile(_ profileId: String) async {
+        // Alias for profile-specific loading (called on profile switch)
+        logger.info("Loading schedules for profile: \(profileId)")
+        await loadAllSchedules(for: profileId)
     }
 
     func refreshData() async {
@@ -137,8 +154,13 @@ class ScheduleViewModel: ObservableObject {
                 // Refresh routine-specific schedules
                 loadFromLocalStorage(routineId: routineId)
             } else {
-                // Refresh all schedules across all routines
-                loadAllSchedulesFromLocalStorage()
+                // Refresh all schedules - get current profile ID
+                if let profileId = AppState.shared.currentProfile?.id {
+                    loadAllSchedulesFromLocalStorage(profileId: profileId)
+                } else {
+                    // No profile selected, load all schedules
+                    loadAllSchedulesFromLocalStorage()
+                }
             }
         }
     }
@@ -177,11 +199,18 @@ class ScheduleViewModel: ObservableObject {
         }
     }
 
-    private func loadAllSchedulesFromLocalStorage() {
+    private func loadAllSchedulesFromLocalStorage(profileId: String? = nil) {
         do {
-            schedules = try localStorage.getAllSchedulesAcrossAllRoutines()
+            if let profileId = profileId {
+                // Load schedules filtered by profile (local-first: data not deleted, just filtered)
+                schedules = try localStorage.getAllSchedulesForProfile(profileId)
+                logger.info("Loaded \(schedules.count) schedules for profile \(profileId) from local storage")
+            } else {
+                // Load all schedules across all profiles (backward compatibility)
+                schedules = try localStorage.getAllSchedulesAcrossAllRoutines()
+                logger.info("Loaded \(schedules.count) schedules across all routines from local storage (including pending deletion)")
+            }
             updateSyncStatus()
-            logger.info("Loaded \(schedules.count) schedules across all routines from local storage (including pending deletion)")
         } catch {
             logger.error("Failed to load all schedules from local storage: \(error)")
             schedules = []

@@ -12,15 +12,10 @@ struct ContentView: View {
                 Dashboard()
             }
         }
-        .onAppear {
-            // Ensure we have a current profile
-            if appState.currentProfile == nil {
-                appState.showProfileSelector = true
-            }
-        }
         .sheet(isPresented: $appState.showProfileSelector) {
             ProfileSelectorView()
                 .environmentObject(appState)
+                .interactiveDismissDisabled(appState.currentProfile == nil) // Can't dismiss if no profile selected
         }
         .alert("Connection Error", isPresented: $appState.showConnectionError) {
             Button("Retry") {

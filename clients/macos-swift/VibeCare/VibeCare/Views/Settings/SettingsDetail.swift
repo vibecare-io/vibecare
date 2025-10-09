@@ -33,6 +33,8 @@ struct SettingsDetailView: View {
 
                         // Setting Details based on category
                         switch setting {
+                        case .profile:
+                            ProfileSettingsDetail()
                         case .general:
                             GeneralSettingsDetail()
                         case .notifications:
@@ -65,6 +67,7 @@ struct SettingsDetailView: View {
 
 // Setting categories
 enum SettingCategory: String, CaseIterable, Identifiable {
+    case profile = "Profile"
     case general = "General"
     case notifications = "Notifications"
     case network = "Network"
@@ -76,6 +79,7 @@ enum SettingCategory: String, CaseIterable, Identifiable {
 
     var iconName: String {
         switch self {
+        case .profile: return "person.circle.fill"
         case .general: return "gearshape"
         case .notifications: return "bell.badge"
         case .network: return "network"
@@ -87,6 +91,7 @@ enum SettingCategory: String, CaseIterable, Identifiable {
 
     var color: Color {
         switch self {
+        case .profile: return .cyan
         case .general: return .blue
         case .notifications: return .indigo
         case .network: return .green
@@ -100,6 +105,7 @@ enum SettingCategory: String, CaseIterable, Identifiable {
 
     var description: String {
         switch self {
+        case .profile: return "Manage your profile and switch accounts"
         case .general: return "General application settings"
         case .notifications: return "Manage notification preferences"
         case .network: return "Configure network and server connections"
@@ -111,6 +117,129 @@ enum SettingCategory: String, CaseIterable, Identifiable {
 }
 
 // Individual setting detail views
+struct ProfileSettingsDetail: View {
+    @EnvironmentObject private var appState: AppState
+    @State private var profileName: String = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Profile Management")
+                .font(.headline)
+
+            // Current Profile Section
+            if let currentProfile = appState.currentProfile {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Current Profile")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 12) {
+                        Image(systemName: "person.circle.fill")
+                            .font(.largeTitle)
+                            .foregroundColor(.cyan)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            EditableTitle(
+                                text: $profileName,
+                                placeholder: "Profile name"
+                            ) { newName in
+                                var updatedProfile = currentProfile
+                                updatedProfile.name = newName
+                                appState.updateProfile(updatedProfile)
+                            }
+                            .font(.title3)
+                            .fontWeight(.semibold)
+
+                            Text(currentProfile.email)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+
+                            Text("ID: \(currentProfile.id)")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .monospaced()
+                        }
+
+                        Spacer()
+                    }
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                    .cornerRadius(12)
+                }
+                .onAppear {
+                    profileName = currentProfile.name
+                }
+                .onChange(of: appState.currentProfile?.name) { _, newName in
+                    if let newName = newName {
+                        profileName = newName
+                    }
+                }
+            }
+
+            Divider()
+
+            // Available Profiles
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Available Profiles")
+                    .font(.subheadline)
+                    .foregroundColor(.secondary)
+
+                if appState.profiles.isEmpty {
+                    Text("No profiles available")
+                        .font(.body)
+                        .foregroundColor(.secondary)
+                        .padding()
+                } else {
+                    ForEach(appState.profiles, id: \.id) { profile in
+                        HStack {
+                            Image(systemName: profile.id == appState.currentProfile?.id ? "checkmark.circle.fill" : "circle")
+                                .foregroundColor(profile.id == appState.currentProfile?.id ? .cyan : .secondary)
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(profile.name)
+                                    .font(.body)
+                                Text(profile.email)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+
+                            Spacer()
+
+                            if profile.id != appState.currentProfile?.id {
+                                Button("Switch") {
+                                    appState.selectProfile(profile)
+                                }
+                                .buttonStyle(.borderedProminent)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 12)
+                        .background(
+                            profile.id == appState.currentProfile?.id
+                                ? Color.cyan.opacity(0.1)
+                                : Color.clear
+                        )
+                        .cornerRadius(8)
+                    }
+                }
+            }
+
+            Divider()
+
+            // Actions
+            Button(action: {
+                appState.showProfileSelector = true
+            }) {
+                HStack {
+                    Image(systemName: "plus.circle.fill")
+                    Text("Create New Profile")
+                }
+            }
+            .buttonStyle(.borderedProminent)
+        }
+    }
+}
+
 struct GeneralSettingsDetail: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {

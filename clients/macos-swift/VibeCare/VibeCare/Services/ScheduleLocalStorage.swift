@@ -296,6 +296,29 @@ class ScheduleLocalStorage: ObservableObject {
         }
     }
 
+    func getAllSchedulesForProfile(_ profileId: String) throws -> [Schedule] {
+        // Fetch ALL schedules for routines belonging to the specified profile
+        // This maintains local-first approach by not deleting data, just filtering the view
+
+        let predicate = #Predicate<ScheduleEntity> { entity in
+            entity.routine?.profileId == profileId
+        }
+
+        let descriptor = FetchDescriptor<ScheduleEntity>(
+            predicate: predicate,
+            sortBy: [SortDescriptor(\ScheduleEntity.updatedAt, order: .reverse)]
+        )
+
+        do {
+            let entities = try context.fetch(descriptor)
+            // Return ALL schedules for this profile without filtering sync status
+            return entities.map { $0.toSchedule() }
+        } catch {
+            logger.error("Failed to get all schedules for profile \(profileId): \(error)")
+            throw ScheduleStorageError.persistenceError(error)
+        }
+    }
+
     // MARK: - Sync Status Management
 
     func updateSyncStatus(scheduleId: String, status: SyncStatus) throws {

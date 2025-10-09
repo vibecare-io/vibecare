@@ -3,7 +3,9 @@ import Combine
 
 struct EditableTitle: View {
     @Binding var text: String
+    var placeholder: String = "Enter name"
     var autoFocus: Bool = false
+    var autoSelectText: String? = nil
     let onSave: (String) -> Void
 
     @State private var isEditing = false
@@ -18,9 +20,9 @@ struct EditableTitle: View {
     var body: some View {
         HStack {
             if isEditing {
-                TextField("Routine name", text: $editingText, onEditingChanged: { isEditing in
-                    if isEditing && autoFocus && editingText == "Your New Routine" {
-                        // Select all text when starting to edit a new routine
+                TextField(placeholder, text: $editingText, onEditingChanged: { isEditing in
+                    if isEditing && autoFocus, let autoSelectText = autoSelectText, editingText == autoSelectText {
+                        // Select all text when starting to edit with specific text
                         DispatchQueue.main.async {
                             NSApp.keyWindow?.firstResponder?.selectAll(nil)
                         }

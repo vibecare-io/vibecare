@@ -308,7 +308,9 @@ struct RoutineDetailView: View {
     private var editableTitleSection: some View {
         EditableTitle(
             text: $routineName,
-            autoFocus: isCreating  // Auto-focus when creating new routine
+            placeholder: "Routine name",
+            autoFocus: isCreating,  // Auto-focus when creating new routine
+            autoSelectText: "Your New Routine"
         ) { newName in
             if isCreating {
                 // For new routines, auto-save when title changes from default

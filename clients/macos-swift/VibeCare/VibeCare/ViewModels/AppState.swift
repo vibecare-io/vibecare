@@ -39,12 +39,24 @@ public class AppState: ObservableObject {
             await MainActor.run {
                 self.profiles = fetchedProfiles
 
-                // If no current profile, set the first one or prompt for creation
+                // If no current profile, try to restore from saved ID
                 if currentProfile == nil {
-                    if let firstProfile = fetchedProfiles.first {
-                        currentProfile = firstProfile
-                        UserDefaults.standard.set(firstProfile.id, forKey: "currentProfileId")
+                    // Try to find saved profile
+                    if let savedProfileId = getSavedProfileId(),
+                       let savedProfile = fetchedProfiles.first(where: { $0.id == savedProfileId }) {
+                        // Restore saved profile
+                        currentProfile = savedProfile
+                        logger.info("Restored saved profile: \(savedProfile.name)")
+
+                        // Start listening to profile events
+                        Task {
+                            await eventService.startListening(for: savedProfile.id)
+                        }
+                    } else if let firstProfile = fetchedProfiles.first {
+                        // No saved profile, use first available
+                        selectProfile(firstProfile)
                     } else {
+                        // No profiles exist, prompt for creation
                         showProfileSelector = true
                     }
                 }
@@ -108,13 +120,58 @@ public class AppState: ObservableObject {
         }
     }
 
+    func updateProfile(_ profile: Profile) {
+        // Local-first approach: Update locally first for instant UI feedback
+        if let index = profiles.firstIndex(where: { $0.id == profile.id }) {
+            profiles[index] = profile
+        }
+
+        // Update current profile if it's the one being edited
+        if currentProfile?.id == profile.id {
+            currentProfile = profile
+        }
+
+        logger.info("Updated profile locally: \(profile.name)")
+
+        // Sync to server in background (non-blocking)
+        Task {
+            do {
+                let profileService = ProfileService()
+                let updatedProfile = try await profileService.updateProfile(profile)
+
+                await MainActor.run {
+                    // Update with server response to ensure consistency
+                    if let index = profiles.firstIndex(where: { $0.id == updatedProfile.id }) {
+                        profiles[index] = updatedProfile
+                    }
+
+                    if currentProfile?.id == updatedProfile.id {
+                        currentProfile = updatedProfile
+                    }
+
+                    logger.info("Profile synced to server: \(updatedProfile.name)")
+                }
+            } catch {
+                logger.error("Failed to sync profile to server: \(error)")
+                // Don't show error to user - local change persists, will retry later
+            }
+        }
+    }
+
     // MARK: - Private Methods
 
     private func loadCachedProfile() {
         if let profileId = UserDefaults.standard.string(forKey: "currentProfileId") {
-            // Will be loaded from backend in loadInitialData
-            logger.info("Found cached profile ID: \(profileId)")
+            logger.info("Found cached profile ID: \(profileId) - will restore when profiles load")
         }
+    }
+
+    func getSavedProfileId() -> String? {
+        return UserDefaults.standard.string(forKey: "currentProfileId")
+    }
+
+    func hasSavedProfile() -> Bool {
+        return getSavedProfileId() != nil
     }
 
     private func setupEventHandlers() {
