@@ -100,6 +100,58 @@
 
     <script>
         let autoRefreshInterval;
+        let retryState = {
+            attempt: 0,
+            maxDelay: 32000, // 32 seconds max
+            timeoutId: null,
+            countdownInterval: null,
+            nextRetryTime: null
+        };
+
+        function getRetryDelay(attempt) {
+            // Exponential backoff: 1s, 2s, 4s, 8s, 16s, 32s
+            const delay = Math.min(Math.pow(2, attempt) * 1000, retryState.maxDelay);
+            return delay;
+        }
+
+        function resetRetryState() {
+            retryState.attempt = 0;
+            if (retryState.timeoutId) {
+                clearTimeout(retryState.timeoutId);
+                retryState.timeoutId = null;
+            }
+            if (retryState.countdownInterval) {
+                clearInterval(retryState.countdownInterval);
+                retryState.countdownInterval = null;
+            }
+            retryState.nextRetryTime = null;
+        }
+
+        function startRetryCountdown() {
+            // Clear existing countdown
+            if (retryState.countdownInterval) {
+                clearInterval(retryState.countdownInterval);
+            }
+
+            retryState.countdownInterval = setInterval(() => {
+                if (!retryState.nextRetryTime) {
+                    clearInterval(retryState.countdownInterval);
+                    return;
+                }
+
+                const now = Date.now();
+                const remaining = Math.max(0, Math.ceil((retryState.nextRetryTime - now) / 1000));
+
+                const countdownEl = document.getElementById('retryCountdown');
+                if (countdownEl) {
+                    countdownEl.textContent = remaining;
+                }
+
+                if (remaining === 0) {
+                    clearInterval(retryState.countdownInterval);
+                }
+            }, 100); // Update every 100ms for smooth countdown
+        }
 
         function formatTime(timestamp) {
             if (!timestamp) return '-';
@@ -133,20 +185,57 @@
                 if (!response.ok) throw new Error('Failed to fetch status');
 
                 const data = await response.json();
+
+                // Success - reset retry state
+                resetRetryState();
                 updateDashboard(data);
 
                 document.getElementById('lastUpdate').textContent =
                     `Updated: ${formatTime(data.updated_at)}`;
             } catch (error) {
                 console.error('Error fetching status:', error);
-                document.getElementById('schedulesTable').innerHTML = `
-                    <tr>
-                        <td colspan="5" class="px-6 py-8 text-center text-red-400">
-                            Error loading schedules: ${error.message}
-                        </td>
-                    </tr>
-                `;
+                handleFetchError(error);
             }
+        }
+
+        function handleFetchError(error) {
+            const delay = getRetryDelay(retryState.attempt);
+            const delaySec = Math.ceil(delay / 1000);
+
+            document.getElementById('schedulesTable').innerHTML = `
+                <tr>
+                    <td colspan="5" class="px-6 py-8 text-center">
+                        <div class="flex flex-col items-center space-y-4">
+                            <div class="flex items-center space-x-3">
+                                <svg class="animate-spin h-5 w-5 text-yellow-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span class="text-yellow-400 font-semibold">Backend connection lost</span>
+                            </div>
+                            <div class="text-sm text-gray-400">
+                                ${error.message || 'Failed to connect to backend'}
+                            </div>
+                            <div class="text-sm text-gray-300">
+                                <span class="text-primary font-semibold">Retry attempt ${retryState.attempt + 1}</span>
+                                - Retrying in <span id="retryCountdown" class="text-yellow-400 font-mono font-bold">${delaySec}</span>s
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                Exponential backoff: ${delaySec}s delay
+                            </div>
+                        </div>
+                    </td>
+                </tr>
+            `;
+
+            // Schedule retry
+            retryState.nextRetryTime = Date.now() + delay;
+            startRetryCountdown();
+
+            retryState.timeoutId = setTimeout(() => {
+                retryState.attempt++;
+                fetchStatus();
+            }, delay);
         }
 
         function updateDashboard(data) {

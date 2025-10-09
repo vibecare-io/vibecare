@@ -206,3 +206,75 @@ func (db *DB) ListProfiles() ([]*models.Profile, error) {
 
 	return profiles, nil
 }
+
+// UpdateProfile updates an existing profile
+func (db *DB) UpdateProfile(id, name, email string, preferences map[string]string) (*models.Profile, error) {
+	// Validate and sanitize inputs
+	sanitizedName, err := validation.ValidateAndSanitizeName("name", name)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateEmail(email); err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateJSONMap("preferences", preferences); err != nil {
+		return nil, err
+	}
+
+	prefsJSON, err := json.Marshal(preferences)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal preferences: %w", err)
+	}
+
+	updatedAt := time.Now()
+
+	query := `
+		UPDATE profiles
+		SET name = ?, email = ?, preferences_json = ?, updated_at = ?
+		WHERE id = ?
+	`
+
+	result, err := db.Exec(query,
+		sanitizedName,
+		email,
+		string(prefsJSON),
+		updatedAt.Format(time.RFC3339),
+		id,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return nil, err
+	}
+	if rowsAffected == 0 {
+		return nil, fmt.Errorf("profile not found")
+	}
+
+	// Retrieve and return the updated profile
+	return db.GetProfile(id)
+}
+
+// DeleteProfile deletes a profile by ID
+func (db *DB) DeleteProfile(id string) error {
+	query := `DELETE FROM profiles WHERE id = ?`
+
+	result, err := db.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if rowsAffected == 0 {
+		return fmt.Errorf("profile not found")
+	}
+
+	return nil
+}

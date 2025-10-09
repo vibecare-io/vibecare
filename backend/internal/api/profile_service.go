@@ -103,15 +103,33 @@ func (s *Server) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest
 		profile.Preferences = req.Preferences
 	}
 
-	// Save updates (simplified - you'd implement an update method in storage)
-	// For now, return the updated profile
+	// Validate inputs at API layer
+	if err := validation.ValidateName("name", profile.Name); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
+	}
+
+	if err := validation.ValidateEmail(profile.Email); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid email: %v", err)
+	}
+
+	if err := validation.ValidateJSONMap("preferences", profile.Preferences); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid preferences: %v", err)
+	}
+
+	// Save updates to database
+	updatedProfile, err := s.db.UpdateProfile(req.Id, profile.Name, profile.Email, profile.Preferences)
+	if err != nil {
+		s.logger.Error("Failed to update profile", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to update profile: %v", err)
+	}
+
 	return &pb.Profile{
-		Id:          profile.ID,
-		Name:        profile.Name,
-		Email:       profile.Email,
-		Preferences: profile.Preferences,
-		CreatedAt:   timestamppb.New(profile.CreatedAt),
-		UpdatedAt:   timestamppb.New(profile.UpdatedAt),
+		Id:          updatedProfile.ID,
+		Name:        updatedProfile.Name,
+		Email:       updatedProfile.Email,
+		Preferences: updatedProfile.Preferences,
+		CreatedAt:   timestamppb.New(updatedProfile.CreatedAt),
+		UpdatedAt:   timestamppb.New(updatedProfile.UpdatedAt),
 	}, nil
 }
 
@@ -119,17 +137,13 @@ func (s *Server) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest
 func (s *Server) DeleteProfile(ctx context.Context, req *pb.DeleteProfileRequest) (*emptypb.Empty, error) {
 	s.logger.Info("Deleting profile", zap.String("id", req.Id))
 
-	// Check if profile exists
-	profile, err := s.db.GetProfile(req.Id)
+	// Delete profile from database
+	err := s.db.DeleteProfile(req.Id)
 	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get profile: %v", err)
-	}
-	if profile == nil {
-		return nil, status.Errorf(codes.NotFound, "profile not found")
+		s.logger.Error("Failed to delete profile", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to delete profile: %v", err)
 	}
 
-	// Delete profile (implement delete method in storage)
-	// For now, return success
 	return &emptypb.Empty{}, nil
 }
 
