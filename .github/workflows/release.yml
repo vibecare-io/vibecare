@@ -15,11 +15,10 @@ env:
   #SWIFT_VERSION: '6.1.0'
 
 jobs:
-  build-and-release:
-    name: Build and Release for macOS
+  build-backend:
+    name: Build Go Backend
     runs-on: macos-latest
-    permissions:
-      contents: write
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -30,14 +29,6 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
-
-      - name: Set up Swift
-        uses: swift-actions/setup-swift@v2
-        # with:
-        #   swift-version: ${{ env.SWIFT_VERSION }}
-
-      - name: Install just
-        uses: extractions/setup-just@v3
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -63,24 +54,211 @@ jobs:
           echo "CGO_ENABLED=1" >> $GITHUB_ENV
         shell: bash
 
-      - name: Install dependencies
+      - name: Install Go dependencies
         run: |
           cd backend
           go mod download
+          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
 
-      - name: Build release artifacts
+      - name: Generate protobuf (backend only)
+        run: |
+          chmod +x scripts/generate_proto.sh
+          ./scripts/generate_proto.sh -t backend
+
+      - name: Build backend binary
         env:
           VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: |
-          chmod +x scripts/build-release.sh
-          ./scripts/build-release.sh
+          cd backend
+          # Build universal binary
+          GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build \
+            -ldflags "-X main.version=${{ steps.get_version.outputs.VERSION }}" \
+            -o ../vibecare-server-arm64 \
+            cmd/server/main.go
+
+          GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build \
+            -ldflags "-X main.version=${{ steps.get_version.outputs.VERSION }}" \
+            -o ../vibecare-server-amd64 \
+            cmd/server/main.go
+
+          # Create universal binary
+          cd ..
+          lipo -create -output vibecare-server vibecare-server-arm64 vibecare-server-amd64
+          chmod +x vibecare-server
+          rm vibecare-server-arm64 vibecare-server-amd64
+
+      - name: Upload backend artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: backend-binary
+          path: vibecare-server
+          retention-days: 1
+
+  build-macos-client:
+    name: Build macOS Swift Client
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Swift
+        uses: swift-actions/setup-swift@v2
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Install Protoc
+        uses: arduino/setup-protoc@v3
+        with:
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+          version: "23.x"
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Generate protobuf (Swift only)
+        run: |
+          chmod +x scripts/generate_proto.sh
+          ./scripts/generate_proto.sh -t client-macos
+
+      - name: Build Swift client
+        run: |
+          cd clients/macos-swift/VibeCare
+          swift build -c release
+          cp .build/release/VibeCare ../../../vibecare-client
+          chmod +x ../../../vibecare-client
+
+      - name: Create app bundle
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          APP_BUNDLE="VibeCare.app"
+          mkdir -p "${APP_BUNDLE}/Contents/MacOS"
+          mkdir -p "${APP_BUNDLE}/Contents/Resources"
+
+          cp vibecare-client "${APP_BUNDLE}/Contents/MacOS/VibeCare"
+
+          cat > "${APP_BUNDLE}/Contents/Info.plist" << EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleExecutable</key>
+              <string>VibeCare</string>
+              <key>CFBundleIdentifier</key>
+              <string>io.vibecare.app</string>
+              <key>CFBundleName</key>
+              <string>VibeCare</string>
+              <key>CFBundlePackageType</key>
+              <string>APPL</string>
+              <key>CFBundleShortVersionString</key>
+              <string>${{ steps.get_version.outputs.VERSION }}</string>
+              <key>CFBundleVersion</key>
+              <string>${{ steps.get_version.outputs.VERSION }}</string>
+              <key>LSMinimumSystemVersion</key>
+              <string>15.0</string>
+              <key>NSHighResolutionCapable</key>
+              <true/>
+              <key>LSUIElement</key>
+              <true/>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Upload client artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-client-app
+          path: VibeCare.app/
+          retention-days: 1
+
+  create-release:
+    name: Create Release Package
+    runs-on: macos-latest
+    needs: [build-backend, build-macos-client]
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: dist/
+
+      - name: Download client artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: macos-client-app
+          path: dist/VibeCare.app/
+
+      - name: Create tarball
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          mkdir -p build
+          cd dist
+          tar -czf ../build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz \
+            vibecare-server VibeCare.app
+          cd ..
+          shasum -a 256 build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz \
+            > build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz.sha256
 
       - name: Create PKG installer
         env:
           VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: |
-          chmod +x scripts/create-pkg.sh
-          ./scripts/create-pkg.sh
+          PKG_ROOT="build/pkg-root"
+          PKG_SCRIPTS="build/pkg-scripts"
+
+          mkdir -p "${PKG_ROOT}/usr/local/bin"
+          mkdir -p "${PKG_ROOT}/Applications"
+          mkdir -p "${PKG_ROOT}/tmp/vibecare-install"
+          mkdir -p "${PKG_SCRIPTS}"
+
+          cp dist/vibecare-server "${PKG_ROOT}/usr/local/bin/"
+          chmod +x "${PKG_ROOT}/usr/local/bin/vibecare-server"
+
+          cp -R dist/VibeCare.app "${PKG_ROOT}/Applications/"
+
+          cp scripts/io.vibecare.server.plist "${PKG_ROOT}/tmp/vibecare-install/"
+          cp scripts/postinstall "${PKG_SCRIPTS}/postinstall"
+          chmod +x "${PKG_SCRIPTS}/postinstall"
+
+          pkgbuild \
+            --root "${PKG_ROOT}" \
+            --scripts "${PKG_SCRIPTS}" \
+            --identifier "io.vibecare.app" \
+            --version "${{ steps.get_version.outputs.VERSION }}" \
+            --install-location "/" \
+            "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg"
+
+          shasum -a 256 "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg" \
+            > "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg.sha256"
 
       - name: Generate release notes
         id: release_notes
