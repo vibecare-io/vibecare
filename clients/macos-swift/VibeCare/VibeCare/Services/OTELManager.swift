@@ -3,6 +3,39 @@ import OpenTelemetryApi
 import OpenTelemetrySdk
 import OpenTelemetryProtocolExporterHttp
 
+// Simple no-op span for when telemetry is disabled
+final class NoopSpan: Span {
+    var name: String = ""
+    var context: SpanContext {
+        SpanContext.create(
+            traceId: TraceId.invalid,
+            spanId: SpanId.invalid,
+            traceFlags: TraceFlags(),
+            traceState: TraceState()
+        )
+    }
+    var isRecording: Bool { false }
+    var kind: SpanKind { .internal }
+    var status: Status {
+        get { .unset }
+        set { }
+    }
+    var description: String { "NoopSpan" }
+
+    func end() {}
+    func end(time: Date) {}
+    func setAttribute(key: String, value: AttributeValue?) {}
+    func setAttributes(_ attributes: [String: AttributeValue]) {}
+    func addEvent(name: String) {}
+    func addEvent(name: String, timestamp: Date) {}
+    func addEvent(name: String, attributes: [String: AttributeValue]) {}
+    func addEvent(name: String, attributes: [String: AttributeValue], timestamp: Date) {}
+    func recordException(_ exception: SpanException) {}
+    func recordException(_ exception: SpanException, timestamp: Date) {}
+    func recordException(_ exception: SpanException, attributes: [String: AttributeValue]) {}
+    func recordException(_ exception: SpanException, attributes: [String: AttributeValue], timestamp: Date) {}
+}
+
 final class OTELManager: @unchecked Sendable {
     static let shared = OTELManager()
 
@@ -68,8 +101,7 @@ final class OTELManager: @unchecked Sendable {
     // Convenience method to create spans with common attributes
     func startSpan(_ operationName: String, attributes: [String: AttributeValue] = [:]) -> Span {
         guard let tracer = tracer, isEnabled else {
-            // Return no-op span if telemetry is disabled
-            return DefaultTracer.instance.spanBuilder(spanName: "noop").startSpan()
+            return NoopSpan()
         }
         let spanBuilder = tracer.spanBuilder(spanName: operationName)
 
@@ -89,7 +121,7 @@ final class OTELManager: @unchecked Sendable {
     // Create a child span from a parent span
     func createChildSpan(parent: Span, operationName: String, attributes: [String: AttributeValue] = [:]) -> Span {
         guard let tracer = tracer, isEnabled else {
-            return DefaultTracer.instance.spanBuilder(spanName: "noop").startSpan()
+            return NoopSpan()
         }
         let spanBuilder = tracer.spanBuilder(spanName: operationName)
 

@@ -140,8 +140,8 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-brew-
 
-      - name: Install just
-        uses: extractions/setup-just@v3
+      # - name: Install just
+      #   uses: extractions/setup-just@v3
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
