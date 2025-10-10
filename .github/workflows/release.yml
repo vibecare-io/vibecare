@@ -1,4 +1,4 @@
-name: Release
+name: Release 🎉
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
 
 env:
   GO_VERSION: '1.24'
-  SWIFT_VERSION: '6.0'
+  SWIFT_VERSION: '6.1.2'
 
 jobs:
   build-and-release:
@@ -52,16 +52,20 @@ jobs:
             echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
           fi
 
+      - name: Configure CGO SDK path
+        run: |
+          SDK_PATH=$(xcrun --show-sdk-path)
+          echo "Detected SDK Path: $SDK_PATH"
+          echo "CGO_CFLAGS=-isysroot $SDK_PATH" >> $GITHUB_ENV
+          echo "CGO_LDFLAGS=-isysroot $SDK_PATH" >> $GITHUB_ENV
+          echo "CGO_ENABLED=1" >> $GITHUB_ENV
+        shell: bash
+
       - name: Install dependencies
         run: |
           cd backend
           go mod download
 
-      - name: Setup tmate session
-        uses: mxschmitt/action-tmate@v3
-        with:
-          limit-access-to-actor: true
-          
       - name: Build release artifacts
         env:
           VERSION: ${{ steps.get_version.outputs.VERSION }}

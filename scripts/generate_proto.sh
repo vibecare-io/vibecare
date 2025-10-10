@@ -127,12 +127,19 @@ generate_macos() {
     # Check if Swift protoc plugins are installed
     if ! command -v protoc-gen-swift &> /dev/null; then
         echo -e "${YELLOW}Swift protobuf plugin not found.${NC}"
-        echo "To install: brew install swift-protobuf"
-        if [[ "$TARGET" == "client-macos" ]]; then
-            exit 1
+
+        # Auto-install if in CI or AUTO_INSTALL_PLUGINS is set
+        if [[ "${CI:-false}" == "true" ]] || [[ "${AUTO_INSTALL_PLUGINS:-false}" == "true" ]]; then
+            echo -e "${GREEN}Installing swift-protobuf...${NC}"
+            brew install swift-protobuf
         else
-            echo -e "${YELLOW}Skipping Swift code generation.${NC}"
-            return
+            echo "To install: brew install swift-protobuf"
+            if [[ "$TARGET" == "client-macos" ]]; then
+                exit 1
+            else
+                echo -e "${YELLOW}Skipping Swift code generation.${NC}"
+                return
+            fi
         fi
     fi
 
@@ -144,12 +151,28 @@ generate_macos() {
         grpc_plugin="$(which protoc-gen-grpc-swift)"
     else
         echo -e "${YELLOW}Swift gRPC plugin not found.${NC}"
-        echo "To install: brew install grpc-swift"
-        if [[ "$TARGET" == "client-macos" ]]; then
-            exit 1
+
+        # Auto-install if in CI or AUTO_INSTALL_PLUGINS is set
+        if [[ "${CI:-false}" == "true" ]] || [[ "${AUTO_INSTALL_PLUGINS:-false}" == "true" ]]; then
+            echo -e "${GREEN}Installing grpc-swift...${NC}"
+            brew install grpc-swift
+            # Re-check for the plugin after installation
+            if [[ -f "/opt/homebrew/bin/protoc-gen-grpc-swift-2" ]]; then
+                grpc_plugin="/opt/homebrew/bin/protoc-gen-grpc-swift-2"
+            elif command -v protoc-gen-grpc-swift &> /dev/null; then
+                grpc_plugin="$(which protoc-gen-grpc-swift)"
+            else
+                echo -e "${RED}Failed to install grpc-swift plugin${NC}"
+                exit 1
+            fi
         else
-            echo -e "${YELLOW}Skipping Swift gRPC code generation.${NC}"
-            return
+            echo "To install: brew install grpc-swift"
+            if [[ "$TARGET" == "client-macos" ]]; then
+                exit 1
+            else
+                echo -e "${YELLOW}Skipping Swift gRPC code generation.${NC}"
+                return
+            fi
         fi
     fi
 
