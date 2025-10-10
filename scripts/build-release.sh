@@ -179,6 +179,7 @@ main() {
     log_info "Project root: ${PROJECT_ROOT}"
 
     clean_build
+    just proto
     build_backend
     build_macos_client
     create_app_bundle
