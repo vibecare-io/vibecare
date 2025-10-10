@@ -18,7 +18,8 @@ jobs:
   build-and-release:
     name: Build and Release for macOS
     runs-on: macos-latest
-
+    permissions:
+      contents: write
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
