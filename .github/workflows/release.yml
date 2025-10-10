@@ -29,6 +29,17 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: ${{ env.GO_VERSION }}
+          cache: false  # We'll use our own cache strategy
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/go/pkg/mod
+            ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
@@ -107,6 +118,27 @@ jobs:
 
       - name: Set up Swift
         uses: swift-actions/setup-swift@v2
+
+      - name: Cache Swift dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            clients/macos-swift/VibeCare/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-swift-${{ hashFiles('clients/macos-swift/VibeCare/Package.resolved') }}
+          restore-keys: |
+            ${{ runner.os }}-swift-
+
+      - name: Cache Homebrew
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/Library/Caches/Homebrew
+            /opt/homebrew/Cellar/swift-protobuf
+            /opt/homebrew/Cellar/grpc-swift
+          key: ${{ runner.os }}-brew-${{ hashFiles('scripts/generate_proto.sh') }}
+          restore-keys: |
+            ${{ runner.os }}-brew-
 
       - name: Install just
         uses: extractions/setup-just@v3
