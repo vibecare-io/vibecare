@@ -280,14 +280,59 @@ struct AppearanceSettingsDetail: View {
 }
 
 struct PrivacySettingsDetail: View {
+    @State private var telemetryEnabled = OTELManager.shared.isEnabled
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Privacy Settings")
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Privacy & Data")
                 .font(.headline)
 
-            // Add privacy settings controls here
-            Text("Privacy settings will be configured here")
+            // Telemetry Toggle
+            Toggle(isOn: $telemetryEnabled) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Enable Telemetry")
+                        .font(.body)
+                    Text("Send anonymous usage data to help improve VibeCare")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            }
+            .onChange(of: telemetryEnabled) { _, newValue in
+                if newValue {
+                    OTELManager.shared.enable()
+                } else {
+                    OTELManager.shared.disable()
+                }
+            }
+
+            Divider()
+
+            // Privacy Info
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Data Collection")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+
+                Text("When telemetry is enabled, we collect:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Label("View navigation patterns", systemImage: "arrow.triangle.branch")
+                    Label("Performance metrics", systemImage: "speedometer")
+                    Label("Error reports", systemImage: "exclamationmark.triangle")
+                }
+                .font(.caption)
                 .foregroundColor(.secondary)
+                .padding(.leading, 8)
+
+                Text("We never collect personal information, schedule data, or routine details.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .italic()
+                    .padding(.top, 4)
+            }
+            .padding(.vertical, 8)
         }
     }
 }

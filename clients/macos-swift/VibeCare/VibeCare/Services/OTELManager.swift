@@ -6,9 +6,20 @@ import OpenTelemetryProtocolExporterHttp
 final class OTELManager: @unchecked Sendable {
     static let shared = OTELManager()
 
-    let tracer: TracerSdk
+    private(set) var tracer: TracerSdk?
+    private(set) var isEnabled: Bool = false
 
     private init() {
+        // Check if telemetry is enabled (default: false)
+        let enabled = UserDefaults.standard.bool(forKey: "telemetryEnabled")
+        self.isEnabled = enabled
+
+        if enabled {
+            initializeTelemetry()
+        }
+    }
+
+    private func initializeTelemetry() {
         // Configure resource information
         let resource = Resource(attributes: [
             "service.name": AttributeValue.string("vibecare-ui"),
@@ -35,11 +46,31 @@ final class OTELManager: @unchecked Sendable {
         OpenTelemetry.registerTracerProvider(tracerProvider: tracerProvider)
 
         // Get tracer instance
-        self.tracer = tracerProvider.get(instrumentationName: "vibecare-ui", instrumentationVersion: "1.0.0") as! TracerSdk
+        self.tracer = tracerProvider.get(instrumentationName: "vibecare-ui", instrumentationVersion: "1.0.0") as? TracerSdk
+    }
+
+    func enable() {
+        guard !isEnabled else { return }
+
+        UserDefaults.standard.set(true, forKey: "telemetryEnabled")
+        isEnabled = true
+        initializeTelemetry()
+    }
+
+    func disable() {
+        guard isEnabled else { return }
+
+        UserDefaults.standard.set(false, forKey: "telemetryEnabled")
+        isEnabled = false
+        tracer = nil
     }
 
     // Convenience method to create spans with common attributes
     func startSpan(_ operationName: String, attributes: [String: AttributeValue] = [:]) -> Span {
+        guard let tracer = tracer, isEnabled else {
+            // Return no-op span if telemetry is disabled
+            return DefaultTracer.instance.spanBuilder(spanName: "noop").startSpan()
+        }
         let spanBuilder = tracer.spanBuilder(spanName: operationName)
 
         // Add common attributes
@@ -57,6 +88,9 @@ final class OTELManager: @unchecked Sendable {
 
     // Create a child span from a parent span
     func createChildSpan(parent: Span, operationName: String, attributes: [String: AttributeValue] = [:]) -> Span {
+        guard let tracer = tracer, isEnabled else {
+            return DefaultTracer.instance.spanBuilder(spanName: "noop").startSpan()
+        }
         let spanBuilder = tracer.spanBuilder(spanName: operationName)
 
         // Set parent relationship
