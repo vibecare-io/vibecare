@@ -1,0 +1,69 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# VibeCare PKG Postinstall Script
+# Runs after package installation to set up the environment
+
+USER_HOME="$HOME"
+VIBECARE_DIR="${USER_HOME}/.vibecare"
+LOG_DIR="${USER_HOME}/Library/Logs/VibeCare"
+LAUNCH_AGENTS_DIR="${USER_HOME}/Library/LaunchAgents"
+PLIST_NAME="io.vibecare.server.plist"
+
+log() {
+    echo "[VibeCare Installer] $1"
+}
+
+# Create directories
+log "Creating VibeCare directories..."
+mkdir -p "${VIBECARE_DIR}"
+mkdir -p "${LOG_DIR}"
+mkdir -p "${LAUNCH_AGENTS_DIR}"
+
+# Set permissions
+chmod 755 "${VIBECARE_DIR}"
+chmod 755 "${LOG_DIR}"
+
+# Copy LaunchAgent plist
+log "Installing LaunchAgent..."
+cp "/tmp/vibecare-install/${PLIST_NAME}" "${LAUNCH_AGENTS_DIR}/${PLIST_NAME}"
+
+# Replace ~ with actual home directory in plist
+sed -i '' "s|~|${USER_HOME}|g" "${LAUNCH_AGENTS_DIR}/${PLIST_NAME}"
+
+# Initialize database if needed
+if [ ! -f "${VIBECARE_DIR}/vibecare.db" ]; then
+    log "Initializing database..."
+    # The backend will auto-migrate on first run
+    touch "${VIBECARE_DIR}/vibecare.db"
+fi
+
+# Load LaunchAgent
+log "Loading VibeCare backend service..."
+launchctl unload "${LAUNCH_AGENTS_DIR}/${PLIST_NAME}" 2>/dev/null || true
+launchctl load "${LAUNCH_AGENTS_DIR}/${PLIST_NAME}"
+
+# Wait for server to start
+log "Waiting for backend to start..."
+sleep 3
+
+# Check if backend is running
+if curl -s http://localhost:8080/status > /dev/null 2>&1; then
+    log "✓ VibeCare backend is running"
+else
+    log "Warning: Backend may not have started. Check logs at ${LOG_DIR}/server-error.log"
+fi
+
+# Cleanup
+rm -rf /tmp/vibecare-install
+
+log "Installation complete!"
+log "- Backend server: http://localhost:8080"
+log "- gRPC endpoint: localhost:50051"
+log "- Logs: ${LOG_DIR}"
+log ""
+log "To start the macOS client, open VibeCare from Applications"
+log "To stop the backend: launchctl unload ~/Library/LaunchAgents/${PLIST_NAME}"
+log "To start the backend: launchctl load ~/Library/LaunchAgents/${PLIST_NAME}"
+
+exit 0

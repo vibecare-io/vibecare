@@ -1,0 +1,146 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to release (e.g., v1.0.0)'
+        required: true
+
+env:
+  GO_VERSION: '1.24'
+  SWIFT_VERSION: '6.0'
+
+jobs:
+  build-and-release:
+    name: Build and Release for macOS
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set up Swift
+        uses: swift-actions/setup-swift@v2
+        with:
+          swift-version: ${{ env.SWIFT_VERSION }}
+
+      - name: Get version
+        id: get_version
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Install dependencies
+        run: |
+          cd backend
+          go mod download
+
+      - name: Build release artifacts
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          chmod +x scripts/build-release.sh
+          ./scripts/build-release.sh
+
+      - name: Create PKG installer
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          chmod +x scripts/create-pkg.sh
+          ./scripts/create-pkg.sh
+
+      - name: Generate release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          # VibeCare ${{ steps.get_version.outputs.VERSION }}
+
+          ## Installation
+
+          ### Option 1: PKG Installer (Recommended)
+          1. Download `VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg`
+          2. Double-click to install
+          3. The backend will start automatically
+          4. Launch VibeCare from Applications
+
+          ### Option 2: Manual Installation
+          1. Download and extract `vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz`
+          2. Move `vibecare-server` to `/usr/local/bin/`
+          3. Move `VibeCare.app` to `/Applications/`
+          4. Start the backend: `vibecare-server`
+          5. Launch the app from Applications
+
+          ## What's Included
+          - VibeCare Backend Server (gRPC + Web Dashboard)
+          - VibeCare macOS Client App
+          - Automatic backend startup via LaunchAgent
+          - Database auto-migration
+
+          ## System Requirements
+          - macOS 15.0 or later
+          - Apple Silicon (M1/M2/M3) or Intel Mac
+
+          ## Usage
+          - Backend web dashboard: http://localhost:8080/status
+          - gRPC endpoint: localhost:50051
+          - Logs: ~/Library/Logs/VibeCare/
+
+          ## Verify Installation
+          ```bash
+          # Check backend is running
+          curl http://localhost:8080/status
+
+          # View backend logs
+          tail -f ~/Library/Logs/VibeCare/server.log
+
+          # Stop backend
+          launchctl unload ~/Library/LaunchAgents/io.vibecare.server.plist
+
+          # Start backend
+          launchctl load ~/Library/LaunchAgents/io.vibecare.server.plist
+          ```
+
+          ## Checksums
+          Verify file integrity using the .sha256 files provided.
+
+          EOF
+          echo "RELEASE_NOTES_FILE=release_notes.md" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: VibeCare ${{ steps.get_version.outputs.VERSION }}
+          body_path: ${{ steps.release_notes.outputs.RELEASE_NOTES_FILE }}
+          draft: false
+          prerelease: false
+          files: |
+            build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg
+            build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg.sha256
+            build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz
+            build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz.sha256
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: vibecare-${{ steps.get_version.outputs.VERSION }}-macos
+          path: |
+            build/*.pkg
+            build/*.tar.gz
+            build/*.sha256
+          retention-days: 30

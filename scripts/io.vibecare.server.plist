@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>io.vibecare.server</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/usr/local/bin/vibecare-server</string>
+        <string>--port</string>
+        <string>50051</string>
+        <string>--web-port</string>
+        <string>8080</string>
+        <string>--db</string>
+        <string>~/.vibecare/vibecare.db</string>
+        <string>--enable-tracing</string>
+    </array>
+
+    <key>RunAtLoad</key>
+    <true/>
+
+    <key>KeepAlive</key>
+    <dict>
+        <key>SuccessfulExit</key>
+        <false/>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>~/Library/Logs/VibeCare/server.log</string>
+
+    <key>StandardErrorPath</key>
+    <string>~/Library/Logs/VibeCare/server-error.log</string>
+
+    <key>WorkingDirectory</key>
+    <string>~/.vibecare</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+    </dict>
+
+    <key>ProcessType</key>
+    <string>Background</string>
+
+    <key>ThrottleInterval</key>
+    <integer>30</integer>
+</dict>
+</plist>
