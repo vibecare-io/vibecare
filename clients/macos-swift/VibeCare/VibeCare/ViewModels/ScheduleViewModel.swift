@@ -279,7 +279,8 @@ class ScheduleViewModel: ObservableObject {
         dtstart: Date = Date(),
         notes: String = "",
         enabled: Bool = true,
-        priority: Priority = .none
+        priority: Priority = .none,
+        notificationPreferences: NotificationPreferences? = nil
     ) async {
         do {
             // Create schedule locally first (instant response)
@@ -290,7 +291,8 @@ class ScheduleViewModel: ObservableObject {
                 dtstart: dtstart,
                 notes: notes,
                 enabled: enabled,
-                priority: priority
+                priority: priority,
+                notificationPreferences: notificationPreferences
             )
 
             // Save to local storage immediately

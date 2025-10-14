@@ -26,35 +26,77 @@ enum VibeNotifyConfig {
     routineName: String,
     scheduledTime: Date,
     notes: String? = nil,
-    priority: NotificationPriority = .normal
+    priority: NotificationPriority = .normal,
+    preferences: NotificationPreferences? = nil
   ) -> UUID? {
     guard NotificationPolicy.shared.isNotificationAllowed(priority: priority) else {
       return nil
     }
-    let timeFormatter = DateFormatter()
-    timeFormatter.timeStyle = .short
-    timeFormatter.dateStyle = .none
-    let timeString = timeFormatter.string(from: scheduledTime)
 
-    var message = "Routine: \(routineName)\nScheduled: \(timeString)"
-    if let notes = notes, !notes.isEmpty {
-      message += "\n\(notes)"
+    // Use custom preferences or default
+    let prefs = preferences ?? .default
+
+    // Format title and message using preferences
+    let title = prefs.formatTitle(scheduleName: scheduleName, routineName: routineName)
+    let message = prefs.formatMessage(
+      scheduleName: scheduleName,
+      routineName: routineName,
+      scheduledTime: scheduledTime
+    )
+
+    // Start building notification
+    var builder = VibeNotify.builder()
+
+    // Add SVG if specified
+    if let svgPath = prefs.svgPath, let svgSize = prefs.svgSize {
+      builder = builder.svg(svgPath, size: svgSize)
+    } else {
+      // Fallback to system icon
+      builder = builder.icon(.system("bell.badge.fill"))
     }
 
-    return VibeNotify.builder()
-      .title("⏰ \(scheduleName)")
+    // Apply customizations
+    builder = builder
+      .title(title)
       .message(message)
-      .icon(.system("bell.badge.fill"))
-      .position(.center)
-      .width(450)
-      .height(220)
-      .moveable(true)
+      .moveable(prefs.moveable)
       .alwaysOnTop(true)
-      .transparent(true, material: .hudWindow)
       .dismissOnScreenTap(true)
-      .autoDismiss(after: quickDismissDelay, showProgress: true)
-      .show()
+      .autoDismiss(after: prefs.autoDismissAfter ?? quickDismissDelay)
+
+    // Apply screen blur if enabled
+    if prefs.screenBlurEnabled {
+      builder = builder.screenBlur(true)
+    }
+
+    // Set position based on preference
+    switch prefs.position {
+    case .center:
+      builder = builder.position(.center)
+    case .topLeft:
+      builder = builder.position(.topLeft)
+    case .topRight:
+      builder = builder.position(.topRight)
+    case .bottomLeft:
+      builder = builder.position(.bottomLeft)
+    case .bottomRight:
+      builder = builder.position(.bottomRight)
+    }
+
+    // Apply width and height if specified
+    if let width = prefs.width {
+      builder = builder.width(CGFloat(width))
+    }
+    if let height = prefs.height {
+      builder = builder.height(CGFloat(height))
+    }
+
+    return builder.show()
   }
+
+  // MARK: - Position Mapping
+  // Note: The position is set using the builder's .position() method
+  // which accepts the enum directly (e.g., .center, .topLeft, etc.)
 
   // MARK: - Generic Notification Methods
 

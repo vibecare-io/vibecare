@@ -46,6 +46,10 @@ class ScheduleEntity {
     var lastError: String?
     @Attribute(.transformable(by: "NSSecureUnarchiveFromDataTransformer")) var syncErrors: [SyncError]?
 
+    // Notification preferences stored as JSON data
+    @Attribute(.transformable(by: "NSSecureUnarchiveFromDataTransformer"))
+    var notificationPreferencesData: Data?
+
     // SwiftData relationship to routine
     @Relationship
     var routine: RoutineEntity?
@@ -69,6 +73,13 @@ class ScheduleEntity {
         self.retryCount = 0
         self.lastError = nil
         self.syncErrors = []
+
+        // Encode notification preferences
+        if let prefs = schedule.notificationPreferences {
+            self.notificationPreferencesData = try? JSONEncoder().encode(prefs)
+        } else {
+            self.notificationPreferencesData = nil
+        }
     }
 
     func toSchedule() -> Schedule {
@@ -82,9 +93,16 @@ class ScheduleEntity {
             lastExecution: lastExecution,
             notes: notes,
             enabled: enabled,
+            priority: .none, // TODO: Add priority field to entity
+            notificationPreferences: decodeNotificationPreferences(),
             createdAt: createdAt,
             updatedAt: updatedAt
         )
+    }
+
+    private func decodeNotificationPreferences() -> NotificationPreferences? {
+        guard let data = notificationPreferencesData else { return nil }
+        return try? JSONDecoder().decode(NotificationPreferences.self, from: data)
     }
 
     func updateFromSchedule(_ schedule: Schedule, newSyncStatus: SyncStatus? = nil) {
@@ -97,6 +115,13 @@ class ScheduleEntity {
         self.enabled = schedule.enabled
         self.updatedAt = schedule.updatedAt
         self.lastModified = Date()
+
+        // Update notification preferences
+        if let prefs = schedule.notificationPreferences {
+            self.notificationPreferencesData = try? JSONEncoder().encode(prefs)
+        } else {
+            self.notificationPreferencesData = nil
+        }
 
         if let newSyncStatus = newSyncStatus {
             self.syncStatus = newSyncStatus

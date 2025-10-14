@@ -286,6 +286,7 @@ struct ScheduleEditView: View {
   }()
   @State private var enabled: Bool = true
   @State private var selectedPriority: Priority = .none
+  @State private var notificationPreferences: NotificationPreferences = .default
 
   // Recurrence state
   @State private var recurrenceMode: RecurrenceMode = .ui
@@ -305,6 +306,7 @@ struct ScheduleEditView: View {
   @State private var selectedTemplate: ScheduleTemplate?
   @State private var selectedRRuleExample: RRuleExample?
   @State private var showMoreTemplates: Bool = false
+  @State private var showNotificationCustomization: Bool = false
   @State private var validationError: String?
 
   init(
@@ -359,6 +361,7 @@ struct ScheduleEditView: View {
       self._notes = State(initialValue: schedule.notes)
       self._enabled = State(initialValue: schedule.enabled)
       self._selectedPriority = State(initialValue: schedule.priority)
+      self._notificationPreferences = State(initialValue: schedule.notificationPreferences ?? .default)
       self._selectedTemplate = State(initialValue: nil)
 
       // UI fields will be populated by syncRRuleStringToUI() in onAppear
@@ -393,6 +396,9 @@ struct ScheduleEditView: View {
 
           // Priority
           prioritySection
+
+          // Notification Customization
+          notificationCustomizationSection
 
           // Bottom spacing
           Spacer(minLength: 24)
@@ -1072,6 +1078,38 @@ struct ScheduleEditView: View {
     }
   }
 
+  // MARK: - Notification Customization Section
+  private var notificationCustomizationSection: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Button(action: {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+          showNotificationCustomization.toggle()
+        }
+      }) {
+        HStack {
+          Text("Notification Customization")
+            .font(.headline)
+            .fontWeight(.semibold)
+
+          Spacer()
+
+          Image(systemName: showNotificationCustomization ? "chevron.up" : "chevron.down")
+            .foregroundColor(.secondary)
+        }
+      }
+      .buttonStyle(.plain)
+
+      if showNotificationCustomization {
+        NotificationCustomizationView(
+          preferences: $notificationPreferences,
+          scheduleName: scheduleName,
+          scheduleNotes: notes
+        )
+        .transition(.opacity.combined(with: .move(edge: .top)))
+      }
+    }
+  }
+
   // MARK: - Helper Methods
   private func selectTemplate(_ template: ScheduleTemplate) {
     TraceableAction(actionName: "quick_template_select", component: "template_grid").execute {
@@ -1312,7 +1350,8 @@ struct ScheduleEditView: View {
           dtstart: startDate,
           notes: trimmedNotes,
           enabled: enabled,
-          priority: selectedPriority
+          priority: selectedPriority,
+          notificationPreferences: notificationPreferences
         )
       } else if let schedule = schedule {
         var updatedSchedule = schedule
@@ -1322,6 +1361,7 @@ struct ScheduleEditView: View {
         updatedSchedule.notes = trimmedNotes
         updatedSchedule.enabled = enabled
         updatedSchedule.priority = selectedPriority
+        updatedSchedule.notificationPreferences = notificationPreferences
 
         await scheduleViewModel.updateSchedule(updatedSchedule)
       }

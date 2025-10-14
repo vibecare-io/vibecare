@@ -667,8 +667,8 @@
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/vibecare-io/vibe-notify-macos.git";
 			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.0.1;
+				kind = upToNextMinorVersion;
+				minimumVersion = 0.0.3;
 			};
 		};
 		A069562E2E8613C7007838E7 /* XCRemoteSwiftPackageReference "grpc-swift-2" */ = {

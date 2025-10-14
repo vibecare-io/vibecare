@@ -124,11 +124,11 @@ struct ScheduleRowView: View {
                     Button {
                         onTest()
                     } label: {
-                        Image(systemName: "play.fill")
-                            .foregroundColor(.blue)
+                        Image(systemName: "eye.fill")
+                            .foregroundColor(.purple)
                     }
                     .buttonStyle(.plain)
-                    .help("Test schedule")
+                    .help("Preview notification")
 
                     Menu {
                         Button("Duplicate") {

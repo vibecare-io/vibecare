@@ -77,11 +77,6 @@ new-migration name:
     @echo "{{GREEN}}Creating new migration: {{name}}{{NC}}"
     cd {{backend_dir}} && goose -dir internal/storage/migrations create {{name}} sql
 
-[group('🗄️  Database')]
-inspect-backend-db:
-    @echo "{{GREEN}}Inspect backend database...{{NC}}"
-    litecli {{data_dir}}/vibecare.db
-
 # Build the backend server
 [group('📦 Build & Run')]
 build:
@@ -172,8 +167,9 @@ watch:
 
 # Connect to SQLite database
 [group('🗄️  Database')]
-db:
-    sqlite3 ~/.vibecare/vibecare.db
+inspect-db:
+    @echo "{{GREEN}}Inspect backend database...{{NC}}"
+    litecli {{data_dir}}/vibecare.db
 
 # Show database schema
 [group('🗄️  Database')]

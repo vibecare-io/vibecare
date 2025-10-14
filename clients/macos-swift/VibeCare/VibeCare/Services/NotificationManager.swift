@@ -10,6 +10,7 @@ class NotificationManager: NSObject, ObservableObject {
     // MARK: - Private Properties
     private let logger = Logger(label: "com.vibecare.notification-manager")
     private let policy = NotificationPolicy.shared
+    private let localStorage = ScheduleLocalStorage.shared
 
     private override init() {
         super.init()
@@ -24,13 +25,24 @@ class NotificationManager: NSObject, ObservableObject {
         logger.info("Showing schedule notification: \(event.scheduleName)")
 
         let scheduledTime = event.hasScheduledTime ? event.scheduledTime.date : Date()
-        //let notes = event.notes? && event.notes.isEmpty ? nil : event.notes
+
+        // Try to fetch schedule from local storage to get custom notification preferences
+        var notificationPreferences: NotificationPreferences? = nil
+        do {
+            if let schedule = try localStorage.getSchedule(id: event.scheduleID) {
+                notificationPreferences = schedule.notificationPreferences
+                logger.info("Using custom notification preferences for schedule: \(event.scheduleID)")
+            }
+        } catch {
+            logger.error("Failed to fetch schedule for notification preferences: \(error)")
+        }
 
         let notificationID = VibeNotifyConfig.showScheduleNotification(
             scheduleName: event.scheduleName,
             routineName: event.routineName,
             scheduledTime: scheduledTime,
-            notes: "yo this is hardcoded for now"
+            notes: nil,
+            preferences: notificationPreferences
         )
 
         if notificationID != nil {
