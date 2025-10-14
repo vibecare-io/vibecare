@@ -76,6 +76,7 @@ type Schedule struct {
 	LastExecution *time.Time `json:"last_execution,omitempty"`
 	Notes         string     `json:"notes"`
 	Enabled       bool       `json:"enabled"`
+	ActionIDs     []string   `json:"action_ids,omitempty"` // References to Action.id
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 }

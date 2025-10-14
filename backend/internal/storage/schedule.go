@@ -2,6 +2,7 @@ package storage
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -77,13 +78,14 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 		ExDates:    exdates,
 		Notes:      sanitizedNotes,
 		Enabled:    enabled,
+		ActionIDs:  []string{}, // Initialize empty action_ids
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
 
 	query := `
-		INSERT INTO schedules (schedule_id, routine_id, name, rrule, dtstart, exdates, notes, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO schedules (schedule_id, routine_id, name, rrule, dtstart, exdates, notes, enabled, action_ids, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	var dtStartStr sql.NullString
@@ -98,6 +100,11 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 		exdatesStr.String = strings.Join(exdates, ",")
 	}
 
+	actionIDsJSON, err := json.Marshal(schedule.ActionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal action_ids: %w", err)
+	}
+
 	_, err = db.Exec(query,
 		schedule.ScheduleID,
 		schedule.RoutineID,
@@ -107,6 +114,7 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 		exdatesStr,
 		schedule.Notes,
 		schedule.Enabled,
+		string(actionIDsJSON),
 		schedule.CreatedAt.Format(time.RFC3339),
 		schedule.UpdatedAt.Format(time.RFC3339),
 	)
@@ -122,13 +130,13 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 	query := `
 		SELECT schedule_id, routine_id, name, rrule, dtstart, exdates,
-		       last_execution, notes, enabled, created_at, updated_at
+		       last_execution, notes, enabled, action_ids, created_at, updated_at
 		FROM schedules
 		WHERE schedule_id = ?
 	`
 
 	var schedule models.Schedule
-	var dtstart, lastExecution, exdatesStr sql.NullString
+	var dtstart, lastExecution, exdatesStr, actionIDsJSON sql.NullString
 	var createdAt, updatedAt string
 
 	err := db.QueryRow(query, id).Scan(
@@ -141,6 +149,7 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 		&lastExecution,
 		&schedule.Notes,
 		&schedule.Enabled,
+		&actionIDsJSON,
 		&createdAt,
 		&updatedAt,
 	)
@@ -170,6 +179,15 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 
 	if exdatesStr.Valid && exdatesStr.String != "" {
 		schedule.ExDates = strings.Split(exdatesStr.String, ",")
+	}
+
+	// Parse action_ids JSON
+	if actionIDsJSON.Valid && actionIDsJSON.String != "" {
+		if err := json.Unmarshal([]byte(actionIDsJSON.String), &schedule.ActionIDs); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal action_ids: %w", err)
+		}
+	} else {
+		schedule.ActionIDs = []string{}
 	}
 
 	var parseErr error

@@ -416,6 +416,9 @@ public struct VCSchedule: Sendable {
   /// Clears the value of `updatedAt`. Subsequent reads from it will return its default value.
   public mutating func clearUpdatedAt() {self._updatedAt = nil}
 
+  /// References to Action.id - actions to execute when triggered
+  public var actionIds: [String] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1824,7 +1827,7 @@ extension VCRoutine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
 
 extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Schedule"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0\u{3}action_ids\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1843,6 +1846,7 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       case 9: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       case 10: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
       case 11: try { try decoder.decodeSingularMessageField(value: &self._updatedAt) }()
+      case 12: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
       default: break
       }
     }
@@ -1886,6 +1890,9 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     try { if let v = self._updatedAt {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
     } }()
+    if !self.actionIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 12)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1901,6 +1908,7 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if lhs.enabled != rhs.enabled {return false}
     if lhs._createdAt != rhs._createdAt {return false}
     if lhs._updatedAt != rhs._updatedAt {return false}
+    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

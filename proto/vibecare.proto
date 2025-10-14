@@ -97,6 +97,7 @@ message Schedule {
   bool enabled = 9;
   google.protobuf.Timestamp created_at = 10;
   google.protobuf.Timestamp updated_at = 11;
+  repeated string action_ids = 12;  // References to Action.id - actions to execute when triggered
 }
 
 // RRule structure for JSON encoding/decoding
