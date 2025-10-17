@@ -341,10 +341,28 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 	return schedule, nil
 }
 
-// DeleteSchedule deletes a schedule
+// DeleteSchedule deletes a schedule and its associated actions
 func (db *DB) DeleteSchedule(scheduleID string) error {
+	// Get schedule to retrieve action_ids
+	schedule, err := db.GetSchedule(scheduleID)
+	if err != nil {
+		return fmt.Errorf("failed to get schedule for deletion: %w", err)
+	}
+
+	// Delete associated actions (cascade deletion)
+	if len(schedule.ActionIDs) > 0 {
+		for _, actionID := range schedule.ActionIDs {
+			if err := db.DeleteAction(actionID); err != nil {
+				// Log error but continue with schedule deletion
+				// (action might already be deleted or shared with another schedule)
+				fmt.Printf("Warning: failed to delete action %s: %v\n", actionID, err)
+			}
+		}
+	}
+
+	// Delete the schedule
 	query := `DELETE FROM schedules WHERE schedule_id = ?`
-	_, err := db.Exec(query, scheduleID)
+	_, err = db.Exec(query, scheduleID)
 	return err
 }
 

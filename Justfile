@@ -229,7 +229,7 @@ swift-run:
 [group('🍎 macOS / Swift')]
 swift-inspect-app-db:
     @echo "{{GREEN}}Inspect Swift client database...{{NC}}"
-    litecli ~/Library/Containers/io.vibecare.App.vibecare/Data/Library/Application\ Support/default.store
+    cd ~/Library/Group\ Containers/com.vibecare.VibeCare/Library/Application\ Support/VibeCare/ && litecli VibeCare.sqlite
 
 [group('🍎 macOS / Swift')]
 swift-reset-app-db:

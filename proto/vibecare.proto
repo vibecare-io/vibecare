@@ -342,6 +342,7 @@ message CreateScheduleRequest {
   string notes = 6;
   bool enabled = 7;
   string id = 8;  // Optional: Client-provided ID for local-first architecture
+  repeated string action_ids = 9;  // Action IDs to associate with this schedule
 }
 
 message GetScheduleRequest {
@@ -356,6 +357,7 @@ message UpdateScheduleRequest {
   repeated string exdates = 5;
   string notes = 6;
   bool enabled = 7;
+  repeated string action_ids = 8;  // Action IDs to associate with this schedule
 }
 
 message DeleteScheduleRequest {
@@ -409,6 +411,7 @@ message CreateActionRequest {
   string name = 3;
   string description = 4;
   map<string, string> parameters = 5;
+  string id = 6;  // Optional: Client-provided ID for local-first architecture
 }
 
 message GetActionRequest {
