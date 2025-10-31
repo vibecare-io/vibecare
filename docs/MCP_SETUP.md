@@ -4,6 +4,8 @@
 
 The VibeCare MCP (Model Context Protocol) server allows you to interact with your routines and schedules through natural language using Claude Desktop or other MCP-compatible clients.
 
+**📋 For detailed implementation status and architecture, see [MCP_IMPLEMENTATION_STATUS.md](./MCP_IMPLEMENTATION_STATUS.md)**
+
 VibeCare supports three deployment modes:
 
 1. **HTTP Mode** (RECOMMENDED): MCP server runs as HTTP service - best for development
