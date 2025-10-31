@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/vibecare-io/vibecare/backend/internal/mcp"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
 	"go.uber.org/zap"
@@ -18,12 +19,13 @@ type Server struct {
 }
 
 // NewServer creates a new web server
-func NewServer(port int, db *storage.DB, sched *scheduler.Scheduler, logger *zap.Logger) *Server {
-	handler := NewHandler(db, sched, logger)
+func NewServer(port int, db *storage.DB, sched *scheduler.Scheduler, mcpServer *mcp.Server, logger *zap.Logger) *Server {
+	handler := NewHandler(db, sched, mcpServer, logger)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/status", handler.DashboardHandler)
 	mux.HandleFunc("/api/scheduler/status", handler.StatusHandler)
+	mux.HandleFunc("/api/mcp/tools", handler.MCPToolsHandler)
 
 	// Redirect root to /status
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

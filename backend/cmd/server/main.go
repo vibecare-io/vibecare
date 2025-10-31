@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/vibecare-io/vibecare/backend/internal/api"
+	"github.com/vibecare-io/vibecare/backend/internal/mcp"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
 	"github.com/vibecare-io/vibecare/backend/internal/telemetry"
@@ -30,6 +31,8 @@ func main() {
 		dbPath        = flag.String("db", "", "Path to SQLite database")
 		otlpEndpoint  = flag.String("otel-endpoint", "localhost:4317", "OpenTelemetry OTLP endpoint")
 		enableTracing = flag.Bool("enable-tracing", true, "Enable OpenTelemetry tracing")
+		withMCP       = flag.Bool("with-mcp", false, "Enable MCP server (Model Context Protocol)")
+		mcpProfileID  = flag.String("mcp-profile-id", "", "Profile ID for MCP server (required if --with-mcp is set)")
 	)
 	flag.Parse()
 
@@ -78,6 +81,24 @@ func main() {
 	}
 	defer db.Close()
 
+	// Initialize MCP server if enabled
+	var mcpServer *mcp.Server
+	var mcpTransport *mcp.STDIOTransport
+	if *withMCP {
+		if *mcpProfileID == "" {
+			logger.Fatal("--mcp-profile-id is required when --with-mcp is enabled")
+		}
+
+		logger.Info("Initializing MCP server", zap.String("profile_id", *mcpProfileID))
+		storage := mcp.NewDBStorageAdapter(db)
+		mcpServer = mcp.NewServer(storage, *mcpProfileID, logger)
+		mcpTransport = mcp.NewSTDIOTransport(mcpServer, logger)
+
+		if err := mcpTransport.Start(); err != nil {
+			logger.Fatal("Failed to start MCP transport", zap.Error(err))
+		}
+	}
+
 	// Initialize event hub
 	eventHub := scheduler.NewEventHub(logger)
 
@@ -85,8 +106,8 @@ func main() {
 	sched := scheduler.NewScheduler(db, eventHub, logger)
 	go sched.Start()
 
-	// Initialize and start web server
-	webServer := web.NewServer(*webPort, db, sched, logger)
+	// Initialize and start web server (pass MCP server if enabled)
+	webServer := web.NewServer(*webPort, db, sched, mcpServer, logger)
 	go func() {
 		if err := webServer.Start(); err != nil {
 			logger.Error("Web server failed", zap.Error(err))
@@ -130,6 +151,14 @@ func main() {
 		// Create shutdown context with timeout
 		ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 		defer cancel()
+
+		// Stop MCP server if running
+		if mcpTransport != nil {
+			logger.Info("Stopping MCP server...")
+			if err := mcpTransport.Stop(); err != nil {
+				logger.Error("Failed to stop MCP transport", zap.Error(err))
+			}
+		}
 
 		// Stop scheduler first to prevent new events
 		logger.Info("Stopping scheduler...")

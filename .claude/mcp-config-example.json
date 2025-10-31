@@ -1,0 +1,27 @@
+{
+    "mcpServers": {
+        "vibecare-http": {
+            "comment": "HTTP mode with mcp-remote proxy (RECOMMENDED). Get npx path with: which npx. Then run: just mcp-start-http-server",
+            "command": "/absolute/path/to/npx",
+            "args": ["-y", "mcp-remote", "http://localhost:8081/mcp"]
+        },
+        "vibecare-embedded": {
+            "comment": "Embedded mode: MCP server runs with backend in single process. Run: just run-with-mcp YOUR_PROFILE_ID",
+            "disabled": true,
+            "command": "/absolute/path/to/vibecare/bin/vibecare-server",
+            "args": ["--with-mcp", "--mcp-profile-id", "YOUR_PROFILE_ID_HERE"]
+        },
+        "vibecare-standalone-stdio": {
+            "comment": "STDIO mode: MCP server as separate process (legacy, may leave orphan processes)",
+            "disabled": true,
+            "command": "/absolute/path/to/vibecare/bin/vibecare-mcp-server",
+            "args": ["--grpc-addr", "localhost:50051", "--profile-id", "YOUR_PROFILE_ID_HERE"]
+        },
+        "vibecare-remote-http": {
+            "comment": "Remote HTTP mode: Connect to MCP server on remote host with mcp-remote proxy. Get npx path with: which npx",
+            "disabled": true,
+            "command": "/absolute/path/to/npx",
+            "args": ["-y", "mcp-remote", "http://remote-host:8081/mcp"]
+        }
+    }
+}

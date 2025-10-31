@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/vibecare-io/vibecare/backend/internal/mcp"
 	"github.com/vibecare-io/vibecare/backend/internal/models"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
@@ -19,14 +20,16 @@ var dashboardHTML []byte
 type Handler struct {
 	db        *storage.DB
 	scheduler *scheduler.Scheduler
+	mcpServer *mcp.Server
 	logger    *zap.Logger
 }
 
 // NewHandler creates a new web handler
-func NewHandler(db *storage.DB, sched *scheduler.Scheduler, logger *zap.Logger) *Handler {
+func NewHandler(db *storage.DB, sched *scheduler.Scheduler, mcpServer *mcp.Server, logger *zap.Logger) *Handler {
 	return &Handler{
 		db:        db,
 		scheduler: sched,
+		mcpServer: mcpServer,
 		logger:    logger,
 	}
 }
@@ -250,4 +253,44 @@ func (h *Handler) scanSchedule(rows interface{}) (*models.Schedule, error) {
 	schedule.UpdatedAt, _ = time.Parse(time.RFC3339, updatedAt)
 
 	return &schedule, nil
+}
+
+// MCPToolsResponse represents the MCP tools API response
+type MCPToolsResponse struct {
+	Enabled   bool           `json:"enabled"`
+	Tools     []mcp.Tool     `json:"tools,omitempty"`
+	Resources []mcp.Resource `json:"resources,omitempty"`
+}
+
+// MCPToolsHandler returns the list of available MCP tools and resources
+func (h *Handler) MCPToolsHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	// Check if MCP server is enabled
+	if h.mcpServer == nil {
+		response := MCPToolsResponse{
+			Enabled: false,
+		}
+		if err := json.NewEncoder(w).Encode(response); err != nil {
+			h.logger.Error("Failed to encode MCP response", zap.Error(err))
+			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		}
+		return
+	}
+
+	// Get tools and resources from MCP server
+	tools := h.mcpServer.GetTools()
+	resources := h.mcpServer.GetResources()
+
+	response := MCPToolsResponse{
+		Enabled:   true,
+		Tools:     tools,
+		Resources: resources,
+	}
+
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.logger.Error("Failed to encode MCP response", zap.Error(err))
+		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
+	}
 }

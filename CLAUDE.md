@@ -8,6 +8,47 @@ VibeCare is a wellness and routine management system with:
 - **Protocol**: Type-safe communication via Protocol Buffers
 - **Build Tool**: Just command runner
 
+## Plan & Review Workflow
+
+### Before Starting Work
+1. **Always enter plan mode** to create a detailed implementation plan
+2. **Write the plan** to `.claude/tasks/TASK_NAME.md` (use `_TEMPLATE.md` as guide)
+3. **Include in the plan**:
+   - Detailed implementation steps with reasoning
+   - Tasks broken down into checkboxes
+   - External research findings (use Task tool if needed)
+   - MVP scope definition (avoid over-planning)
+   - Files to be modified/created with purposes
+4. **Ask for review** - Do not continue until plan is approved by user
+
+### While Implementing
+1. **Update the plan** as you work through tasks
+2. **Check off completed tasks** with ✅ in the markdown file
+3. **Document changes in Implementation Log**: After completing tasks, append detailed descriptions including:
+   - File paths with line numbers (e.g., `main.go:123`)
+   - What changed and why
+   - Design decisions made
+   - Any deferred items or scope changes
+4. **Track blockers**: Update Dependencies section with any issues discovered
+5. **Maintain handoff readiness**: Write clear notes so other engineers can continue work
+
+### After Completion
+1. **Final update**: Complete Implementation Log with all changes, decisions, and outcomes
+2. **Move to archive**: `mv .claude/tasks/TASK.md .claude/archive/tasks/TASK_YYYYMMDD.md`
+3. **Update Recent Development**: Add summary to CLAUDE.md with key changes and files modified
+4. **Update status**: Mark task as 🟢 Completed before archiving
+
+### Task Status Indicators
+- 🟡 **Planning** - Creating plan, awaiting approval
+- 🔵 **In Progress** - Actively implementing
+- 🔴 **Blocked** - Cannot proceed, needs resolution
+- 🟢 **Completed** - Ready for archive
+
+## Active Tasks
+_Tasks currently in progress are tracked in `.claude/tasks/`_
+
+**View active tasks**: `ls .claude/tasks/*.md | grep -v "_TEMPLATE\|README"`
+
 ## Development Commands
 
 ### Backend Development
@@ -162,6 +203,42 @@ just swift-test
 # Or from Swift package directory:
 cd clients/macos-swift/VibeCare && swift test
 ```
+
+### MCP Server (Model Context Protocol)
+
+VibeCare includes an MCP server for natural language interaction with routines and schedules via Claude Desktop.
+
+```bash
+# Show MCP setup guide
+just mcp-setup-guide
+
+# List available profiles (needed for MCP)
+just mcp-list-profiles
+
+# Run backend with MCP enabled
+just run-with-mcp PROFILE_ID
+
+# Build MCP-enabled server
+just build-mcp
+```
+
+**Available MCP Tools:**
+- `create_routine` - Create new routine
+- `list_routines` - List all routines
+- `get_routine` - Get routine details
+- `delete_routine` - Delete routine
+- `create_schedule` - Create RRule schedule
+- `list_schedules` - List schedules
+- `delete_schedule` - Delete schedule
+- `execute_routine` - Execute routine immediately
+
+**Available MCP Resources:**
+- `vibecare://routines` - All routines as JSON
+- `vibecare://schedules` - All schedules as JSON
+- `vibecare://actions` - All actions as JSON
+- `vibecare://execution-logs` - Execution history as JSON
+
+See `docs/MCP_SETUP.md` for complete setup instructions.
 
 ## Common Development Workflows
 
