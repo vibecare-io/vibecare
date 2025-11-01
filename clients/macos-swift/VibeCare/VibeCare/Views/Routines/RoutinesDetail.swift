@@ -427,7 +427,7 @@ struct RoutineDetailView: View {
                 }
             }
 
-            if scheduleViewModel.getActiveSchedules().isEmpty {
+            if scheduleViewModel.schedules.isEmpty {
                 EmptyStateView(
                     title: "No Schedules",
                     subtitle: "Add schedules to automatically trigger notifications for this routine",
@@ -435,7 +435,7 @@ struct RoutineDetailView: View {
                 )
             } else {
                 VStack(spacing: 12) {
-                    ForEach(scheduleViewModel.getActiveSchedules()) { schedule in
+                    ForEach(scheduleViewModel.schedules) { schedule in
                         ScheduleRowSimpleView(
                             schedule: schedule,
                             onToggle: {

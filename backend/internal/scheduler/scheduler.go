@@ -191,7 +191,7 @@ func (s *Scheduler) dispatchScheduleEvent(schedule *models.Schedule) {
 				RoutineId:     routine.ID,
 				RoutineName:   routine.Name,
 				ScheduledTime: timestamppb.Now(),
-				ActionIds:     routine.ActionIDs,
+				ActionIds:     schedule.ActionIDs, // Use schedule's actions, not routine's
 			},
 		},
 	}

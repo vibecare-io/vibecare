@@ -10,7 +10,6 @@ class NotificationManager: NSObject, ObservableObject {
     // MARK: - Private Properties
     private let logger = Logger(label: "com.vibecare.notification-manager")
     private let policy = NotificationPolicy.shared
-    private let localStorage = ScheduleLocalStorage.shared
 
     private override init() {
         super.init()
@@ -26,16 +25,9 @@ class NotificationManager: NSObject, ObservableObject {
 
         let scheduledTime = event.hasScheduledTime ? event.scheduledTime.date : Date()
 
-        // Try to fetch schedule from local storage to get custom notification preferences
-        var notificationPreferences: NotificationPreferences? = nil
-        do {
-            if let schedule = try localStorage.getSchedule(id: event.scheduleID) {
-                notificationPreferences = schedule.notificationPreferences
-                logger.info("Using custom notification preferences for schedule: \(event.scheduleID)")
-            }
-        } catch {
-            logger.error("Failed to fetch schedule for notification preferences: \(error)")
-        }
+        // Note: Notification preferences are now stored per-action, not at schedule level
+        // For basic schedule notifications (without specific actions), use default preferences
+        let notificationPreferences: NotificationPreferences? = nil
 
         let notificationID = VibeNotifyConfig.showScheduleNotification(
             scheduleName: event.scheduleName,
@@ -107,5 +99,77 @@ class NotificationManager: NSObject, ObservableObject {
     func showNotification(title: String, subtitle: String? = nil, body: String, sound: Bool = true) -> UUID? {
         let message = subtitle != nil ? "\(subtitle!)\n\(body)" : body
         return showInfo(title: title, message: message)
+    }
+
+    // MARK: - Action Execution
+
+    /// Execute a notification action from a schedule event
+    @discardableResult
+    func executeAction(_ action: Action, for event: VCScheduleTriggeredEvent) -> UUID? {
+        guard action.type == .notification else {
+            logger.error("Invalid action type for NotificationManager: \(action.type)")
+            return nil
+        }
+
+        let title = action.parameters["title"] ?? event.scheduleName
+        let body = action.parameters["body"] ?? "Scheduled: \(event.routineName)"
+        let scheduledTime = event.hasScheduledTime ? event.scheduledTime.date : Date()
+
+        // Deserialize notification preferences from action parameters
+        let notificationPreferences = deserializeNotificationPreferences(from: action.parameters)
+
+        let notificationID = VibeNotifyConfig.showScheduleNotification(
+            scheduleName: title,
+            routineName: body,
+            scheduledTime: scheduledTime,
+            notes: nil,
+            preferences: notificationPreferences
+        )
+
+        if notificationID != nil {
+            logger.info("Executed notification action: \(action.id)")
+        } else {
+            logger.info("Notification action blocked by policy: \(action.id)")
+        }
+
+        return notificationID
+    }
+
+    // MARK: - Helper Methods
+
+    /// Deserialize notification preferences from action parameters
+    private func deserializeNotificationPreferences(from params: [String: String]) -> NotificationPreferences? {
+        // Create notification preferences from parameters
+        let svgPath = params["svg_path"]
+        let svgWidth = params["svg_width"].flatMap { Double($0) }.map { CGFloat($0) }
+        let svgHeight = params["svg_height"].flatMap { Double($0) }.map { CGFloat($0) }
+        let title = params["title"]
+        let message = params["body"]
+        let position = params["position"].flatMap { NotificationPosition(rawValue: $0) } ?? .center
+        let width = params["width"].flatMap { Double($0) }.map { CGFloat($0) }
+        let height = params["height"].flatMap { Double($0) }.map { CGFloat($0) }
+        let moveable = params["moveable"].flatMap { Bool($0) } ?? true
+        let autoDismissAfter = params["auto_dismiss_after"].flatMap { Double($0) }
+        let screenBlurEnabled = params["screen_blur_enabled"].flatMap { Bool($0) } ?? false
+
+        // Only return preferences if at least some customization exists
+        // Otherwise return nil to use default notification appearance
+        if svgPath != nil || width != nil || height != nil || position != .center {
+            return NotificationPreferences(
+                svgPath: svgPath,
+                svgWidth: svgWidth,
+                svgHeight: svgHeight,
+                title: title,
+                message: message,
+                position: position,
+                width: width,
+                height: height,
+                moveable: moveable,
+                autoDismissAfter: autoDismissAfter,
+                screenBlurEnabled: screenBlurEnabled
+            )
+        }
+
+        return nil
     }
 }

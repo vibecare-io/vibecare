@@ -13,17 +13,13 @@ struct ScheduleListView: View {
         return viewModel.filteredSchedules(searchText: searchText)
     }
 
-    var filteredPendingDeletionSchedules: [Schedule] {
-        return viewModel.filteredPendingDeletionSchedules(searchText: searchText)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header with counts
             headerView
 
             // Schedule list
-            if filteredSchedules.isEmpty && filteredPendingDeletionSchedules.isEmpty {
+            if filteredSchedules.isEmpty {
                 emptyStateView
             } else {
                 sectionedScheduleListContent
@@ -51,18 +47,11 @@ struct ScheduleListView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 let totalActive = filteredSchedules.count
-                let totalDeleted = filteredPendingDeletionSchedules.count
 
                 Text("\(totalActive) schedule\(totalActive != 1 ? "s" : "")")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-
-                if totalDeleted > 0 {
-                    Text("\(totalDeleted) pending deletion")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
             }
 
             Spacer()
@@ -80,14 +69,6 @@ struct ScheduleListView: View {
                     label: "Disabled",
                     color: .orange
                 )
-
-                if !filteredPendingDeletionSchedules.isEmpty {
-                    StatusIndicator(
-                        count: filteredPendingDeletionSchedules.count,
-                        label: "Deleting",
-                        color: .red
-                    )
-                }
             }
 
             // Refresh button
@@ -179,9 +160,6 @@ struct ScheduleListView: View {
                                     schedule: schedule,
                                     isSelected: selectedId == schedule.id,
                                     isHovered: hoveredScheduleId == schedule.id,
-                                    showSyncStatus: true,
-                                    syncStatus: viewModel.getSyncStatus(for: schedule.id),
-                                    retryCount: viewModel.getRetryCount(for: schedule.id),
                                     onSelect: {
                                         selectedId = schedule.id
                                     },
@@ -233,63 +211,6 @@ struct ScheduleListView: View {
                                         Label("Duplicate", systemImage: "doc.on.doc")
                                     }
                                     .tint(.blue)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 8)
-                    }
-                }
-
-                // Recently Deleted Section
-                if !filteredPendingDeletionSchedules.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Recently Deleted")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.secondary)
-
-                            Spacer()
-
-                            Text("\(filteredPendingDeletionSchedules.count)")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.red.opacity(0.1))
-                                .clipShape(Capsule())
-                        }
-                        .padding(.horizontal, 16)
-
-                        LazyVStack(spacing: 1) {
-                            ForEach(filteredPendingDeletionSchedules) { schedule in
-                                ScheduleRowView(
-                                    schedule: schedule,
-                                    isSelected: selectedId == schedule.id,
-                                    isHovered: hoveredScheduleId == schedule.id,
-                                    showSyncStatus: true,
-                                    isPendingDeletion: true,
-                                    syncStatus: viewModel.getSyncStatus(for: schedule.id),
-                                    retryCount: viewModel.getRetryCount(for: schedule.id),
-                                    onSelect: {
-                                        selectedId = schedule.id
-                                    },
-                                    onToggleEnabled: {
-                                        // Disabled for pending deletion
-                                    },
-                                    onDelete: {
-                                        // Already pending deletion
-                                    },
-                                    onDuplicate: {
-                                        // Disabled for pending deletion
-                                    },
-                                    onTest: {
-                                        // Disabled for pending deletion
-                                    }
-                                )
-                                .onHover { isHovered in
-                                    hoveredScheduleId = isHovered ? schedule.id : nil
                                 }
                             }
                         }

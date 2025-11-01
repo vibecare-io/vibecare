@@ -85,12 +85,6 @@ struct ScheduleDetailView: View {
                 // Status Section
                 scheduleStatusSection(schedule)
 
-                // Sync Error Section (only for pending deletion or failed sync)
-                if shouldShowSyncErrorSection(schedule) {
-                    Divider()
-                    syncErrorSection(schedule)
-                }
-
                 Divider()
 
                 // Timing Section
@@ -169,80 +163,8 @@ struct ScheduleDetailView: View {
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 12) {
                 statusCard("State", value: schedule.enabled ? "Active" : "Disabled", color: schedule.enabled ? .green : .orange)
-                statusCard("Sync Status", value: syncStatusText(schedule), color: syncStatusColor(schedule))
             }
         }
-    }
-
-    // MARK: - Sync Error Section
-
-    private func shouldShowSyncErrorSection(_ schedule: Schedule) -> Bool {
-        let status = viewModel.getSyncStatus(for: schedule.id) ?? .localOnly
-        return status == .pendingDelete || status == .syncFailed
-    }
-
-    private func syncErrorSection(_ schedule: Schedule) -> some View {
-        VStack(alignment: .leading, spacing: 12) {
-            sectionHeader("Sync Issues")
-
-            let retryCount = viewModel.getRetryCount(for: schedule.id)
-            let errorHistory = viewModel.getSyncErrorHistory(for: schedule.id)
-
-            VStack(spacing: 8) {
-                DetailRow(title: "Retry Count", value: "\(retryCount)")
-
-                if !errorHistory.isEmpty {
-                    sectionSubHeader("Recent Errors")
-
-                    ForEach(errorHistory.prefix(5)) { syncError in
-                        syncErrorCard(syncError)
-                    }
-                } else {
-                    Text("No error details available")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.vertical, 8)
-                }
-            }
-        }
-    }
-
-    private func syncErrorCard(_ syncError: SyncError) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("Attempt #\(syncError.retryAttempt)")
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                    .foregroundColor(.red)
-
-                Spacer()
-
-                Text(syncError.timestamp, style: .relative)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-
-            Text(syncError.errorMessage)
-                .font(.caption)
-                .foregroundColor(.primary)
-                .multilineTextAlignment(.leading)
-
-            if let errorCode = syncError.errorCode {
-                Text("Error Code: \(errorCode)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-        }
-        .padding(10)
-        .background(Color.red.opacity(0.1))
-        .clipShape(RoundedRectangle(cornerRadius: 6))
-    }
-
-    private func sectionSubHeader(_ title: String) -> some View {
-        Text(title)
-            .font(.subheadline)
-            .fontWeight(.medium)
-            .foregroundColor(.secondary)
     }
 
     // MARK: - Timing Section
@@ -419,43 +341,6 @@ struct ScheduleDetailView: View {
         }
     }
 
-    // MARK: - Helper Methods
-
-    private func syncStatusText(_ schedule: Schedule) -> String {
-        let status = viewModel.getSyncStatus(for: schedule.id) ?? .localOnly
-        switch status {
-        case .localOnly:
-            return "Local Only"
-        case .pendingSync:
-            return "Pending Sync"
-        case .synced:
-            return "Synced"
-        case .syncFailed:
-            return "Sync Failed"
-        case .pendingDelete:
-            return "Pending Delete"
-        case .conflict:
-            return "Conflict"
-        }
-    }
-
-    private func syncStatusColor(_ schedule: Schedule) -> Color {
-        let status = viewModel.getSyncStatus(for: schedule.id) ?? .localOnly
-        switch status {
-        case .localOnly:
-            return .blue
-        case .pendingSync:
-            return .orange
-        case .synced:
-            return .green
-        case .syncFailed:
-            return .red
-        case .pendingDelete:
-            return .red
-        case .conflict:
-            return .purple
-        }
-    }
 }
 
 struct DetailRow: View {

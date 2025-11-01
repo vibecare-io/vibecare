@@ -37,7 +37,7 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
     var notes: String
     var enabled: Bool
     var priority: Priority
-    var notificationPreferences: NotificationPreferences?
+    var actionIDs: [String]  // References to Action IDs
     let createdAt: Date
     var updatedAt: Date
 
@@ -52,7 +52,7 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         notes: String = "",
         enabled: Bool = true,
         priority: Priority = .none,
-        notificationPreferences: NotificationPreferences? = nil,
+        actionIDs: [String] = [],
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -66,7 +66,7 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         self.notes = notes
         self.enabled = enabled
         self.priority = priority
-        self.notificationPreferences = notificationPreferences
+        self.actionIDs = actionIDs
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }

@@ -8,6 +8,7 @@ struct Action: Identifiable, Codable, Equatable, Hashable {
     var description: String
     var parameters: [String: String]
     let createdAt: Date
+    var enabled: Bool  // Whether action is enabled (false = orphaned/disabled)
 
     init(
         id: String = UUID().uuidString,
@@ -16,7 +17,8 @@ struct Action: Identifiable, Codable, Equatable, Hashable {
         name: String,
         description: String = "",
         parameters: [String: String] = [:],
-        createdAt: Date = Date()
+        createdAt: Date = Date(),
+        enabled: Bool = true
     ) {
         self.id = id
         self.profileId = profileId
@@ -25,6 +27,7 @@ struct Action: Identifiable, Codable, Equatable, Hashable {
         self.description = description
         self.parameters = parameters
         self.createdAt = createdAt
+        self.enabled = enabled
     }
 }
 

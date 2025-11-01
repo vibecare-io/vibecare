@@ -190,6 +190,56 @@ class GRPCClientManager: ObservableObject {
         }
     }
 
+    nonisolated func withActionServiceClient<T: Sendable>(_ operation: @Sendable (VCActionService.Client<HTTP2ClientTransport.Posix>) async throws -> T) async throws -> T {
+        let host = await self.host
+        let port = await self.port
+        let useTLS = await self.useTLS
+        let logger = await self.logger
+
+        logger.info("Creating gRPC connection to \(host):\(port) for ActionService")
+
+        await MainActor.run {
+            self.connectionStatus = .connecting
+        }
+
+        do {
+            // Configure the gRPC client transport
+            let transport = try HTTP2ClientTransport.Posix(
+                target: .dns(host: host, port: port),
+                transportSecurity: useTLS ? .tls : .plaintext
+            )
+
+            await MainActor.run {
+                self.isConnected = true
+                self.connectionStatus = .connected
+                self.lastError = nil
+            }
+
+            // Use withGRPCClient to manage the client lifecycle
+            let result = try await withGRPCClient(transport: transport) { client in
+                // Wrap the raw client with the generated, type-safe ActionService.Client
+                let actionServiceClient = VCActionService.Client(wrapping: client)
+                return try await operation(actionServiceClient)
+            }
+
+            await MainActor.run {
+                self.isConnected = false
+                self.connectionStatus = .disconnected
+            }
+
+            return result
+
+        } catch {
+            await MainActor.run {
+                self.isConnected = false
+                self.connectionStatus = .failed
+                self.lastError = error
+            }
+            logger.error("gRPC ActionService operation failed: \(error)")
+            throw error
+        }
+    }
+
     // MARK: - Event Service
 
     nonisolated func withEventServiceClient<T: Sendable>(_ operation: @Sendable (VCEventService.Client<HTTP2ClientTransport.Posix>) async throws -> T) async throws -> T {

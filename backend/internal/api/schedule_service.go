@@ -64,6 +64,12 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 		dtstart = &parsed
 	}
 
+	// Ensure action_ids is never nil
+	actionIDs := req.ActionIds
+	if actionIDs == nil {
+		actionIDs = []string{}
+	}
+
 	// Create the schedule (passing client ID which may be empty)
 	schedule, err := s.db.CreateSchedule(
 		req.Id, // Client-provided ID (optional)
@@ -74,6 +80,7 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 		req.Exdates,
 		req.Notes,
 		req.Enabled,
+		actionIDs,
 	)
 	if err != nil {
 		s.logger.Error("Failed to create schedule", zap.Error(err))
@@ -159,6 +166,13 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.UpdateScheduleReque
 	schedule.ExDates = req.Exdates
 	schedule.Notes = req.Notes
 	schedule.Enabled = req.Enabled
+
+	// Ensure action_ids is never nil
+	if req.ActionIds == nil {
+		schedule.ActionIDs = []string{}
+	} else {
+		schedule.ActionIDs = req.ActionIds
+	}
 
 	// Save updates
 	updatedSchedule, err := s.db.UpdateSchedule(schedule)
@@ -331,6 +345,7 @@ func convertToProtoSchedule(schedule *models.Schedule) *pb.Schedule {
 		Exdates:    schedule.ExDates,
 		Notes:      schedule.Notes,
 		Enabled:    schedule.Enabled,
+		ActionIds:  schedule.ActionIDs,
 		CreatedAt:  timestamppb.New(schedule.CreatedAt),
 		UpdatedAt:  timestamppb.New(schedule.UpdatedAt),
 	}

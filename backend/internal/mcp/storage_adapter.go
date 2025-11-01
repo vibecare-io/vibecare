@@ -44,7 +44,7 @@ func (a *DBStorageAdapter) ListSchedulesByRoutine(routineID string) ([]*models.S
 }
 
 func (a *DBStorageAdapter) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
-	return a.db.CreateSchedule(scheduleID, routineID, name, rrule, dtstart, exdates, notes, enabled)
+	return a.db.CreateSchedule(scheduleID, routineID, name, rrule, dtstart, exdates, notes, enabled, []string{})
 }
 
 func (a *DBStorageAdapter) DeleteSchedule(scheduleID string) error {

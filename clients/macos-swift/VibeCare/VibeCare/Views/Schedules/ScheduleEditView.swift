@@ -286,7 +286,6 @@ struct ScheduleEditView: View {
   }()
   @State private var enabled: Bool = true
   @State private var selectedPriority: Priority = .none
-  @State private var notificationPreferences: NotificationPreferences = .default
 
   // Recurrence state
   @State private var recurrenceMode: RecurrenceMode = .ui
@@ -306,8 +305,17 @@ struct ScheduleEditView: View {
   @State private var selectedTemplate: ScheduleTemplate?
   @State private var selectedRRuleExample: RRuleExample?
   @State private var showMoreTemplates: Bool = false
-  @State private var showNotificationCustomization: Bool = false
   @State private var validationError: String?
+
+  // Actions state
+  @State private var actionCards: [ScheduleActionCard] = []
+  @State private var savingActionId: String? = nil
+  @State private var newlyCreatedActionIds: Set<String> = []
+  @State private var actionSaveErrors: [String: String] = [:]
+  @State private var actionSaveSuccess: Set<String> = []
+
+  // Service
+  private let actionService = ActionService()
 
   init(
     routineId: String,
@@ -361,7 +369,6 @@ struct ScheduleEditView: View {
       self._notes = State(initialValue: schedule.notes)
       self._enabled = State(initialValue: schedule.enabled)
       self._selectedPriority = State(initialValue: schedule.priority)
-      self._notificationPreferences = State(initialValue: schedule.notificationPreferences ?? .default)
       self._selectedTemplate = State(initialValue: nil)
 
       // UI fields will be populated by syncRRuleStringToUI() in onAppear
@@ -397,8 +404,8 @@ struct ScheduleEditView: View {
           // Priority
           prioritySection
 
-          // Notification Customization
-          notificationCustomizationSection
+          // Actions
+          actionsSection
 
           // Bottom spacing
           Spacer(minLength: 24)
@@ -439,6 +446,8 @@ struct ScheduleEditView: View {
         if schedule != nil {
           syncRRuleStringToUI()
         }
+        // Load existing actions when editing
+        loadExistingActions()
       }
     }
   }
@@ -1078,34 +1087,52 @@ struct ScheduleEditView: View {
     }
   }
 
-  // MARK: - Notification Customization Section
-  private var notificationCustomizationSection: some View {
+  // MARK: - Actions Section
+  private var actionsSection: some View {
     VStack(alignment: .leading, spacing: 12) {
-      Button(action: {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-          showNotificationCustomization.toggle()
-        }
-      }) {
-        HStack {
-          Text("Notification Customization")
-            .font(.headline)
-            .fontWeight(.semibold)
+      HStack {
+        Text("Actions")
+          .font(.headline)
+          .fontWeight(.semibold)
 
-          Spacer()
+        Spacer()
 
-          Image(systemName: showNotificationCustomization ? "chevron.up" : "chevron.down")
-            .foregroundColor(.secondary)
+        // Add Action Dropdown
+        Menu {
+          ForEach(ActionType.allCases, id: \.self) { type in
+            Button {
+              addActionCard(type: type)
+            } label: {
+              Label(type.displayName, systemImage: type.iconName)
+            }
+          }
+        } label: {
+          Label("Add Action", systemImage: "plus.circle.fill")
+            .font(.subheadline)
+            .fontWeight(.medium)
+            .foregroundColor(.white)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color.accentColor)
+            .cornerRadius(20)
         }
+        .buttonStyle(.plain)
       }
-      .buttonStyle(.plain)
 
-      if showNotificationCustomization {
-        NotificationCustomizationView(
-          preferences: $notificationPreferences,
-          scheduleName: scheduleName,
-          scheduleNotes: notes
-        )
-        .transition(.opacity.combined(with: .move(edge: .top)))
+      if actionCards.isEmpty {
+        Text("No actions configured. Add actions to trigger when this schedule fires.")
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+          .padding(.vertical, 8)
+      } else {
+        ForEach($actionCards) { $card in
+          ScheduleActionCardView(
+            card: $card,
+            onRemove: {
+              removeActionCard(card.id)
+            }
+          )
+        }
       }
     }
   }
@@ -1317,6 +1344,150 @@ struct ScheduleEditView: View {
     }
   }
 
+  // MARK: - Action Card Management
+  private func addActionCard(type: ActionType) {
+    let newCard = ScheduleActionCard(type: type)
+    actionCards.append(newCard)
+
+    // Eager save to backend with enabled: false (orphaned state)
+    Task {
+      await saveActionToBackend(cardId: newCard.id)
+    }
+  }
+
+  private func saveActionToBackend(cardId: String) async {
+    guard let profileId = AppState.shared.currentProfile?.id else {
+      actionSaveErrors[cardId] = "No profile selected"
+      return
+    }
+
+    guard let card = actionCards.first(where: { $0.id == cardId }) else {
+      return
+    }
+
+    // Set saving state
+    await MainActor.run {
+      savingActionId = cardId
+      actionSaveErrors.removeValue(forKey: cardId)
+      actionSaveSuccess.remove(cardId)
+    }
+
+    do {
+      var action = card.toAction(
+        profileId: profileId,
+        scheduleName: scheduleName.isEmpty ? nil : scheduleName,
+        scheduleNotes: notes.isEmpty ? nil : notes
+      )
+      action.enabled = false  // Mark as orphaned until schedule is saved
+
+      // Check if this action was already created in this session
+      if newlyCreatedActionIds.contains(cardId) {
+        // Update existing action
+        _ = try await actionService.updateAction(action)
+      } else {
+        // Create new action
+        _ = try await actionService.createAction(action)
+        _ = await MainActor.run {
+          newlyCreatedActionIds.insert(cardId)
+        }
+      }
+
+      // Success
+      _ = await MainActor.run {
+        actionSaveSuccess.insert(cardId)
+        savingActionId = nil
+      }
+
+    } catch {
+      // Error
+      _ = await MainActor.run {
+        actionSaveErrors[cardId] = "Failed to save: \(error.localizedDescription)"
+        savingActionId = nil
+      }
+    }
+  }
+
+  private func removeActionCard(_ cardId: String) {
+    // Remove from UI
+    actionCards.removeAll { $0.id == cardId }
+
+    // Mark as disabled on backend (soft delete)
+    Task {
+      do {
+        if var action = try await actionService.getAction(id: cardId) {
+          action.enabled = false
+          _ = try await actionService.updateAction(action)
+        }
+        await MainActor.run {
+          newlyCreatedActionIds.remove(cardId)
+          actionSaveSuccess.remove(cardId)
+          actionSaveErrors.removeValue(forKey: cardId)
+        }
+      } catch {
+        print("Warning: Failed to disable action \(cardId): \(error)")
+      }
+    }
+  }
+
+  private func loadExistingActions() {
+    guard let schedule = schedule else {
+      print("DEBUG [loadExistingActions]: No schedule provided")
+      return
+    }
+
+    print("DEBUG [loadExistingActions]: Schedule '\(schedule.name)' has \(schedule.actionIDs.count) action IDs: \(schedule.actionIDs)")
+
+    guard !schedule.actionIDs.isEmpty else {
+      print("DEBUG [loadExistingActions]: Schedule has no action IDs, skipping load")
+      return
+    }
+
+    // Load actions from service asynchronously
+    Task {
+      do {
+        // Fetch actions by calling getAction for each ID
+        var actions: [Action] = []
+        for actionID in schedule.actionIDs {
+          if let action = try await actionService.getAction(id: actionID) {
+            actions.append(action)
+          } else {
+            print("WARNING [loadExistingActions]: Action with ID \(actionID) not found")
+          }
+        }
+
+        print("DEBUG [loadExistingActions]: Loaded \(actions.count) actions from service")
+
+        // Convert actions to action cards
+        await MainActor.run {
+          actionCards = actions.enumerated().map { index, action in
+            print("DEBUG [loadExistingActions]: Action[\(index)] - id=\(action.id), type=\(action.type)")
+            print("DEBUG [loadExistingActions]: Action[\(index)] - parameters count=\(action.parameters.count)")
+            print("DEBUG [loadExistingActions]: Action[\(index)] - parameter keys: \(action.parameters.keys.sorted())")
+
+            let card = ScheduleActionCard(
+              id: action.id,
+              type: action.type,
+              parameters: action.parameters
+            )
+
+            if card.type == .notification {
+              print("DEBUG [loadExistingActions]: Action[\(index)] - notification prefs after init: \(card.notificationPreferences != nil)")
+              if let prefs = card.notificationPreferences {
+                print("DEBUG [loadExistingActions]: Action[\(index)] - prefs details: title=\(prefs.title ?? "nil"), position=\(prefs.position), svgPath=\(prefs.svgPath ?? "nil")")
+              }
+            }
+
+            return card
+          }
+
+          print("DEBUG [loadExistingActions]: Created \(actionCards.count) action cards")
+        }
+      } catch {
+        print("ERROR [loadExistingActions]: Failed to load existing actions: \(error)")
+      }
+    }
+  }
+
   // MARK: - Actions
   private func saveSchedule() {
     Task { @MainActor in
@@ -1342,6 +1513,32 @@ struct ScheduleEditView: View {
 
       validationError = nil
 
+      // Get actual profile ID from AppState
+      guard let profileId = AppState.shared.currentProfile?.id else {
+        validationError = "No profile selected. Please select or create a profile first."
+        return
+      }
+
+      // Update and enable all actions with current card data
+      for card in actionCards {
+        do {
+          var action = card.toAction(
+            profileId: profileId,
+            scheduleName: trimmedName.isEmpty ? nil : trimmedName,
+            scheduleNotes: trimmedNotes.isEmpty ? nil : trimmedNotes
+          )
+          action.enabled = true  // Enable when schedule is saved
+          _ = try await actionService.updateAction(action)
+        } catch {
+          print("ERROR: Failed to update action \(card.id): \(error)")
+          validationError = "Failed to update action: \(error.localizedDescription)"
+          return
+        }
+      }
+
+      // Collect action IDs from action cards
+      let actionIDs = actionCards.map { $0.id }
+
       if isCreating {
         await scheduleViewModel.createSchedule(
           routineId: routineId,
@@ -1351,7 +1548,7 @@ struct ScheduleEditView: View {
           notes: trimmedNotes,
           enabled: enabled,
           priority: selectedPriority,
-          notificationPreferences: notificationPreferences
+          actionIDs: actionIDs
         )
       } else if let schedule = schedule {
         var updatedSchedule = schedule
@@ -1361,10 +1558,13 @@ struct ScheduleEditView: View {
         updatedSchedule.notes = trimmedNotes
         updatedSchedule.enabled = enabled
         updatedSchedule.priority = selectedPriority
-        updatedSchedule.notificationPreferences = notificationPreferences
+        updatedSchedule.actionIDs = actionIDs
 
         await scheduleViewModel.updateSchedule(updatedSchedule)
       }
+
+      // Clear newly created action IDs on success
+      newlyCreatedActionIds.removeAll()
 
       if let parentSpan = parentSpan {
         parentSpan.status = .ok

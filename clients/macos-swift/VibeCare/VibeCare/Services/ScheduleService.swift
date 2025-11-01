@@ -19,9 +19,10 @@ class ScheduleService: @unchecked Sendable {
         dtstart: String,
         exdates: [String] = [],
         notes: String = "",
-        enabled: Bool = true
+        enabled: Bool = true,
+        actionIDs: [String] = []
     ) async throws -> Schedule {
-        logger.info("Creating schedule: \(name)")
+        logger.info("Creating schedule: \(name) with \(actionIDs.count) actions")
 
         let request = VCCreateScheduleRequest.with { req in
             req.id = id  // Client-provided UUID
@@ -32,6 +33,7 @@ class ScheduleService: @unchecked Sendable {
             req.exdates = exdates
             req.notes = notes
             req.enabled = enabled
+            req.actionIds = actionIDs
         }
         let response = try await GRPCClientManager.shared.withScheduleServiceClient { client in
             return try await client.createSchedule(request)
@@ -49,6 +51,7 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
+            actionIDs: response.actionIds,
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )
@@ -76,13 +79,14 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
+            actionIDs: response.actionIds,
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )
     }
 
     nonisolated func updateSchedule(_ schedule: Schedule) async throws -> Schedule {
-        logger.info("Updating schedule: \(schedule.name)")
+        logger.info("Updating schedule: \(schedule.name) with \(schedule.actionIDs.count) actions")
 
         let request = VCUpdateScheduleRequest.with { req in
             req.scheduleID = schedule.id
@@ -92,6 +96,7 @@ class ScheduleService: @unchecked Sendable {
             req.exdates = schedule.exdates
             req.notes = schedule.notes
             req.enabled = schedule.enabled
+            req.actionIds = schedule.actionIDs
         }
 
         let response = try await GRPCClientManager.shared.withScheduleServiceClient { client in
@@ -110,6 +115,7 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
+            actionIDs: response.actionIds,
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )
@@ -201,6 +207,7 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
+            actionIDs: response.actionIds,
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )
@@ -229,6 +236,7 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
+            actionIDs: response.actionIds,
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )

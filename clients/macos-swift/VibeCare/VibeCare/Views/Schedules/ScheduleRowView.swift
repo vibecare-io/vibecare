@@ -4,10 +4,6 @@ struct ScheduleRowView: View {
     let schedule: Schedule
     let isSelected: Bool
     let isHovered: Bool
-    let showSyncStatus: Bool
-    let isPendingDeletion: Bool
-    let syncStatus: SyncStatus?
-    let retryCount: Int
     let onSelect: () -> Void
     let onToggleEnabled: () -> Void
     let onDelete: () -> Void
@@ -18,10 +14,6 @@ struct ScheduleRowView: View {
         schedule: Schedule,
         isSelected: Bool,
         isHovered: Bool,
-        showSyncStatus: Bool = false,
-        isPendingDeletion: Bool = false,
-        syncStatus: SyncStatus? = nil,
-        retryCount: Int = 0,
         onSelect: @escaping () -> Void,
         onToggleEnabled: @escaping () -> Void,
         onDelete: @escaping () -> Void,
@@ -31,10 +23,6 @@ struct ScheduleRowView: View {
         self.schedule = schedule
         self.isSelected = isSelected
         self.isHovered = isHovered
-        self.showSyncStatus = showSyncStatus
-        self.isPendingDeletion = isPendingDeletion
-        self.syncStatus = syncStatus
-        self.retryCount = retryCount
         self.onSelect = onSelect
         self.onToggleEnabled = onToggleEnabled
         self.onDelete = onDelete
@@ -48,7 +36,7 @@ struct ScheduleRowView: View {
         HStack(spacing: 12) {
             // Status indicator
             Circle()
-                .fill(isPendingDeletion ? .red.opacity(0.5) : (schedule.enabled ? .green : .orange))
+                .fill(schedule.enabled ? .green : .orange)
                 .frame(width: 8, height: 8)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -58,34 +46,24 @@ struct ScheduleRowView: View {
                         .font(.body)
                         .fontWeight(.medium)
                         .lineLimit(1)
-                        .foregroundColor(isPendingDeletion ? .secondary : .primary)
-                        .strikethrough(isPendingDeletion, color: .secondary)
 
                     Spacer()
 
-                    // Status tags
-                    HStack(spacing: 4) {
-                        // Sync status tags
-                        if showSyncStatus {
-                            syncStatusTag
-                        }
-
-                        // Routine context tag
-                        Text("Routine: \(routineDisplayName)")
-                            .font(.caption)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(isPendingDeletion ? Color.secondary.opacity(0.1) : Color.accentColor.opacity(0.1))
-                            .foregroundColor(isPendingDeletion ? .secondary : .accentColor)
-                            .clipShape(Capsule())
-                    }
+                    // Routine context tag
+                    Text("Routine: \(routineDisplayName)")
+                        .font(.caption)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.accentColor.opacity(0.1))
+                        .foregroundColor(.accentColor)
+                        .clipShape(Capsule())
                 }
 
                 // Recurrence description
                 if !schedule.notes.isEmpty {
                     Text(schedule.notes)
                         .font(.caption)
-                        .foregroundColor(isPendingDeletion ? .secondary.opacity(0.7) : .secondary)
+                        .foregroundColor(.secondary)
                         .lineLimit(2)
                 }
 
@@ -109,8 +87,8 @@ struct ScheduleRowView: View {
                 }
             }
 
-            // Action buttons (visible on hover or selection, disabled for pending deletion)
-            if (isHovered || isSelected) && !isPendingDeletion {
+            // Action buttons (visible on hover or selection)
+            if isHovered || isSelected {
                 HStack(spacing: 4) {
                     Button {
                         onToggleEnabled()
@@ -149,120 +127,27 @@ struct ScheduleRowView: View {
                     .help("More actions")
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
-            } else if isPendingDeletion && (isHovered || isSelected) {
-                // Show retry count for pending deletion
-                if retryCount > 0 {
-                    Text("Retry \(retryCount)")
-                        .font(.caption)
-                        .foregroundColor(.red)
-                        .fontWeight(.medium)
-                } else {
-                    Text("Syncing...")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .italic()
-                }
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isPendingDeletion
-                      ? Color.red.opacity(0.05)
-                      : (isSelected ? Color.accentColor.opacity(0.1) : Color.clear))
+                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isPendingDeletion
-                        ? Color.red.opacity(0.2)
-                        : (isSelected ? Color.accentColor : Color.clear), lineWidth: 1)
+                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
         )
-        .opacity(isPendingDeletion ? 0.7 : 1.0)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !isPendingDeletion {
-                onSelect()
-            }
+            onSelect()
         }
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 
     // MARK: - Helper Properties
-
-    @ViewBuilder
-    private var syncStatusTag: some View {
-        if let syncStatus = syncStatus {
-            switch syncStatus {
-            case .pendingDelete:
-                HStack(spacing: 2) {
-                    Text("Pending Deletion")
-                    if retryCount > 0 {
-                        Text("(\(retryCount))")
-                            .fontWeight(.bold)
-                    }
-                }
-                .font(.caption)
-                .fontWeight(.medium)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.red.opacity(0.1))
-                .foregroundColor(.red)
-                .clipShape(Capsule())
-
-            case .syncFailed:
-                HStack(spacing: 2) {
-                    Text("Sync Failed")
-                    if retryCount > 0 {
-                        Text("(\(retryCount))")
-                            .fontWeight(.bold)
-                    }
-                }
-                .font(.caption)
-                .fontWeight(.medium)
-                .padding(.horizontal, 6)
-                .padding(.vertical, 2)
-                .background(Color.red.opacity(0.1))
-                .foregroundColor(.red)
-                .clipShape(Capsule())
-
-            case .pendingSync:
-                Text("Pending Sync")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.orange.opacity(0.1))
-                    .foregroundColor(.orange)
-                    .clipShape(Capsule())
-
-            case .conflict:
-                Text("Conflict")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.purple.opacity(0.1))
-                    .foregroundColor(.purple)
-                    .clipShape(Capsule())
-
-            case .localOnly:
-                Text("Local Only")
-                    .font(.caption)
-                    .fontWeight(.medium)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.blue.opacity(0.1))
-                    .foregroundColor(.blue)
-                    .clipShape(Capsule())
-
-            case .synced:
-                // Don't show tag for successfully synced items to reduce clutter
-                EmptyView()
-            }
-        }
-    }
 
     private var routineDisplayName: String {
         // TODO: Get actual routine name from routine ID
@@ -276,23 +161,17 @@ struct ScheduleRowView: View {
 
 struct ScheduleRowSimpleView: View {
     let schedule: Schedule
-    let showSyncStatus: Bool
-    let isPendingDeletion: Bool
     let onToggle: (() -> Void)?
     let onEdit: (() -> Void)?
     let onDelete: (() -> Void)?
 
     init(
         schedule: Schedule,
-        showSyncStatus: Bool = false,
-        isPendingDeletion: Bool = false,
         onToggle: (() -> Void)? = nil,
         onEdit: (() -> Void)? = nil,
         onDelete: (() -> Void)? = nil
     ) {
         self.schedule = schedule
-        self.showSyncStatus = showSyncStatus
-        self.isPendingDeletion = isPendingDeletion
         self.onToggle = onToggle
         self.onEdit = onEdit
         self.onDelete = onDelete
@@ -304,44 +183,26 @@ struct ScheduleRowSimpleView: View {
         HStack(spacing: 12) {
             // Status indicator
             Circle()
-                .fill(isPendingDeletion ? .red.opacity(0.5) : (schedule.enabled ? .green : .orange))
+                .fill(schedule.enabled ? .green : .orange)
                 .frame(width: 8, height: 8)
 
             VStack(alignment: .leading, spacing: 2) {
-                HStack {
-                    Text(schedule.name)
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-                        .foregroundColor(isPendingDeletion ? .secondary : .primary)
-                        .strikethrough(isPendingDeletion, color: .secondary)
-
-                    Spacer()
-
-                    // Sync status tag (only for pending deletion items)
-                    if showSyncStatus && isPendingDeletion {
-                        Text("Pending Deletion")
-                            .font(.caption2)
-                            .fontWeight(.medium)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.red.opacity(0.1))
-                            .foregroundColor(.red)
-                            .clipShape(Capsule())
-                    }
-                }
+                Text(schedule.name)
+                    .font(.subheadline)
+                    .fontWeight(.medium)
 
                 Text(schedule.displayName)
                     .font(.caption)
-                    .foregroundColor(isPendingDeletion ? .secondary.opacity(0.7) : .secondary)
+                    .foregroundColor(.secondary)
 
-                if let nextExecution = schedule.nextExecution, !isPendingDeletion {
+                if let nextExecution = schedule.nextExecution {
                     Text("Next: \(nextExecution, style: .relative)")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
             }
 
-            if !isPendingDeletion && isHovered {
+            if isHovered {
                 HStack(spacing: 8) {
                     if let onToggle = onToggle {
                         Button {
@@ -395,13 +256,12 @@ struct ScheduleRowSimpleView: View {
         .padding(.vertical, 10)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isPendingDeletion ? Color.red.opacity(0.05) : Color(NSColor.controlBackgroundColor))
+                .fill(Color(NSColor.controlBackgroundColor))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isPendingDeletion ? Color.red.opacity(0.2) : (isHovered ? Color.accentColor.opacity(0.3) : Color.clear), lineWidth: 1)
+                .stroke(isHovered ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
         )
-        .opacity(isPendingDeletion ? 0.7 : 1.0)
         .onHover { hovering in
             withAnimation(.easeInOut(duration: 0.2)) {
                 isHovered = hovering
@@ -436,30 +296,11 @@ struct ScheduleRowSimpleView: View {
             onTest: {}
         )
 
-        ScheduleRowView(
-            schedule: Schedule.example(routineId: "preview-routine"),
-            isSelected: false,
-            isHovered: false,
-            showSyncStatus: true,
-            isPendingDeletion: true,
-            onSelect: {},
-            onToggleEnabled: {},
-            onDelete: {},
-            onDuplicate: {},
-            onTest: {}
-        )
-
         ScheduleRowSimpleView(
             schedule: Schedule.example(routineId: "preview-routine"),
             onToggle: {},
             onEdit: {},
             onDelete: {}
-        )
-
-        ScheduleRowSimpleView(
-            schedule: Schedule.example(routineId: "preview-routine"),
-            showSyncStatus: true,
-            isPendingDeletion: true
         )
     }
     .padding()

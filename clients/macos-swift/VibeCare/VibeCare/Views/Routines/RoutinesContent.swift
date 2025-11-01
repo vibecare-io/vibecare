@@ -13,17 +13,13 @@ struct RoutineListView: View {
         viewModel.filteredRoutines(searchText: searchText)
     }
 
-    var filteredPendingDeletionRoutines: [Routine] {
-        viewModel.filteredPendingDeletionRoutines(searchText: searchText)
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header with counts
             headerView
 
             // Routine list
-            if filteredRoutines.isEmpty && filteredPendingDeletionRoutines.isEmpty {
+            if filteredRoutines.isEmpty {
                 emptyStateView
             } else {
                 sectionedRoutineListContent
@@ -51,18 +47,11 @@ struct RoutineListView: View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
                 let totalActive = filteredRoutines.count
-                let totalDeleted = filteredPendingDeletionRoutines.count
 
                 Text("\(totalActive) routine\(totalActive != 1 ? "s" : "")")
                     .font(.subheadline)
                     .fontWeight(.medium)
                     .foregroundColor(.primary)
-
-                if totalDeleted > 0 {
-                    Text("\(totalDeleted) pending deletion")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
             }
 
             Spacer()
@@ -80,14 +69,6 @@ struct RoutineListView: View {
                     label: "Disabled",
                     color: .orange
                 )
-
-                if !filteredPendingDeletionRoutines.isEmpty {
-                    StatusIndicator(
-                        count: filteredPendingDeletionRoutines.count,
-                        label: "Deleting",
-                        color: .red
-                    )
-                }
             }
 
             // Create new routine button
@@ -166,7 +147,6 @@ struct RoutineListView: View {
                                     routine: routine,
                                     isSelected: selectedId == routine.id,
                                     isHovered: hoveredRoutineId == routine.id,
-                                    showSyncStatus: false,
                                     onSelect: {
                                         selectedId = routine.id
                                     },
@@ -218,61 +198,6 @@ struct RoutineListView: View {
                                         Label("Duplicate", systemImage: "doc.on.doc")
                                     }
                                     .tint(.blue)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 8)
-                    }
-                }
-
-                // Recently Deleted Section
-                if !filteredPendingDeletionRoutines.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Recently Deleted")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.secondary)
-
-                            Spacer()
-
-                            Text("\(filteredPendingDeletionRoutines.count)")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.red.opacity(0.1))
-                                .clipShape(Capsule())
-                        }
-                        .padding(.horizontal, 16)
-
-                        LazyVStack(spacing: 1) {
-                            ForEach(filteredPendingDeletionRoutines) { routine in
-                                RoutineRowView(
-                                    routine: routine,
-                                    isSelected: selectedId == routine.id,
-                                    isHovered: hoveredRoutineId == routine.id,
-                                    showSyncStatus: true,
-                                    isPendingDeletion: true,
-                                    onSelect: {
-                                        selectedId = routine.id
-                                    },
-                                    onToggleEnabled: {
-                                        // Disabled for pending deletion
-                                    },
-                                    onDelete: {
-                                        // Already pending deletion
-                                    },
-                                    onDuplicate: {
-                                        // Disabled for pending deletion
-                                    },
-                                    onTest: {
-                                        // Disabled for pending deletion
-                                    }
-                                )
-                                .onHover { isHovered in
-                                    hoveredRoutineId = isHovered ? routine.id : nil
                                 }
                             }
                         }
@@ -384,8 +309,6 @@ struct RoutineRowView: View {
     let routine: Routine
     let isSelected: Bool
     let isHovered: Bool
-    let showSyncStatus: Bool
-    let isPendingDeletion: Bool
     let onSelect: () -> Void
     let onToggleEnabled: () -> Void
     let onDelete: () -> Void
@@ -396,8 +319,6 @@ struct RoutineRowView: View {
         routine: Routine,
         isSelected: Bool,
         isHovered: Bool,
-        showSyncStatus: Bool = false,
-        isPendingDeletion: Bool = false,
         onSelect: @escaping () -> Void,
         onToggleEnabled: @escaping () -> Void,
         onDelete: @escaping () -> Void,
@@ -407,8 +328,6 @@ struct RoutineRowView: View {
         self.routine = routine
         self.isSelected = isSelected
         self.isHovered = isHovered
-        self.showSyncStatus = showSyncStatus
-        self.isPendingDeletion = isPendingDeletion
         self.onSelect = onSelect
         self.onToggleEnabled = onToggleEnabled
         self.onDelete = onDelete
@@ -422,7 +341,7 @@ struct RoutineRowView: View {
         HStack(spacing: 12) {
             // Status indicator
             Circle()
-                .fill(isPendingDeletion ? .red.opacity(0.5) : (routine.enabled ? .green : .orange))
+                .fill(routine.enabled ? .green : .orange)
                 .frame(width: 8, height: 8)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -432,33 +351,19 @@ struct RoutineRowView: View {
                         .font(.body)
                         .fontWeight(.medium)
                         .lineLimit(1)
-                        .foregroundColor(isPendingDeletion ? .secondary : .primary)
-                        .strikethrough(isPendingDeletion, color: .secondary)
 
                     Spacer()
 
                     // Status tags
                     HStack(spacing: 4) {
-                        // Sync status tag (only for pending deletion items)
-                        if showSyncStatus && isPendingDeletion {
-                            Text("Pending Deletion")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.red.opacity(0.1))
-                                .foregroundColor(.red)
-                                .clipShape(Capsule())
-                        }
-
                         // Category tag
                         if !routine.category.isEmpty {
                             Text(routine.category)
                                 .font(.caption)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(isPendingDeletion ? Color.secondary.opacity(0.1) : Color.accentColor.opacity(0.1))
-                                .foregroundColor(isPendingDeletion ? .secondary : .accentColor)
+                                .background(Color.accentColor.opacity(0.1))
+                                .foregroundColor(.accentColor)
                                 .clipShape(Capsule())
                         }
                     }
@@ -468,7 +373,7 @@ struct RoutineRowView: View {
                 if !routine.description.isEmpty {
                     Text(routine.description)
                         .font(.caption)
-                        .foregroundColor(isPendingDeletion ? .secondary.opacity(0.7) : .secondary)
+                        .foregroundColor(.secondary)
                         .lineLimit(2)
                 }
 
@@ -493,8 +398,8 @@ struct RoutineRowView: View {
                 }
             }
 
-            // Action buttons (visible on hover or selection, disabled for pending deletion)
-            if (isHovered || isSelected) && !isPendingDeletion {
+            // Action buttons (visible on hover or selection)
+            if isHovered || isSelected {
                 HStack(spacing: 4) {
                     Button {
                         onToggleEnabled()
@@ -533,34 +438,21 @@ struct RoutineRowView: View {
                     .help("More actions")
                 }
                 .transition(.opacity.combined(with: .scale(scale: 0.8)))
-            } else if isPendingDeletion && (isHovered || isSelected) {
-                // Show sync status for pending deletion
-                Text("Syncing...")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .italic()
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(isPendingDeletion
-                      ? Color.red.opacity(0.05)
-                      : (isSelected ? Color.accentColor.opacity(0.1) : Color.clear))
+                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(isPendingDeletion
-                        ? Color.red.opacity(0.2)
-                        : (isSelected ? Color.accentColor : Color.clear), lineWidth: 1)
+                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
         )
-        .opacity(isPendingDeletion ? 0.7 : 1.0)
         .contentShape(Rectangle())
         .onTapGesture {
-            if !isPendingDeletion {
-                onSelect()
-            }
+            onSelect()
         }
         .animation(.easeInOut(duration: 0.2), value: isHovered)
         .animation(.easeInOut(duration: 0.2), value: isSelected)

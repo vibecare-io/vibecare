@@ -132,12 +132,108 @@ class EventService: ObservableObject {
     private func handleScheduleTriggered(_ event: VCScheduleTriggeredEvent) async {
         logger.info("Schedule triggered: \(event.routineName) (Schedule ID: \(event.scheduleID))")
 
+        // Call the registered handler on main actor
         await MainActor.run { [weak self] in
-            // Call the registered handler
             self?.scheduleTriggeredHandler?(event)
+        }
 
-            // Show VibeNotify notification (works in foreground and background)
-            NotificationManager.shared.showScheduleNotification(for: event)
+        // Fetch schedule and actions from backend services
+        do {
+            // Fetch schedule from backend
+            let scheduleService = ScheduleService()
+            guard let schedule = try await scheduleService.getSchedule(id: event.scheduleID) else {
+                self.logger.warning("Schedule not found on backend: \(event.scheduleID)")
+                // Fallback to showing notification directly
+                _ = await MainActor.run {
+                    NotificationManager.shared.showScheduleNotification(for: event)
+                }
+                return
+            }
+
+            // If schedule has no actions, show default notification (backward compatibility)
+            if schedule.actionIDs.isEmpty {
+                self.logger.info("Schedule has no actions, showing default notification")
+                _ = await MainActor.run {
+                    NotificationManager.shared.showScheduleNotification(for: event)
+                }
+                return
+            }
+
+            // Fetch actions from backend
+            let actionService = ActionService()
+            var actions: [Action] = []
+
+            for actionID in schedule.actionIDs {
+                do {
+                    if let action = try await actionService.getAction(id: actionID) {
+                        actions.append(action)
+                    } else {
+                        self.logger.warning("Action not found: \(actionID)")
+                    }
+                } catch {
+                    self.logger.error("Failed to fetch action \(actionID): \(error)")
+                }
+            }
+
+            if actions.isEmpty {
+                self.logger.warning("No actions found for schedule: \(event.scheduleID)")
+                // Fallback to showing notification
+                _ = await MainActor.run {
+                    NotificationManager.shared.showScheduleNotification(for: event)
+                }
+                return
+            }
+
+            // Execute each action
+            self.logger.info("Executing \(actions.count) actions for schedule: \(event.scheduleID)")
+            await MainActor.run { [weak self] in
+                guard let self = self else { return }
+                for action in actions {
+                    self.executeAction(action, for: event)
+                }
+            }
+
+        } catch {
+            self.logger.error("Failed to fetch schedule or actions: \(error)")
+            // Fallback to showing notification
+            _ = await MainActor.run {
+                NotificationManager.shared.showScheduleNotification(for: event)
+            }
+        }
+    }
+
+    private func executeAction(_ action: Action, for event: VCScheduleTriggeredEvent) {
+        logger.info("Executing action: \(action.name) (type: \(action.type))")
+
+        switch action.type {
+        case .notification:
+            NotificationManager.shared.executeAction(action, for: event)
+
+        case .openLink:
+            LinkHandler.shared.executeAction(action)
+
+        case .playSound:
+            logger.warning("play_sound action not yet implemented")
+            // TODO: Implement sound playback
+
+        case .runScript:
+            logger.warning("run_script action not yet implemented")
+            // TODO: Implement script execution
+
+        case .sendEmail:
+            logger.warning("send_email action not yet implemented")
+            // TODO: Implement email sending
+
+        case .systemCommand:
+            logger.warning("system_command action not yet implemented")
+            // TODO: Implement system commands
+
+        case .apiCall:
+            logger.warning("api_call action not yet implemented")
+            // TODO: Implement API calls
+
+        case .logEntry:
+            logger.info("Log entry action: \(action.parameters["message"] ?? "No message")")
         }
     }
 

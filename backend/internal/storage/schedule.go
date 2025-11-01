@@ -13,7 +13,7 @@ import (
 )
 
 // CreateSchedule creates a new schedule
-func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
+func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool, actionIDs []string) (*models.Schedule, error) {
 	// Validate and sanitize inputs
 	if err := validation.ValidateUUID("schedule_id", scheduleID); err != nil {
 		return nil, err
@@ -69,6 +69,11 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 		return nil, fmt.Errorf("routine with ID %s does not exist", routineID)
 	}
 
+	// Ensure actionIDs is never nil
+	if actionIDs == nil {
+		actionIDs = []string{}
+	}
+
 	schedule := &models.Schedule{
 		ScheduleID: scheduleID,
 		RoutineID:  routineID,
@@ -78,7 +83,7 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 		ExDates:    exdates,
 		Notes:      sanitizedNotes,
 		Enabled:    enabled,
-		ActionIDs:  []string{}, // Initialize empty action_ids
+		ActionIDs:  actionIDs,
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	}
@@ -305,9 +310,14 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 
 	schedule.UpdatedAt = time.Now()
 
+	// Ensure action_ids is never nil
+	if schedule.ActionIDs == nil {
+		schedule.ActionIDs = []string{}
+	}
+
 	query := `
 		UPDATE schedules
-		SET name = ?, rrule = ?, dtstart = ?, exdates = ?, notes = ?, enabled = ?, updated_at = ?
+		SET name = ?, rrule = ?, dtstart = ?, exdates = ?, notes = ?, enabled = ?, action_ids = ?, updated_at = ?
 		WHERE schedule_id = ?
 	`
 
@@ -323,6 +333,12 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 		exdatesStr.String = strings.Join(schedule.ExDates, ",")
 	}
 
+	// Marshal action_ids to JSON
+	actionIDsJSON, err := json.Marshal(schedule.ActionIDs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal action_ids: %w", err)
+	}
+
 	_, err = db.Exec(query,
 		schedule.Name,
 		schedule.RRule,
@@ -330,6 +346,7 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 		exdatesStr,
 		schedule.Notes,
 		schedule.Enabled,
+		string(actionIDsJSON),
 		schedule.UpdatedAt.Format(time.RFC3339),
 		schedule.ScheduleID,
 	)
@@ -341,7 +358,7 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 	return schedule, nil
 }
 
-// DeleteSchedule deletes a schedule and its associated actions
+// DeleteSchedule deletes a schedule and disables its associated actions
 func (db *DB) DeleteSchedule(scheduleID string) error {
 	// Get schedule to retrieve action_ids
 	schedule, err := db.GetSchedule(scheduleID)
@@ -349,13 +366,21 @@ func (db *DB) DeleteSchedule(scheduleID string) error {
 		return fmt.Errorf("failed to get schedule for deletion: %w", err)
 	}
 
-	// Delete associated actions (cascade deletion)
+	// Disable associated actions (soft delete - maintain data integrity)
 	if len(schedule.ActionIDs) > 0 {
 		for _, actionID := range schedule.ActionIDs {
-			if err := db.DeleteAction(actionID); err != nil {
+			action, err := db.GetAction(actionID)
+			if err != nil {
 				// Log error but continue with schedule deletion
-				// (action might already be deleted or shared with another schedule)
-				fmt.Printf("Warning: failed to delete action %s: %v\n", actionID, err)
+				fmt.Printf("Warning: failed to get action %s: %v\n", actionID, err)
+				continue
+			}
+
+			// Disable the action instead of deleting it
+			action.Enabled = false
+			if err := db.UpdateAction(action); err != nil {
+				// Log error but continue with schedule deletion
+				fmt.Printf("Warning: failed to disable action %s: %v\n", actionID, err)
 			}
 		}
 	}

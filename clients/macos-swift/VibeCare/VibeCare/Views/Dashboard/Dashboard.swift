@@ -154,7 +154,12 @@ public struct Dashboard: View {
 
   #if DEBUG
     private var debugStorageContentView: some View {
-      DebugStorageView()
+      // TODO: Implement DebugStorageView
+      EmptyStateView(
+        title: "Debug Storage",
+        subtitle: "Storage debugging view coming soon",
+        systemImage: "internaldrive"
+      )
     }
   #endif
 
@@ -418,7 +423,8 @@ public struct Dashboard: View {
 
     Task {
       await routineViewModel.loadRoutines(for: profile.id)
-      await scheduleViewModel.loadAllSchedules(for: profile.id)
+      // Note: scheduleViewModel.loadSchedules requires a routineId, not profileId
+      // If you need to load all schedules across all routines, implement a different method
       await actionViewModel.loadActions(for: profile.id)
     }
   }

@@ -17,8 +17,8 @@ func (db *DB) CreateAction(action *models.Action) error {
 	}
 
 	query := `
-		INSERT INTO actions (action_id, profile_id, type, name, description, parameters_json, created_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO actions (action_id, profile_id, type, name, description, parameters_json, created_at, enabled)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = db.Exec(query,
@@ -29,6 +29,7 @@ func (db *DB) CreateAction(action *models.Action) error {
 		action.Description,
 		string(parametersJSON),
 		action.CreatedAt.Format(time.RFC3339),
+		action.Enabled,
 	)
 
 	if err != nil {
@@ -41,7 +42,7 @@ func (db *DB) CreateAction(action *models.Action) error {
 // GetAction retrieves an action by ID
 func (db *DB) GetAction(actionID string) (*models.Action, error) {
 	query := `
-		SELECT action_id, profile_id, type, name, description, parameters_json, created_at
+		SELECT action_id, profile_id, type, name, description, parameters_json, created_at, enabled
 		FROM actions
 		WHERE action_id = ?
 	`
@@ -58,6 +59,7 @@ func (db *DB) GetAction(actionID string) (*models.Action, error) {
 		&action.Description,
 		&parametersJSON,
 		&createdAtStr,
+		&action.Enabled,
 	)
 
 	if err == sql.ErrNoRows {
@@ -111,7 +113,7 @@ func (db *DB) UpdateAction(action *models.Action) error {
 
 	query := `
 		UPDATE actions
-		SET type = ?, name = ?, description = ?, parameters_json = ?
+		SET type = ?, name = ?, description = ?, parameters_json = ?, enabled = ?
 		WHERE action_id = ?
 	`
 
@@ -120,6 +122,7 @@ func (db *DB) UpdateAction(action *models.Action) error {
 		action.Name,
 		action.Description,
 		string(parametersJSON),
+		action.Enabled,
 		action.ID,
 	)
 
@@ -163,7 +166,7 @@ func (db *DB) DeleteAction(actionID string) error {
 // ListActionsByProfile retrieves all actions for a profile
 func (db *DB) ListActionsByProfile(profileID string) ([]*models.Action, error) {
 	query := `
-		SELECT action_id, profile_id, type, name, description, parameters_json, created_at
+		SELECT action_id, profile_id, type, name, description, parameters_json, created_at, enabled
 		FROM actions
 		WHERE profile_id = ?
 		ORDER BY created_at DESC
@@ -190,6 +193,7 @@ func (db *DB) ListActionsByProfile(profileID string) ([]*models.Action, error) {
 			&action.Description,
 			&parametersJSON,
 			&createdAtStr,
+			&action.Enabled,
 		)
 
 		if err != nil {
@@ -217,7 +221,7 @@ func (db *DB) ListActionsByProfile(profileID string) ([]*models.Action, error) {
 // ListActionsByType retrieves all actions of a specific type for a profile
 func (db *DB) ListActionsByType(profileID string, actionType models.ActionType) ([]*models.Action, error) {
 	query := `
-		SELECT action_id, profile_id, type, name, description, parameters_json, created_at
+		SELECT action_id, profile_id, type, name, description, parameters_json, created_at, enabled
 		FROM actions
 		WHERE profile_id = ? AND type = ?
 		ORDER BY created_at DESC
@@ -244,6 +248,7 @@ func (db *DB) ListActionsByType(profileID string, actionType models.ActionType) 
 			&action.Description,
 			&parametersJSON,
 			&createdAtStr,
+			&action.Enabled,
 		)
 
 		if err != nil {

@@ -35,6 +35,7 @@ type Action struct {
 	Description string            `json:"description"`
 	Parameters  map[string]string `json:"parameters"`
 	CreatedAt   time.Time         `json:"created_at"`
+	Enabled     bool              `json:"enabled"`
 }
 
 // ActionType enum

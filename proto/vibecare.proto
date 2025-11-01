@@ -51,6 +51,7 @@ message Action {
   string description = 5;
   map<string, string> parameters = 6;  // Type-specific parameters
   google.protobuf.Timestamp created_at = 7;
+  bool enabled = 8;  // Whether action is enabled (false = orphaned/disabled)
 }
 
 enum ActionType {
@@ -412,6 +413,7 @@ message CreateActionRequest {
   string description = 4;
   map<string, string> parameters = 5;
   string id = 6;  // Optional: Client-provided ID for local-first architecture
+  bool enabled = 7;  // Whether action is enabled (default: true)
 }
 
 message GetActionRequest {
@@ -423,6 +425,7 @@ message UpdateActionRequest {
   string name = 2;
   string description = 3;
   map<string, string> parameters = 4;
+  bool enabled = 5;  // Whether action is enabled
 }
 
 message DeleteActionRequest {

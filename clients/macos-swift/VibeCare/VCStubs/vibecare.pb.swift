@@ -290,6 +290,9 @@ public struct VCAction: Sendable {
   /// Clears the value of `createdAt`. Subsequent reads from it will return its default value.
   public mutating func clearCreatedAt() {self._createdAt = nil}
 
+  /// Whether action is enabled (false = orphaned/disabled)
+  public var enabled: Bool = false
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -948,6 +951,9 @@ public struct VCCreateScheduleRequest: Sendable {
   /// Optional: Client-provided ID for local-first architecture
   public var id: String = String()
 
+  /// Action IDs to associate with this schedule
+  public var actionIds: [String] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -983,6 +989,9 @@ public struct VCUpdateScheduleRequest: Sendable {
   public var notes: String = String()
 
   public var enabled: Bool = false
+
+  /// Action IDs to associate with this schedule
+  public var actionIds: [String] = []
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1147,6 +1156,12 @@ public struct VCCreateActionRequest: Sendable {
 
   public var parameters: Dictionary<String,String> = [:]
 
+  /// Optional: Client-provided ID for local-first architecture
+  public var id: String = String()
+
+  /// Whether action is enabled (default: true)
+  public var enabled: Bool = false
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1176,6 +1191,9 @@ public struct VCUpdateActionRequest: Sendable {
   public var description_p: String = String()
 
   public var parameters: Dictionary<String,String> = [:]
+
+  /// Whether action is enabled
+  public var enabled: Bool = false
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1684,7 +1702,7 @@ extension VCDevice: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationB
 
 extension VCAction: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Action"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}profile_id\0\u{1}type\0\u{1}name\0\u{1}description\0\u{1}parameters\0\u{3}created_at\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}profile_id\0\u{1}type\0\u{1}name\0\u{1}description\0\u{1}parameters\0\u{3}created_at\0\u{1}enabled\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1699,6 +1717,7 @@ extension VCAction: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationB
       case 5: try { try decoder.decodeSingularStringField(value: &self.description_p) }()
       case 6: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.parameters) }()
       case 7: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
+      case 8: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       default: break
       }
     }
@@ -1730,6 +1749,9 @@ extension VCAction: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationB
     try { if let v = self._createdAt {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
     } }()
+    if self.enabled != false {
+      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 8)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -1741,6 +1763,7 @@ extension VCAction: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationB
     if lhs.description_p != rhs.description_p {return false}
     if lhs.parameters != rhs.parameters {return false}
     if lhs._createdAt != rhs._createdAt {return false}
+    if lhs.enabled != rhs.enabled {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2970,7 +2993,7 @@ extension VCGetExecutionLogsResponse: SwiftProtobuf.Message, SwiftProtobuf._Mess
 
 extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CreateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{1}id\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{1}id\0\u{3}action_ids\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2986,6 +3009,7 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
       case 7: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       case 8: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 9: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
       default: break
       }
     }
@@ -3016,6 +3040,9 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if !self.id.isEmpty {
       try visitor.visitSingularStringField(value: self.id, fieldNumber: 8)
     }
+    if !self.actionIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3028,6 +3055,7 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if lhs.notes != rhs.notes {return false}
     if lhs.enabled != rhs.enabled {return false}
     if lhs.id != rhs.id {return false}
+    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3065,7 +3093,7 @@ extension VCGetScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
 
 extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{3}action_ids\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3080,6 +3108,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
       case 7: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
+      case 8: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
       default: break
       }
     }
@@ -3107,6 +3136,9 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if self.enabled != false {
       try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 7)
     }
+    if !self.actionIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 8)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3118,6 +3150,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if lhs.exdates != rhs.exdates {return false}
     if lhs.notes != rhs.notes {return false}
     if lhs.enabled != rhs.enabled {return false}
+    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3439,7 +3472,7 @@ extension VCResumeAllSchedulesRequest: SwiftProtobuf.Message, SwiftProtobuf._Mes
 
 extension VCCreateActionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CreateActionRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{1}type\0\u{1}name\0\u{1}description\0\u{1}parameters\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{1}type\0\u{1}name\0\u{1}description\0\u{1}parameters\0\u{1}id\0\u{1}enabled\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3452,6 +3485,8 @@ extension VCCreateActionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
       case 3: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.description_p) }()
       case 5: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.parameters) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 7: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       default: break
       }
     }
@@ -3473,6 +3508,12 @@ extension VCCreateActionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
     if !self.parameters.isEmpty {
       try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.parameters, fieldNumber: 5)
     }
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 6)
+    }
+    if self.enabled != false {
+      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 7)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3482,6 +3523,8 @@ extension VCCreateActionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
     if lhs.name != rhs.name {return false}
     if lhs.description_p != rhs.description_p {return false}
     if lhs.parameters != rhs.parameters {return false}
+    if lhs.id != rhs.id {return false}
+    if lhs.enabled != rhs.enabled {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3519,7 +3562,7 @@ extension VCGetActionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
 
 extension VCUpdateActionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateActionRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}description\0\u{1}parameters\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}description\0\u{1}parameters\0\u{1}enabled\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3531,6 +3574,7 @@ extension VCUpdateActionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.description_p) }()
       case 4: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.parameters) }()
+      case 5: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       default: break
       }
     }
@@ -3549,6 +3593,9 @@ extension VCUpdateActionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
     if !self.parameters.isEmpty {
       try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.parameters, fieldNumber: 4)
     }
+    if self.enabled != false {
+      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3557,6 +3604,7 @@ extension VCUpdateActionRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
     if lhs.name != rhs.name {return false}
     if lhs.description_p != rhs.description_p {return false}
     if lhs.parameters != rhs.parameters {return false}
+    if lhs.enabled != rhs.enabled {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

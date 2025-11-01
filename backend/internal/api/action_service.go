@@ -54,6 +54,7 @@ func (s *Server) CreateAction(ctx context.Context, req *pb.CreateActionRequest) 
 		Description: req.Description,
 		Parameters:  req.Parameters,
 		CreatedAt:   time.Now(),
+		Enabled:     req.Enabled,
 	}
 
 	// Save to database
@@ -103,6 +104,7 @@ func (s *Server) UpdateAction(ctx context.Context, req *pb.UpdateActionRequest) 
 	action.Name = req.Name
 	action.Description = req.Description
 	action.Parameters = req.Parameters
+	action.Enabled = req.Enabled
 
 	// Save updates
 	err = s.db.UpdateAction(action)
@@ -248,6 +250,7 @@ func convertToProtoAction(action *models.Action) *pb.Action {
 		Name:        action.Name,
 		Description: action.Description,
 		Parameters:  action.Parameters,
+		Enabled:     action.Enabled,
 	}
 }
 
