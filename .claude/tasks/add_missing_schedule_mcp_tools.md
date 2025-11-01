@@ -287,7 +287,46 @@ None - all changes are additions to existing files
 
 ## Implementation Log
 
-_Will be filled during implementation phase_
+### [2025-11-01] - Complete Implementation
+
+**Changes Made:**
+
+**Phase 1: Verified gRPC Support**
+- `proto/vibecare.proto:168-169` - Confirmed GetSchedule and UpdateSchedule RPCs already exist
+- `backend/internal/api/schedule_service.go:107-184` - Confirmed handlers fully implemented
+
+**Phase 2: Extended Storage Interface**
+- `backend/internal/mcp/storage_interface.go:21-24` - Added GetSchedule and UpdateSchedule methods to Storage interface
+
+**Phase 3: Implemented Storage Adapters**
+- `backend/internal/mcp/storage_adapter.go:46-56` - Added GetSchedule and UpdateSchedule to DBStorageAdapter (pass-through to db methods)
+- `backend/internal/mcp/storage_grpc.go:132-190` - Added GetSchedule and UpdateSchedule to GRPCStorageAdapter with protobuf conversion
+- `backend/internal/mcp/storage_grpc.go:354` - Added ActionIDs field to protoToSchedule helper
+
+**Phase 4-6: Added MCP Tools**
+- `backend/internal/mcp/tools.go:137-206` - Added get_schedule and update_schedule tool definitions with complete schemas
+- `backend/internal/mcp/tools.go:338-341` - Added routing cases for new tools
+- `backend/internal/mcp/tools.go:743-847` - Implemented toolGetSchedule handler with detailed schedule display
+- `backend/internal/mcp/tools.go:849-1018` - Implemented toolUpdateSchedule handler with partial update support
+
+**Phase 7: Enhanced Action Support**
+- `backend/internal/mcp/tools.go:197-203` - Added action_ids parameter to update_schedule schema
+- `backend/internal/mcp/tools.go:980-990` - Added action_ids processing logic to toolUpdateSchedule
+- `backend/internal/mcp/tools.go:1011-1013` - Added action count to output display
+
+**Design Decisions:**
+1. Used routine_name + schedule_name lookup pattern (consistent with delete_schedule)
+2. Implemented partial updates (only update fields provided in args)
+3. Added action_ids array parameter for attaching actions to schedules
+4. Included detailed output showing what was changed
+
+**Issues Encountered:**
+- None - all storage layer methods already existed, just needed interface exposure
+
+**Notes:**
+- Both storage adapters (DB and gRPC) now fully support get/update operations
+- Tools follow existing naming conventions and patterns
+- Ready for manual testing via Claude Desktop or MCP HTTP client
 
 ---
 

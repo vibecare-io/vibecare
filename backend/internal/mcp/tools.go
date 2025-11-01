@@ -194,6 +194,13 @@ func (s *Server) GetTools() []Tool {
 							"type": "string",
 						},
 					},
+					"action_ids": map[string]interface{}{
+						"type":        "array",
+						"description": "Optional: Array of action IDs to attach to this schedule. These actions will be executed when the schedule triggers.",
+						"items": map[string]interface{}{
+							"type": "string",
+						},
+					},
 				},
 				Required: []string{"routine_name", "schedule_name"},
 			},
@@ -970,6 +977,18 @@ func (s *Server) toolUpdateSchedule(ctx context.Context, args map[string]interfa
 		updates = append(updates, "exclusion dates")
 	}
 
+	// Update action_ids if provided
+	if actionIds, ok := args["action_ids"].([]interface{}); ok {
+		strActionIds := make([]string, 0, len(actionIds))
+		for _, aid := range actionIds {
+			if s, ok := aid.(string); ok {
+				strActionIds = append(strActionIds, s)
+			}
+		}
+		schedule.ActionIDs = strActionIds
+		updates = append(updates, fmt.Sprintf("actions (%d attached)", len(strActionIds)))
+	}
+
 	// Save the updated schedule
 	updatedSchedule, err := s.storage.UpdateSchedule(schedule)
 	if err != nil {
@@ -988,6 +1007,9 @@ func (s *Server) toolUpdateSchedule(ctx context.Context, args map[string]interfa
 	result += fmt.Sprintf("- Enabled: %t\n", updatedSchedule.Enabled)
 	if updatedSchedule.Notes != "" {
 		result += fmt.Sprintf("- Notes: %s\n", updatedSchedule.Notes)
+	}
+	if len(updatedSchedule.ActionIDs) > 0 {
+		result += fmt.Sprintf("- Actions: %d attached\n", len(updatedSchedule.ActionIDs))
 	}
 
 	return CallToolResult{

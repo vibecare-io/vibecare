@@ -157,10 +157,16 @@ func (s *Server) handleCallTool(ctx context.Context, params json.RawMessage) (in
 		return nil, fmt.Errorf("invalid tool call params: %w", err)
 	}
 
-	s.logger.Info("Calling tool",
-		zap.String("tool", req.Name),
-		zap.Any("arguments", req.Arguments),
-	)
+	// Log tool name at Info level
+	s.logger.Info("Calling tool", zap.String("tool", req.Name))
+
+	// Log parameters at Debug level only (conditional to avoid serialization overhead)
+	if s.logger.Core().Enabled(zap.DebugLevel) {
+		s.logger.Debug("Tool parameters",
+			zap.String("tool", req.Name),
+			zap.Any("arguments", req.Arguments),
+		)
+	}
 
 	// Execute the tool
 	result, err := s.executeTool(ctx, req.Name, req.Arguments)
