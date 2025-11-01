@@ -213,7 +213,7 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, error) {
 	query := `
 		SELECT schedule_id, routine_id, name, rrule, dtstart, exdates,
-		       last_execution, notes, enabled, created_at, updated_at
+		       last_execution, notes, enabled, action_ids, created_at, updated_at
 		FROM schedules
 		WHERE routine_id = ?
 		ORDER BY created_at DESC
@@ -228,7 +228,7 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 	var schedules []*models.Schedule
 	for rows.Next() {
 		var schedule models.Schedule
-		var dtstart, lastExecution, exdatesStr sql.NullString
+		var dtstart, lastExecution, exdatesStr, actionIDsJSON sql.NullString
 		var createdAt, updatedAt string
 
 		err := rows.Scan(
@@ -241,6 +241,7 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 			&lastExecution,
 			&schedule.Notes,
 			&schedule.Enabled,
+			&actionIDsJSON,
 			&createdAt,
 			&updatedAt,
 		)
@@ -266,6 +267,15 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 
 		if exdatesStr.Valid && exdatesStr.String != "" {
 			schedule.ExDates = strings.Split(exdatesStr.String, ",")
+		}
+
+		// Parse action_ids JSON
+		if actionIDsJSON.Valid && actionIDsJSON.String != "" {
+			if err := json.Unmarshal([]byte(actionIDsJSON.String), &schedule.ActionIDs); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal action_ids for schedule %s: %w", schedule.ScheduleID, err)
+			}
+		} else {
+			schedule.ActionIDs = []string{}
 		}
 
 		var parseErr error
@@ -422,7 +432,7 @@ func (db *DB) UpdateLastExecution(scheduleID string, executionTime time.Time) er
 func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 	query := `
 		SELECT s.schedule_id, s.routine_id, s.name, s.rrule, s.dtstart, s.exdates,
-		       s.last_execution, s.notes, s.enabled, s.created_at, s.updated_at
+		       s.last_execution, s.notes, s.enabled, s.action_ids, s.created_at, s.updated_at
 		FROM schedules s
 		INNER JOIN routines r ON s.routine_id = r.id
 		WHERE s.enabled = 1 AND r.enabled = 1
@@ -438,7 +448,7 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 	var schedules []*models.Schedule
 	for rows.Next() {
 		var schedule models.Schedule
-		var dtstart, lastExecution, exdatesStr sql.NullString
+		var dtstart, lastExecution, exdatesStr, actionIDsJSON sql.NullString
 		var createdAt, updatedAt string
 
 		err := rows.Scan(
@@ -451,6 +461,7 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 			&lastExecution,
 			&schedule.Notes,
 			&schedule.Enabled,
+			&actionIDsJSON,
 			&createdAt,
 			&updatedAt,
 		)
@@ -476,6 +487,15 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 
 		if exdatesStr.Valid && exdatesStr.String != "" {
 			schedule.ExDates = strings.Split(exdatesStr.String, ",")
+		}
+
+		// Parse action_ids JSON
+		if actionIDsJSON.Valid && actionIDsJSON.String != "" {
+			if err := json.Unmarshal([]byte(actionIDsJSON.String), &schedule.ActionIDs); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal action_ids for schedule %s: %w", schedule.ScheduleID, err)
+			}
+		} else {
+			schedule.ActionIDs = []string{}
 		}
 
 		var parseErr error

@@ -27,4 +27,8 @@ type Storage interface {
 
 	// Action operations
 	ListActionsByProfile(profileID string) ([]*models.Action, error)
+	CreateAction(action *models.Action) error
+	UpdateAction(action *models.Action) error
+	GetAction(actionID string) (*models.Action, error)
+	DeleteAction(actionID string) error
 }

@@ -64,3 +64,19 @@ func (a *DBStorageAdapter) GetExecutionLogs(routineID string, limit int) ([]*mod
 func (a *DBStorageAdapter) ListActionsByProfile(profileID string) ([]*models.Action, error) {
 	return a.db.ListActionsByProfile(profileID)
 }
+
+func (a *DBStorageAdapter) CreateAction(action *models.Action) error {
+	return a.db.CreateAction(action)
+}
+
+func (a *DBStorageAdapter) UpdateAction(action *models.Action) error {
+	return a.db.UpdateAction(action)
+}
+
+func (a *DBStorageAdapter) GetAction(actionID string) (*models.Action, error) {
+	return a.db.GetAction(actionID)
+}
+
+func (a *DBStorageAdapter) DeleteAction(actionID string) error {
+	return a.db.DeleteAction(actionID)
+}

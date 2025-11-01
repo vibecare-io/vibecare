@@ -152,6 +152,106 @@ func (s *Server) GetTools() []Tool {
 				Required: []string{"routine_name"},
 			},
 		},
+		{
+			Name:        "list_actions",
+			Description: "List all actions for the user. Actions are individual tasks that can be attached to schedules (e.g., notifications, opening links, running scripts).",
+			InputSchema: InputSchema{
+				Type:       "object",
+				Properties: map[string]interface{}{},
+			},
+		},
+		{
+			Name:        "create_action",
+			Description: "Create a new action. Actions are reusable tasks that can be attached to schedules. Common types: notification, open_link, send_email, run_script, play_sound, system_command, api_call, log_entry.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]interface{}{
+					"type": map[string]interface{}{
+						"type":        "string",
+						"description": "Type of action: notification, open_link, send_email, run_script, play_sound, system_command, api_call, log_entry",
+					},
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Name/title of the action",
+					},
+					"description": map[string]interface{}{
+						"type":        "string",
+						"description": "Description of what this action does",
+					},
+					"parameters": map[string]interface{}{
+						"type":        "object",
+						"description": "Action-specific parameters (e.g., {\"title\": \"...\", \"body\": \"...\"} for notifications)",
+					},
+					"enabled": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Whether the action is enabled (default: true)",
+					},
+				},
+				Required: []string{"type", "name"},
+			},
+		},
+		{
+			Name:        "get_action",
+			Description: "Get detailed information about a specific action by ID.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "ID of the action to retrieve",
+					},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
+			Name:        "update_action",
+			Description: "Update an existing action's properties.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "ID of the action to update",
+					},
+					"type": map[string]interface{}{
+						"type":        "string",
+						"description": "Type of action",
+					},
+					"name": map[string]interface{}{
+						"type":        "string",
+						"description": "Name/title of the action",
+					},
+					"description": map[string]interface{}{
+						"type":        "string",
+						"description": "Description of the action",
+					},
+					"parameters": map[string]interface{}{
+						"type":        "object",
+						"description": "Action-specific parameters",
+					},
+					"enabled": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Whether the action is enabled",
+					},
+				},
+				Required: []string{"id"},
+			},
+		},
+		{
+			Name:        "delete_action",
+			Description: "Delete an action permanently.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]interface{}{
+					"id": map[string]interface{}{
+						"type":        "string",
+						"description": "ID of the action to delete",
+					},
+				},
+				Required: []string{"id"},
+			},
+		},
 	}
 }
 
@@ -174,6 +274,16 @@ func (s *Server) executeTool(ctx context.Context, toolName string, args map[stri
 		return s.toolDeleteSchedule(ctx, args)
 	case "execute_routine":
 		return s.toolExecuteRoutine(ctx, args)
+	case "list_actions":
+		return s.toolListActions(ctx, args)
+	case "create_action":
+		return s.toolCreateAction(ctx, args)
+	case "get_action":
+		return s.toolGetAction(ctx, args)
+	case "update_action":
+		return s.toolUpdateAction(ctx, args)
+	case "delete_action":
+		return s.toolDeleteAction(ctx, args)
 	default:
 		return CallToolResult{}, fmt.Errorf("unknown tool: %s", toolName)
 	}
@@ -481,6 +591,11 @@ func (s *Server) toolListSchedules(ctx context.Context, args map[string]interfac
 		result += fmt.Sprintf("%d. **%s** (%s)\n", i+1, sched.Name, status)
 		result += fmt.Sprintf("   RRule: %s\n", sched.RRule)
 		result += fmt.Sprintf("   ID: %s\n", sched.ScheduleID)
+		if len(sched.ActionIDs) > 0 {
+			result += fmt.Sprintf("   Actions: %d configured\n", len(sched.ActionIDs))
+		} else {
+			result += "   Actions: none (will use default notification)\n"
+		}
 		if sched.LastExecution != nil {
 			result += fmt.Sprintf("   Last executed: %s\n", sched.LastExecution.Format(time.RFC3339))
 		}
@@ -613,6 +728,209 @@ func (s *Server) toolExecuteRoutine(ctx context.Context, args map[string]interfa
 	} else {
 		result += "  Note: This routine has no actions configured yet.\n"
 	}
+
+	return CallToolResult{
+		Content: []Content{TextContent(result)},
+	}, nil
+}
+
+// toolListActions lists all actions for the profile
+func (s *Server) toolListActions(ctx context.Context, args map[string]interface{}) (CallToolResult, error) {
+	actions, err := s.storage.ListActionsByProfile(s.profileID)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to list actions: %w", err)
+	}
+
+	if len(actions) == 0 {
+		return CallToolResult{
+			Content: []Content{TextContent("No actions found. Create your first action to get started!")},
+		}, nil
+	}
+
+	result := fmt.Sprintf("Found %d action(s):\n\n", len(actions))
+	for i, a := range actions {
+		status := "disabled"
+		if a.Enabled {
+			status = "enabled"
+		}
+		result += fmt.Sprintf("%d. **%s** (%s, %s)\n", i+1, a.Name, a.Type, status)
+		result += fmt.Sprintf("   ID: %s\n", a.ID)
+		if a.Description != "" {
+			result += fmt.Sprintf("   Description: %s\n", a.Description)
+		}
+		if len(a.Parameters) > 0 {
+			result += fmt.Sprintf("   Parameters: %d configured\n", len(a.Parameters))
+		}
+		result += "\n"
+	}
+
+	return CallToolResult{
+		Content: []Content{TextContent(result)},
+	}, nil
+}
+
+// toolCreateAction creates a new action
+func (s *Server) toolCreateAction(ctx context.Context, args map[string]interface{}) (CallToolResult, error) {
+	actionType, ok := args["type"].(string)
+	if !ok || actionType == "" {
+		return CallToolResult{}, fmt.Errorf("type is required")
+	}
+
+	name, ok := args["name"].(string)
+	if !ok || name == "" {
+		return CallToolResult{}, fmt.Errorf("name is required")
+	}
+
+	description := ""
+	if val, ok := args["description"].(string); ok {
+		description = val
+	}
+
+	parameters := make(map[string]string)
+	if val, ok := args["parameters"].(map[string]interface{}); ok {
+		for k, v := range val {
+			if strVal, ok := v.(string); ok {
+				parameters[k] = strVal
+			}
+		}
+	}
+
+	enabled := true
+	if val, ok := args["enabled"].(bool); ok {
+		enabled = val
+	}
+
+	action := &models.Action{
+		ID:          uuid.New().String(),
+		ProfileID:   s.profileID,
+		Type:        models.ActionType(actionType),
+		Name:        name,
+		Description: description,
+		Parameters:  parameters,
+		Enabled:     enabled,
+		CreatedAt:   time.Now(),
+	}
+
+	if err := s.storage.CreateAction(action); err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to create action: %w", err)
+	}
+
+	result := fmt.Sprintf("✓ Created action '%s'\n", action.Name)
+	result += fmt.Sprintf("  ID: %s\n", action.ID)
+	result += fmt.Sprintf("  Type: %s\n", action.Type)
+	if action.Enabled {
+		result += "  Status: enabled\n"
+	} else {
+		result += "  Status: disabled\n"
+	}
+
+	return CallToolResult{
+		Content: []Content{TextContent(result)},
+	}, nil
+}
+
+// toolGetAction retrieves a specific action
+func (s *Server) toolGetAction(ctx context.Context, args map[string]interface{}) (CallToolResult, error) {
+	id, ok := args["id"].(string)
+	if !ok || id == "" {
+		return CallToolResult{}, fmt.Errorf("id is required")
+	}
+
+	action, err := s.storage.GetAction(id)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to get action: %w", err)
+	}
+
+	status := "disabled"
+	if action.Enabled {
+		status = "enabled"
+	}
+
+	result := fmt.Sprintf("Action: **%s**\n", action.Name)
+	result += fmt.Sprintf("ID: %s\n", action.ID)
+	result += fmt.Sprintf("Type: %s\n", action.Type)
+	result += fmt.Sprintf("Status: %s\n", status)
+	if action.Description != "" {
+		result += fmt.Sprintf("Description: %s\n", action.Description)
+	}
+	if len(action.Parameters) > 0 {
+		result += "\nParameters:\n"
+		for k, v := range action.Parameters {
+			result += fmt.Sprintf("  %s: %s\n", k, v)
+		}
+	}
+
+	return CallToolResult{
+		Content: []Content{TextContent(result)},
+	}, nil
+}
+
+// toolUpdateAction updates an existing action
+func (s *Server) toolUpdateAction(ctx context.Context, args map[string]interface{}) (CallToolResult, error) {
+	id, ok := args["id"].(string)
+	if !ok || id == "" {
+		return CallToolResult{}, fmt.Errorf("id is required")
+	}
+
+	// Get existing action
+	action, err := s.storage.GetAction(id)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to get action: %w", err)
+	}
+
+	// Update fields if provided
+	if val, ok := args["type"].(string); ok && val != "" {
+		action.Type = models.ActionType(val)
+	}
+	if val, ok := args["name"].(string); ok && val != "" {
+		action.Name = val
+	}
+	if val, ok := args["description"].(string); ok {
+		action.Description = val
+	}
+	if val, ok := args["parameters"].(map[string]interface{}); ok {
+		parameters := make(map[string]string)
+		for k, v := range val {
+			if strVal, ok := v.(string); ok {
+				parameters[k] = strVal
+			}
+		}
+		action.Parameters = parameters
+	}
+	if val, ok := args["enabled"].(bool); ok {
+		action.Enabled = val
+	}
+
+	if err := s.storage.UpdateAction(action); err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to update action: %w", err)
+	}
+
+	result := fmt.Sprintf("✓ Updated action '%s'\n", action.Name)
+	result += fmt.Sprintf("  ID: %s\n", action.ID)
+
+	return CallToolResult{
+		Content: []Content{TextContent(result)},
+	}, nil
+}
+
+// toolDeleteAction deletes an action
+func (s *Server) toolDeleteAction(ctx context.Context, args map[string]interface{}) (CallToolResult, error) {
+	id, ok := args["id"].(string)
+	if !ok || id == "" {
+		return CallToolResult{}, fmt.Errorf("id is required")
+	}
+
+	// Get action name before deleting
+	action, err := s.storage.GetAction(id)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to get action: %w", err)
+	}
+
+	if err := s.storage.DeleteAction(id); err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to delete action: %w", err)
+	}
+
+	result := fmt.Sprintf("✓ Deleted action '%s' (ID: %s)\n", action.Name, id)
 
 	return CallToolResult{
 		Content: []Content{TextContent(result)},

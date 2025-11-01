@@ -215,6 +215,60 @@ func (a *GRPCStorageAdapter) ListActionsByProfile(profileID string) ([]*models.A
 	return actions, nil
 }
 
+func (a *GRPCStorageAdapter) CreateAction(action *models.Action) error {
+	ctx := context.Background()
+	_, err := a.actionClient.CreateAction(ctx, &pb.CreateActionRequest{
+		Id:          action.ID,
+		ProfileId:   action.ProfileID,
+		Type:        convertActionTypeToProto(action.Type),
+		Name:        action.Name,
+		Description: action.Description,
+		Parameters:  action.Parameters,
+		Enabled:     action.Enabled,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create action: %w", err)
+	}
+	return nil
+}
+
+func (a *GRPCStorageAdapter) UpdateAction(action *models.Action) error {
+	ctx := context.Background()
+	_, err := a.actionClient.UpdateAction(ctx, &pb.UpdateActionRequest{
+		Id:          action.ID,
+		Name:        action.Name,
+		Description: action.Description,
+		Parameters:  action.Parameters,
+		Enabled:     action.Enabled,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to update action: %w", err)
+	}
+	return nil
+}
+
+func (a *GRPCStorageAdapter) GetAction(actionID string) (*models.Action, error) {
+	ctx := context.Background()
+	resp, err := a.actionClient.GetAction(ctx, &pb.GetActionRequest{
+		Id: actionID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get action: %w", err)
+	}
+	return protoToAction(resp), nil
+}
+
+func (a *GRPCStorageAdapter) DeleteAction(actionID string) error {
+	ctx := context.Background()
+	_, err := a.actionClient.DeleteAction(ctx, &pb.DeleteActionRequest{
+		Id: actionID,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to delete action: %w", err)
+	}
+	return nil
+}
+
 // Helper functions to convert protobuf to models
 
 func protoToRoutine(pb *pb.Routine) *models.Routine {
@@ -319,6 +373,7 @@ func protoToAction(pb *pb.Action) *models.Action {
 		Description: pb.Description,
 		Type:        actionType,
 		Parameters:  pb.Parameters,
+		Enabled:     pb.Enabled,
 	}
 
 	if pb.CreatedAt != nil {
@@ -349,5 +404,29 @@ func convertActionType(protoType pb.ActionType) models.ActionType {
 		return models.ActionTypeLogEntry
 	default:
 		return models.ActionTypeNotification // Default fallback
+	}
+}
+
+// convertActionTypeToProto converts models.ActionType string to proto ActionType enum
+func convertActionTypeToProto(actionType models.ActionType) pb.ActionType {
+	switch actionType {
+	case models.ActionTypeNotification:
+		return pb.ActionType_ACTION_TYPE_NOTIFICATION
+	case models.ActionTypeOpenLink:
+		return pb.ActionType_ACTION_TYPE_OPEN_LINK
+	case models.ActionTypeSendEmail:
+		return pb.ActionType_ACTION_TYPE_SEND_EMAIL
+	case models.ActionTypeRunScript:
+		return pb.ActionType_ACTION_TYPE_RUN_SCRIPT
+	case models.ActionTypePlaySound:
+		return pb.ActionType_ACTION_TYPE_PLAY_SOUND
+	case models.ActionTypeSystemCommand:
+		return pb.ActionType_ACTION_TYPE_SYSTEM_COMMAND
+	case models.ActionTypeAPICall:
+		return pb.ActionType_ACTION_TYPE_API_CALL
+	case models.ActionTypeLogEntry:
+		return pb.ActionType_ACTION_TYPE_LOG_ENTRY
+	default:
+		return pb.ActionType_ACTION_TYPE_NOTIFICATION // Default fallback
 	}
 }
