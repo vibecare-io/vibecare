@@ -129,6 +129,17 @@ func (a *GRPCStorageAdapter) ListSchedulesByRoutine(routineID string) ([]*models
 	return schedules, nil
 }
 
+func (a *GRPCStorageAdapter) GetSchedule(scheduleID string) (*models.Schedule, error) {
+	ctx := context.Background()
+	schedule, err := a.scheduleClient.GetSchedule(ctx, &pb.GetScheduleRequest{
+		ScheduleId: scheduleID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to get schedule: %w", err)
+	}
+	return protoToSchedule(schedule), nil
+}
+
 func (a *GRPCStorageAdapter) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
 	ctx := context.Background()
 
@@ -151,6 +162,31 @@ func (a *GRPCStorageAdapter) CreateSchedule(scheduleID, routineID, name, rrule s
 	}
 
 	return protoToSchedule(schedule), nil
+}
+
+func (a *GRPCStorageAdapter) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error) {
+	ctx := context.Background()
+
+	req := &pb.UpdateScheduleRequest{
+		ScheduleId: schedule.ScheduleID,
+		Name:       schedule.Name,
+		Rrule:      schedule.RRule,
+		Exdates:    schedule.ExDates,
+		Notes:      schedule.Notes,
+		Enabled:    schedule.Enabled,
+		ActionIds:  schedule.ActionIDs,
+	}
+
+	if schedule.DTStart != nil {
+		req.Dtstart = schedule.DTStart.Format(time.RFC3339)
+	}
+
+	updated, err := a.scheduleClient.UpdateSchedule(ctx, req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to update schedule: %w", err)
+	}
+
+	return protoToSchedule(updated), nil
 }
 
 func (a *GRPCStorageAdapter) DeleteSchedule(scheduleID string) error {
@@ -315,6 +351,7 @@ func protoToSchedule(pb *pb.Schedule) *models.Schedule {
 		ExDates:    pb.Exdates,
 		Notes:      pb.Notes,
 		Enabled:    pb.Enabled,
+		ActionIDs:  pb.ActionIds,
 	}
 
 	if pb.Dtstart != nil {

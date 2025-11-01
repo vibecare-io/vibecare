@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -17,7 +18,7 @@ func (s *Server) GetTools() []Tool {
 			Name:        "list_routines",
 			Description: "List all routines for the user. Returns routine names, descriptions, enabled status, and action counts.",
 			InputSchema: InputSchema{
-				Type:       "object",
+				Type: "object",
 				Properties: map[string]interface{}{
 					"enabled_only": map[string]interface{}{
 						"type":        "boolean",
@@ -129,6 +130,69 @@ func (s *Server) GetTools() []Tool {
 					"schedule_name": map[string]interface{}{
 						"type":        "string",
 						"description": "Name of the schedule to delete",
+					},
+				},
+				Required: []string{"routine_name", "schedule_name"},
+			},
+		},
+		{
+			Name:        "get_schedule",
+			Description: "Get detailed information about a specific schedule. Use this to view schedule details including RRule, enabled status, and associated actions.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]interface{}{
+					"routine_name": map[string]interface{}{
+						"type":        "string",
+						"description": "Name of the routine that has the schedule",
+					},
+					"schedule_name": map[string]interface{}{
+						"type":        "string",
+						"description": "Name of the schedule to retrieve",
+					},
+				},
+				Required: []string{"routine_name", "schedule_name"},
+			},
+		},
+		{
+			Name:        "update_schedule",
+			Description: "Update an existing schedule's properties. Use this to modify RRule, enabled status, name, notes, or associated actions.",
+			InputSchema: InputSchema{
+				Type: "object",
+				Properties: map[string]interface{}{
+					"routine_name": map[string]interface{}{
+						"type":        "string",
+						"description": "Name of the routine that has the schedule",
+					},
+					"schedule_name": map[string]interface{}{
+						"type":        "string",
+						"description": "Name of the schedule to update",
+					},
+					"new_name": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: New name for the schedule",
+					},
+					"rrule": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: New RRule string in RFC 5545 format (e.g., FREQ=DAILY;INTERVAL=1;BYHOUR=9;BYMINUTE=0)",
+					},
+					"enabled": map[string]interface{}{
+						"type":        "boolean",
+						"description": "Optional: Whether the schedule is enabled",
+					},
+					"notes": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: Notes about the schedule",
+					},
+					"dtstart": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: Start date/time in ISO 8601 format",
+					},
+					"exdates": map[string]interface{}{
+						"type":        "array",
+						"description": "Optional: Array of ISO 8601 date strings to exclude",
+						"items": map[string]interface{}{
+							"type": "string",
+						},
 					},
 				},
 				Required: []string{"routine_name", "schedule_name"},
@@ -272,6 +336,10 @@ func (s *Server) executeTool(ctx context.Context, toolName string, args map[stri
 		return s.toolListSchedules(ctx, args)
 	case "delete_schedule":
 		return s.toolDeleteSchedule(ctx, args)
+	case "get_schedule":
+		return s.toolGetSchedule(ctx, args)
+	case "update_schedule":
+		return s.toolUpdateSchedule(ctx, args)
 	case "execute_routine":
 		return s.toolExecuteRoutine(ctx, args)
 	case "list_actions":
@@ -667,6 +735,260 @@ func (s *Server) toolDeleteSchedule(ctx context.Context, args map[string]interfa
 	}
 
 	result := fmt.Sprintf("✓ Deleted schedule '%s' from routine '%s'", scheduleName, routineName)
+
+	return CallToolResult{
+		Content: []Content{TextContent(result)},
+	}, nil
+}
+
+// toolGetSchedule retrieves a specific schedule
+func (s *Server) toolGetSchedule(ctx context.Context, args map[string]interface{}) (CallToolResult, error) {
+	routineName, ok := args["routine_name"].(string)
+	if !ok || routineName == "" {
+		return CallToolResult{}, fmt.Errorf("routine_name is required")
+	}
+
+	scheduleName, ok := args["schedule_name"].(string)
+	if !ok || scheduleName == "" {
+		return CallToolResult{}, fmt.Errorf("schedule_name is required")
+	}
+
+	// Find routine by name
+	routines, err := s.storage.ListRoutines(s.profileID, false)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to list routines: %w", err)
+	}
+
+	var routineID string
+	for _, r := range routines {
+		if r.Name == routineName {
+			routineID = r.ID
+			break
+		}
+	}
+
+	if routineID == "" {
+		return CallToolResult{
+			Content: []Content{TextContent(fmt.Sprintf("Routine '%s' not found", routineName))},
+			IsError: true,
+		}, nil
+	}
+
+	// Find schedule by name within the routine
+	schedules, err := s.storage.ListSchedulesByRoutine(routineID)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to list schedules: %w", err)
+	}
+
+	var scheduleID string
+	for _, sched := range schedules {
+		if sched.Name == scheduleName {
+			scheduleID = sched.ScheduleID
+			break
+		}
+	}
+
+	if scheduleID == "" {
+		return CallToolResult{
+			Content: []Content{TextContent(fmt.Sprintf("Schedule '%s' not found for routine '%s'", scheduleName, routineName))},
+			IsError: true,
+		}, nil
+	}
+
+	// Get the schedule details
+	schedule, err := s.storage.GetSchedule(scheduleID)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to get schedule: %w", err)
+	}
+
+	if schedule == nil {
+		return CallToolResult{
+			Content: []Content{TextContent(fmt.Sprintf("Schedule '%s' not found", scheduleName))},
+			IsError: true,
+		}, nil
+	}
+
+	// Format schedule details
+	status := "disabled"
+	if schedule.Enabled {
+		status = "enabled"
+	}
+
+	result := fmt.Sprintf("**Schedule: %s** (%s)\n\n", schedule.Name, status)
+	result += fmt.Sprintf("**Routine:** %s\n", routineName)
+	result += fmt.Sprintf("**RRule:** %s\n", schedule.RRule)
+
+	if schedule.DTStart != nil {
+		result += fmt.Sprintf("**Start Time:** %s\n", schedule.DTStart.Format("2006-01-02 15:04:05"))
+	}
+
+	if len(schedule.ExDates) > 0 {
+		result += fmt.Sprintf("**Exclusion Dates:** %s\n", strings.Join(schedule.ExDates, ", "))
+	}
+
+	if schedule.Notes != "" {
+		result += fmt.Sprintf("**Notes:** %s\n", schedule.Notes)
+	}
+
+	if len(schedule.ActionIDs) > 0 {
+		result += fmt.Sprintf("**Action IDs:** %s\n", strings.Join(schedule.ActionIDs, ", "))
+	}
+
+	if schedule.LastExecution != nil {
+		result += fmt.Sprintf("**Last Execution:** %s\n", schedule.LastExecution.Format("2006-01-02 15:04:05"))
+	}
+
+	result += fmt.Sprintf("\n**Schedule ID:** %s\n", schedule.ScheduleID)
+	result += fmt.Sprintf("**Created:** %s\n", schedule.CreatedAt.Format("2006-01-02 15:04:05"))
+	result += fmt.Sprintf("**Updated:** %s\n", schedule.UpdatedAt.Format("2006-01-02 15:04:05"))
+
+	return CallToolResult{
+		Content: []Content{TextContent(result)},
+	}, nil
+}
+
+// toolUpdateSchedule updates an existing schedule
+func (s *Server) toolUpdateSchedule(ctx context.Context, args map[string]interface{}) (CallToolResult, error) {
+	routineName, ok := args["routine_name"].(string)
+	if !ok || routineName == "" {
+		return CallToolResult{}, fmt.Errorf("routine_name is required")
+	}
+
+	scheduleName, ok := args["schedule_name"].(string)
+	if !ok || scheduleName == "" {
+		return CallToolResult{}, fmt.Errorf("schedule_name is required")
+	}
+
+	// Find routine by name
+	routines, err := s.storage.ListRoutines(s.profileID, false)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to list routines: %w", err)
+	}
+
+	var routineID string
+	for _, r := range routines {
+		if r.Name == routineName {
+			routineID = r.ID
+			break
+		}
+	}
+
+	if routineID == "" {
+		return CallToolResult{
+			Content: []Content{TextContent(fmt.Sprintf("Routine '%s' not found", routineName))},
+			IsError: true,
+		}, nil
+	}
+
+	// Find schedule by name within the routine
+	schedules, err := s.storage.ListSchedulesByRoutine(routineID)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to list schedules: %w", err)
+	}
+
+	var scheduleID string
+	for _, sched := range schedules {
+		if sched.Name == scheduleName {
+			scheduleID = sched.ScheduleID
+			break
+		}
+	}
+
+	if scheduleID == "" {
+		return CallToolResult{
+			Content: []Content{TextContent(fmt.Sprintf("Schedule '%s' not found for routine '%s'", scheduleName, routineName))},
+			IsError: true,
+		}, nil
+	}
+
+	// Get the existing schedule
+	schedule, err := s.storage.GetSchedule(scheduleID)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to get schedule: %w", err)
+	}
+
+	if schedule == nil {
+		return CallToolResult{
+			Content: []Content{TextContent(fmt.Sprintf("Schedule '%s' not found", scheduleName))},
+			IsError: true,
+		}, nil
+	}
+
+	// Track what was updated for the response
+	updates := []string{}
+
+	// Update name if provided
+	if newName, ok := args["new_name"].(string); ok && newName != "" {
+		schedule.Name = newName
+		updates = append(updates, fmt.Sprintf("name to '%s'", newName))
+	}
+
+	// Update RRule if provided
+	if rrule, ok := args["rrule"].(string); ok && rrule != "" {
+		schedule.RRule = rrule
+		updates = append(updates, "RRule")
+	}
+
+	// Update enabled status if provided
+	if enabled, ok := args["enabled"].(bool); ok {
+		schedule.Enabled = enabled
+		status := "disabled"
+		if enabled {
+			status = "enabled"
+		}
+		updates = append(updates, fmt.Sprintf("status to %s", status))
+	}
+
+	// Update notes if provided
+	if notes, ok := args["notes"].(string); ok {
+		schedule.Notes = notes
+		updates = append(updates, "notes")
+	}
+
+	// Update dtstart if provided
+	if dtstart, ok := args["dtstart"].(string); ok && dtstart != "" {
+		parsed, err := time.Parse(time.RFC3339, dtstart)
+		if err != nil {
+			return CallToolResult{
+				Content: []Content{TextContent(fmt.Sprintf("Invalid dtstart format. Must be RFC3339 (ISO 8601): %v", err))},
+				IsError: true,
+			}, nil
+		}
+		schedule.DTStart = &parsed
+		updates = append(updates, "start time")
+	}
+
+	// Update exdates if provided
+	if exdates, ok := args["exdates"].([]interface{}); ok {
+		strExdates := make([]string, 0, len(exdates))
+		for _, ed := range exdates {
+			if s, ok := ed.(string); ok {
+				strExdates = append(strExdates, s)
+			}
+		}
+		schedule.ExDates = strExdates
+		updates = append(updates, "exclusion dates")
+	}
+
+	// Save the updated schedule
+	updatedSchedule, err := s.storage.UpdateSchedule(schedule)
+	if err != nil {
+		return CallToolResult{}, fmt.Errorf("failed to update schedule: %w", err)
+	}
+
+	// Format result message
+	result := fmt.Sprintf("✓ Updated schedule '%s' for routine '%s'\n\n", scheduleName, routineName)
+	if len(updates) > 0 {
+		result += fmt.Sprintf("**Changes made:** %s\n\n", strings.Join(updates, ", "))
+	}
+
+	result += fmt.Sprintf("**Current settings:**\n")
+	result += fmt.Sprintf("- Name: %s\n", updatedSchedule.Name)
+	result += fmt.Sprintf("- RRule: %s\n", updatedSchedule.RRule)
+	result += fmt.Sprintf("- Enabled: %t\n", updatedSchedule.Enabled)
+	if updatedSchedule.Notes != "" {
+		result += fmt.Sprintf("- Notes: %s\n", updatedSchedule.Notes)
+	}
 
 	return CallToolResult{
 		Content: []Content{TextContent(result)},
