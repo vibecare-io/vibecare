@@ -475,14 +475,14 @@ struct RoutineDetailView: View {
         .onAppear {
             if let routine = routine {
                 Task {
-                    await scheduleViewModel.loadSchedules(for: routine.id)
+                    await scheduleViewModel.loadSchedules(forRoutine: routine.id)
                 }
             }
         }
         .onChange(of: routine?.id) { oldValue, newValue in
             if let routineId = newValue {
                 Task {
-                    await scheduleViewModel.loadSchedules(for: routineId)
+                    await scheduleViewModel.loadSchedules(forRoutine: routineId)
                 }
             }
         }

@@ -161,10 +161,31 @@ class ScheduleService: @unchecked Sendable {
                 lastExecution: schedule.hasLastExecution ? schedule.lastExecution.date : nil,
                 notes: schedule.notes,
                 enabled: schedule.enabled,
+                actionIDs: schedule.actionIds,
                 createdAt: schedule.createdAt.date,
                 updatedAt: schedule.updatedAt.date
             )
         }
+    }
+
+    nonisolated func listAllSchedules(for profileId: String) async throws -> [Schedule] {
+        logger.info("Listing all schedules for profile: \(profileId)")
+
+        // First, get all routines for the profile
+        let routineService = RoutineService()
+        let routines = try await routineService.listRoutines(for: profileId)
+
+        logger.info("Found \(routines.count) routines for profile: \(profileId)")
+
+        // Then, aggregate all schedules from all routines
+        var allSchedules: [Schedule] = []
+        for routine in routines {
+            let schedules = try await listSchedules(for: routine.id)
+            allSchedules.append(contentsOf: schedules)
+        }
+
+        logger.info("Listed \(allSchedules.count) total schedules for profile: \(profileId)")
+        return allSchedules
     }
 
     // MARK: - Schedule Operations

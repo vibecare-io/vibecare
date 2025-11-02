@@ -423,8 +423,7 @@ public struct Dashboard: View {
 
     Task {
       await routineViewModel.loadRoutines(for: profile.id)
-      // Note: scheduleViewModel.loadSchedules requires a routineId, not profileId
-      // If you need to load all schedules across all routines, implement a different method
+      await scheduleViewModel.loadSchedules(for: profile.id)
       await actionViewModel.loadActions(for: profile.id)
     }
   }

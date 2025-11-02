@@ -1,5 +1,6 @@
 import SwiftUI
 import Logging
+import Combine
 
 @MainActor
 class ScheduleViewModel: ObservableObject {
@@ -10,18 +11,44 @@ class ScheduleViewModel: ObservableObject {
     private let logger = Logger(label: "com.vibecare.schedule-viewmodel")
     private let scheduleService = ScheduleService()
     private let actionService = ActionService()
+    private var cancellables = Set<AnyCancellable>()
 
     // Current routine context
     private var currentRoutineId: String?
 
     init() {
-        // Nothing to initialize
+        // Listen for profile changes
+        NotificationCenter.default.publisher(for: .profileChanged)
+            .compactMap { $0.object as? Profile }
+            .sink { [weak self] profile in
+                Task { [weak self] in
+                    await self?.loadSchedules(for: profile.id)
+                }
+            }
+            .store(in: &cancellables)
     }
 
 
     // MARK: - Data Loading
 
-    func loadSchedules(for routineId: String) async {
+    func loadSchedules(for profileId: String) async {
+        isLoading = true
+        errorMessage = nil
+
+        do {
+            schedules = try await scheduleService.listAllSchedules(for: profileId)
+            logger.info("Loaded \(schedules.count) schedules for profile \(profileId)")
+        } catch {
+            logger.error("Failed to load schedules: \(error)")
+            errorMessage = "Failed to load schedules: \(error.localizedDescription)"
+            schedules = []
+        }
+
+        isLoading = false
+    }
+
+    // Load schedules for a specific routine (Routine detail view)
+    func loadSchedules(forRoutine routineId: String) async {
         currentRoutineId = routineId
         isLoading = true
         defer { isLoading = false }
@@ -36,9 +63,14 @@ class ScheduleViewModel: ObservableObject {
         }
     }
 
+    // Deprecated: Use loadSchedules(forRoutine:) instead
+    func loadSchedulesForRoutine(_ routineId: String) async {
+        await loadSchedules(forRoutine: routineId)
+    }
+
     func refreshData() async {
-        guard let routineId = currentRoutineId else { return }
-        await loadSchedules(for: routineId)
+        guard let currentProfile = AppState.shared.currentProfile else { return }
+        await loadSchedules(for: currentProfile.id)
     }
 
     func manualRefresh() async {

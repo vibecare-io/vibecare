@@ -2,7 +2,7 @@ import Foundation
 import Logging
 import VCStubs
 
-class ActionService: @unchecked Sendable {
+class ActionService: ObservableObject, @unchecked Sendable {
     private let logger = Logger(label: "com.vibecare.action-service")
 
     init() {

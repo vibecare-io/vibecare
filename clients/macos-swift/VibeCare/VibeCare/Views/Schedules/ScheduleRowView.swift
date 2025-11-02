@@ -10,6 +10,9 @@ struct ScheduleRowView: View {
     let onDuplicate: () -> Void
     let onTest: () -> Void
 
+    // Optional routine name for context (passed from parent)
+    var routineName: String?
+
     init(
         schedule: Schedule,
         isSelected: Bool,
@@ -18,7 +21,8 @@ struct ScheduleRowView: View {
         onToggleEnabled: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         onDuplicate: @escaping () -> Void,
-        onTest: @escaping () -> Void
+        onTest: @escaping () -> Void,
+        routineName: String? = nil
     ) {
         self.schedule = schedule
         self.isSelected = isSelected
@@ -28,15 +32,16 @@ struct ScheduleRowView: View {
         self.onDelete = onDelete
         self.onDuplicate = onDuplicate
         self.onTest = onTest
+        self.routineName = routineName
     }
 
     @State private var showActionMenu = false
 
     var body: some View {
         HStack(spacing: 12) {
-            // Status indicator
+            // Status indicator - color-coded based on schedule state
             Circle()
-                .fill(schedule.enabled ? .green : .orange)
+                .fill(statusColor)
                 .frame(width: 8, height: 8)
 
             VStack(alignment: .leading, spacing: 4) {
@@ -49,45 +54,70 @@ struct ScheduleRowView: View {
 
                     Spacer()
 
-                    // Routine context tag
-                    Text("Routine: \(routineDisplayName)")
-                        .font(.caption)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.accentColor.opacity(0.1))
-                        .foregroundColor(.accentColor)
-                        .clipShape(Capsule())
+                    // Routine context tag - shows parent routine
+                    HStack(spacing: 4) {
+                        Image(systemName: "list.bullet.circle.fill")
+                            .font(.caption2)
+                        Text(routineDisplayName)
+                            .font(.caption)
+                    }
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.1))
+                    .foregroundColor(.accentColor)
+                    .clipShape(Capsule())
                 }
 
-                // Recurrence description
+                // RRule summary - human-readable description
+                if let rruleDescription = schedule.parsedRRule?.humanReadableDescription {
+                    HStack(spacing: 4) {
+                        Image(systemName: "repeat.circle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                        Text(rruleDescription)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                            .lineLimit(1)
+                    }
+                }
+
+                // Notes (if available)
                 if !schedule.notes.isEmpty {
                     Text(schedule.notes)
                         .font(.caption)
                         .foregroundColor(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
                 }
 
-                // Schedule details and execution info
+                // Schedule metadata and next execution
                 HStack {
-                    Label(schedule.displayName, systemImage: "calendar")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Spacer()
-
-                    if let nextExecution = schedule.nextExecution {
-                        Text("Next: \(nextExecution, style: .relative)")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    } else {
-                        Text("No upcoming execution")
+                    // Action count
+                    if !schedule.actionIDs.isEmpty {
+                        Label("\(schedule.actionIDs.count) action\(schedule.actionIDs.count != 1 ? "s" : "")",
+                              systemImage: "bolt.circle.fill")
                             .font(.caption)
                             .foregroundColor(.secondary)
                     }
+
+                    // Priority indicator
+                    if schedule.priority != .none {
+                        HStack(spacing: 2) {
+                            Image(systemName: "flag.fill")
+                                .font(.caption2)
+                            Text(schedule.priority.displayName)
+                                .font(.caption)
+                        }
+                        .foregroundColor(priorityColor)
+                    }
+
+                    Spacer()
+
+                    // Next run preview
+                    nextRunView
                 }
             }
 
-            // Action buttons (visible on hover or selection)
+            // Hover actions (visible on hover or selection)
             if isHovered || isSelected {
                 HStack(spacing: 4) {
                     Button {
@@ -147,14 +177,93 @@ struct ScheduleRowView: View {
         .animation(.easeInOut(duration: 0.2), value: isSelected)
     }
 
+    // MARK: - Subviews
+
+    private var nextRunView: some View {
+        Group {
+            if !schedule.enabled {
+                HStack(spacing: 4) {
+                    Image(systemName: "pause.circle.fill")
+                        .font(.caption2)
+                    Text("Paused")
+                        .font(.caption)
+                }
+                .foregroundColor(.orange)
+            } else if let nextExecution = schedule.nextExecution {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.fill")
+                        .font(.caption2)
+                    Text("Next: \(nextExecution, style: .relative)")
+                        .font(.caption)
+                }
+                .foregroundColor(nextRunColor(for: nextExecution))
+            } else {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.caption2)
+                    Text("No upcoming run")
+                        .font(.caption)
+                }
+                .foregroundColor(.secondary)
+            }
+        }
+    }
+
     // MARK: - Helper Properties
 
     private var routineDisplayName: String {
-        // TODO: Get actual routine name from routine ID
-        // For now, return a truncated routine ID
+        if let routineName = routineName, !routineName.isEmpty {
+            return routineName
+        }
+        // Fallback to truncated routine ID
         return String(schedule.routineId.prefix(8))
     }
 
+    private var statusColor: Color {
+        if !schedule.enabled {
+            return .gray
+        }
+
+        guard let nextRun = schedule.nextExecution else {
+            return .gray
+        }
+
+        let now = Date()
+        let timeInterval = nextRun.timeIntervalSince(now)
+
+        if timeInterval < 0 {
+            // Overdue
+            return .red
+        } else if timeInterval < 3600 {
+            // Upcoming (within 1 hour)
+            return .orange
+        } else {
+            // Scheduled normally
+            return .green
+        }
+    }
+
+    private var priorityColor: Color {
+        switch schedule.priority {
+        case .none: return .secondary
+        case .low: return .green
+        case .medium: return .orange
+        case .high: return .red
+        }
+    }
+
+    private func nextRunColor(for date: Date) -> Color {
+        let now = Date()
+        let timeInterval = date.timeIntervalSince(now)
+
+        if timeInterval < 0 {
+            return .red // Overdue
+        } else if timeInterval < 3600 {
+            return .orange // Within next hour
+        } else {
+            return .secondary // Normal
+        }
+    }
 }
 
 // MARK: - Simplified Schedule Row for Lists
@@ -164,17 +273,20 @@ struct ScheduleRowSimpleView: View {
     let onToggle: (() -> Void)?
     let onEdit: (() -> Void)?
     let onDelete: (() -> Void)?
+    var routineName: String?
 
     init(
         schedule: Schedule,
         onToggle: (() -> Void)? = nil,
         onEdit: (() -> Void)? = nil,
-        onDelete: (() -> Void)? = nil
+        onDelete: (() -> Void)? = nil,
+        routineName: String? = nil
     ) {
         self.schedule = schedule
         self.onToggle = onToggle
         self.onEdit = onEdit
         self.onDelete = onDelete
+        self.routineName = routineName
     }
 
     @State private var isHovered = false
@@ -183,22 +295,43 @@ struct ScheduleRowSimpleView: View {
         HStack(spacing: 12) {
             // Status indicator
             Circle()
-                .fill(schedule.enabled ? .green : .orange)
+                .fill(statusColor)
                 .frame(width: 8, height: 8)
 
             VStack(alignment: .leading, spacing: 2) {
+                // Title
                 Text(schedule.name)
                     .font(.subheadline)
                     .fontWeight(.medium)
 
-                Text(schedule.displayName)
-                    .font(.caption)
+                // RRule summary
+                if let rruleDescription = schedule.parsedRRule?.humanReadableDescription {
+                    HStack(spacing: 4) {
+                        Image(systemName: "repeat.circle.fill")
+                            .font(.caption2)
+                        Text(rruleDescription)
+                            .font(.caption)
+                    }
                     .foregroundColor(.secondary)
+                }
 
-                if let nextExecution = schedule.nextExecution {
-                    Text("Next: \(nextExecution, style: .relative)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                // Next execution
+                if schedule.enabled, let nextExecution = schedule.nextExecution {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock.fill")
+                            .font(.caption2)
+                        Text("Next: \(nextExecution, style: .relative)")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.secondary)
+                } else if !schedule.enabled {
+                    HStack(spacing: 4) {
+                        Image(systemName: "pause.circle.fill")
+                            .font(.caption2)
+                        Text("Paused")
+                            .font(.caption)
+                    }
+                    .foregroundColor(.orange)
                 }
             }
 
@@ -268,6 +401,29 @@ struct ScheduleRowSimpleView: View {
             }
         }
     }
+
+    // MARK: - Helper Properties
+
+    private var statusColor: Color {
+        if !schedule.enabled {
+            return .gray
+        }
+
+        guard let nextRun = schedule.nextExecution else {
+            return .gray
+        }
+
+        let now = Date()
+        let timeInterval = nextRun.timeIntervalSince(now)
+
+        if timeInterval < 0 {
+            return .red
+        } else if timeInterval < 3600 {
+            return .orange
+        } else {
+            return .green
+        }
+    }
 }
 
 // MARK: - Preview
@@ -282,7 +438,8 @@ struct ScheduleRowSimpleView: View {
             onToggleEnabled: {},
             onDelete: {},
             onDuplicate: {},
-            onTest: {}
+            onTest: {},
+            routineName: "Morning Routine"
         )
 
         ScheduleRowView(
@@ -293,16 +450,35 @@ struct ScheduleRowSimpleView: View {
             onToggleEnabled: {},
             onDelete: {},
             onDuplicate: {},
-            onTest: {}
+            onTest: {},
+            routineName: "Evening Routine"
+        )
+
+        // Disabled schedule
+        ScheduleRowView(
+            schedule: {
+                var s = Schedule.example(routineId: "preview-routine")
+                s.enabled = false
+                return s
+            }(),
+            isSelected: false,
+            isHovered: false,
+            onSelect: {},
+            onToggleEnabled: {},
+            onDelete: {},
+            onDuplicate: {},
+            onTest: {},
+            routineName: "Afternoon Routine"
         )
 
         ScheduleRowSimpleView(
             schedule: Schedule.example(routineId: "preview-routine"),
             onToggle: {},
             onEdit: {},
-            onDelete: {}
+            onDelete: {},
+            routineName: "Test Routine"
         )
     }
     .padding()
-    .frame(width: 400)
+    .frame(width: 500)
 }
