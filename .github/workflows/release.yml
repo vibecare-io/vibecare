@@ -455,6 +455,7 @@ jobs:
           # Sign the package with Developer ID Installer certificate
           productsign --sign "$INSTALLER_IDENTITY" \
             --timestamp \
+            --verbose \
             "build/VibeCare-component.pkg" \
             "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg"
 
