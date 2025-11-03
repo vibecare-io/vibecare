@@ -173,17 +173,16 @@ jobs:
       - name: Set up Swift
         uses: swift-actions/setup-swift@v2
 
-      - name: Cache Swift dependencies
+      - name: Cache Swift build
         uses: actions/cache@v4
         with:
           path: |
             clients/macos-swift/VibeCare/.build
             ~/Library/Caches/org.swift.swiftpm
             ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-swift-build-${{ hashFiles('clients/macos-swift/VibeCare/**/*.swift', 'clients/macos-swift/VibeCare/Package.resolved') }}
+          key: ${{ runner.os }}-swift-build-${{ hashFiles('clients/macos-swift/VibeCare/Package.resolved') }}
           restore-keys: |
             ${{ runner.os }}-swift-build-
-            ${{ runner.os }}-swift-
 
       - name: Cache Homebrew
         uses: actions/cache@v4
@@ -195,9 +194,6 @@ jobs:
           key: ${{ runner.os }}-brew-${{ hashFiles('scripts/generate_proto.sh') }}
           restore-keys: |
             ${{ runner.os }}-brew-
-
-      # - name: Install just
-      #   uses: extractions/setup-just@v3
 
       - name: Install Protoc
         uses: arduino/setup-protoc@v3
