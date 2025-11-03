@@ -1,0 +1,46 @@
+name: Setup Swift Client Environment
+description: Setup Swift, install dependencies, and generate protobuf
+inputs:
+  proto-target:
+    description: Protobuf generation target
+    required: false
+    default: 'client-macos'
+runs:
+  using: composite
+  steps:
+    - name: Set up Swift
+      uses: swift-actions/setup-swift@v2
+
+    - name: Cache Swift build
+      uses: actions/cache@v4
+      with:
+        path: |
+          clients/macos-swift/VibeCare/.build
+          ~/Library/Caches/org.swift.swiftpm
+          ~/Library/Developer/Xcode/DerivedData
+        key: ${{ runner.os }}-swift-build-${{ hashFiles('clients/macos-swift/VibeCare/Package.resolved') }}
+        restore-keys: |
+          ${{ runner.os }}-swift-build-
+
+    - name: Cache Homebrew
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/Library/Caches/Homebrew
+          /opt/homebrew/Cellar/swift-protobuf
+          /opt/homebrew/Cellar/grpc-swift
+        key: ${{ runner.os }}-brew-${{ hashFiles('scripts/generate_proto.sh') }}
+        restore-keys: |
+          ${{ runner.os }}-brew-
+
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ github.token }}
+        version: "23.x"
+
+    - name: Generate protobuf
+      shell: bash
+      run: |
+        chmod +x scripts/generate_proto.sh
+        ./scripts/generate_proto.sh -t ${{ inputs.proto-target }}

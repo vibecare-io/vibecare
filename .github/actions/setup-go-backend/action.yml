@@ -1,0 +1,58 @@
+name: Setup Go Backend Environment
+description: Setup Go, install dependencies, and generate protobuf
+inputs:
+  go-version:
+    description: Go version to use
+    required: true
+    default: '1.24'
+  proto-target:
+    description: Protobuf generation target
+    required: false
+    default: 'backend'
+runs:
+  using: composite
+  steps:
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: ${{ inputs.go-version }}
+        cache: false
+
+    - name: Cache Go modules
+      uses: actions/cache@v4
+      with:
+        path: |
+          ~/go/pkg/mod
+          ~/.cache/go-build
+        key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
+        restore-keys: |
+          ${{ runner.os }}-go-
+
+    - name: Install Protoc
+      uses: arduino/setup-protoc@v3
+      with:
+        repo-token: ${{ github.token }}
+        version: "23.x"
+
+    - name: Configure CGO SDK path
+      shell: bash
+      run: |
+        SDK_PATH=$(xcrun --show-sdk-path)
+        echo "Detected SDK Path: $SDK_PATH"
+        echo "CGO_CFLAGS=-isysroot $SDK_PATH" >> $GITHUB_ENV
+        echo "CGO_LDFLAGS=-isysroot $SDK_PATH" >> $GITHUB_ENV
+        echo "CGO_ENABLED=1" >> $GITHUB_ENV
+
+    - name: Install Go dependencies
+      shell: bash
+      run: |
+        cd backend
+        go mod download
+        go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
+        go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
+
+    - name: Generate protobuf
+      shell: bash
+      run: |
+        chmod +x scripts/generate_proto.sh
+        ./scripts/generate_proto.sh -t ${{ inputs.proto-target }}

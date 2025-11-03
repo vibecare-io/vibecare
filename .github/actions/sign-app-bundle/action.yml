@@ -1,0 +1,49 @@
+name: Sign App Bundle
+description: Sign an app bundle with Developer ID Application certificate and entitlements
+inputs:
+  bundle-path:
+    description: Path to app bundle to sign
+    required: true
+  entitlements-path:
+    description: Path to entitlements file
+    required: true
+  identity:
+    description: Signing identity (SHA-1 hash)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Sign app bundle
+      shell: bash
+      env:
+        BUNDLE_PATH: ${{ inputs.bundle-path }}
+        ENTITLEMENTS_PATH: ${{ inputs.entitlements-path }}
+        IDENTITY: ${{ inputs.identity }}
+      run: |
+        if [ -z "$IDENTITY" ]; then
+          echo "Error: No signing identity provided"
+          exit 1
+        fi
+
+        echo "Signing app bundle: $BUNDLE_PATH with identity: $IDENTITY"
+
+        # Sign the app bundle with hardened runtime, entitlements, and deep signing
+        /usr/bin/codesign --force --sign "$IDENTITY" \
+          --entitlements "$ENTITLEMENTS_PATH" \
+          --options runtime \
+          --timestamp \
+          --deep \
+          --verbose \
+          "$BUNDLE_PATH"
+
+        # Verify signature
+        codesign --verify --deep --strict --verbose=2 "$BUNDLE_PATH"
+
+        # Verify with spctl (simulates Gatekeeper)
+        if spctl --assess --type execute --verbose "$BUNDLE_PATH" 2>&1; then
+          echo "✓ Gatekeeper assessment passed"
+        else
+          echo "⚠ Gatekeeper assessment failed (may be normal in CI)"
+        fi
+
+        echo "✓ App bundle signed successfully"

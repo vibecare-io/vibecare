@@ -12,7 +12,6 @@ on:
 
 env:
   GO_VERSION: '1.24'
-  #SWIFT_VERSION: '6.1.0'
 
 jobs:
   build-backend:
@@ -25,133 +24,38 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
+      - name: Get version
+        id: version
+        uses: ./.github/actions/setup-version
+        with:
+          event-name: ${{ github.event_name }}
+          manual-version: ${{ github.event.inputs.version }}
+
+      - name: Setup Go backend environment
+        uses: ./.github/actions/setup-go-backend
         with:
           go-version: ${{ env.GO_VERSION }}
-          cache: false  # We'll use our own cache strategy
 
-      - name: Cache Go modules
-        uses: actions/cache@v4
+      - name: Import certificates
+        id: certs
+        uses: ./.github/actions/import-certificates
         with:
-          path: |
-            ~/go/pkg/mod
-            ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
-          restore-keys: |
-            ${{ runner.os }}-go-
+          certificate-app-base64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
+          certificate-password: ${{ secrets.APPLE_CERT_PASSWORD }}
 
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          version: "23.x"
-
-      - name: Get version
-        id: get_version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
-
-      - name: Configure CGO SDK path
-        run: |
-          SDK_PATH=$(xcrun --show-sdk-path)
-          echo "Detected SDK Path: $SDK_PATH"
-          echo "CGO_CFLAGS=-isysroot $SDK_PATH" >> $GITHUB_ENV
-          echo "CGO_LDFLAGS=-isysroot $SDK_PATH" >> $GITHUB_ENV
-          echo "CGO_ENABLED=1" >> $GITHUB_ENV
-        shell: bash
-
-      - name: Install Go dependencies
+      - name: Build universal binary
         run: |
           cd backend
-          go mod download
-          go install google.golang.org/protobuf/cmd/protoc-gen-go@latest
-          go install google.golang.org/grpc/cmd/protoc-gen-go-grpc@latest
-
-      - name: Generate protobuf (backend only)
-        run: |
-          chmod +x scripts/generate_proto.sh
-          ./scripts/generate_proto.sh -t backend
-
-      - name: Import Code Signing Certificates
-        env:
-          APPLE_CERT_APP_BASE64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
-          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
-        run: |
-          # Create temporary keychain
-          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Import Developer ID Application certificate
-          echo "$APPLE_CERT_APP_BASE64" | base64 --decode > cert_app.p12
-
-          security import cert_app.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Make it the default keychain for this session
-          security list-keychain -d user -s "$KEYCHAIN_PATH" "login.keychain"
-          security default-keychain -s "$KEYCHAIN_PATH"
-
-          # Verify import
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-
-          # Clean up certificate file
-          rm cert_app.p12
-
-      - name: Build backend binary
-        env:
-          VERSION: ${{ steps.get_version.outputs.VERSION }}
-        run: |
-          cd backend
-          # Build universal binary
-          GOOS=darwin GOARCH=arm64 CGO_ENABLED=1 go build \
-            -ldflags "-X main.version=${{ steps.get_version.outputs.VERSION }}" \
-            -o ../vibecare-server-arm64 \
-            cmd/server/main.go
-
-          GOOS=darwin GOARCH=amd64 CGO_ENABLED=1 go build \
-            -ldflags "-X main.version=${{ steps.get_version.outputs.VERSION }}" \
-            -o ../vibecare-server-amd64 \
-            cmd/server/main.go
-
-          # Create universal binary
-          cd ..
-          lipo -create -output vibecare-server vibecare-server-arm64 vibecare-server-amd64
-          chmod +x vibecare-server
-          rm vibecare-server-arm64 vibecare-server-amd64
+          ./../.github/scripts/build-universal-binary.sh \
+            "${{ steps.version.outputs.version }}" \
+            "../vibecare-server" \
+            "cmd/server/main.go"
 
       - name: Sign backend binary
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          # Find the signing identity
-          IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk '{print $2}')
-
-          if [ -z "$IDENTITY" ]; then
-            echo "Error: No Developer ID Application identity found"
-            exit 1
-          fi
-
-          echo "Signing with identity: $IDENTITY"
-
-          # Sign the backend binary with hardened runtime
-          /usr/bin/codesign --force --sign "$IDENTITY" \
-            --options runtime \
-            --timestamp \
-            --verbose \
-            vibecare-server
-
-          # Verify signature
-          codesign --verify --deep --strict --verbose=2 vibecare-server
-          echo "Backend binary signed successfully"
+        uses: ./.github/actions/sign-binary
+        with:
+          binary-path: vibecare-server
+          identity: ${{ steps.certs.outputs.app-identity }}
 
       - name: Upload backend artifact
         uses: actions/upload-artifact@v4
@@ -170,160 +74,44 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Set up Swift
-        uses: swift-actions/setup-swift@v2
-
-      - name: Cache Swift build
-        uses: actions/cache@v4
-        with:
-          path: |
-            clients/macos-swift/VibeCare/.build
-            ~/Library/Caches/org.swift.swiftpm
-            ~/Library/Developer/Xcode/DerivedData
-          key: ${{ runner.os }}-swift-build-${{ hashFiles('clients/macos-swift/VibeCare/Package.resolved') }}
-          restore-keys: |
-            ${{ runner.os }}-swift-build-
-
-      - name: Cache Homebrew
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/Library/Caches/Homebrew
-            /opt/homebrew/Cellar/swift-protobuf
-            /opt/homebrew/Cellar/grpc-swift
-          key: ${{ runner.os }}-brew-${{ hashFiles('scripts/generate_proto.sh') }}
-          restore-keys: |
-            ${{ runner.os }}-brew-
-
-      - name: Install Protoc
-        uses: arduino/setup-protoc@v3
-        with:
-          repo-token: ${{ secrets.GITHUB_TOKEN }}
-          version: "23.x"
-
       - name: Get version
-        id: get_version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+        id: version
+        uses: ./.github/actions/setup-version
+        with:
+          event-name: ${{ github.event_name }}
+          manual-version: ${{ github.event.inputs.version }}
 
-      - name: Generate protobuf (Swift only)
-        run: |
-          chmod +x scripts/generate_proto.sh
-          ./scripts/generate_proto.sh -t client-macos
+      - name: Setup Swift client environment
+        uses: ./.github/actions/setup-swift-client
 
-      - name: Import Code Signing Certificates
-        env:
-          APPLE_CERT_APP_BASE64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
-          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
-        run: |
-          # Create temporary keychain
-          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Import Developer ID Application certificate
-          echo "$APPLE_CERT_APP_BASE64" | base64 --decode > cert_app.p12
-
-          security import cert_app.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Make it the default keychain for this session
-          security list-keychain -d user -s "$KEYCHAIN_PATH" "login.keychain"
-          security default-keychain -s "$KEYCHAIN_PATH"
-
-          # Verify import
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-
-          # Clean up certificate file
-          rm cert_app.p12
+      - name: Import certificates
+        id: certs
+        uses: ./.github/actions/import-certificates
+        with:
+          certificate-app-base64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
+          certificate-password: ${{ secrets.APPLE_CERT_PASSWORD }}
 
       - name: Build Swift client
         run: |
           cd clients/macos-swift/VibeCare
-          # Build only the executable product with explicit parallelization
-          swift build -c release \
-            --product VibeCare \
-            --jobs $(sysctl -n hw.ncpu)
+          swift build -c release --product VibeCare --jobs $(sysctl -n hw.ncpu)
           cp .build/release/VibeCare ../../../vibecare-client
           chmod +x ../../../vibecare-client
 
       - name: Create app bundle
-        env:
-          VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: |
-          APP_BUNDLE="VibeCare.app"
-          mkdir -p "${APP_BUNDLE}/Contents/MacOS"
-          mkdir -p "${APP_BUNDLE}/Contents/Resources"
-
-          cp vibecare-client "${APP_BUNDLE}/Contents/MacOS/VibeCare"
-
-          cat > "${APP_BUNDLE}/Contents/Info.plist" << EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleExecutable</key>
-              <string>VibeCare</string>
-              <key>CFBundleIdentifier</key>
-              <string>io.vibecare.app</string>
-              <key>CFBundleName</key>
-              <string>VibeCare</string>
-              <key>CFBundlePackageType</key>
-              <string>APPL</string>
-              <key>CFBundleShortVersionString</key>
-              <string>${{ steps.get_version.outputs.VERSION }}</string>
-              <key>CFBundleVersion</key>
-              <string>${{ steps.get_version.outputs.VERSION }}</string>
-              <key>LSMinimumSystemVersion</key>
-              <string>15.0</string>
-              <key>NSHighResolutionCapable</key>
-              <true/>
-              <key>LSUIElement</key>
-              <true/>
-          </dict>
-          </plist>
-          EOF
+          ./.github/scripts/create-app-bundle.sh \
+            "VibeCare" \
+            "vibecare-client" \
+            "${{ steps.version.outputs.version }}" \
+            "io.vibecare.app"
 
       - name: Sign app bundle
-        env:
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          APP_BUNDLE="VibeCare.app"
-          ENTITLEMENTS="clients/macos-swift/VibeCare/vibecare/vibecare.entitlements"
-
-          # Find the signing identity
-          IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk '{print $2}')
-
-          if [ -z "$IDENTITY" ]; then
-            echo "Error: No Developer ID Application identity found"
-            exit 1
-          fi
-
-          echo "Signing with identity: $IDENTITY"
-
-          # Sign the app bundle with hardened runtime, entitlements, and deep signing
-          /usr/bin/codesign --force --sign "$IDENTITY" \
-            --entitlements "$ENTITLEMENTS" \
-            --options runtime \
-            --timestamp \
-            --deep \
-            --verbose \
-            "$APP_BUNDLE"
-
-          # Verify signature
-          codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
-
-          # Verify with spctl (simulates Gatekeeper)
-          spctl --assess --type execute --verbose "$APP_BUNDLE" || true
-
-          echo "App bundle signed successfully"
+        uses: ./.github/actions/sign-app-bundle
+        with:
+          bundle-path: VibeCare.app
+          entitlements-path: clients/macos-swift/VibeCare/vibecare/vibecare.entitlements
+          identity: ${{ steps.certs.outputs.app-identity }}
 
       - name: Upload client artifact
         uses: actions/upload-artifact@v4
@@ -346,13 +134,11 @@ jobs:
           fetch-depth: 0
 
       - name: Get version
-        id: get_version
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "VERSION=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
-          else
-            echo "VERSION=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
-          fi
+        id: version
+        uses: ./.github/actions/setup-version
+        with:
+          event-name: ${{ github.event_name }}
+          manual-version: ${{ github.event.inputs.version }}
 
       - name: Download backend artifact
         uses: actions/download-artifact@v4
@@ -366,253 +152,73 @@ jobs:
           name: macos-client-app
           path: dist/VibeCare.app/
 
-      - name: Import Code Signing Certificates
-        env:
-          APPLE_CERT_APP_BASE64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
-          APPLE_CERT_INSTALLER_BASE64: ${{ secrets.APPLE_CERTIFICATE_INSTALLER_BASE64 }}
-          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
-        run: |
-          # Create temporary keychain
-          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
-          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
-
-          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
-          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Import both certificates
-          echo "$APPLE_CERT_APP_BASE64" | base64 --decode > cert_app.p12
-          echo "$APPLE_CERT_INSTALLER_BASE64" | base64 --decode > cert_installer.p12
-
-          security import cert_app.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          security import cert_installer.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/productsign -T /usr/bin/productbuild -T /usr/bin/security
-
-          security set-key-partition-list -S apple-tool:,apple:,codesign:,productsign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
-
-          # Make it the default keychain for this session
-          security list-keychain -d user -s "$KEYCHAIN_PATH" "login.keychain"
-          security default-keychain -s "$KEYCHAIN_PATH"
-
-          # Verify imports
-          echo "Available signing identities:"
-          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
-
-          # Clean up certificate files
-          rm cert_app.p12 cert_installer.p12
+      - name: Import certificates
+        id: certs
+        uses: ./.github/actions/import-certificates
+        with:
+          certificate-app-base64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
+          certificate-installer-base64: ${{ secrets.APPLE_CERTIFICATE_INSTALLER_BASE64 }}
+          certificate-password: ${{ secrets.APPLE_CERT_PASSWORD }}
 
       - name: Create tarball
-        env:
-          VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: |
           mkdir -p build
           cd dist
-          tar -czf ../build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz \
+          tar -czf ../build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz \
             vibecare-server VibeCare.app
           cd ..
-          shasum -a 256 build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz \
-            > build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz.sha256
+          shasum -a 256 build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz \
+            > build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz.sha256
 
       - name: Create and sign PKG installer
-        env:
-          VERSION: ${{ steps.get_version.outputs.VERSION }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          PKG_ROOT="build/pkg-root"
-          PKG_SCRIPTS="build/pkg-scripts"
-
-          mkdir -p "${PKG_ROOT}/usr/local/bin"
-          mkdir -p "${PKG_ROOT}/Applications"
-          mkdir -p "${PKG_ROOT}/tmp/vibecare-install"
-          mkdir -p "${PKG_SCRIPTS}"
-
-          cp dist/vibecare-server "${PKG_ROOT}/usr/local/bin/"
-          chmod +x "${PKG_ROOT}/usr/local/bin/vibecare-server"
-
-          cp -R dist/VibeCare.app "${PKG_ROOT}/Applications/"
-
-          cp scripts/io.vibecare.server.plist "${PKG_ROOT}/tmp/vibecare-install/"
-          cp scripts/postinstall "${PKG_SCRIPTS}/postinstall"
-          chmod +x "${PKG_SCRIPTS}/postinstall"
-
-          # Create unsigned component package
-          pkgbuild \
-            --root "${PKG_ROOT}" \
-            --scripts "${PKG_SCRIPTS}" \
-            --identifier "io.vibecare.app" \
-            --version "${{ steps.get_version.outputs.VERSION }}" \
-            --install-location "/" \
-            "build/VibeCare-component.pkg"
-
-          # Find the Developer ID Installer identity
-          INSTALLER_IDENTITY=$(security find-identity -v | grep "Developer ID Installer" | head -1 | awk '{print $2}')
-
-          if [ -z "$INSTALLER_IDENTITY" ]; then
-            echo "Error: No Developer ID Installer identity found"
-            exit 1
-          fi
-
-          echo "Signing PKG with identity: $INSTALLER_IDENTITY"
-
-          # Sign the package with Developer ID Installer certificate
-          productsign --sign "$INSTALLER_IDENTITY" \
-            --timestamp \
-            "build/VibeCare-component.pkg" \
-            "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg"
-
-          # Verify PKG signature
-          pkgutil --check-signature "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg"
-
-          # Clean up component package
-          rm "build/VibeCare-component.pkg"
-
-          shasum -a 256 "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg" \
-            > "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg.sha256"
+          ./.github/scripts/create-pkg-installer.sh \
+            "${{ steps.version.outputs.version }}" \
+            "${{ steps.certs.outputs.installer-identity }}" \
+            "dist/vibecare-server" \
+            "dist/VibeCare.app"
 
       - name: Notarize PKG
-        env:
-          VERSION: ${{ steps.get_version.outputs.VERSION }}
-          APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
-          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          PKG_PATH="build/VibeCare-${VERSION}.pkg"
-
-          echo "Submitting PKG for notarization..."
-
-          # Submit for notarization
-          xcrun notarytool submit "$PKG_PATH" \
-            --apple-id "$APPLE_DEVELOPER_ID" \
-            --password "$APPLE_APP_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait \
-            --timeout 30m
-
-          echo "Notarization completed. Stapling ticket..."
-
-          # Staple the notarization ticket
-          xcrun stapler staple "$PKG_PATH"
-
-          # Verify stapling
-          echo "Verifying notarization stapling..."
-          xcrun stapler validate "$PKG_PATH"
-
-          # Final Gatekeeper check
-          echo "Running Gatekeeper assessment..."
-          spctl --assess --type install --verbose "$PKG_PATH" || {
-            echo "Warning: Gatekeeper assessment failed, but continuing..."
-            echo "This may be normal in CI environment"
-          }
-
-          echo "Notarization and stapling completed successfully"
+          ./.github/scripts/notarize-pkg.sh \
+            "build/VibeCare-${{ steps.version.outputs.version }}.pkg" \
+            "${{ secrets.APPLE_DEVELOPER_ID }}" \
+            "${{ secrets.APPLE_APP_PASSWORD }}" \
+            "${{ secrets.APPLE_TEAM_ID }}"
 
       - name: Verify all signatures
-        env:
-          VERSION: ${{ steps.get_version.outputs.VERSION }}
         run: |
-          echo "=== Verifying all signatures ==="
-
-          echo "1. Backend binary signature:"
-          codesign --verify --deep --strict --verbose=2 dist/vibecare-server || {
-            echo "Backend binary signature verification failed"
-            exit 1
-          }
-
-          echo "2. App bundle signature:"
-          codesign --verify --deep --strict --verbose=2 dist/VibeCare.app || {
-            echo "App bundle signature verification failed"
-            exit 1
-          }
-
-          echo "3. PKG signature:"
-          pkgutil --check-signature "build/VibeCare-${VERSION}.pkg" || {
-            echo "PKG signature verification failed"
-            exit 1
-          }
-
-          echo "4. Gatekeeper assessment (PKG):"
-          spctl --assess --type install --verbose "build/VibeCare-${VERSION}.pkg" || {
-            echo "Note: Gatekeeper assessment may fail in CI but succeed on user systems"
-          }
-
-          echo "All signature verifications completed successfully!"
+          ./.github/scripts/verify-signatures.sh \
+            "dist/vibecare-server" \
+            "dist/VibeCare.app" \
+            "build/VibeCare-${{ steps.version.outputs.version }}.pkg"
 
       - name: Generate release notes
-        id: release_notes
         run: |
-          cat > release_notes.md << 'EOF'
-          # VibeCare ${{ steps.get_version.outputs.VERSION }}
-
-          ## Installation
-
-          ### Option 1: PKG Installer (Recommended)
-          1. Download `VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg`
-          2. Double-click to install
-          3. The backend will start automatically
-          4. Launch VibeCare from Applications
-
-          ### Option 2: Manual Installation
-          1. Download and extract `vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz`
-          2. Move `vibecare-server` to `/usr/local/bin/`
-          3. Move `VibeCare.app` to `/Applications/`
-          4. Start the backend: `vibecare-server`
-          5. Launch the app from Applications
-
-          ## What's Included
-          - VibeCare Backend Server (gRPC + Web Dashboard)
-          - VibeCare macOS Client App
-          - Automatic backend startup via LaunchAgent
-          - Database auto-migration
-
-          ## System Requirements
-          - macOS 15.0 or later
-          - Apple Silicon (M1/M2/M3) or Intel Mac
-
-          ## Usage
-          - Backend web dashboard: http://localhost:8080/status
-          - gRPC endpoint: localhost:50051
-          - Logs: ~/Library/Logs/VibeCare/
-
-          ## Verify Installation
-          ```bash
-          # Check backend is running
-          curl http://localhost:8080/status
-
-          # View backend logs
-          tail -f ~/Library/Logs/VibeCare/server.log
-
-          # Stop backend
-          launchctl unload ~/Library/LaunchAgents/io.vibecare.server.plist
-
-          # Start backend
-          launchctl load ~/Library/LaunchAgents/io.vibecare.server.plist
-          ```
-
-          ## Checksums
-          Verify file integrity using the .sha256 files provided.
-
-          EOF
-          echo "RELEASE_NOTES_FILE=release_notes.md" >> $GITHUB_OUTPUT
+          ./.github/scripts/generate-release-notes.sh \
+            "${{ steps.version.outputs.version }}" \
+            "release_notes.md"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.get_version.outputs.VERSION }}
-          name: VibeCare ${{ steps.get_version.outputs.VERSION }}
-          body_path: ${{ steps.release_notes.outputs.RELEASE_NOTES_FILE }}
+          tag_name: ${{ steps.version.outputs.version }}
+          name: VibeCare ${{ steps.version.outputs.version }}
+          body_path: release_notes.md
           draft: false
           prerelease: false
           files: |
-            build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg
-            build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg.sha256
-            build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz
-            build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz.sha256
+            build/VibeCare-${{ steps.version.outputs.version }}.pkg
+            build/VibeCare-${{ steps.version.outputs.version }}.pkg.sha256
+            build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz
+            build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz.sha256
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: vibecare-${{ steps.get_version.outputs.VERSION }}-macos
+          name: vibecare-${{ steps.version.outputs.version }}-macos
           path: |
             build/*.pkg
             build/*.tar.gz

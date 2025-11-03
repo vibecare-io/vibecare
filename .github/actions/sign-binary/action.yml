@@ -1,0 +1,36 @@
+name: Sign Binary
+description: Sign a binary with Developer ID Application certificate
+inputs:
+  binary-path:
+    description: Path to binary to sign
+    required: true
+  identity:
+    description: Signing identity (SHA-1 hash)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Sign binary
+      shell: bash
+      env:
+        BINARY_PATH: ${{ inputs.binary-path }}
+        IDENTITY: ${{ inputs.identity }}
+      run: |
+        if [ -z "$IDENTITY" ]; then
+          echo "Error: No signing identity provided"
+          exit 1
+        fi
+
+        echo "Signing binary: $BINARY_PATH with identity: $IDENTITY"
+
+        # Sign the binary with hardened runtime
+        /usr/bin/codesign --force --sign "$IDENTITY" \
+          --options runtime \
+          --timestamp \
+          --verbose \
+          "$BINARY_PATH"
+
+        # Verify signature
+        codesign --verify --deep --strict --verbose=2 "$BINARY_PATH"
+
+        echo "✓ Binary signed successfully"

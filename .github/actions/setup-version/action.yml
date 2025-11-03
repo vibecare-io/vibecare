@@ -1,0 +1,33 @@
+name: Setup Version
+description: Extract version from tag or workflow input
+inputs:
+  event-name:
+    description: GitHub event name
+    required: true
+  manual-version:
+    description: Manual version from workflow input
+    required: false
+    default: ''
+outputs:
+  version:
+    description: Extracted version string
+    value: ${{ steps.extract.outputs.version }}
+runs:
+  using: composite
+  steps:
+    - name: Extract version
+      id: extract
+      shell: bash
+      run: |
+        if [ "${{ inputs.event-name }}" = "workflow_dispatch" ]; then
+          echo "version=${{ inputs.manual-version }}" >> $GITHUB_OUTPUT
+        else
+          echo "version=${GITHUB_REF#refs/tags/}" >> $GITHUB_OUTPUT
+        fi
+
+        # Display version
+        if [ "${{ inputs.event-name }}" = "workflow_dispatch" ]; then
+          echo "Using manual version: ${{ inputs.manual-version }}"
+        else
+          echo "Using tag version: ${GITHUB_REF#refs/tags/}"
+        fi
