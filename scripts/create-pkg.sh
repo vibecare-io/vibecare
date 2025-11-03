@@ -71,20 +71,110 @@ prepare_pkg_structure() {
     log_info "Package structure prepared"
 }
 
+# Check for signing certificates
+check_signing_certs() {
+    local app_cert=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk '{print $2}')
+    local installer_cert=$(security find-identity -v | grep "Developer ID Installer" | head -1 | awk '{print $2}')
+
+    if [ -n "$app_cert" ] && [ -n "$installer_cert" ]; then
+        return 0  # Certificates found
+    else
+        return 1  # No certificates
+    fi
+}
+
+# Sign binaries and app bundle
+sign_components() {
+    log_info "Signing components..."
+
+    # Use the sign-for-distribution.sh script if available
+    if [ -x "${SCRIPT_DIR}/sign-for-distribution.sh" ]; then
+        # Sign backend binary
+        "${SCRIPT_DIR}/sign-for-distribution.sh" --binary "${PKG_ROOT}/usr/local/bin/vibecare-server" || {
+            log_error "Failed to sign backend binary"
+            return 1
+        }
+
+        # Sign app bundle with entitlements
+        local entitlements="${PROJECT_ROOT}/clients/macos-swift/VibeCare/vibecare/vibecare.entitlements"
+        if [ -f "$entitlements" ]; then
+            "${SCRIPT_DIR}/sign-for-distribution.sh" --app "${PKG_ROOT}/Applications/VibeCare.app" \
+                --entitlements "$entitlements" || {
+                log_error "Failed to sign app bundle"
+                return 1
+            }
+        else
+            "${SCRIPT_DIR}/sign-for-distribution.sh" --app "${PKG_ROOT}/Applications/VibeCare.app" || {
+                log_error "Failed to sign app bundle"
+                return 1
+            }
+        fi
+
+        log_info "Components signed successfully"
+    else
+        log_info "sign-for-distribution.sh not found, skipping component signing"
+    fi
+}
+
 # Build the package
 build_pkg() {
     log_info "Building PKG installer..."
 
     cd "${BUILD_DIR}"
 
-    # Build unsigned package
+    # Check if we should sign
+    local should_sign=false
+    if check_signing_certs; then
+        should_sign=true
+        log_info "Signing certificates found - will create signed PKG"
+
+        # Sign components before packaging
+        sign_components
+    else
+        log_info "No signing certificates found - creating unsigned PKG"
+        echo -e "${YELLOW}[WARNING]${NC} PKG will not be signed. Users will see a security warning."
+    fi
+
+    # Build unsigned package first
+    local temp_pkg="${PKG_NAME}.unsigned"
     pkgbuild \
         --root "${PKG_ROOT}" \
         --scripts "${PKG_SCRIPTS}" \
         --identifier "io.vibecare.app" \
         --version "${VERSION}" \
         --install-location "/" \
-        "${PKG_NAME}"
+        "${temp_pkg}"
+
+    # Sign if certificates available
+    if [ "$should_sign" = true ]; then
+        log_info "Signing PKG installer..."
+
+        # Find installer identity
+        local installer_identity=$(security find-identity -v | grep "Developer ID Installer" | head -1 | awk '{print $2}')
+
+        if [ -n "$installer_identity" ]; then
+            productsign --sign "$installer_identity" \
+                --timestamp \
+                "${temp_pkg}" \
+                "${PKG_NAME}"
+
+            # Verify signature
+            if pkgutil --check-signature "${PKG_NAME}"; then
+                log_info "PKG signed successfully"
+            else
+                log_error "PKG signature verification failed"
+            fi
+
+            # Clean up unsigned package
+            rm "${temp_pkg}"
+        else
+            log_error "No Developer ID Installer certificate found"
+            mv "${temp_pkg}" "${PKG_NAME}"
+        fi
+    else
+        # Just rename the unsigned package
+        mv "${temp_pkg}" "${PKG_NAME}"
+    fi
 
     log_info "PKG created: ${BUILD_DIR}/${PKG_NAME}"
 
@@ -92,6 +182,14 @@ build_pkg() {
     shasum -a 256 "${PKG_NAME}" > "${PKG_NAME}.sha256"
 
     log_info "Checksum: ${BUILD_DIR}/${PKG_NAME}.sha256"
+
+    # Provide notarization instructions if signed
+    if [ "$should_sign" = true ]; then
+        log_info ""
+        log_info "To notarize the PKG (recommended for distribution):"
+        log_info "  xcrun notarytool submit ${PKG_NAME} --apple-id YOUR_APPLE_ID --password YOUR_APP_PASSWORD --team-id YOUR_TEAM_ID --wait"
+        log_info "  xcrun stapler staple ${PKG_NAME}"
+    fi
 }
 
 # Create distribution XML for productbuild (optional, for signed PKG)

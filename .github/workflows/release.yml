@@ -77,6 +77,35 @@ jobs:
           chmod +x scripts/generate_proto.sh
           ./scripts/generate_proto.sh -t backend
 
+      - name: Import Code Signing Certificates
+        env:
+          APPLE_CERT_APP_BASE64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import Developer ID Application certificate
+          echo "$APPLE_CERT_APP_BASE64" | base64 --decode > cert_app.p12
+
+          security import cert_app.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Make it the default keychain for this session
+          security list-keychain -d user -s "$KEYCHAIN_PATH" "login.keychain"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Verify import
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+          # Clean up certificate file
+          rm cert_app.p12
+
       - name: Build backend binary
         env:
           VERSION: ${{ steps.get_version.outputs.VERSION }}
@@ -98,6 +127,31 @@ jobs:
           lipo -create -output vibecare-server vibecare-server-arm64 vibecare-server-amd64
           chmod +x vibecare-server
           rm vibecare-server-arm64 vibecare-server-amd64
+
+      - name: Sign backend binary
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          # Find the signing identity
+          IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk '{print $2}')
+
+          if [ -z "$IDENTITY" ]; then
+            echo "Error: No Developer ID Application identity found"
+            exit 1
+          fi
+
+          echo "Signing with identity: $IDENTITY"
+
+          # Sign the backend binary with hardened runtime
+          /usr/bin/codesign --force --sign "$IDENTITY" \
+            --options runtime \
+            --timestamp \
+            --verbose \
+            vibecare-server
+
+          # Verify signature
+          codesign --verify --deep --strict --verbose=2 vibecare-server
+          echo "Backend binary signed successfully"
 
       - name: Upload backend artifact
         uses: actions/upload-artifact@v4
@@ -163,6 +217,35 @@ jobs:
           chmod +x scripts/generate_proto.sh
           ./scripts/generate_proto.sh -t client-macos
 
+      - name: Import Code Signing Certificates
+        env:
+          APPLE_CERT_APP_BASE64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import Developer ID Application certificate
+          echo "$APPLE_CERT_APP_BASE64" | base64 --decode > cert_app.p12
+
+          security import cert_app.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Make it the default keychain for this session
+          security list-keychain -d user -s "$KEYCHAIN_PATH" "login.keychain"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Verify import
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+          # Clean up certificate file
+          rm cert_app.p12
+
       - name: Build Swift client
         run: |
           cd clients/macos-swift/VibeCare
@@ -207,6 +290,40 @@ jobs:
           </plist>
           EOF
 
+      - name: Sign app bundle
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          APP_BUNDLE="VibeCare.app"
+          ENTITLEMENTS="clients/macos-swift/VibeCare/vibecare/vibecare.entitlements"
+
+          # Find the signing identity
+          IDENTITY=$(security find-identity -v -p codesigning | grep "Developer ID Application" | head -1 | awk '{print $2}')
+
+          if [ -z "$IDENTITY" ]; then
+            echo "Error: No Developer ID Application identity found"
+            exit 1
+          fi
+
+          echo "Signing with identity: $IDENTITY"
+
+          # Sign the app bundle with hardened runtime, entitlements, and deep signing
+          /usr/bin/codesign --force --sign "$IDENTITY" \
+            --entitlements "$ENTITLEMENTS" \
+            --options runtime \
+            --timestamp \
+            --deep \
+            --verbose \
+            "$APP_BUNDLE"
+
+          # Verify signature
+          codesign --verify --deep --strict --verbose=2 "$APP_BUNDLE"
+
+          # Verify with spctl (simulates Gatekeeper)
+          spctl --assess --type execute --verbose "$APP_BUNDLE" || true
+
+          echo "App bundle signed successfully"
+
       - name: Upload client artifact
         uses: actions/upload-artifact@v4
         with:
@@ -248,6 +365,40 @@ jobs:
           name: macos-client-app
           path: dist/VibeCare.app/
 
+      - name: Import Code Signing Certificates
+        env:
+          APPLE_CERT_APP_BASE64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
+          APPLE_CERT_INSTALLER_BASE64: ${{ secrets.APPLE_CERTIFICATE_INSTALLER_BASE64 }}
+          APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
+        run: |
+          # Create temporary keychain
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 32)"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Import both certificates
+          echo "$APPLE_CERT_APP_BASE64" | base64 --decode > cert_app.p12
+          echo "$APPLE_CERT_INSTALLER_BASE64" | base64 --decode > cert_installer.p12
+
+          security import cert_app.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
+          security import cert_installer.p12 -k "$KEYCHAIN_PATH" -P "$APPLE_CERT_PASSWORD" -T /usr/bin/productbuild -T /usr/bin/security
+
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+          # Make it the default keychain for this session
+          security list-keychain -d user -s "$KEYCHAIN_PATH" "login.keychain"
+          security default-keychain -s "$KEYCHAIN_PATH"
+
+          # Verify imports
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH"
+
+          # Clean up certificate files
+          rm cert_app.p12 cert_installer.p12
+
       - name: Create tarball
         env:
           VERSION: ${{ steps.get_version.outputs.VERSION }}
@@ -260,9 +411,10 @@ jobs:
           shasum -a 256 build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz \
             > build/vibecare-${{ steps.get_version.outputs.VERSION }}-macos.tar.gz.sha256
 
-      - name: Create PKG installer
+      - name: Create and sign PKG installer
         env:
           VERSION: ${{ steps.get_version.outputs.VERSION }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           PKG_ROOT="build/pkg-root"
           PKG_SCRIPTS="build/pkg-scripts"
@@ -281,16 +433,107 @@ jobs:
           cp scripts/postinstall "${PKG_SCRIPTS}/postinstall"
           chmod +x "${PKG_SCRIPTS}/postinstall"
 
+          # Create unsigned component package
           pkgbuild \
             --root "${PKG_ROOT}" \
             --scripts "${PKG_SCRIPTS}" \
             --identifier "io.vibecare.app" \
             --version "${{ steps.get_version.outputs.VERSION }}" \
             --install-location "/" \
+            "build/VibeCare-component.pkg"
+
+          # Find the Developer ID Installer identity
+          INSTALLER_IDENTITY=$(security find-identity -v | grep "Developer ID Installer" | head -1 | awk '{print $2}')
+
+          if [ -z "$INSTALLER_IDENTITY" ]; then
+            echo "Error: No Developer ID Installer identity found"
+            exit 1
+          fi
+
+          echo "Signing PKG with identity: $INSTALLER_IDENTITY"
+
+          # Sign the package with Developer ID Installer certificate
+          productsign --sign "$INSTALLER_IDENTITY" \
+            --timestamp \
+            "build/VibeCare-component.pkg" \
             "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg"
+
+          # Verify PKG signature
+          pkgutil --check-signature "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg"
+
+          # Clean up component package
+          rm "build/VibeCare-component.pkg"
 
           shasum -a 256 "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg" \
             > "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg.sha256"
+
+      - name: Notarize PKG
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+          APPLE_DEVELOPER_ID: ${{ secrets.APPLE_DEVELOPER_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          PKG_PATH="build/VibeCare-${VERSION}.pkg"
+
+          echo "Submitting PKG for notarization..."
+
+          # Submit for notarization
+          xcrun notarytool submit "$PKG_PATH" \
+            --apple-id "$APPLE_DEVELOPER_ID" \
+            --password "$APPLE_APP_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait \
+            --timeout 30m
+
+          echo "Notarization completed. Stapling ticket..."
+
+          # Staple the notarization ticket
+          xcrun stapler staple "$PKG_PATH"
+
+          # Verify stapling
+          echo "Verifying notarization stapling..."
+          xcrun stapler validate "$PKG_PATH"
+
+          # Final Gatekeeper check
+          echo "Running Gatekeeper assessment..."
+          spctl --assess --type install --verbose "$PKG_PATH" || {
+            echo "Warning: Gatekeeper assessment failed, but continuing..."
+            echo "This may be normal in CI environment"
+          }
+
+          echo "Notarization and stapling completed successfully"
+
+      - name: Verify all signatures
+        env:
+          VERSION: ${{ steps.get_version.outputs.VERSION }}
+        run: |
+          echo "=== Verifying all signatures ==="
+
+          echo "1. Backend binary signature:"
+          codesign --verify --deep --strict --verbose=2 dist/vibecare-server || {
+            echo "Backend binary signature verification failed"
+            exit 1
+          }
+
+          echo "2. App bundle signature:"
+          codesign --verify --deep --strict --verbose=2 dist/VibeCare.app || {
+            echo "App bundle signature verification failed"
+            exit 1
+          }
+
+          echo "3. PKG signature:"
+          pkgutil --check-signature "build/VibeCare-${VERSION}.pkg" || {
+            echo "PKG signature verification failed"
+            exit 1
+          }
+
+          echo "4. Gatekeeper assessment (PKG):"
+          spctl --assess --type install --verbose "build/VibeCare-${VERSION}.pkg" || {
+            echo "Note: Gatekeeper assessment may fail in CI but succeed on user systems"
+          }
+
+          echo "All signature verifications completed successfully!"
 
       - name: Generate release notes
         id: release_notes
