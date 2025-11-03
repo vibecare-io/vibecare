@@ -179,8 +179,10 @@ jobs:
           path: |
             clients/macos-swift/VibeCare/.build
             ~/Library/Caches/org.swift.swiftpm
-          key: ${{ runner.os }}-swift-${{ hashFiles('clients/macos-swift/VibeCare/Package.resolved') }}
+            ~/Library/Developer/Xcode/DerivedData
+          key: ${{ runner.os }}-swift-build-${{ hashFiles('clients/macos-swift/VibeCare/**/*.swift', 'clients/macos-swift/VibeCare/Package.resolved') }}
           restore-keys: |
+            ${{ runner.os }}-swift-build-
             ${{ runner.os }}-swift-
 
       - name: Cache Homebrew
@@ -249,7 +251,10 @@ jobs:
       - name: Build Swift client
         run: |
           cd clients/macos-swift/VibeCare
-          swift build -c release
+          # Build only the executable product with explicit parallelization
+          swift build -c release \
+            --product VibeCare \
+            --jobs $(sysctl -n hw.ncpu)
           cp .build/release/VibeCare ../../../vibecare-client
           chmod +x ../../../vibecare-client
 
@@ -455,7 +460,6 @@ jobs:
           # Sign the package with Developer ID Installer certificate
           productsign --sign "$INSTALLER_IDENTITY" \
             --timestamp \
-            --verbose \
             "build/VibeCare-component.pkg" \
             "build/VibeCare-${{ steps.get_version.outputs.VERSION }}.pkg"
 
@@ -596,6 +600,7 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.get_version.outputs.VERSION }}
           name: VibeCare ${{ steps.get_version.outputs.VERSION }}
           body_path: ${{ steps.release_notes.outputs.RELEASE_NOTES_FILE }}
           draft: false
