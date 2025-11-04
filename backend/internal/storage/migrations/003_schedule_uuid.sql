@@ -27,7 +27,7 @@ CREATE TABLE schedules (
 );
 
 -- Recreate index
- github.com/teambition/rrule-goCREATE INDEX idx_schedules_routine ON schedules(routine_id);
+CREATE INDEX idx_schedules_routine ON schedules(routine_id);
 
 -- +goose StatementEnd
 
