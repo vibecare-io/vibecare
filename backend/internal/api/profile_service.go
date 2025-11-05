@@ -29,13 +29,15 @@ func (s *Server) CreateProfile(ctx context.Context, req *pb.CreateProfileRequest
 		return nil, status.Errorf(codes.InvalidArgument, "invalid preferences: %v", err)
 	}
 
-	// Check if profile with email already exists
-	existing, err := s.db.GetProfileByEmail(req.Email)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to check existing profile: %v", err)
-	}
-	if existing != nil {
-		return nil, status.Errorf(codes.AlreadyExists, "profile with email %s already exists", req.Email)
+	// Check if profile with email already exists (only if email is provided)
+	if req.Email != "" {
+		existing, err := s.db.GetProfileByEmail(req.Email)
+		if err != nil {
+			return nil, status.Errorf(codes.Internal, "failed to check existing profile: %v", err)
+		}
+		if existing != nil {
+			return nil, status.Errorf(codes.AlreadyExists, "profile with email %s already exists", req.Email)
+		}
 	}
 
 	// Create the profile
@@ -92,10 +94,12 @@ func (s *Server) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest
 		return nil, status.Errorf(codes.NotFound, "profile not found")
 	}
 
-	// Update fields
+	// Update fields (only update if provided in request)
 	if req.Name != "" {
 		profile.Name = req.Name
 	}
+	// Allow email to be updated or cleared (empty string in request means keep existing)
+	// Note: To explicitly clear email, client should send a special marker or we need a field mask
 	if req.Email != "" {
 		profile.Email = req.Email
 	}

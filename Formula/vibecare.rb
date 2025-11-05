@@ -32,9 +32,6 @@ class Vibecare < Formula
   end
 
   def post_install
-    # Create log directory
-    (var/"log/vibecare").mkpath
-
     # Copy LaunchAgent to user's LaunchAgents directory
     launchagent_src = prefix/"LaunchAgents/io.vibecare.server.plist"
     launchagent_dst = "#{Dir.home}/Library/LaunchAgents/io.vibecare.server.plist"
@@ -44,11 +41,13 @@ class Vibecare < Formula
       plist_content = File.read(launchagent_src)
       plist_content.gsub!("/usr/local/bin/vibecare-server", "#{bin}/vibecare-server")
       plist_content.gsub!("~/.vibecare", "#{var}/vibecare")
-      plist_content.gsub!("~/Library/Logs/VibeCare", "#{var}/log/vibecare")
 
       File.write(launchagent_dst, plist_content)
       FileUtils.chmod 0644, launchagent_dst
     end
+
+    # Create log directory inside vibecare data directory
+    (var/"vibecare/logs").mkpath
   end
 
   def caveats
@@ -69,7 +68,7 @@ class Vibecare < Formula
         - gRPC: localhost:50051
 
       Data directory: #{var}/vibecare
-      Logs directory: #{var}/log/vibecare
+      Logs directory: #{var}/vibecare/logs
     EOS
   end
 
@@ -77,8 +76,8 @@ class Vibecare < Formula
     run opt_bin/"vibecare-server"
     environment_variables PATH: std_service_path_env
     keep_alive true
-    log_path var/"log/vibecare/server.log"
-    error_log_path var/"log/vibecare/server-error.log"
+    log_path var/"vibecare/logs/server.log"
+    error_log_path var/"vibecare/logs/server-error.log"
     working_dir var/"vibecare"
   end
 

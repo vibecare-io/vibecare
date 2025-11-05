@@ -41,6 +41,14 @@ func (db *DB) CreateProfile(name, email string, preferences map[string]string) (
 		return nil, fmt.Errorf("failed to marshal preferences: %w", err)
 	}
 
+	// Use NULL for empty email to maintain database consistency
+	var emailValue interface{}
+	if email == "" {
+		emailValue = nil
+	} else {
+		emailValue = email
+	}
+
 	query := `
 		INSERT INTO profiles (id, name, email, preferences_json, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?)
@@ -49,7 +57,7 @@ func (db *DB) CreateProfile(name, email string, preferences map[string]string) (
 	_, err = db.Exec(query,
 		profile.ID,
 		profile.Name,
-		profile.Email,
+		emailValue,
 		string(prefsJSON),
 		profile.CreatedAt.Format(time.RFC3339),
 		profile.UpdatedAt.Format(time.RFC3339),
@@ -65,7 +73,7 @@ func (db *DB) CreateProfile(name, email string, preferences map[string]string) (
 // GetProfile retrieves a profile by ID
 func (db *DB) GetProfile(id string) (*models.Profile, error) {
 	query := `
-		SELECT id, name, email, preferences_json, created_at, updated_at
+		SELECT id, name, COALESCE(email, '') as email, preferences_json, created_at, updated_at
 		FROM profiles
 		WHERE id = ?
 	`
@@ -111,7 +119,7 @@ func (db *DB) GetProfile(id string) (*models.Profile, error) {
 // GetProfileByEmail retrieves a profile by email
 func (db *DB) GetProfileByEmail(email string) (*models.Profile, error) {
 	query := `
-		SELECT id, name, email, preferences_json, created_at, updated_at
+		SELECT id, name, COALESCE(email, '') as email, preferences_json, created_at, updated_at
 		FROM profiles
 		WHERE email = ?
 	`
@@ -157,7 +165,7 @@ func (db *DB) GetProfileByEmail(email string) (*models.Profile, error) {
 // ListProfiles lists all profiles
 func (db *DB) ListProfiles() ([]*models.Profile, error) {
 	query := `
-		SELECT id, name, email, preferences_json, created_at, updated_at
+		SELECT id, name, COALESCE(email, '') as email, preferences_json, created_at, updated_at
 		FROM profiles
 		ORDER BY created_at DESC
 	`
@@ -228,6 +236,14 @@ func (db *DB) UpdateProfile(id, name, email string, preferences map[string]strin
 		return nil, fmt.Errorf("failed to marshal preferences: %w", err)
 	}
 
+	// Use NULL for empty email to maintain database consistency
+	var emailValue interface{}
+	if email == "" {
+		emailValue = nil
+	} else {
+		emailValue = email
+	}
+
 	updatedAt := time.Now()
 
 	query := `
@@ -238,7 +254,7 @@ func (db *DB) UpdateProfile(id, name, email string, preferences map[string]strin
 
 	result, err := db.Exec(query,
 		sanitizedName,
-		email,
+		emailValue,
 		string(prefsJSON),
 		updatedAt.Format(time.RFC3339),
 		id,

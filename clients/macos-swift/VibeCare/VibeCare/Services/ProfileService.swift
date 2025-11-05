@@ -54,14 +54,14 @@ public final class ProfileService: @unchecked Sendable {
         }
     }
 
-    func createProfile(name: String, email: String, preferences: [String: String]) async throws -> Profile {
+    func createProfile(name: String, email: String?, preferences: [String: String]) async throws -> Profile {
         logger.info("Creating profile: \(name)")
 
         do {
             let profile = try await GRPCClientManager.shared.withProfileServiceClient { client in
                 var request = VCCreateProfileRequest()
                 request.name = name
-                request.email = email
+                request.email = email ?? ""  // Send empty string if email is nil
                 request.preferences = preferences
 
                 let clientRequest = ClientRequest(message: request)
@@ -120,7 +120,7 @@ public final class ProfileService: @unchecked Sendable {
                 var request = VCUpdateProfileRequest()
                 request.id = profile.id
                 request.name = profile.name
-                request.email = profile.email
+                request.email = profile.email ?? ""  // Convert nil to empty string for protobuf
 
                 let clientRequest = ClientRequest(message: request)
                 let updatedVCProfile = try await client.updateProfile(
@@ -272,7 +272,7 @@ public final class ProfileService: @unchecked Sendable {
         return Profile(
             id: vcProfile.id,
             name: vcProfile.name,
-            email: vcProfile.email,
+            email: vcProfile.email.isEmpty ? nil : vcProfile.email,  // Convert empty string to nil
             preferences: vcProfile.preferences,
             devices: devices,
             createdAt: vcProfile.hasCreatedAt ? vcProfile.createdAt.date : Date(),
@@ -284,7 +284,7 @@ public final class ProfileService: @unchecked Sendable {
         var vcProfile = VCProfile()
         vcProfile.id = profile.id
         vcProfile.name = profile.name
-        vcProfile.email = profile.email
+        vcProfile.email = profile.email ?? ""  // Convert nil to empty string for protobuf
         vcProfile.preferences = profile.preferences
         vcProfile.devices = profile.devices.map { device in
             convertToVCDevice(device)

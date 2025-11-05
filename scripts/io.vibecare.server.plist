@@ -12,9 +12,6 @@
         <string>50051</string>
         <string>--web-port</string>
         <string>8080</string>
-        <string>--db</string>
-        <string>~/.vibecare/vibecare.db</string>
-        <string>--enable-tracing</string>
     </array>
 
     <key>RunAtLoad</key>
@@ -27,13 +24,10 @@
     </dict>
 
     <key>StandardOutPath</key>
-    <string>~/Library/Logs/VibeCare/server.log</string>
+    <string>~/.vibecare/logs/server.log</string>
 
     <key>StandardErrorPath</key>
-    <string>~/Library/Logs/VibeCare/server-error.log</string>
-
-    <key>WorkingDirectory</key>
-    <string>~/.vibecare</string>
+    <string>~/.vibecare/logs/server-error.log</string>
 
     <key>EnvironmentVariables</key>
     <dict>

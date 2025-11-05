@@ -150,9 +150,11 @@ struct ProfileSettingsDetail: View {
                             .font(.title3)
                             .fontWeight(.semibold)
 
-                            Text(currentProfile.email)
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                            if let email = currentProfile.email, !email.isEmpty {
+                                Text(email)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
 
                             Text("ID: \(currentProfile.id)")
                                 .font(.caption2)
@@ -198,9 +200,11 @@ struct ProfileSettingsDetail: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(profile.name)
                                     .font(.body)
-                                Text(profile.email)
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                if let email = profile.email, !email.isEmpty {
+                                    Text(email)
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
                             }
 
                             Spacer()

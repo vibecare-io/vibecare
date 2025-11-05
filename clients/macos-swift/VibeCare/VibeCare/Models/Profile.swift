@@ -3,7 +3,7 @@ import Foundation
 public struct Profile: Identifiable, Codable, Equatable, Hashable, Sendable {
     public let id: String
     public var name: String
-    public var email: String
+    public var email: String?  // Email is now optional
     public var preferences: [String: String]
     public var devices: [Device]
     public let createdAt: Date
@@ -12,7 +12,7 @@ public struct Profile: Identifiable, Codable, Equatable, Hashable, Sendable {
     init(
         id: String = UUID().uuidString,
         name: String,
-        email: String,
+        email: String? = nil,  // Default to nil
         preferences: [String: String] = [:],
         devices: [Device] = [],
         createdAt: Date = Date(),

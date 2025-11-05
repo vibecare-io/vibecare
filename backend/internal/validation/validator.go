@@ -64,11 +64,13 @@ func ValidateRequired(field, value string) error {
 	return nil
 }
 
-// ValidateEmail validates email format
+// ValidateEmail validates email format (email is optional, but if provided must be valid)
 func ValidateEmail(email string) error {
-	if err := ValidateRequired("email", email); err != nil {
-		return err
+	// Email is optional - if empty, skip validation
+	if strings.TrimSpace(email) == "" {
+		return nil
 	}
+
 	if err := ValidateStringLength("email", email, 3, MaxEmailLength); err != nil {
 		return err
 	}

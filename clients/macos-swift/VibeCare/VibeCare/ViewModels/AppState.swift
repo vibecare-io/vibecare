@@ -97,7 +97,7 @@ public class AppState: ObservableObject {
         )
     }
 
-    func createProfile(name: String, email: String) async {
+    func createProfile(name: String, email: String?) async -> Result<Profile, Error> {
         do {
             let profileService = ProfileService()
             let newProfile = try await profileService.createProfile(
@@ -112,11 +112,30 @@ public class AppState: ObservableObject {
             }
 
             logger.info("Created new profile: \(name)")
+
+            // Show success message in status bar
+            StatusBarManager.shared.showMessage(
+                "Profile '\(name)' created successfully",
+                type: .success
+            )
+
+            return .success(newProfile)
         } catch {
             logger.error("Failed to create profile: \(error)")
+
+            // Show error in status bar with actual error message
+            let errorMessage = String(describing: error)
+            StatusBarManager.shared.showMessage(
+                "Failed to create profile: \(errorMessage)",
+                type: .error
+            )
+
+            // Set connection error flag for app-level handling
             await MainActor.run {
                 showConnectionError = true
             }
+
+            return .failure(error)
         }
     }
 
