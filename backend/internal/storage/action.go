@@ -17,7 +17,7 @@ func (db *DB) CreateAction(action *models.Action) error {
 	}
 
 	query := `
-		INSERT INTO actions (action_id, profile_id, type, name, description, parameters_json, created_at, enabled)
+		INSERT INTO actions (action_id, profile_id, type, name, description, parameters, created_at, enabled)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
@@ -42,7 +42,7 @@ func (db *DB) CreateAction(action *models.Action) error {
 // GetAction retrieves an action by ID
 func (db *DB) GetAction(actionID string) (*models.Action, error) {
 	query := `
-		SELECT action_id, profile_id, type, name, description, parameters_json, created_at, enabled
+		SELECT action_id, profile_id, type, name, description, parameters, created_at, enabled
 		FROM actions
 		WHERE action_id = ?
 	`
@@ -113,7 +113,7 @@ func (db *DB) UpdateAction(action *models.Action) error {
 
 	query := `
 		UPDATE actions
-		SET type = ?, name = ?, description = ?, parameters_json = ?, enabled = ?
+		SET type = ?, name = ?, description = ?, parameters = ?, enabled = ?
 		WHERE action_id = ?
 	`
 
@@ -166,7 +166,7 @@ func (db *DB) DeleteAction(actionID string) error {
 // ListActionsByProfile retrieves all actions for a profile
 func (db *DB) ListActionsByProfile(profileID string) ([]*models.Action, error) {
 	query := `
-		SELECT action_id, profile_id, type, name, description, parameters_json, created_at, enabled
+		SELECT action_id, profile_id, type, name, description, parameters, created_at, enabled
 		FROM actions
 		WHERE profile_id = ?
 		ORDER BY created_at DESC
@@ -221,7 +221,7 @@ func (db *DB) ListActionsByProfile(profileID string) ([]*models.Action, error) {
 // ListActionsByType retrieves all actions of a specific type for a profile
 func (db *DB) ListActionsByType(profileID string, actionType models.ActionType) ([]*models.Action, error) {
 	query := `
-		SELECT action_id, profile_id, type, name, description, parameters_json, created_at, enabled
+		SELECT action_id, profile_id, type, name, description, parameters, created_at, enabled
 		FROM actions
 		WHERE profile_id = ? AND type = ?
 		ORDER BY created_at DESC

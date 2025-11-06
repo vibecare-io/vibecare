@@ -34,6 +34,10 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 		return nil, status.Errorf(codes.InvalidArgument, "invalid id: %v", err)
 	}
 
+	if err := validation.ValidateRequired("profile_id", req.ProfileId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid profile_id: %v", err)
+	}
+
 	if err := validation.ValidateRequired("routine_id", req.RoutineId); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid routine_id: %v", err)
 	}
@@ -64,15 +68,10 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 		dtstart = &parsed
 	}
 
-	// Ensure action_ids is never nil
-	actionIDs := req.ActionIds
-	if actionIDs == nil {
-		actionIDs = []string{}
-	}
-
 	// Create the schedule (passing client ID which may be empty)
 	schedule, err := s.db.CreateSchedule(
-		req.Id, // Client-provided ID (optional)
+		req.Id,        // Client-provided ID (optional)
+		req.ProfileId, // Profile ID for direct access
 		req.RoutineId,
 		req.Name,
 		req.Rrule,
@@ -80,7 +79,6 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 		req.Exdates,
 		req.Notes,
 		req.Enabled,
-		actionIDs,
 	)
 	if err != nil {
 		s.logger.Error("Failed to create schedule", zap.Error(err))
@@ -166,13 +164,6 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.UpdateScheduleReque
 	schedule.ExDates = req.Exdates
 	schedule.Notes = req.Notes
 	schedule.Enabled = req.Enabled
-
-	// Ensure action_ids is never nil
-	if req.ActionIds == nil {
-		schedule.ActionIDs = []string{}
-	} else {
-		schedule.ActionIDs = req.ActionIds
-	}
 
 	// Save updates
 	updatedSchedule, err := s.db.UpdateSchedule(schedule)
@@ -339,13 +330,13 @@ func (s *Server) ResumeAllSchedules(ctx context.Context, req *pb.ResumeAllSchedu
 func convertToProtoSchedule(schedule *models.Schedule) *pb.Schedule {
 	pbSchedule := &pb.Schedule{
 		ScheduleId: schedule.ScheduleID,
+		ProfileId:  schedule.ProfileID,
 		RoutineId:  schedule.RoutineID,
 		Name:       schedule.Name,
 		Rrule:      schedule.RRule,
 		Exdates:    schedule.ExDates,
 		Notes:      schedule.Notes,
 		Enabled:    schedule.Enabled,
-		ActionIds:  schedule.ActionIDs,
 		CreatedAt:  timestamppb.New(schedule.CreatedAt),
 		UpdatedAt:  timestamppb.New(schedule.UpdatedAt),
 	}
@@ -359,4 +350,118 @@ func convertToProtoSchedule(schedule *models.Schedule) *pb.Schedule {
 	}
 
 	return pbSchedule
+}
+
+// GetScheduleActions retrieves all action IDs for a schedule
+func (s *Server) GetScheduleActions(ctx context.Context, req *pb.GetScheduleActionsRequest) (*pb.GetScheduleActionsResponse, error) {
+	s.logger.Info("Getting actions for schedule", zap.String("schedule_id", req.ScheduleId))
+
+	if err := validation.ValidateRequired("schedule_id", req.ScheduleId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid schedule_id: %v", err)
+	}
+
+	actions, err := s.db.GetScheduleActions(req.ScheduleId)
+	if err != nil {
+		s.logger.Error("Failed to get schedule actions", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to retrieve schedule actions")
+	}
+
+	actionIDs := make([]string, len(actions))
+	for i, action := range actions {
+		actionIDs[i] = action.ID
+	}
+
+	return &pb.GetScheduleActionsResponse{
+		ActionIds: actionIDs,
+	}, nil
+}
+
+// AddActionToSchedule adds an action to a schedule
+func (s *Server) AddActionToSchedule(ctx context.Context, req *pb.AddActionToScheduleRequest) (*emptypb.Empty, error) {
+	s.logger.Info("Adding action to schedule",
+		zap.String("schedule_id", req.ScheduleId),
+		zap.String("action_id", req.ActionId),
+		zap.Int32("order", req.ActionOrder))
+
+	if err := validation.ValidateRequired("schedule_id", req.ScheduleId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid schedule_id: %v", err)
+	}
+
+	if err := validation.ValidateRequired("action_id", req.ActionId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid action_id: %v", err)
+	}
+
+	err := s.db.AddActionToSchedule(req.ScheduleId, req.ActionId, int(req.ActionOrder))
+	if err != nil {
+		s.logger.Error("Failed to add action to schedule", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to add action to schedule")
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// RemoveActionFromSchedule removes an action from a schedule
+func (s *Server) RemoveActionFromSchedule(ctx context.Context, req *pb.RemoveActionFromScheduleRequest) (*emptypb.Empty, error) {
+	s.logger.Info("Removing action from schedule",
+		zap.String("schedule_id", req.ScheduleId),
+		zap.String("action_id", req.ActionId))
+
+	if err := validation.ValidateRequired("schedule_id", req.ScheduleId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid schedule_id: %v", err)
+	}
+
+	if err := validation.ValidateRequired("action_id", req.ActionId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid action_id: %v", err)
+	}
+
+	err := s.db.RemoveActionFromSchedule(req.ScheduleId, req.ActionId)
+	if err != nil {
+		s.logger.Error("Failed to remove action from schedule", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to remove action from schedule")
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// UpdateScheduleActionOrder updates the order of an action within a schedule
+func (s *Server) UpdateScheduleActionOrder(ctx context.Context, req *pb.UpdateScheduleActionOrderRequest) (*emptypb.Empty, error) {
+	s.logger.Info("Updating action order in schedule",
+		zap.String("schedule_id", req.ScheduleId),
+		zap.String("action_id", req.ActionId),
+		zap.Int32("new_order", req.NewOrder))
+
+	if err := validation.ValidateRequired("schedule_id", req.ScheduleId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid schedule_id: %v", err)
+	}
+
+	if err := validation.ValidateRequired("action_id", req.ActionId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid action_id: %v", err)
+	}
+
+	err := s.db.UpdateScheduleActionOrder(req.ScheduleId, req.ActionId, int(req.NewOrder))
+	if err != nil {
+		s.logger.Error("Failed to update action order", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to update action order")
+	}
+
+	return &emptypb.Empty{}, nil
+}
+
+// ReplaceScheduleActions replaces all actions for a schedule with a new ordered list
+func (s *Server) ReplaceScheduleActions(ctx context.Context, req *pb.ReplaceScheduleActionsRequest) (*emptypb.Empty, error) {
+	s.logger.Info("Replacing schedule actions",
+		zap.String("schedule_id", req.ScheduleId),
+		zap.Int("action_count", len(req.ActionIds)))
+
+	if err := validation.ValidateRequired("schedule_id", req.ScheduleId); err != nil {
+		return nil, status.Errorf(codes.InvalidArgument, "invalid schedule_id: %v", err)
+	}
+
+	err := s.db.ReplaceScheduleActions(req.ScheduleId, req.ActionIds)
+	if err != nil {
+		s.logger.Error("Failed to replace schedule actions", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to replace schedule actions")
+	}
+
+	return &emptypb.Empty{}, nil
 }

@@ -91,13 +91,8 @@ struct ScheduleRowView: View {
 
                 // Schedule metadata and next execution
                 HStack {
-                    // Action count
-                    if !schedule.actionIDs.isEmpty {
-                        Label("\(schedule.actionIDs.count) action\(schedule.actionIDs.count != 1 ? "s" : "")",
-                              systemImage: "bolt.circle.fill")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                    }
+                    // Action count removed - actions managed via schedule_actions join table
+                    // TODO: Could fetch action count from join table if needed
 
                     // Priority indicator
                     if schedule.priority != .none {
@@ -431,7 +426,7 @@ struct ScheduleRowSimpleView: View {
 #Preview {
     VStack(spacing: 16) {
         ScheduleRowView(
-            schedule: Schedule.example(routineId: "preview-routine"),
+            schedule: Schedule.example(profileId: "preview-profile", routineId: "preview-routine"),
             isSelected: false,
             isHovered: false,
             onSelect: {},
@@ -443,7 +438,7 @@ struct ScheduleRowSimpleView: View {
         )
 
         ScheduleRowView(
-            schedule: Schedule.example(routineId: "preview-routine"),
+            schedule: Schedule.example(profileId: "preview-profile", routineId: "preview-routine"),
             isSelected: true,
             isHovered: true,
             onSelect: {},
@@ -457,7 +452,7 @@ struct ScheduleRowSimpleView: View {
         // Disabled schedule
         ScheduleRowView(
             schedule: {
-                var s = Schedule.example(routineId: "preview-routine")
+                var s = Schedule.example(profileId: "preview-profile", routineId: "preview-routine")
                 s.enabled = false
                 return s
             }(),
@@ -472,7 +467,7 @@ struct ScheduleRowSimpleView: View {
         )
 
         ScheduleRowSimpleView(
-            schedule: Schedule.example(routineId: "preview-routine"),
+            schedule: Schedule.example(profileId: "preview-profile", routineId: "preview-routine"),
             onToggle: {},
             onEdit: {},
             onDelete: {},

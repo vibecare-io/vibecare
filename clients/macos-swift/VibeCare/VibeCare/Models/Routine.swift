@@ -5,7 +5,6 @@ struct Routine: Identifiable, Codable, Equatable, Hashable {
     let profileId: String
     var name: String
     var description: String
-    var actionIds: [String]
     var enabled: Bool
     var metadata: [String: String]
     let createdAt: Date
@@ -17,7 +16,6 @@ struct Routine: Identifiable, Codable, Equatable, Hashable {
         profileId: String,
         name: String,
         description: String = "",
-        actionIds: [String] = [],
         enabled: Bool = true,
         metadata: [String: String] = [:],
         createdAt: Date = Date(),
@@ -28,7 +26,6 @@ struct Routine: Identifiable, Codable, Equatable, Hashable {
         self.profileId = profileId
         self.name = name
         self.description = description
-        self.actionIds = actionIds
         self.enabled = enabled
         self.metadata = metadata
         self.createdAt = createdAt

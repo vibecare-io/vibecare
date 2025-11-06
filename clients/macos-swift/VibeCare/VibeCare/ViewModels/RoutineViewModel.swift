@@ -72,7 +72,6 @@ class RoutineViewModel: ObservableObject {
         name: String,
         description: String,
         category: String,
-        actionIds: [String],
         enabled: Bool = true
     ) async {
         guard let profileId = AppState.shared.currentProfile?.id else { return }
@@ -85,7 +84,6 @@ class RoutineViewModel: ObservableObject {
                 profileId: profileId,
                 name: name,
                 description: description,
-                actionIds: actionIds,
                 enabled: enabled
             )
 
@@ -96,7 +94,6 @@ class RoutineViewModel: ObservableObject {
                 profileId: profileId,
                 name: newRoutine.name,
                 description: newRoutine.description,
-                actionIds: newRoutine.actionIds,
                 enabled: newRoutine.enabled,
                 metadata: newRoutine.metadata
             )
@@ -193,7 +190,6 @@ class RoutineViewModel: ObservableObject {
             profileId: routine.profileId,
             name: "\(routine.name) Copy",
             description: routine.description,
-            actionIds: routine.actionIds,
             enabled: routine.enabled,
             metadata: routine.metadata,
             createdAt: Date(),
@@ -233,7 +229,6 @@ class RoutineViewModel: ObservableObject {
             name: routine.name,
             description: routine.description,
             category: routine.category,
-            actionIds: routine.actionIds,
             enabled: routine.enabled
         )
     }

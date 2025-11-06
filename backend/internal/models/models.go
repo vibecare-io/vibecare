@@ -52,13 +52,12 @@ const (
 	ActionTypeLogEntry      ActionType = "log_entry"
 )
 
-// Routine represents a routine with actions
+// Routine represents a routine (metadata/grouping only, no direct action links)
 type Routine struct {
 	ID             string            `json:"id"`
 	ProfileID      string            `json:"profile_id"`
 	Name           string            `json:"name"`
 	Description    string            `json:"description"`
-	ActionIDs      []string          `json:"action_ids"`
 	Enabled        bool              `json:"enabled"`
 	Metadata       map[string]string `json:"metadata"`
 	CreatedAt      time.Time         `json:"created_at"`
@@ -69,25 +68,22 @@ type Routine struct {
 // Schedule represents a schedule for a routine
 type Schedule struct {
 	ScheduleID    string     `json:"schedule_id"` // UUID for local-first architecture
+	ProfileID     string     `json:"profile_id"`
 	RoutineID     string     `json:"routine_id"`
 	Name          string     `json:"name"`
-	RRule         string     `json:"rrule"`         // RFC 5545 RRule string
+	RRule         string     `json:"rrule"` // RFC 5545 RRule string
 	DTStart       *time.Time `json:"dtstart,omitempty"`
 	ExDates       []string   `json:"exdates,omitempty"`
 	LastExecution *time.Time `json:"last_execution,omitempty"`
 	Notes         string     `json:"notes"`
 	Enabled       bool       `json:"enabled"`
-	ActionIDs     []string   `json:"action_ids,omitempty"` // References to Action.id
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
 }
 
-// ExecutionLog represents an execution log entry
-type ExecutionLog struct {
-	LogID         int64             `json:"log_id"`
-	RoutineID     string            `json:"routine_id"`
-	Timestamp     time.Time         `json:"timestamp"`
-	Completed     bool              `json:"completed"`
-	Notes         string            `json:"notes"`
-	ActionResults map[string]string `json:"action_results,omitempty"`
+// ScheduleAction represents the join table between schedules and actions
+type ScheduleAction struct {
+	ScheduleID  string `json:"schedule_id"`
+	ActionID    string `json:"action_id"`
+	ActionOrder int    `json:"action_order"`
 }

@@ -46,10 +46,6 @@ func (s *Server) CreateRoutine(ctx context.Context, req *pb.CreateRoutineRequest
 		return nil, status.Errorf(codes.InvalidArgument, "invalid description: %v", err)
 	}
 
-	if err := validation.ValidateStringArray("action_ids", req.ActionIds, validation.MaxArraySize); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid action_ids: %v", err)
-	}
-
 	if err := validation.ValidateJSONMap("metadata", req.Metadata); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
@@ -60,7 +56,6 @@ func (s *Server) CreateRoutine(ctx context.Context, req *pb.CreateRoutineRequest
 		req.ProfileId,
 		req.Name,
 		req.Description,
-		req.ActionIds,
 		req.Enabled,
 		req.Metadata,
 	)
@@ -114,10 +109,6 @@ func (s *Server) UpdateRoutine(ctx context.Context, req *pb.UpdateRoutineRequest
 		return nil, status.Errorf(codes.InvalidArgument, "invalid description: %v", err)
 	}
 
-	if err := validation.ValidateStringArray("action_ids", req.ActionIds, validation.MaxArraySize); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid action_ids: %v", err)
-	}
-
 	if err := validation.ValidateJSONMap("metadata", req.Metadata); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid metadata: %v", err)
 	}
@@ -134,7 +125,6 @@ func (s *Server) UpdateRoutine(ctx context.Context, req *pb.UpdateRoutineRequest
 	// Update fields
 	routine.Name = req.Name
 	routine.Description = req.Description
-	routine.ActionIDs = req.ActionIds
 	routine.Metadata = req.Metadata
 
 	// Save updates
@@ -243,71 +233,37 @@ func (s *Server) DisableRoutine(ctx context.Context, req *pb.DisableRoutineReque
 }
 
 // ExecuteRoutine executes a routine and logs the result
+// DEPRECATED: Execution logs have been removed from the schema
 func (s *Server) ExecuteRoutine(ctx context.Context, req *pb.ExecuteRoutineRequest) (*pb.ExecutionLog, error) {
-	s.logger.Info("Executing routine",
-		zap.String("routine_id", req.RoutineId),
-		zap.Bool("force", req.Force))
-
-	// Validate inputs at API layer
-	if err := validation.ValidateNotes(req.Notes); err != nil {
-		return nil, status.Errorf(codes.InvalidArgument, "invalid notes: %v", err)
-	}
-
-	// Check if routine exists
-	routine, err := s.db.GetRoutine(req.RoutineId)
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get routine: %v", err)
-	}
-	if routine == nil {
-		return nil, status.Errorf(codes.NotFound, "routine not found")
-	}
-
-	// Check if routine is enabled (unless forced)
-	if !routine.Enabled && !req.Force {
-		return nil, status.Errorf(codes.FailedPrecondition, "routine is disabled")
-	}
-
-	// TODO: Execute the actual actions here
-	// For now, we'll just simulate a successful execution
-	actionResults := map[string]string{
-		"status":  "simulated",
-		"message": "Routine execution simulated successfully",
-	}
-
-	// Create execution log
-	executionLog, err := s.db.CreateExecutionLog(req.RoutineId, true, req.Notes, actionResults)
-	if err != nil {
-		s.logger.Error("Failed to create execution log", zap.Error(err))
-		return nil, status.Errorf(codes.Internal, "failed to create execution log: %v", err)
-	}
+	s.logger.Warn("ExecuteRoutine called but execution logs are deprecated",
+		zap.String("routine_id", req.RoutineId))
 
 	// Update routine's last executed time
-	err = s.db.UpdateRoutineLastExecuted(req.RoutineId)
+	err := s.db.UpdateRoutineLastExecuted(req.RoutineId)
 	if err != nil {
-		s.logger.Warn("Failed to update routine last executed time", zap.Error(err))
+		s.logger.Error("Failed to update routine last executed time", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to update routine: %v", err)
 	}
 
-	return convertToProtoExecutionLog(executionLog), nil
+	// Return stub response for backward compatibility
+	return &pb.ExecutionLog{
+		LogId:     0,
+		RoutineId: req.RoutineId,
+		Timestamp: timestamppb.Now(),
+		Completed: true,
+		Notes:     "Execution logs deprecated - routine execution time updated",
+	}, nil
 }
 
 // GetExecutionLogs retrieves execution logs for a routine
+// DEPRECATED: Execution logs have been removed from the schema
 func (s *Server) GetExecutionLogs(ctx context.Context, req *pb.GetExecutionLogsRequest) (*pb.GetExecutionLogsResponse, error) {
-	s.logger.Info("Getting execution logs",
-		zap.String("routine_id", req.RoutineId),
-		zap.Int32("limit", req.Limit))
+	s.logger.Warn("GetExecutionLogs called but execution logs are deprecated",
+		zap.String("routine_id", req.RoutineId))
 
-	logs, err := s.db.GetExecutionLogs(req.RoutineId, int(req.Limit))
-	if err != nil {
-		return nil, status.Errorf(codes.Internal, "failed to get execution logs: %v", err)
-	}
-
-	pbLogs := make([]*pb.ExecutionLog, 0, len(logs))
-	for _, log := range logs {
-		pbLogs = append(pbLogs, convertToProtoExecutionLog(log))
-	}
-
+	// Return empty list for backward compatibility
 	return &pb.GetExecutionLogsResponse{
-		Logs: pbLogs,
+		Logs: []*pb.ExecutionLog{},
 	}, nil
 }
 
@@ -319,7 +275,6 @@ func convertToProtoRoutine(routine *models.Routine) *pb.Routine {
 		ProfileId:   routine.ProfileID,
 		Name:        routine.Name,
 		Description: routine.Description,
-		ActionIds:   routine.ActionIDs,
 		Enabled:     routine.Enabled,
 		Metadata:    routine.Metadata,
 		CreatedAt:   timestamppb.New(routine.CreatedAt),
@@ -333,13 +288,3 @@ func convertToProtoRoutine(routine *models.Routine) *pb.Routine {
 	return pbRoutine
 }
 
-func convertToProtoExecutionLog(log *models.ExecutionLog) *pb.ExecutionLog {
-	return &pb.ExecutionLog{
-		LogId:         log.LogID,
-		RoutineId:     log.RoutineID,
-		Timestamp:     timestamppb.New(log.Timestamp),
-		Completed:     log.Completed,
-		Notes:         log.Notes,
-		ActionResults: log.ActionResults,
-	}
-}

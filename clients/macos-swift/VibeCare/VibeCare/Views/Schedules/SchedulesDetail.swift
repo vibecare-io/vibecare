@@ -115,10 +115,6 @@ struct ScheduleDetailView: View {
         .onChange(of: schedule?.id) { oldValue, newValue in
             handleScheduleIdChange(oldValue: oldValue, newValue: newValue)
         }
-        .onChange(of: schedule?.actionIDs) { oldValue, newValue in
-            // Reload actions when schedule's actionIDs change
-            loadActions()
-        }
         .onChange(of: isCreating) { oldValue, newValue in
             handleIsCreatingChange(oldValue: oldValue, newValue: newValue)
         }
@@ -798,18 +794,18 @@ struct ScheduleDetailView: View {
             return
         }
 
-        print("DEBUG [loadActions]: Schedule '\(schedule.name)' has \(schedule.actionIDs.count) action IDs: \(schedule.actionIDs)")
-
-        guard !schedule.actionIDs.isEmpty else {
-            print("DEBUG [loadActions]: No action IDs, clearing actions")
-            actions = []
-            return
-        }
+        print("DEBUG [loadActions]: Loading actions for schedule '\(schedule.name)'")
 
         Task {
             do {
+                // Fetch action IDs from schedule_actions join table
+                let scheduleService = ScheduleService()
+                let actionIDs = try await scheduleService.getScheduleActions(scheduleId: schedule.id)
+
+                print("DEBUG [loadActions]: Found \(actionIDs.count) action IDs")
+
                 var loadedActions: [Action] = []
-                for actionID in schedule.actionIDs {
+                for actionID in actionIDs {
                     print("DEBUG [loadActions]: Fetching action \(actionID)...")
                     if let action = try await actionService.getAction(id: actionID) {
                         print("DEBUG [loadActions]: Loaded action \(action.id) of type \(action.type.displayName)")
@@ -867,25 +863,24 @@ struct ScheduleDetailView: View {
 
         Task {
             do {
-                // Soft delete - disable the action
+                // Remove from schedule_actions join table
+                let scheduleService = ScheduleService()
+                try await scheduleService.removeActionFromSchedule(scheduleId: schedule.id, actionId: action.id)
+
+                // Optionally disable the action itself (soft delete)
                 var updatedAction = action
                 updatedAction.enabled = false
                 _ = try await actionService.updateAction(updatedAction)
-
-                // Remove from schedule's actionIDs
-                var updatedSchedule = schedule
-                updatedSchedule.actionIDs.removeAll { $0 == action.id }
-                await viewModel.updateSchedule(updatedSchedule)
 
                 // Reload actions
                 await MainActor.run {
                     loadActions()
                 }
 
-                StatusBarManager.shared.showSuccess("Action deleted")
+                StatusBarManager.shared.showSuccess("Action removed from schedule")
             } catch {
                 print("Error deleting action: \(error)")
-                StatusBarManager.shared.showError("Failed to delete action")
+                StatusBarManager.shared.showError("Failed to remove action")
             }
         }
     }
@@ -903,13 +898,14 @@ struct ScheduleDetailView: View {
 
         await viewModel.createSchedule(
             routineId: schedule?.routineId ?? "",
+            profileId: schedule?.profileId ?? "",
             name: scheduleName.trimmingCharacters(in: .whitespacesAndNewlines),
             rrule: scheduleRRule,
             dtstart: scheduleStartDate,
             notes: scheduleNotes.trimmingCharacters(in: .whitespacesAndNewlines),
             enabled: scheduleEnabled,
-            priority: schedulePriority,
-            actionIDs: actions.map { $0.id }
+            priority: schedulePriority
+            // TODO: actions managed via schedule_actions join table
         )
 
         isSaving = false
@@ -1038,6 +1034,7 @@ struct ScheduleFormView: View {
     Group {
         ScheduleDetailView(
             schedule: Schedule(
+                profileId: "preview-profile",
                 routineId: "preview",
                 name: "Eye Care Schedule",
                 rrule: "FREQ=MINUTELY;INTERVAL=20",

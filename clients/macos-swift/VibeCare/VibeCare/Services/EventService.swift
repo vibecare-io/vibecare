@@ -138,9 +138,11 @@ class EventService: ObservableObject {
         }
 
         // Fetch schedule and actions from backend services
+        let scheduleService = ScheduleService()
+        let actionService = ActionService()
+
         do {
             // Fetch schedule from backend
-            let scheduleService = ScheduleService()
             guard let schedule = try await scheduleService.getSchedule(id: event.scheduleID) else {
                 self.logger.warning("Schedule not found on backend: \(event.scheduleID)")
                 // Fallback to showing notification directly
@@ -150,46 +152,51 @@ class EventService: ObservableObject {
                 return
             }
 
-            // If schedule has no actions, show default notification (backward compatibility)
-            if schedule.actionIDs.isEmpty {
-                self.logger.info("Schedule has no actions, showing default notification")
-                _ = await MainActor.run {
-                    NotificationManager.shared.showScheduleNotification(for: event)
+            // Fetch action IDs from schedule_actions join table
+
+            do {
+                let actionIDs = try await scheduleService.getScheduleActions(scheduleId: event.scheduleID)
+
+                if actionIDs.isEmpty {
+                    self.logger.info("Schedule has no actions, showing default notification")
+                    _ = await MainActor.run {
+                        NotificationManager.shared.showScheduleNotification(for: event)
+                    }
+                    return
                 }
-                return
-            }
 
-            // Fetch actions from backend
-            let actionService = ActionService()
-            var actions: [Action] = []
-
-            for actionID in schedule.actionIDs {
-                do {
+                // Fetch full action details for each action ID
+                var actions: [Action] = []
+                for actionID in actionIDs {
                     if let action = try await actionService.getAction(id: actionID) {
                         actions.append(action)
                     } else {
                         self.logger.warning("Action not found: \(actionID)")
                     }
-                } catch {
-                    self.logger.error("Failed to fetch action \(actionID): \(error)")
                 }
-            }
 
-            if actions.isEmpty {
-                self.logger.warning("No actions found for schedule: \(event.scheduleID)")
+                if actions.isEmpty {
+                    self.logger.warning("No actions found for schedule: \(event.scheduleID)")
+                    // Fallback to showing notification
+                    _ = await MainActor.run {
+                        NotificationManager.shared.showScheduleNotification(for: event)
+                    }
+                    return
+                }
+
+                // Execute each action in order
+                self.logger.info("Executing \(actions.count) actions for schedule: \(event.scheduleID)")
+                await MainActor.run { [weak self] in
+                    guard let self = self else { return }
+                    for action in actions {
+                        self.executeAction(action, for: event)
+                    }
+                }
+            } catch {
+                self.logger.error("Failed to fetch actions for schedule: \(error)")
                 // Fallback to showing notification
                 _ = await MainActor.run {
                     NotificationManager.shared.showScheduleNotification(for: event)
-                }
-                return
-            }
-
-            // Execute each action
-            self.logger.info("Executing \(actions.count) actions for schedule: \(event.scheduleID)")
-            await MainActor.run { [weak self] in
-                guard let self = self else { return }
-                for action in actions {
-                    self.executeAction(action, for: event)
                 }
             }
 

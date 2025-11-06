@@ -3772,6 +3772,66 @@ public enum VCScheduleService {
                 method: "ResumeAllSchedules"
             )
         }
+        /// Namespace for "GetScheduleActions" metadata.
+        public enum GetScheduleActions {
+            /// Request type for "GetScheduleActions".
+            public typealias Input = VCGetScheduleActionsRequest
+            /// Response type for "GetScheduleActions".
+            public typealias Output = VCGetScheduleActionsResponse
+            /// Descriptor for "GetScheduleActions".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
+                method: "GetScheduleActions"
+            )
+        }
+        /// Namespace for "AddActionToSchedule" metadata.
+        public enum AddActionToSchedule {
+            /// Request type for "AddActionToSchedule".
+            public typealias Input = VCAddActionToScheduleRequest
+            /// Response type for "AddActionToSchedule".
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            /// Descriptor for "AddActionToSchedule".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
+                method: "AddActionToSchedule"
+            )
+        }
+        /// Namespace for "RemoveActionFromSchedule" metadata.
+        public enum RemoveActionFromSchedule {
+            /// Request type for "RemoveActionFromSchedule".
+            public typealias Input = VCRemoveActionFromScheduleRequest
+            /// Response type for "RemoveActionFromSchedule".
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            /// Descriptor for "RemoveActionFromSchedule".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
+                method: "RemoveActionFromSchedule"
+            )
+        }
+        /// Namespace for "UpdateScheduleActionOrder" metadata.
+        public enum UpdateScheduleActionOrder {
+            /// Request type for "UpdateScheduleActionOrder".
+            public typealias Input = VCUpdateScheduleActionOrderRequest
+            /// Response type for "UpdateScheduleActionOrder".
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            /// Descriptor for "UpdateScheduleActionOrder".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
+                method: "UpdateScheduleActionOrder"
+            )
+        }
+        /// Namespace for "ReplaceScheduleActions" metadata.
+        public enum ReplaceScheduleActions {
+            /// Request type for "ReplaceScheduleActions".
+            public typealias Input = VCReplaceScheduleActionsRequest
+            /// Response type for "ReplaceScheduleActions".
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            /// Descriptor for "ReplaceScheduleActions".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleService"),
+                method: "ReplaceScheduleActions"
+            )
+        }
         /// Descriptors for all methods in the "vibecare.v1.ScheduleService" service.
         public static let descriptors: [GRPCCore.MethodDescriptor] = [
             CreateSchedule.descriptor,
@@ -3783,7 +3843,12 @@ public enum VCScheduleService {
             PauseSchedule.descriptor,
             ResumeSchedule.descriptor,
             PauseAllSchedules.descriptor,
-            ResumeAllSchedules.descriptor
+            ResumeAllSchedules.descriptor,
+            GetScheduleActions.descriptor,
+            AddActionToSchedule.descriptor,
+            RemoveActionFromSchedule.descriptor,
+            UpdateScheduleActionOrder.descriptor,
+            ReplaceScheduleActions.descriptor
         ]
     }
 }
@@ -3960,6 +4025,80 @@ extension VCScheduleService {
             request: GRPCCore.StreamingServerRequest<VCResumeAllSchedulesRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
+        /// Handle the "GetScheduleActions" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Schedule-Action association management
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCGetScheduleActionsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `VCGetScheduleActionsResponse` messages.
+        func getScheduleActions(
+            request: GRPCCore.StreamingServerRequest<VCGetScheduleActionsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<VCGetScheduleActionsResponse>
+
+        /// Handle the "AddActionToSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCAddActionToScheduleRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        func addActionToSchedule(
+            request: GRPCCore.StreamingServerRequest<VCAddActionToScheduleRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
+        /// Handle the "RemoveActionFromSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCRemoveActionFromScheduleRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        func removeActionFromSchedule(
+            request: GRPCCore.StreamingServerRequest<VCRemoveActionFromScheduleRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
+        /// Handle the "UpdateScheduleActionOrder" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCUpdateScheduleActionOrderRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        func updateScheduleActionOrder(
+            request: GRPCCore.StreamingServerRequest<VCUpdateScheduleActionOrderRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
+        /// Handle the "ReplaceScheduleActions" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCReplaceScheduleActionsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        func replaceScheduleActions(
+            request: GRPCCore.StreamingServerRequest<VCReplaceScheduleActionsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
     }
 
     /// Service protocol for the "vibecare.v1.ScheduleService" service.
@@ -4121,6 +4260,80 @@ extension VCScheduleService {
             request: GRPCCore.ServerRequest<VCResumeAllSchedulesRequest>,
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
+        /// Handle the "GetScheduleActions" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Schedule-Action association management
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCGetScheduleActionsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `VCGetScheduleActionsResponse` message.
+        func getScheduleActions(
+            request: GRPCCore.ServerRequest<VCGetScheduleActionsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<VCGetScheduleActionsResponse>
+
+        /// Handle the "AddActionToSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCAddActionToScheduleRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `SwiftProtobuf.Google_Protobuf_Empty` message.
+        func addActionToSchedule(
+            request: GRPCCore.ServerRequest<VCAddActionToScheduleRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
+        /// Handle the "RemoveActionFromSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCRemoveActionFromScheduleRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `SwiftProtobuf.Google_Protobuf_Empty` message.
+        func removeActionFromSchedule(
+            request: GRPCCore.ServerRequest<VCRemoveActionFromScheduleRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
+        /// Handle the "UpdateScheduleActionOrder" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCUpdateScheduleActionOrderRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `SwiftProtobuf.Google_Protobuf_Empty` message.
+        func updateScheduleActionOrder(
+            request: GRPCCore.ServerRequest<VCUpdateScheduleActionOrderRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
+        /// Handle the "ReplaceScheduleActions" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCReplaceScheduleActionsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `SwiftProtobuf.Google_Protobuf_Empty` message.
+        func replaceScheduleActions(
+            request: GRPCCore.ServerRequest<VCReplaceScheduleActionsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
     }
 
     /// Simple service protocol for the "vibecare.v1.ScheduleService" service.
@@ -4280,6 +4493,80 @@ extension VCScheduleService {
             request: VCResumeAllSchedulesRequest,
             context: GRPCCore.ServerContext
         ) async throws -> SwiftProtobuf.Google_Protobuf_Empty
+
+        /// Handle the "GetScheduleActions" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Schedule-Action association management
+        ///
+        /// - Parameters:
+        ///   - request: A `VCGetScheduleActionsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `VCGetScheduleActionsResponse` to respond with.
+        func getScheduleActions(
+            request: VCGetScheduleActionsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> VCGetScheduleActionsResponse
+
+        /// Handle the "AddActionToSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `VCAddActionToScheduleRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `SwiftProtobuf.Google_Protobuf_Empty` to respond with.
+        func addActionToSchedule(
+            request: VCAddActionToScheduleRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> SwiftProtobuf.Google_Protobuf_Empty
+
+        /// Handle the "RemoveActionFromSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `VCRemoveActionFromScheduleRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `SwiftProtobuf.Google_Protobuf_Empty` to respond with.
+        func removeActionFromSchedule(
+            request: VCRemoveActionFromScheduleRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> SwiftProtobuf.Google_Protobuf_Empty
+
+        /// Handle the "UpdateScheduleActionOrder" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `VCUpdateScheduleActionOrderRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `SwiftProtobuf.Google_Protobuf_Empty` to respond with.
+        func updateScheduleActionOrder(
+            request: VCUpdateScheduleActionOrderRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> SwiftProtobuf.Google_Protobuf_Empty
+
+        /// Handle the "ReplaceScheduleActions" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `VCReplaceScheduleActionsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `SwiftProtobuf.Google_Protobuf_Empty` to respond with.
+        func replaceScheduleActions(
+            request: VCReplaceScheduleActionsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> SwiftProtobuf.Google_Protobuf_Empty
     }
 }
 
@@ -4397,6 +4684,61 @@ extension VCScheduleService.StreamingServiceProtocol {
                 )
             }
         )
+        router.registerHandler(
+            forMethod: VCScheduleService.Method.GetScheduleActions.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCGetScheduleActionsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<VCGetScheduleActionsResponse>(),
+            handler: { request, context in
+                try await self.getScheduleActions(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: VCScheduleService.Method.AddActionToSchedule.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCAddActionToScheduleRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            handler: { request, context in
+                try await self.addActionToSchedule(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: VCScheduleService.Method.RemoveActionFromSchedule.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCRemoveActionFromScheduleRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            handler: { request, context in
+                try await self.removeActionFromSchedule(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: VCScheduleService.Method.UpdateScheduleActionOrder.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCUpdateScheduleActionOrderRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            handler: { request, context in
+                try await self.updateScheduleActionOrder(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: VCScheduleService.Method.ReplaceScheduleActions.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCReplaceScheduleActionsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            handler: { request, context in
+                try await self.replaceScheduleActions(
+                    request: request,
+                    context: context
+                )
+            }
+        )
     }
 }
 
@@ -4507,6 +4849,61 @@ extension VCScheduleService.ServiceProtocol {
         context: GRPCCore.ServerContext
     ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
         let response = try await self.resumeAllSchedules(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func getScheduleActions(
+        request: GRPCCore.StreamingServerRequest<VCGetScheduleActionsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<VCGetScheduleActionsResponse> {
+        let response = try await self.getScheduleActions(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func addActionToSchedule(
+        request: GRPCCore.StreamingServerRequest<VCAddActionToScheduleRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        let response = try await self.addActionToSchedule(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func removeActionFromSchedule(
+        request: GRPCCore.StreamingServerRequest<VCRemoveActionFromScheduleRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        let response = try await self.removeActionFromSchedule(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func updateScheduleActionOrder(
+        request: GRPCCore.StreamingServerRequest<VCUpdateScheduleActionOrderRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        let response = try await self.updateScheduleActionOrder(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func replaceScheduleActions(
+        request: GRPCCore.StreamingServerRequest<VCReplaceScheduleActionsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        let response = try await self.replaceScheduleActions(
             request: GRPCCore.ServerRequest(stream: request),
             context: context
         )
@@ -4640,6 +5037,71 @@ extension VCScheduleService.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
         return GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>(
             message: try await self.resumeAllSchedules(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func getScheduleActions(
+        request: GRPCCore.ServerRequest<VCGetScheduleActionsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<VCGetScheduleActionsResponse> {
+        return GRPCCore.ServerResponse<VCGetScheduleActionsResponse>(
+            message: try await self.getScheduleActions(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func addActionToSchedule(
+        request: GRPCCore.ServerRequest<VCAddActionToScheduleRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        return GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>(
+            message: try await self.addActionToSchedule(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func removeActionFromSchedule(
+        request: GRPCCore.ServerRequest<VCRemoveActionFromScheduleRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        return GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>(
+            message: try await self.removeActionFromSchedule(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func updateScheduleActionOrder(
+        request: GRPCCore.ServerRequest<VCUpdateScheduleActionOrderRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        return GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>(
+            message: try await self.updateScheduleActionOrder(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func replaceScheduleActions(
+        request: GRPCCore.ServerRequest<VCReplaceScheduleActionsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        return GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>(
+            message: try await self.replaceScheduleActions(
                 request: request.message,
                 context: context
             ),
@@ -4854,6 +5316,105 @@ extension VCScheduleService {
         func resumeAllSchedules<Result>(
             request: GRPCCore.ClientRequest<VCResumeAllSchedulesRequest>,
             serializer: some GRPCCore.MessageSerializer<VCResumeAllSchedulesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "GetScheduleActions" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Schedule-Action association management
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCGetScheduleActionsRequest` message.
+        ///   - serializer: A serializer for `VCGetScheduleActionsRequest` messages.
+        ///   - deserializer: A deserializer for `VCGetScheduleActionsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func getScheduleActions<Result>(
+            request: GRPCCore.ClientRequest<VCGetScheduleActionsRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCGetScheduleActionsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<VCGetScheduleActionsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCGetScheduleActionsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "AddActionToSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCAddActionToScheduleRequest` message.
+        ///   - serializer: A serializer for `VCAddActionToScheduleRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func addActionToSchedule<Result>(
+            request: GRPCCore.ClientRequest<VCAddActionToScheduleRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCAddActionToScheduleRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "RemoveActionFromSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCRemoveActionFromScheduleRequest` message.
+        ///   - serializer: A serializer for `VCRemoveActionFromScheduleRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func removeActionFromSchedule<Result>(
+            request: GRPCCore.ClientRequest<VCRemoveActionFromScheduleRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCRemoveActionFromScheduleRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "UpdateScheduleActionOrder" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCUpdateScheduleActionOrderRequest` message.
+        ///   - serializer: A serializer for `VCUpdateScheduleActionOrderRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func updateScheduleActionOrder<Result>(
+            request: GRPCCore.ClientRequest<VCUpdateScheduleActionOrderRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCUpdateScheduleActionOrderRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "ReplaceScheduleActions" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCReplaceScheduleActionsRequest` message.
+        ///   - serializer: A serializer for `VCReplaceScheduleActionsRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func replaceScheduleActions<Result>(
+            request: GRPCCore.ClientRequest<VCReplaceScheduleActionsRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCReplaceScheduleActionsRequest>,
             deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result
@@ -5187,6 +5748,160 @@ extension VCScheduleService {
                 onResponse: handleResponse
             )
         }
+
+        /// Call the "GetScheduleActions" method.
+        ///
+        /// > Source IDL Documentation:
+        /// >
+        /// > Schedule-Action association management
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCGetScheduleActionsRequest` message.
+        ///   - serializer: A serializer for `VCGetScheduleActionsRequest` messages.
+        ///   - deserializer: A deserializer for `VCGetScheduleActionsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func getScheduleActions<Result>(
+            request: GRPCCore.ClientRequest<VCGetScheduleActionsRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCGetScheduleActionsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<VCGetScheduleActionsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCGetScheduleActionsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCScheduleService.Method.GetScheduleActions.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "AddActionToSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCAddActionToScheduleRequest` message.
+        ///   - serializer: A serializer for `VCAddActionToScheduleRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func addActionToSchedule<Result>(
+            request: GRPCCore.ClientRequest<VCAddActionToScheduleRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCAddActionToScheduleRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCScheduleService.Method.AddActionToSchedule.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "RemoveActionFromSchedule" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCRemoveActionFromScheduleRequest` message.
+        ///   - serializer: A serializer for `VCRemoveActionFromScheduleRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func removeActionFromSchedule<Result>(
+            request: GRPCCore.ClientRequest<VCRemoveActionFromScheduleRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCRemoveActionFromScheduleRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCScheduleService.Method.RemoveActionFromSchedule.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "UpdateScheduleActionOrder" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCUpdateScheduleActionOrderRequest` message.
+        ///   - serializer: A serializer for `VCUpdateScheduleActionOrderRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func updateScheduleActionOrder<Result>(
+            request: GRPCCore.ClientRequest<VCUpdateScheduleActionOrderRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCUpdateScheduleActionOrderRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCScheduleService.Method.UpdateScheduleActionOrder.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "ReplaceScheduleActions" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCReplaceScheduleActionsRequest` message.
+        ///   - serializer: A serializer for `VCReplaceScheduleActionsRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func replaceScheduleActions<Result>(
+            request: GRPCCore.ClientRequest<VCReplaceScheduleActionsRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCReplaceScheduleActionsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCScheduleService.Method.ReplaceScheduleActions.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
     }
 }
 
@@ -5449,6 +6164,135 @@ extension VCScheduleService.ClientProtocol {
         try await self.resumeAllSchedules(
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<VCResumeAllSchedulesRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetScheduleActions" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Schedule-Action association management
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCGetScheduleActionsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func getScheduleActions<Result>(
+        request: GRPCCore.ClientRequest<VCGetScheduleActionsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCGetScheduleActionsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.getScheduleActions(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCGetScheduleActionsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCGetScheduleActionsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "AddActionToSchedule" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCAddActionToScheduleRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func addActionToSchedule<Result>(
+        request: GRPCCore.ClientRequest<VCAddActionToScheduleRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.addActionToSchedule(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCAddActionToScheduleRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RemoveActionFromSchedule" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCRemoveActionFromScheduleRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func removeActionFromSchedule<Result>(
+        request: GRPCCore.ClientRequest<VCRemoveActionFromScheduleRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.removeActionFromSchedule(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCRemoveActionFromScheduleRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "UpdateScheduleActionOrder" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCUpdateScheduleActionOrderRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func updateScheduleActionOrder<Result>(
+        request: GRPCCore.ClientRequest<VCUpdateScheduleActionOrderRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.updateScheduleActionOrder(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCUpdateScheduleActionOrderRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ReplaceScheduleActions" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCReplaceScheduleActionsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func replaceScheduleActions<Result>(
+        request: GRPCCore.ClientRequest<VCReplaceScheduleActionsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.replaceScheduleActions(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCReplaceScheduleActionsRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<SwiftProtobuf.Google_Protobuf_Empty>(),
             options: options,
             onResponse: handleResponse
@@ -5755,6 +6599,155 @@ extension VCScheduleService.ClientProtocol {
             metadata: metadata
         )
         return try await self.resumeAllSchedules(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "GetScheduleActions" method.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Schedule-Action association management
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func getScheduleActions<Result>(
+        _ message: VCGetScheduleActionsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCGetScheduleActionsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCGetScheduleActionsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.getScheduleActions(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "AddActionToSchedule" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func addActionToSchedule<Result>(
+        _ message: VCAddActionToScheduleRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCAddActionToScheduleRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.addActionToSchedule(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RemoveActionFromSchedule" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func removeActionFromSchedule<Result>(
+        _ message: VCRemoveActionFromScheduleRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCRemoveActionFromScheduleRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.removeActionFromSchedule(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "UpdateScheduleActionOrder" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func updateScheduleActionOrder<Result>(
+        _ message: VCUpdateScheduleActionOrderRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCUpdateScheduleActionOrderRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.updateScheduleActionOrder(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "ReplaceScheduleActions" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func replaceScheduleActions<Result>(
+        _ message: VCReplaceScheduleActionsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCReplaceScheduleActionsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.replaceScheduleActions(
             request: request,
             options: options,
             onResponse: handleResponse

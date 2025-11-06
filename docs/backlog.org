@@ -30,6 +30,7 @@
   - bug: scheduler is dispatching every one minute
 *** lib: vibe-notify-macos
 
+*** update - automatically
 * dump:
 ** svg animations with rive for different notification                :macos:
     - rive animaiation imitate your eyes
@@ -84,3 +85,24 @@ Working In front of coumputer/devices leads to:
 - Birthday of special one( jan 01 of every year) 
 - Anniversaries Reminder (every year one week before oct 10)
 - Declutter Donate Clothes( annually around july frist week)
+
+** Bugs
+*** with Tulsi
+#+DATE: Wednesday, Nov 05 2025
+**Bugs:**
+- Schedule Element UI(show time)
+
+UX:
+  - Close app ui option
+  - App should be focused on alt+tab
+  - Open app option from the menu bar
+  - Show backend details
+
+Refactor:
+- Direct Schedule
+ - Create Schedule
+ -  you get the easy to use templates
+ - or option to build your own
+
+Advance:
+- Auto Update

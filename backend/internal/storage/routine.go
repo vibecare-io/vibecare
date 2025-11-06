@@ -12,7 +12,7 @@ import (
 )
 
 // CreateRoutine creates a new routine with optional client-provided ID (with security checks)
-func (db *DB) CreateRoutine(id, profileID, name, description string, actionIds []string, enabled bool, metadata map[string]string) (*models.Routine, error) {
+func (db *DB) CreateRoutine(id, profileID, name, description string, enabled bool, metadata map[string]string) (*models.Routine, error) {
 	// Validate and sanitize inputs
 	if err := validation.ValidateUUID("id", id); err != nil {
 		return nil, err
@@ -29,10 +29,6 @@ func (db *DB) CreateRoutine(id, profileID, name, description string, actionIds [
 
 	sanitizedDescription, err := validation.ValidateAndSanitizeDescription(description)
 	if err != nil {
-		return nil, err
-	}
-
-	if err := validation.ValidateStringArray("action_ids", actionIds, validation.MaxArraySize); err != nil {
 		return nil, err
 	}
 
@@ -72,27 +68,21 @@ func (db *DB) CreateRoutine(id, profileID, name, description string, actionIds [
 		ProfileID:   profileID,
 		Name:        sanitizedName,
 		Description: sanitizedDescription,
-		ActionIDs:   actionIds,
 		Enabled:     enabled,
 		Metadata:    metadata,
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),
 	}
 
-	// Store action IDs and metadata as JSON
-	actionIdsJSON, err := json.Marshal(actionIds)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal action IDs: %w", err)
-	}
-
+	// Store metadata as JSON
 	metadataJSON, err := json.Marshal(metadata)
 	if err != nil {
 		return nil, fmt.Errorf("failed to marshal metadata: %w", err)
 	}
 
 	query := `
-		INSERT INTO routines (id, profile_id, name, description, action_ids, metadata, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO routines (id, profile_id, name, description, metadata, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = db.Exec(query,
@@ -100,7 +90,6 @@ func (db *DB) CreateRoutine(id, profileID, name, description string, actionIds [
 		routine.ProfileID,
 		routine.Name,
 		routine.Description,
-		string(actionIdsJSON),
 		string(metadataJSON),
 		routine.Enabled,
 		routine.CreatedAt.Format(time.RFC3339),
@@ -117,14 +106,14 @@ func (db *DB) CreateRoutine(id, profileID, name, description string, actionIds [
 // GetRoutine retrieves a routine by ID
 func (db *DB) GetRoutine(id string) (*models.Routine, error) {
 	query := `
-		SELECT id, profile_id, name, description, action_ids, metadata, enabled,
+		SELECT id, profile_id, name, description, metadata, enabled,
 		       created_at, updated_at, last_executed_at
 		FROM routines
 		WHERE id = ?
 	`
 
 	var routine models.Routine
-	var actionIdsJSON, metadataJSON string
+	var metadataJSON string
 	var createdAt, updatedAt string
 	var lastExecutedAt sql.NullString
 
@@ -133,7 +122,6 @@ func (db *DB) GetRoutine(id string) (*models.Routine, error) {
 		&routine.ProfileID,
 		&routine.Name,
 		&routine.Description,
-		&actionIdsJSON,
 		&metadataJSON,
 		&routine.Enabled,
 		&createdAt,
@@ -148,11 +136,7 @@ func (db *DB) GetRoutine(id string) (*models.Routine, error) {
 		return nil, err
 	}
 
-	// Parse JSON fields
-	if err := json.Unmarshal([]byte(actionIdsJSON), &routine.ActionIDs); err != nil {
-		return nil, fmt.Errorf("failed to unmarshal action IDs: %w", err)
-	}
-
+	// Parse metadata JSON
 	if err := json.Unmarshal([]byte(metadataJSON), &routine.Metadata); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal metadata: %w", err)
 	}
@@ -182,7 +166,7 @@ func (db *DB) GetRoutine(id string) (*models.Routine, error) {
 // ListRoutines lists routines for a profile
 func (db *DB) ListRoutines(profileID string, enabledOnly bool) ([]*models.Routine, error) {
 	query := `
-		SELECT id, profile_id, name, description, action_ids, metadata, enabled,
+		SELECT id, profile_id, name, description, metadata, enabled,
 		       created_at, updated_at, last_executed_at
 		FROM routines
 		WHERE profile_id = ?
@@ -205,7 +189,7 @@ func (db *DB) ListRoutines(profileID string, enabledOnly bool) ([]*models.Routin
 	var routines []*models.Routine
 	for rows.Next() {
 		var routine models.Routine
-		var actionIdsJSON, metadataJSON string
+		var metadataJSON string
 		var createdAt, updatedAt string
 		var lastExecutedAt sql.NullString
 
@@ -214,7 +198,6 @@ func (db *DB) ListRoutines(profileID string, enabledOnly bool) ([]*models.Routin
 			&routine.ProfileID,
 			&routine.Name,
 			&routine.Description,
-			&actionIdsJSON,
 			&metadataJSON,
 			&routine.Enabled,
 			&createdAt,
@@ -225,11 +208,7 @@ func (db *DB) ListRoutines(profileID string, enabledOnly bool) ([]*models.Routin
 			return nil, err
 		}
 
-		// Parse JSON fields
-		if err := json.Unmarshal([]byte(actionIdsJSON), &routine.ActionIDs); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal action IDs for routine %s: %w", routine.ID, err)
-		}
-
+		// Parse metadata JSON
 		if err := json.Unmarshal([]byte(metadataJSON), &routine.Metadata); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal metadata for routine %s: %w", routine.ID, err)
 		}
@@ -286,20 +265,11 @@ func (db *DB) UpdateRoutine(routine *models.Routine) (*models.Routine, error) {
 	}
 	routine.Description = sanitizedDescription
 
-	if err := validation.ValidateStringArray("action_ids", routine.ActionIDs, validation.MaxArraySize); err != nil {
-		return nil, err
-	}
-
 	if err := validation.ValidateJSONMap("metadata", routine.Metadata); err != nil {
 		return nil, err
 	}
 
 	routine.UpdatedAt = time.Now()
-
-	actionIdsJSON, err := json.Marshal(routine.ActionIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal action IDs: %w", err)
-	}
 
 	metadataJSON, err := json.Marshal(routine.Metadata)
 	if err != nil {
@@ -308,14 +278,13 @@ func (db *DB) UpdateRoutine(routine *models.Routine) (*models.Routine, error) {
 
 	query := `
 		UPDATE routines
-		SET name = ?, description = ?, action_ids = ?, metadata = ?, enabled = ?, updated_at = ?
+		SET name = ?, description = ?, metadata = ?, enabled = ?, updated_at = ?
 		WHERE id = ?
 	`
 
 	_, err = db.Exec(query,
 		routine.Name,
 		routine.Description,
-		string(actionIdsJSON),
 		string(metadataJSON),
 		routine.Enabled,
 		routine.UpdatedAt.Format(time.RFC3339),

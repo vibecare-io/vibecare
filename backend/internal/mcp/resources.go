@@ -182,42 +182,12 @@ func (s *Server) readActionsResource(ctx context.Context) ([]ResourceContents, e
 }
 
 // readExecutionLogsResource returns recent execution logs as JSON
+// DEPRECATED: Execution logs have been removed from the schema
 func (s *Server) readExecutionLogsResource(ctx context.Context) ([]ResourceContents, error) {
-	// Get all routines
-	routines, err := s.storage.ListRoutines(s.profileID, false)
-	if err != nil {
-		return nil, fmt.Errorf("failed to list routines: %w", err)
-	}
+	s.logger.Warn("readExecutionLogsResource called but execution logs are deprecated")
 
-	// Collect execution logs for all routines
-	type LogWithRoutine struct {
-		Log         interface{} `json:"log"`
-		RoutineName string      `json:"routine_name"`
-		RoutineID   string      `json:"routine_id"`
-	}
-
-	var allLogs []LogWithRoutine
-
-	for _, routine := range routines {
-		logs, err := s.storage.GetExecutionLogs(routine.ID, 100)
-		if err != nil {
-			s.logger.Warn("Failed to get execution logs for routine", zap.String("routine_id", routine.ID), zap.Error(err))
-			continue
-		}
-
-		for _, log := range logs {
-			allLogs = append(allLogs, LogWithRoutine{
-				Log:         log,
-				RoutineName: routine.Name,
-				RoutineID:   routine.ID,
-			})
-		}
-	}
-
-	data, err := json.MarshalIndent(allLogs, "", "  ")
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal execution logs: %w", err)
-	}
+	// Return empty array for backward compatibility
+	data := []byte("[]")
 
 	return []ResourceContents{
 		{

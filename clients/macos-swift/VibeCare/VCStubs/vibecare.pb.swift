@@ -300,7 +300,7 @@ public struct VCAction: Sendable {
   fileprivate var _createdAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
 }
 
-/// Routine - a collection of actions with a schedule
+/// Routine - metadata container for grouping schedules
 public struct VCRoutine: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
@@ -313,9 +313,6 @@ public struct VCRoutine: Sendable {
   public var name: String = String()
 
   public var description_p: String = String()
-
-  /// References to Action.id
-  public var actionIds: [String] = []
 
   public var enabled: Bool = false
 
@@ -363,19 +360,16 @@ public struct VCSchedule: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  /// UUID for local-first architecture
   public var scheduleID: String = String()
+
+  public var profileID: String = String()
 
   public var routineID: String = String()
 
   public var name: String = String()
 
-  /// RRule string in RFC 5545 format
-  /// Example: FREQ=DAILY;INTERVAL=1;BYHOUR=9,18;BYMINUTE=0
-  /// See: https://tools.ietf.org/html/rfc5545#section-3.3.10
   public var rrule: String = String()
 
-  /// when schedule starts
   public var dtstart: SwiftProtobuf.Google_Protobuf_Timestamp {
     get {return _dtstart ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
     set {_dtstart = newValue}
@@ -385,7 +379,6 @@ public struct VCSchedule: Sendable {
   /// Clears the value of `dtstart`. Subsequent reads from it will return its default value.
   public mutating func clearDtstart() {self._dtstart = nil}
 
-  /// Exclusion dates (ISO 8601 strings for simplicity)
   public var exdates: [String] = []
 
   public var lastExecution: SwiftProtobuf.Google_Protobuf_Timestamp {
@@ -418,9 +411,6 @@ public struct VCSchedule: Sendable {
   public var hasUpdatedAt: Bool {return self._updatedAt != nil}
   /// Clears the value of `updatedAt`. Subsequent reads from it will return its default value.
   public mutating func clearUpdatedAt() {self._updatedAt = nil}
-
-  /// References to Action.id - actions to execute when triggered
-  public var actionIds: [String] = []
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -699,8 +689,6 @@ public struct VCCreateRoutineRequest: Sendable {
 
   public var description_p: String = String()
 
-  public var actionIds: [String] = []
-
   public var enabled: Bool = false
 
   public var metadata: Dictionary<String,String> = [:]
@@ -781,8 +769,6 @@ public struct VCUpdateRoutineRequest: Sendable {
   public var name: String = String()
 
   public var description_p: String = String()
-
-  public var actionIds: [String] = []
 
   public var metadata: Dictionary<String,String> = [:]
 
@@ -931,6 +917,9 @@ public struct VCCreateScheduleRequest: Sendable {
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
+  /// Direct profile reference
+  public var profileID: String = String()
+
   public var routineID: String = String()
 
   public var name: String = String()
@@ -950,9 +939,6 @@ public struct VCCreateScheduleRequest: Sendable {
 
   /// Optional: Client-provided ID for local-first architecture
   public var id: String = String()
-
-  /// Action IDs to associate with this schedule
-  public var actionIds: [String] = []
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -989,9 +975,6 @@ public struct VCUpdateScheduleRequest: Sendable {
   public var notes: String = String()
 
   public var enabled: Bool = false
-
-  /// Action IDs to associate with this schedule
-  public var actionIds: [String] = []
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1134,6 +1117,91 @@ public struct VCResumeAllSchedulesRequest: Sendable {
   // methods supported on all messages.
 
   public var profileID: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+/// Schedule-Action Association Messages
+public struct VCGetScheduleActionsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var scheduleID: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public struct VCGetScheduleActionsResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var actionIds: [String] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public struct VCAddActionToScheduleRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var scheduleID: String = String()
+
+  public var actionID: String = String()
+
+  public var actionOrder: Int32 = 0
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public struct VCRemoveActionFromScheduleRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var scheduleID: String = String()
+
+  public var actionID: String = String()
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public struct VCUpdateScheduleActionOrderRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var scheduleID: String = String()
+
+  public var actionID: String = String()
+
+  public var newOrder: Int32 = 0
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+public struct VCReplaceScheduleActionsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var scheduleID: String = String()
+
+  public var actionIds: [String] = []
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1771,7 +1839,7 @@ extension VCAction: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationB
 
 extension VCRoutine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Routine"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}profile_id\0\u{1}name\0\u{1}description\0\u{3}action_ids\0\u{1}enabled\0\u{1}metadata\0\u{3}created_at\0\u{3}updated_at\0\u{3}last_executed_at\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{3}profile_id\0\u{1}name\0\u{1}description\0\u{1}enabled\0\u{1}metadata\0\u{3}created_at\0\u{3}updated_at\0\u{3}last_executed_at\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1783,12 +1851,11 @@ extension VCRoutine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
       case 2: try { try decoder.decodeSingularStringField(value: &self.profileID) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 4: try { try decoder.decodeSingularStringField(value: &self.description_p) }()
-      case 5: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
-      case 6: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
-      case 7: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.metadata) }()
-      case 8: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
-      case 9: try { try decoder.decodeSingularMessageField(value: &self._updatedAt) }()
-      case 10: try { try decoder.decodeSingularMessageField(value: &self._lastExecutedAt) }()
+      case 5: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
+      case 6: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.metadata) }()
+      case 7: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
+      case 8: try { try decoder.decodeSingularMessageField(value: &self._updatedAt) }()
+      case 9: try { try decoder.decodeSingularMessageField(value: &self._lastExecutedAt) }()
       default: break
       }
     }
@@ -1811,23 +1878,20 @@ extension VCRoutine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     if !self.description_p.isEmpty {
       try visitor.visitSingularStringField(value: self.description_p, fieldNumber: 4)
     }
-    if !self.actionIds.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 5)
-    }
     if self.enabled != false {
-      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 6)
+      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 5)
     }
     if !self.metadata.isEmpty {
-      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.metadata, fieldNumber: 7)
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.metadata, fieldNumber: 6)
     }
     try { if let v = self._createdAt {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
     } }()
     try { if let v = self._updatedAt {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 9)
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
     } }()
     try { if let v = self._lastExecutedAt {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 9)
     } }()
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -1837,7 +1901,6 @@ extension VCRoutine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     if lhs.profileID != rhs.profileID {return false}
     if lhs.name != rhs.name {return false}
     if lhs.description_p != rhs.description_p {return false}
-    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.enabled != rhs.enabled {return false}
     if lhs.metadata != rhs.metadata {return false}
     if lhs._createdAt != rhs._createdAt {return false}
@@ -1850,7 +1913,7 @@ extension VCRoutine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
 
 extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Schedule"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0\u{3}action_ids\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}profile_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -1859,17 +1922,17 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
-      case 3: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.rrule) }()
-      case 5: try { try decoder.decodeSingularMessageField(value: &self._dtstart) }()
-      case 6: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
-      case 7: try { try decoder.decodeSingularMessageField(value: &self._lastExecution) }()
-      case 8: try { try decoder.decodeSingularStringField(value: &self.notes) }()
-      case 9: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
-      case 10: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
-      case 11: try { try decoder.decodeSingularMessageField(value: &self._updatedAt) }()
-      case 12: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.profileID) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.rrule) }()
+      case 6: try { try decoder.decodeSingularMessageField(value: &self._dtstart) }()
+      case 7: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
+      case 8: try { try decoder.decodeSingularMessageField(value: &self._lastExecution) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.notes) }()
+      case 10: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
+      case 11: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
+      case 12: try { try decoder.decodeSingularMessageField(value: &self._updatedAt) }()
       default: break
       }
     }
@@ -1883,44 +1946,45 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if !self.scheduleID.isEmpty {
       try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
     }
+    if !self.profileID.isEmpty {
+      try visitor.visitSingularStringField(value: self.profileID, fieldNumber: 2)
+    }
     if !self.routineID.isEmpty {
-      try visitor.visitSingularStringField(value: self.routineID, fieldNumber: 2)
+      try visitor.visitSingularStringField(value: self.routineID, fieldNumber: 3)
     }
     if !self.name.isEmpty {
-      try visitor.visitSingularStringField(value: self.name, fieldNumber: 3)
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 4)
     }
     if !self.rrule.isEmpty {
-      try visitor.visitSingularStringField(value: self.rrule, fieldNumber: 4)
+      try visitor.visitSingularStringField(value: self.rrule, fieldNumber: 5)
     }
     try { if let v = self._dtstart {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 5)
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
     } }()
     if !self.exdates.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.exdates, fieldNumber: 6)
+      try visitor.visitRepeatedStringField(value: self.exdates, fieldNumber: 7)
     }
     try { if let v = self._lastExecution {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
     } }()
     if !self.notes.isEmpty {
-      try visitor.visitSingularStringField(value: self.notes, fieldNumber: 8)
+      try visitor.visitSingularStringField(value: self.notes, fieldNumber: 9)
     }
     if self.enabled != false {
-      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 9)
+      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 10)
     }
     try { if let v = self._createdAt {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 10)
-    } }()
-    try { if let v = self._updatedAt {
       try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
     } }()
-    if !self.actionIds.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 12)
-    }
+    try { if let v = self._updatedAt {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 12)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: VCSchedule, rhs: VCSchedule) -> Bool {
     if lhs.scheduleID != rhs.scheduleID {return false}
+    if lhs.profileID != rhs.profileID {return false}
     if lhs.routineID != rhs.routineID {return false}
     if lhs.name != rhs.name {return false}
     if lhs.rrule != rhs.rrule {return false}
@@ -1931,7 +1995,6 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     if lhs.enabled != rhs.enabled {return false}
     if lhs._createdAt != rhs._createdAt {return false}
     if lhs._updatedAt != rhs._updatedAt {return false}
-    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -2481,7 +2544,7 @@ extension VCListDevicesResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageIm
 
 extension VCCreateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CreateRoutineRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{1}name\0\u{1}description\0\u{3}action_ids\0\u{1}enabled\0\u{1}metadata\0\u{1}id\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{1}name\0\u{1}description\0\u{1}enabled\0\u{1}metadata\0\u{1}id\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2492,10 +2555,9 @@ extension VCCreateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       case 1: try { try decoder.decodeSingularStringField(value: &self.profileID) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.description_p) }()
-      case 4: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
-      case 5: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
-      case 6: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.metadata) }()
-      case 7: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 4: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
+      case 5: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.metadata) }()
+      case 6: try { try decoder.decodeSingularStringField(value: &self.id) }()
       default: break
       }
     }
@@ -2511,17 +2573,14 @@ extension VCCreateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     if !self.description_p.isEmpty {
       try visitor.visitSingularStringField(value: self.description_p, fieldNumber: 3)
     }
-    if !self.actionIds.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 4)
-    }
     if self.enabled != false {
-      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 5)
+      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 4)
     }
     if !self.metadata.isEmpty {
-      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.metadata, fieldNumber: 6)
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.metadata, fieldNumber: 5)
     }
     if !self.id.isEmpty {
-      try visitor.visitSingularStringField(value: self.id, fieldNumber: 7)
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 6)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2530,7 +2589,6 @@ extension VCCreateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     if lhs.profileID != rhs.profileID {return false}
     if lhs.name != rhs.name {return false}
     if lhs.description_p != rhs.description_p {return false}
-    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.enabled != rhs.enabled {return false}
     if lhs.metadata != rhs.metadata {return false}
     if lhs.id != rhs.id {return false}
@@ -2649,7 +2707,7 @@ extension VCGetRoutineResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
 
 extension VCUpdateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateRoutineRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}description\0\u{3}action_ids\0\u{1}metadata\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}description\0\u{1}metadata\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2660,8 +2718,7 @@ extension VCUpdateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.description_p) }()
-      case 4: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
-      case 5: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.metadata) }()
+      case 4: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.metadata) }()
       default: break
       }
     }
@@ -2677,11 +2734,8 @@ extension VCUpdateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     if !self.description_p.isEmpty {
       try visitor.visitSingularStringField(value: self.description_p, fieldNumber: 3)
     }
-    if !self.actionIds.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 4)
-    }
     if !self.metadata.isEmpty {
-      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.metadata, fieldNumber: 5)
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.metadata, fieldNumber: 4)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2690,7 +2744,6 @@ extension VCUpdateRoutineRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     if lhs.id != rhs.id {return false}
     if lhs.name != rhs.name {return false}
     if lhs.description_p != rhs.description_p {return false}
-    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.metadata != rhs.metadata {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
@@ -2993,7 +3046,7 @@ extension VCGetExecutionLogsResponse: SwiftProtobuf.Message, SwiftProtobuf._Mess
 
 extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CreateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{1}id\0\u{3}action_ids\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{1}id\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3001,52 +3054,53 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       // allocates stack space for every case branch when no optimizations are
       // enabled. https://github.com/apple/swift-protobuf/issues/1034
       switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 3: try { try decoder.decodeSingularStringField(value: &self.rrule) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.dtstart) }()
-      case 5: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
-      case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
-      case 7: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
-      case 8: try { try decoder.decodeSingularStringField(value: &self.id) }()
-      case 9: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
+      case 1: try { try decoder.decodeSingularStringField(value: &self.profileID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.rrule) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self.dtstart) }()
+      case 6: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
+      case 7: try { try decoder.decodeSingularStringField(value: &self.notes) }()
+      case 8: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.id) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.profileID.isEmpty {
+      try visitor.visitSingularStringField(value: self.profileID, fieldNumber: 1)
+    }
     if !self.routineID.isEmpty {
-      try visitor.visitSingularStringField(value: self.routineID, fieldNumber: 1)
+      try visitor.visitSingularStringField(value: self.routineID, fieldNumber: 2)
     }
     if !self.name.isEmpty {
-      try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 3)
     }
     if !self.rrule.isEmpty {
-      try visitor.visitSingularStringField(value: self.rrule, fieldNumber: 3)
+      try visitor.visitSingularStringField(value: self.rrule, fieldNumber: 4)
     }
     if !self.dtstart.isEmpty {
-      try visitor.visitSingularStringField(value: self.dtstart, fieldNumber: 4)
+      try visitor.visitSingularStringField(value: self.dtstart, fieldNumber: 5)
     }
     if !self.exdates.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.exdates, fieldNumber: 5)
+      try visitor.visitRepeatedStringField(value: self.exdates, fieldNumber: 6)
     }
     if !self.notes.isEmpty {
-      try visitor.visitSingularStringField(value: self.notes, fieldNumber: 6)
+      try visitor.visitSingularStringField(value: self.notes, fieldNumber: 7)
     }
     if self.enabled != false {
-      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 7)
+      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 8)
     }
     if !self.id.isEmpty {
-      try visitor.visitSingularStringField(value: self.id, fieldNumber: 8)
-    }
-    if !self.actionIds.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 9)
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 9)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: VCCreateScheduleRequest, rhs: VCCreateScheduleRequest) -> Bool {
+    if lhs.profileID != rhs.profileID {return false}
     if lhs.routineID != rhs.routineID {return false}
     if lhs.name != rhs.name {return false}
     if lhs.rrule != rhs.rrule {return false}
@@ -3055,7 +3109,6 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if lhs.notes != rhs.notes {return false}
     if lhs.enabled != rhs.enabled {return false}
     if lhs.id != rhs.id {return false}
-    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3093,7 +3146,7 @@ extension VCGetScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
 
 extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{3}action_ids\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3108,7 +3161,6 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
       case 7: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
-      case 8: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
       default: break
       }
     }
@@ -3136,9 +3188,6 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if self.enabled != false {
       try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 7)
     }
-    if !self.actionIds.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 8)
-    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3150,7 +3199,6 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if lhs.exdates != rhs.exdates {return false}
     if lhs.notes != rhs.notes {return false}
     if lhs.enabled != rhs.enabled {return false}
-    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3465,6 +3513,216 @@ extension VCResumeAllSchedulesRequest: SwiftProtobuf.Message, SwiftProtobuf._Mes
 
   public static func ==(lhs: VCResumeAllSchedulesRequest, rhs: VCResumeAllSchedulesRequest) -> Bool {
     if lhs.profileID != rhs.profileID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCGetScheduleActionsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetScheduleActionsRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCGetScheduleActionsRequest, rhs: VCGetScheduleActionsRequest) -> Bool {
+    if lhs.scheduleID != rhs.scheduleID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCGetScheduleActionsResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".GetScheduleActionsResponse"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}action_ids\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.actionIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCGetScheduleActionsResponse, rhs: VCGetScheduleActionsResponse) -> Bool {
+    if lhs.actionIds != rhs.actionIds {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCAddActionToScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".AddActionToScheduleRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}action_id\0\u{3}action_order\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.actionID) }()
+      case 3: try { try decoder.decodeSingularInt32Field(value: &self.actionOrder) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
+    }
+    if !self.actionID.isEmpty {
+      try visitor.visitSingularStringField(value: self.actionID, fieldNumber: 2)
+    }
+    if self.actionOrder != 0 {
+      try visitor.visitSingularInt32Field(value: self.actionOrder, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCAddActionToScheduleRequest, rhs: VCAddActionToScheduleRequest) -> Bool {
+    if lhs.scheduleID != rhs.scheduleID {return false}
+    if lhs.actionID != rhs.actionID {return false}
+    if lhs.actionOrder != rhs.actionOrder {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCRemoveActionFromScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".RemoveActionFromScheduleRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}action_id\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.actionID) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
+    }
+    if !self.actionID.isEmpty {
+      try visitor.visitSingularStringField(value: self.actionID, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCRemoveActionFromScheduleRequest, rhs: VCRemoveActionFromScheduleRequest) -> Bool {
+    if lhs.scheduleID != rhs.scheduleID {return false}
+    if lhs.actionID != rhs.actionID {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCUpdateScheduleActionOrderRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".UpdateScheduleActionOrderRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}action_id\0\u{3}new_order\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.actionID) }()
+      case 3: try { try decoder.decodeSingularInt32Field(value: &self.newOrder) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
+    }
+    if !self.actionID.isEmpty {
+      try visitor.visitSingularStringField(value: self.actionID, fieldNumber: 2)
+    }
+    if self.newOrder != 0 {
+      try visitor.visitSingularInt32Field(value: self.newOrder, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCUpdateScheduleActionOrderRequest, rhs: VCUpdateScheduleActionOrderRequest) -> Bool {
+    if lhs.scheduleID != rhs.scheduleID {return false}
+    if lhs.actionID != rhs.actionID {return false}
+    if lhs.newOrder != rhs.newOrder {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCReplaceScheduleActionsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".ReplaceScheduleActionsRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}action_ids\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
+      case 2: try { try decoder.decodeRepeatedStringField(value: &self.actionIds) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.scheduleID.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
+    }
+    if !self.actionIds.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.actionIds, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCReplaceScheduleActionsRequest, rhs: VCReplaceScheduleActionsRequest) -> Bool {
+    if lhs.scheduleID != rhs.scheduleID {return false}
+    if lhs.actionIds != rhs.actionIds {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

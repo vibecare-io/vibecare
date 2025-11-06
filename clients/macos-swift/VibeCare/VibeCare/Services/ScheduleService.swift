@@ -13,19 +13,20 @@ class ScheduleService: @unchecked Sendable {
 
     nonisolated func createSchedule(
         id: String,
+        profileId: String,
         routineId: String,
         name: String,
         rrule: String,
         dtstart: String,
         exdates: [String] = [],
         notes: String = "",
-        enabled: Bool = true,
-        actionIDs: [String] = []
+        enabled: Bool = true
     ) async throws -> Schedule {
-        logger.info("Creating schedule: \(name) with \(actionIDs.count) actions")
+        logger.info("Creating schedule: \(name)")
 
         let request = VCCreateScheduleRequest.with { req in
             req.id = id  // Client-provided UUID
+            req.profileID = profileId
             req.routineID = routineId
             req.name = name
             req.rrule = rrule
@@ -33,7 +34,7 @@ class ScheduleService: @unchecked Sendable {
             req.exdates = exdates
             req.notes = notes
             req.enabled = enabled
-            req.actionIds = actionIDs
+            // actionIds removed - managed via schedule_actions join table
         }
         let response = try await GRPCClientManager.shared.withScheduleServiceClient { client in
             return try await client.createSchedule(request)
@@ -43,6 +44,7 @@ class ScheduleService: @unchecked Sendable {
 
         return Schedule(
             id: response.scheduleID,  // Use the UUID from server response
+            profileId: response.profileID,
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
@@ -51,7 +53,7 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
-            actionIDs: response.actionIds,
+            // actionIDs removed - managed via schedule_actions join table
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )
@@ -71,6 +73,7 @@ class ScheduleService: @unchecked Sendable {
 
         return Schedule(
             id: response.scheduleID,
+            profileId: response.profileID,
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
@@ -79,14 +82,14 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
-            actionIDs: response.actionIds,
+            // actionIDs removed - managed via schedule_actions join table
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )
     }
 
     nonisolated func updateSchedule(_ schedule: Schedule) async throws -> Schedule {
-        logger.info("Updating schedule: \(schedule.name) with \(schedule.actionIDs.count) actions")
+        logger.info("Updating schedule: \(schedule.name)")
 
         let request = VCUpdateScheduleRequest.with { req in
             req.scheduleID = schedule.id
@@ -96,7 +99,7 @@ class ScheduleService: @unchecked Sendable {
             req.exdates = schedule.exdates
             req.notes = schedule.notes
             req.enabled = schedule.enabled
-            req.actionIds = schedule.actionIDs
+            // actionIds removed - managed via schedule_actions join table
         }
 
         let response = try await GRPCClientManager.shared.withScheduleServiceClient { client in
@@ -107,6 +110,7 @@ class ScheduleService: @unchecked Sendable {
 
         return Schedule(
             id: response.scheduleID,
+            profileId: response.profileID,
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
@@ -115,7 +119,7 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
-            actionIDs: response.actionIds,
+            // actionIDs removed - managed via schedule_actions join table
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )
@@ -153,6 +157,7 @@ class ScheduleService: @unchecked Sendable {
         return response.schedules.map { schedule in
             Schedule(
                 id: schedule.scheduleID,
+                profileId: schedule.profileID,
                 routineId: schedule.routineID,
                 name: schedule.name,
                 rrule: schedule.rrule,
@@ -161,7 +166,7 @@ class ScheduleService: @unchecked Sendable {
                 lastExecution: schedule.hasLastExecution ? schedule.lastExecution.date : nil,
                 notes: schedule.notes,
                 enabled: schedule.enabled,
-                actionIDs: schedule.actionIds,
+                // actionIDs removed - managed via schedule_actions join table
                 createdAt: schedule.createdAt.date,
                 updatedAt: schedule.updatedAt.date
             )
@@ -220,6 +225,7 @@ class ScheduleService: @unchecked Sendable {
 
         return Schedule(
             id: response.scheduleID,
+            profileId: response.profileID,
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
@@ -228,7 +234,7 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
-            actionIDs: response.actionIds,
+            // actionIDs removed - managed via schedule_actions join table
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )
@@ -249,6 +255,7 @@ class ScheduleService: @unchecked Sendable {
 
         return Schedule(
             id: response.scheduleID,
+            profileId: response.profileID,
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
@@ -257,7 +264,7 @@ class ScheduleService: @unchecked Sendable {
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
-            actionIDs: response.actionIds,
+            // actionIDs removed - managed via schedule_actions join table
             createdAt: response.createdAt.date,
             updatedAt: response.updatedAt.date
         )
@@ -292,6 +299,85 @@ class ScheduleService: @unchecked Sendable {
         }
 
         logger.info("All schedules resumed for profile: \(profileId)")
+    }
+
+    // MARK: - Schedule-Action Association Methods
+
+    nonisolated func getScheduleActions(scheduleId: String) async throws -> [String] {
+        logger.info("Getting actions for schedule: \(scheduleId)")
+
+        let request = VCGetScheduleActionsRequest.with { req in
+            req.scheduleID = scheduleId
+        }
+
+        let response = try await GRPCClientManager.shared.withScheduleServiceClient { client in
+            return try await client.getScheduleActions(request)
+        }
+
+        logger.info("Retrieved \(response.actionIds.count) actions for schedule: \(scheduleId)")
+        return Array(response.actionIds)
+    }
+
+    nonisolated func addActionToSchedule(scheduleId: String, actionId: String, order: Int) async throws {
+        logger.info("Adding action \(actionId) to schedule \(scheduleId) at order \(order)")
+
+        let request = VCAddActionToScheduleRequest.with { req in
+            req.scheduleID = scheduleId
+            req.actionID = actionId
+            req.actionOrder = Int32(order)
+        }
+
+        _ = try await GRPCClientManager.shared.withScheduleServiceClient { client in
+            return try await client.addActionToSchedule(request)
+        }
+
+        logger.info("Successfully added action to schedule")
+    }
+
+    nonisolated func removeActionFromSchedule(scheduleId: String, actionId: String) async throws {
+        logger.info("Removing action \(actionId) from schedule \(scheduleId)")
+
+        let request = VCRemoveActionFromScheduleRequest.with { req in
+            req.scheduleID = scheduleId
+            req.actionID = actionId
+        }
+
+        _ = try await GRPCClientManager.shared.withScheduleServiceClient { client in
+            return try await client.removeActionFromSchedule(request)
+        }
+
+        logger.info("Successfully removed action from schedule")
+    }
+
+    nonisolated func updateScheduleActionOrder(scheduleId: String, actionId: String, newOrder: Int) async throws {
+        logger.info("Updating action \(actionId) order to \(newOrder) in schedule \(scheduleId)")
+
+        let request = VCUpdateScheduleActionOrderRequest.with { req in
+            req.scheduleID = scheduleId
+            req.actionID = actionId
+            req.newOrder = Int32(newOrder)
+        }
+
+        _ = try await GRPCClientManager.shared.withScheduleServiceClient { client in
+            return try await client.updateScheduleActionOrder(request)
+        }
+
+        logger.info("Successfully updated action order")
+    }
+
+    nonisolated func replaceScheduleActions(scheduleId: String, actionIds: [String]) async throws {
+        logger.info("Replacing actions for schedule \(scheduleId) with \(actionIds.count) actions")
+
+        let request = VCReplaceScheduleActionsRequest.with { req in
+            req.scheduleID = scheduleId
+            req.actionIds = actionIds
+        }
+
+        _ = try await GRPCClientManager.shared.withScheduleServiceClient { client in
+            return try await client.replaceScheduleActions(request)
+        }
+
+        logger.info("Successfully replaced schedule actions")
     }
 
 }

@@ -26,8 +26,8 @@ func (a *DBStorageAdapter) GetRoutine(id string) (*models.Routine, error) {
 	return a.db.GetRoutine(id)
 }
 
-func (a *DBStorageAdapter) CreateRoutine(id, profileID, name, description string, actionIds []string, enabled bool, metadata map[string]string) (*models.Routine, error) {
-	return a.db.CreateRoutine(id, profileID, name, description, actionIds, enabled, metadata)
+func (a *DBStorageAdapter) CreateRoutine(id, profileID, name, description string, enabled bool, metadata map[string]string) (*models.Routine, error) {
+	return a.db.CreateRoutine(id, profileID, name, description, enabled, metadata)
 }
 
 func (a *DBStorageAdapter) DeleteRoutine(id string) error {
@@ -47,8 +47,8 @@ func (a *DBStorageAdapter) GetSchedule(scheduleID string) (*models.Schedule, err
 	return a.db.GetSchedule(scheduleID)
 }
 
-func (a *DBStorageAdapter) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
-	return a.db.CreateSchedule(scheduleID, routineID, name, rrule, dtstart, exdates, notes, enabled, []string{})
+func (a *DBStorageAdapter) CreateSchedule(scheduleID, profileID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
+	return a.db.CreateSchedule(scheduleID, profileID, routineID, name, rrule, dtstart, exdates, notes, enabled)
 }
 
 func (a *DBStorageAdapter) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error) {
@@ -57,15 +57,6 @@ func (a *DBStorageAdapter) UpdateSchedule(schedule *models.Schedule) (*models.Sc
 
 func (a *DBStorageAdapter) DeleteSchedule(scheduleID string) error {
 	return a.db.DeleteSchedule(scheduleID)
-}
-
-// Execution log operations
-func (a *DBStorageAdapter) CreateExecutionLog(routineID string, completed bool, notes string, actionResults map[string]string) (*models.ExecutionLog, error) {
-	return a.db.CreateExecutionLog(routineID, completed, notes, actionResults)
-}
-
-func (a *DBStorageAdapter) GetExecutionLogs(routineID string, limit int) ([]*models.ExecutionLog, error) {
-	return a.db.GetExecutionLogs(routineID, limit)
 }
 
 // Action operations

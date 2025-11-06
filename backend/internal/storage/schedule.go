@@ -2,7 +2,6 @@ package storage
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -13,9 +12,13 @@ import (
 )
 
 // CreateSchedule creates a new schedule
-func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool, actionIDs []string) (*models.Schedule, error) {
+func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
 	// Validate and sanitize inputs
 	if err := validation.ValidateUUID("schedule_id", scheduleID); err != nil {
+		return nil, err
+	}
+
+	if err := validation.ValidateRequired("profile_id", profileID); err != nil {
 		return nil, err
 	}
 
@@ -69,27 +72,22 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 		return nil, fmt.Errorf("routine with ID %s does not exist", routineID)
 	}
 
-	// Ensure actionIDs is never nil
-	if actionIDs == nil {
-		actionIDs = []string{}
-	}
-
 	schedule := &models.Schedule{
 		ScheduleID: scheduleID,
+		ProfileID:  profileID,
 		RoutineID:  routineID,
-		Name:       sanitizedName,
-		RRule:      rrule,
-		DTStart:    dtstart,
-		ExDates:    exdates,
-		Notes:      sanitizedNotes,
-		Enabled:    enabled,
-		ActionIDs:  actionIDs,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		Name:      sanitizedName,
+		RRule:     rrule,
+		DTStart:   dtstart,
+		ExDates:   exdates,
+		Notes:     sanitizedNotes,
+		Enabled:   enabled,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
 	query := `
-		INSERT INTO schedules (schedule_id, routine_id, name, rrule, dtstart, exdates, notes, enabled, action_ids, created_at, updated_at)
+		INSERT INTO schedules (schedule_id, profile_id, routine_id, name, rrule, dtstart, exdates, notes, enabled, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
@@ -105,13 +103,9 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 		exdatesStr.String = strings.Join(exdates, ",")
 	}
 
-	actionIDsJSON, err := json.Marshal(schedule.ActionIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal action_ids: %w", err)
-	}
-
 	_, err = db.Exec(query,
 		schedule.ScheduleID,
+		schedule.ProfileID,
 		schedule.RoutineID,
 		schedule.Name,
 		schedule.RRule,
@@ -119,7 +113,6 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 		exdatesStr,
 		schedule.Notes,
 		schedule.Enabled,
-		string(actionIDsJSON),
 		schedule.CreatedAt.Format(time.RFC3339),
 		schedule.UpdatedAt.Format(time.RFC3339),
 	)
@@ -134,18 +127,19 @@ func (db *DB) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart 
 // GetSchedule retrieves a schedule by ID
 func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 	query := `
-		SELECT schedule_id, routine_id, name, rrule, dtstart, exdates,
-		       last_execution, notes, enabled, action_ids, created_at, updated_at
+		SELECT schedule_id, profile_id, routine_id, name, rrule, dtstart, exdates,
+		       last_execution, notes, enabled, created_at, updated_at
 		FROM schedules
 		WHERE schedule_id = ?
 	`
 
 	var schedule models.Schedule
-	var dtstart, lastExecution, exdatesStr, actionIDsJSON sql.NullString
+	var dtstart, lastExecution, exdatesStr sql.NullString
 	var createdAt, updatedAt string
 
 	err := db.QueryRow(query, id).Scan(
 		&schedule.ScheduleID,
+		&schedule.ProfileID,
 		&schedule.RoutineID,
 		&schedule.Name,
 		&schedule.RRule,
@@ -154,7 +148,6 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 		&lastExecution,
 		&schedule.Notes,
 		&schedule.Enabled,
-		&actionIDsJSON,
 		&createdAt,
 		&updatedAt,
 	)
@@ -186,15 +179,6 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 		schedule.ExDates = strings.Split(exdatesStr.String, ",")
 	}
 
-	// Parse action_ids JSON
-	if actionIDsJSON.Valid && actionIDsJSON.String != "" {
-		if err := json.Unmarshal([]byte(actionIDsJSON.String), &schedule.ActionIDs); err != nil {
-			return nil, fmt.Errorf("failed to unmarshal action_ids: %w", err)
-		}
-	} else {
-		schedule.ActionIDs = []string{}
-	}
-
 	var parseErr error
 	schedule.CreatedAt, parseErr = time.Parse(time.RFC3339, createdAt)
 	if parseErr != nil {
@@ -212,8 +196,8 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 // ListSchedulesByRoutine lists all schedules for a routine
 func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, error) {
 	query := `
-		SELECT schedule_id, routine_id, name, rrule, dtstart, exdates,
-		       last_execution, notes, enabled, action_ids, created_at, updated_at
+		SELECT schedule_id, profile_id, routine_id, name, rrule, dtstart, exdates,
+		       last_execution, notes, enabled, created_at, updated_at
 		FROM schedules
 		WHERE routine_id = ?
 		ORDER BY created_at DESC
@@ -228,11 +212,12 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 	var schedules []*models.Schedule
 	for rows.Next() {
 		var schedule models.Schedule
-		var dtstart, lastExecution, exdatesStr, actionIDsJSON sql.NullString
+		var dtstart, lastExecution, exdatesStr sql.NullString
 		var createdAt, updatedAt string
 
 		err := rows.Scan(
 			&schedule.ScheduleID,
+			&schedule.ProfileID,
 			&schedule.RoutineID,
 			&schedule.Name,
 			&schedule.RRule,
@@ -241,7 +226,6 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 			&lastExecution,
 			&schedule.Notes,
 			&schedule.Enabled,
-			&actionIDsJSON,
 			&createdAt,
 			&updatedAt,
 		)
@@ -267,15 +251,6 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 
 		if exdatesStr.Valid && exdatesStr.String != "" {
 			schedule.ExDates = strings.Split(exdatesStr.String, ",")
-		}
-
-		// Parse action_ids JSON
-		if actionIDsJSON.Valid && actionIDsJSON.String != "" {
-			if err := json.Unmarshal([]byte(actionIDsJSON.String), &schedule.ActionIDs); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal action_ids for schedule %s: %w", schedule.ScheduleID, err)
-			}
-		} else {
-			schedule.ActionIDs = []string{}
 		}
 
 		var parseErr error
@@ -320,14 +295,9 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 
 	schedule.UpdatedAt = time.Now()
 
-	// Ensure action_ids is never nil
-	if schedule.ActionIDs == nil {
-		schedule.ActionIDs = []string{}
-	}
-
 	query := `
 		UPDATE schedules
-		SET name = ?, rrule = ?, dtstart = ?, exdates = ?, notes = ?, enabled = ?, action_ids = ?, updated_at = ?
+		SET name = ?, rrule = ?, dtstart = ?, exdates = ?, notes = ?, enabled = ?, updated_at = ?
 		WHERE schedule_id = ?
 	`
 
@@ -343,12 +313,6 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 		exdatesStr.String = strings.Join(schedule.ExDates, ",")
 	}
 
-	// Marshal action_ids to JSON
-	actionIDsJSON, err := json.Marshal(schedule.ActionIDs)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal action_ids: %w", err)
-	}
-
 	_, err = db.Exec(query,
 		schedule.Name,
 		schedule.RRule,
@@ -356,7 +320,6 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 		exdatesStr,
 		schedule.Notes,
 		schedule.Enabled,
-		string(actionIDsJSON),
 		schedule.UpdatedAt.Format(time.RFC3339),
 		schedule.ScheduleID,
 	)
@@ -368,36 +331,11 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 	return schedule, nil
 }
 
-// DeleteSchedule deletes a schedule and disables its associated actions
+// DeleteSchedule deletes a schedule (CASCADE DELETE will handle schedule_actions cleanup)
 func (db *DB) DeleteSchedule(scheduleID string) error {
-	// Get schedule to retrieve action_ids
-	schedule, err := db.GetSchedule(scheduleID)
-	if err != nil {
-		return fmt.Errorf("failed to get schedule for deletion: %w", err)
-	}
-
-	// Disable associated actions (soft delete - maintain data integrity)
-	if len(schedule.ActionIDs) > 0 {
-		for _, actionID := range schedule.ActionIDs {
-			action, err := db.GetAction(actionID)
-			if err != nil {
-				// Log error but continue with schedule deletion
-				fmt.Printf("Warning: failed to get action %s: %v\n", actionID, err)
-				continue
-			}
-
-			// Disable the action instead of deleting it
-			action.Enabled = false
-			if err := db.UpdateAction(action); err != nil {
-				// Log error but continue with schedule deletion
-				fmt.Printf("Warning: failed to disable action %s: %v\n", actionID, err)
-			}
-		}
-	}
-
-	// Delete the schedule
+	// CASCADE DELETE on schedule_actions FK will automatically clean up join table entries
 	query := `DELETE FROM schedules WHERE schedule_id = ?`
-	_, err = db.Exec(query, scheduleID)
+	_, err := db.Exec(query, scheduleID)
 	return err
 }
 
@@ -431,8 +369,8 @@ func (db *DB) UpdateLastExecution(scheduleID string, executionTime time.Time) er
 // GetActiveSchedules retrieves all enabled schedules
 func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 	query := `
-		SELECT s.schedule_id, s.routine_id, s.name, s.rrule, s.dtstart, s.exdates,
-		       s.last_execution, s.notes, s.enabled, s.action_ids, s.created_at, s.updated_at
+		SELECT s.schedule_id, s.profile_id, s.routine_id, s.name, s.rrule, s.dtstart, s.exdates,
+		       s.last_execution, s.notes, s.enabled, s.created_at, s.updated_at
 		FROM schedules s
 		INNER JOIN routines r ON s.routine_id = r.id
 		WHERE s.enabled = 1 AND r.enabled = 1
@@ -448,11 +386,12 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 	var schedules []*models.Schedule
 	for rows.Next() {
 		var schedule models.Schedule
-		var dtstart, lastExecution, exdatesStr, actionIDsJSON sql.NullString
+		var dtstart, lastExecution, exdatesStr sql.NullString
 		var createdAt, updatedAt string
 
 		err := rows.Scan(
 			&schedule.ScheduleID,
+			&schedule.ProfileID,
 			&schedule.RoutineID,
 			&schedule.Name,
 			&schedule.RRule,
@@ -461,7 +400,6 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 			&lastExecution,
 			&schedule.Notes,
 			&schedule.Enabled,
-			&actionIDsJSON,
 			&createdAt,
 			&updatedAt,
 		)
@@ -487,15 +425,6 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 
 		if exdatesStr.Valid && exdatesStr.String != "" {
 			schedule.ExDates = strings.Split(exdatesStr.String, ",")
-		}
-
-		// Parse action_ids JSON
-		if actionIDsJSON.Valid && actionIDsJSON.String != "" {
-			if err := json.Unmarshal([]byte(actionIDsJSON.String), &schedule.ActionIDs); err != nil {
-				return nil, fmt.Errorf("failed to unmarshal action_ids for schedule %s: %w", schedule.ScheduleID, err)
-			}
-		} else {
-			schedule.ActionIDs = []string{}
 		}
 
 		var parseErr error

@@ -158,6 +158,7 @@ struct ActionEditSheet: View {
     ActionEditSheet(
         profileId: "test",
         schedule: Schedule(
+            profileId: "test",
             routineId: "routine1",
             name: "Test Schedule",
             rrule: "FREQ=DAILY"

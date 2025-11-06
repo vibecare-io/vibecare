@@ -616,7 +616,7 @@ struct RoutineDetailView: View {
             name: routineName.trimmingCharacters(in: .whitespacesAndNewlines),
             description: routineDescription.trimmingCharacters(in: .whitespacesAndNewlines),
             category: routineCategory,
-            actionIds: [],
+            // actionIds removed - routines are now simple metadata containers
             enabled: routineEnabled
         )
 
@@ -731,7 +731,6 @@ struct ExecutionHistoryRow: View {
                 profileId: "preview-profile",
                 name: "Sample Routine",
                 description: "A preview routine for testing",
-                actionIds: [],
                 enabled: true
             ),
             viewModel: RoutineViewModel()

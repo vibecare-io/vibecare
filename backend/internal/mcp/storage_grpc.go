@@ -76,13 +76,12 @@ func (a *GRPCStorageAdapter) GetRoutine(id string) (*models.Routine, error) {
 	return protoToRoutine(resp.Routine), nil
 }
 
-func (a *GRPCStorageAdapter) CreateRoutine(id, profileID, name, description string, actionIds []string, enabled bool, metadata map[string]string) (*models.Routine, error) {
+func (a *GRPCStorageAdapter) CreateRoutine(id, profileID, name, description string, enabled bool, metadata map[string]string) (*models.Routine, error) {
 	ctx := context.Background()
 	resp, err := a.routineClient.CreateRoutine(ctx, &pb.CreateRoutineRequest{
 		ProfileId:   profileID,
 		Name:        name,
 		Description: description,
-		ActionIds:   actionIds,
 		Enabled:     enabled,
 		Metadata:    metadata,
 	})
@@ -140,10 +139,11 @@ func (a *GRPCStorageAdapter) GetSchedule(scheduleID string) (*models.Schedule, e
 	return protoToSchedule(schedule), nil
 }
 
-func (a *GRPCStorageAdapter) CreateSchedule(scheduleID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
+func (a *GRPCStorageAdapter) CreateSchedule(scheduleID, profileID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
 	ctx := context.Background()
 
 	req := &pb.CreateScheduleRequest{
+		ProfileId: profileID,
 		RoutineId: routineID,
 		Name:      name,
 		Rrule:     rrule,
@@ -174,7 +174,6 @@ func (a *GRPCStorageAdapter) UpdateSchedule(schedule *models.Schedule) (*models.
 		Exdates:    schedule.ExDates,
 		Notes:      schedule.Notes,
 		Enabled:    schedule.Enabled,
-		ActionIds:  schedule.ActionIDs,
 	}
 
 	if schedule.DTStart != nil {
@@ -198,39 +197,6 @@ func (a *GRPCStorageAdapter) DeleteSchedule(scheduleID string) error {
 		return fmt.Errorf("failed to delete schedule: %w", err)
 	}
 	return nil
-}
-
-// Execution log operations
-func (a *GRPCStorageAdapter) CreateExecutionLog(routineID string, completed bool, notes string, actionResults map[string]string) (*models.ExecutionLog, error) {
-	ctx := context.Background()
-	log, err := a.routineClient.ExecuteRoutine(ctx, &pb.ExecuteRoutineRequest{
-		RoutineId: routineID,
-		Force:     true, // Always execute when called from MCP
-		Notes:     notes,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to create execution log: %w", err)
-	}
-
-	return protoToExecutionLog(log), nil
-}
-
-func (a *GRPCStorageAdapter) GetExecutionLogs(routineID string, limit int) ([]*models.ExecutionLog, error) {
-	ctx := context.Background()
-	resp, err := a.routineClient.GetExecutionLogs(ctx, &pb.GetExecutionLogsRequest{
-		RoutineId: routineID,
-		Limit:     int32(limit),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("failed to get execution logs: %w", err)
-	}
-
-	logs := make([]*models.ExecutionLog, 0, len(resp.Logs))
-	for _, l := range resp.Logs {
-		logs = append(logs, protoToExecutionLog(l))
-	}
-
-	return logs, nil
 }
 
 // Action operations
@@ -317,7 +283,6 @@ func protoToRoutine(pb *pb.Routine) *models.Routine {
 		ProfileID:   pb.ProfileId,
 		Name:        pb.Name,
 		Description: pb.Description,
-		ActionIDs:   pb.ActionIds,
 		Enabled:     pb.Enabled,
 		Metadata:    pb.Metadata,
 	}
@@ -345,13 +310,13 @@ func protoToSchedule(pb *pb.Schedule) *models.Schedule {
 
 	schedule := &models.Schedule{
 		ScheduleID: pb.ScheduleId,
+		ProfileID:  pb.ProfileId,
 		RoutineID:  pb.RoutineId,
 		Name:       pb.Name,
 		RRule:      pb.Rrule,
 		ExDates:    pb.Exdates,
 		Notes:      pb.Notes,
 		Enabled:    pb.Enabled,
-		ActionIDs:  pb.ActionIds,
 	}
 
 	if pb.Dtstart != nil {
@@ -373,26 +338,6 @@ func protoToSchedule(pb *pb.Schedule) *models.Schedule {
 	}
 
 	return schedule
-}
-
-func protoToExecutionLog(pb *pb.ExecutionLog) *models.ExecutionLog {
-	if pb == nil {
-		return nil
-	}
-
-	log := &models.ExecutionLog{
-		LogID:         pb.LogId,
-		RoutineID:     pb.RoutineId,
-		Completed:     pb.Completed,
-		Notes:         pb.Notes,
-		ActionResults: pb.ActionResults,
-	}
-
-	if pb.Timestamp != nil {
-		log.Timestamp = pb.Timestamp.AsTime()
-	}
-
-	return log
 }
 
 func protoToAction(pb *pb.Action) *models.Action {

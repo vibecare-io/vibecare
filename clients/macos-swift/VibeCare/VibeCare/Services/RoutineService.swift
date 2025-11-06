@@ -24,7 +24,6 @@ final class RoutineService: @unchecked Sendable {
         profileId: String,
         name: String,
         description: String,
-        actionIds: [String],
         enabled: Bool = true,
         metadata: [String: String] = [:]
     ) async throws -> Routine {
@@ -37,7 +36,7 @@ final class RoutineService: @unchecked Sendable {
                 request.profileID = profileId
                 request.name = name
                 request.description_p = description
-                request.actionIds = actionIds
+                // actionIds removed - routines are now simple metadata containers
                 request.enabled = enabled
                 request.metadata = metadata
 
@@ -107,7 +106,7 @@ final class RoutineService: @unchecked Sendable {
                 request.id = routine.id
                 request.name = routine.name
                 request.description_p = routine.description
-                request.actionIds = routine.actionIds
+                // actionIds removed - routines are now simple metadata containers
                 request.metadata = routine.metadata
 
                 let clientRequest = ClientRequest(message: request)
@@ -331,7 +330,7 @@ final class RoutineService: @unchecked Sendable {
             profileId: vcRoutine.profileID,
             name: vcRoutine.name,
             description: vcRoutine.description_p,
-            actionIds: Array(vcRoutine.actionIds),
+            // actionIds removed - routines are now simple metadata containers
             enabled: vcRoutine.enabled,
             metadata: vcRoutine.metadata,
             createdAt: vcRoutine.hasCreatedAt ? vcRoutine.createdAt.date : Date(),
@@ -346,7 +345,7 @@ final class RoutineService: @unchecked Sendable {
         vcRoutine.profileID = routine.profileId
         vcRoutine.name = routine.name
         vcRoutine.description_p = routine.description
-        vcRoutine.actionIds = routine.actionIds
+        // actionIds removed - routines are now simple metadata containers
         vcRoutine.enabled = routine.enabled
         vcRoutine.metadata = routine.metadata
         vcRoutine.createdAt = Google_Protobuf_Timestamp(date: routine.createdAt)

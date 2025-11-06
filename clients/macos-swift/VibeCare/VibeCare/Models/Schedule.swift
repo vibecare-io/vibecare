@@ -28,6 +28,7 @@ enum Priority: String, Codable, CaseIterable {
 
 struct Schedule: Identifiable, Codable, Equatable, Hashable {
     let id: String  // Client-authoritative ID for local-first architecture
+    let profileId: String  // Direct profile reference for easier querying
     let routineId: String
     var name: String
     var rrule: String  // RFC 5545 RRule string
@@ -37,12 +38,13 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
     var notes: String
     var enabled: Bool
     var priority: Priority
-    var actionIDs: [String]  // References to Action IDs
+    // Note: action associations are handled via schedule_actions join table
     let createdAt: Date
     var updatedAt: Date
 
     init(
         id: String = UUID().uuidString,
+        profileId: String,
         routineId: String,
         name: String,
         rrule: String,
@@ -52,11 +54,11 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         notes: String = "",
         enabled: Bool = true,
         priority: Priority = .none,
-        actionIDs: [String] = [],
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
         self.id = id
+        self.profileId = profileId
         self.routineId = routineId
         self.name = name
         self.rrule = rrule
@@ -66,7 +68,6 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         self.notes = notes
         self.enabled = enabled
         self.priority = priority
-        self.actionIDs = actionIDs
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
@@ -292,26 +293,57 @@ extension Schedule {
     }
 
     var nextExecution: Date? {
-        // This would be calculated based on the RRule and current time
-        // For now, we'll return a placeholder
         guard let rrule = parsedRRule else { return nil }
-        let start = dtstart
 
-        // Simplified next execution calculation
+        let now = Date()
+        let calendar = Calendar.current
+
+        // Start from the most recent reference point (last execution or dtstart)
+        var candidate = lastExecution ?? dtstart
+
+        // Determine the time component to add based on frequency
+        let component: Calendar.Component
         switch rrule.freq {
-        case .daily:
-            return Calendar.current.date(byAdding: .day, value: rrule.interval, to: start)
-        case .weekly:
-            return Calendar.current.date(byAdding: .weekOfYear, value: rrule.interval, to: start)
-        case .monthly:
-            return Calendar.current.date(byAdding: .month, value: rrule.interval, to: start)
-        case .yearly:
-            return Calendar.current.date(byAdding: .year, value: rrule.interval, to: start)
-        case .hourly:
-            return Calendar.current.date(byAdding: .hour, value: rrule.interval, to: start)
-        case .minutely:
-            return Calendar.current.date(byAdding: .minute, value: rrule.interval, to: start)
+        case .minutely: component = .minute
+        case .hourly: component = .hour
+        case .daily: component = .day
+        case .weekly: component = .weekOfYear
+        case .monthly: component = .month
+        case .yearly: component = .year
         }
+
+        // Keep adding intervals until we find the next occurrence after now
+        while candidate <= now {
+            guard let next = calendar.date(byAdding: component, value: rrule.interval, to: candidate) else {
+                return nil
+            }
+            candidate = next
+        }
+
+        // Apply BYHOUR and BYMINUTE constraints if present
+        if !rrule.byhour.isEmpty || !rrule.byminute.isEmpty {
+            let hour = rrule.byhour.first ?? calendar.component(.hour, from: candidate)
+            let minute = rrule.byminute.first ?? calendar.component(.minute, from: candidate)
+
+            guard let adjusted = calendar.date(
+                bySettingHour: hour,
+                minute: minute,
+                second: 0,
+                of: candidate
+            ) else {
+                return candidate
+            }
+
+            // If adjustment moved time backwards, keep the original
+            candidate = adjusted > now ? adjusted : candidate
+        }
+
+        // Check UNTIL constraint
+        if let until = rrule.until, candidate > until {
+            return nil // No more occurrences
+        }
+
+        return candidate
     }
 
     var status: ScheduleStatus {
@@ -514,12 +546,14 @@ extension Schedule {
 
     static func createFromTemplate(
         templateName: String,
+        profileId: String,
         routineId: String,
         name: String? = nil
     ) -> Schedule? {
         guard let template = RRule.templates[templateName] else { return nil }
 
         return Schedule(
+            profileId: profileId,
             routineId: routineId,
             name: name ?? templateName,
             rrule: template.toRRuleString(),
@@ -528,8 +562,9 @@ extension Schedule {
         )
     }
 
-    static func example(routineId: String) -> Schedule {
+    static func example(profileId: String, routineId: String) -> Schedule {
         return Schedule(
+            profileId: profileId,
             routineId: routineId,
             name: "Every 20 minutes",
             rrule: "FREQ=MINUTELY;INTERVAL=20",

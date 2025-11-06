@@ -394,7 +394,7 @@ func (s *Server) toolListRoutines(ctx context.Context, args map[string]interface
 			result += fmt.Sprintf("   %s\n", r.Description)
 		}
 		result += fmt.Sprintf("   ID: %s\n", r.ID)
-		result += fmt.Sprintf("   Actions: %d\n", len(r.ActionIDs))
+		// Actions are managed via schedule_actions join table
 		if r.LastExecutedAt != nil {
 			result += fmt.Sprintf("   Last executed: %s\n", r.LastExecutedAt.Format(time.RFC3339))
 		}
@@ -426,8 +426,8 @@ func (s *Server) toolCreateRoutine(ctx context.Context, args map[string]interfac
 	// Generate UUID for the routine
 	routineID := uuid.New().String()
 
-	// Create routine (no actions initially)
-	routine, err := s.storage.CreateRoutine(routineID, s.profileID, name, description, []string{}, enabled, nil)
+	// Create routine (metadata container only)
+	routine, err := s.storage.CreateRoutine(routineID, s.profileID, name, description, enabled, nil)
 	if err != nil {
 		return CallToolResult{}, fmt.Errorf("failed to create routine: %w", err)
 	}
@@ -488,7 +488,7 @@ func (s *Server) toolGetRoutine(ctx context.Context, args map[string]interface{}
 	if routine.Description != "" {
 		result += fmt.Sprintf("Description: %s\n", routine.Description)
 	}
-	result += fmt.Sprintf("Actions: %d\n", len(routine.ActionIDs))
+	// Actions are managed via schedule_actions join table
 	if routine.LastExecutedAt != nil {
 		result += fmt.Sprintf("Last executed: %s\n", routine.LastExecutedAt.Format(time.RFC3339))
 	}
@@ -600,9 +600,9 @@ func (s *Server) toolCreateSchedule(ctx context.Context, args map[string]interfa
 	// Generate UUID for schedule
 	scheduleID := uuid.New().String()
 
-	// Create schedule
+	// Create schedule with profile_id
 	now := time.Now()
-	schedule, err := s.storage.CreateSchedule(scheduleID, routineID, scheduleName, rrule, &now, []string{}, "", enabled)
+	schedule, err := s.storage.CreateSchedule(scheduleID, s.profileID, routineID, scheduleName, rrule, &now, []string{}, "", enabled)
 	if err != nil {
 		return CallToolResult{}, fmt.Errorf("failed to create schedule: %w", err)
 	}
@@ -666,11 +666,7 @@ func (s *Server) toolListSchedules(ctx context.Context, args map[string]interfac
 		result += fmt.Sprintf("%d. **%s** (%s)\n", i+1, sched.Name, status)
 		result += fmt.Sprintf("   RRule: %s\n", sched.RRule)
 		result += fmt.Sprintf("   ID: %s\n", sched.ScheduleID)
-		if len(sched.ActionIDs) > 0 {
-			result += fmt.Sprintf("   Actions: %d configured\n", len(sched.ActionIDs))
-		} else {
-			result += "   Actions: none (will use default notification)\n"
-		}
+		// Actions are managed via schedule_actions join table
 		if sched.LastExecution != nil {
 			result += fmt.Sprintf("   Last executed: %s\n", sched.LastExecution.Format(time.RFC3339))
 		}
@@ -837,9 +833,7 @@ func (s *Server) toolGetSchedule(ctx context.Context, args map[string]interface{
 		result += fmt.Sprintf("**Notes:** %s\n", schedule.Notes)
 	}
 
-	if len(schedule.ActionIDs) > 0 {
-		result += fmt.Sprintf("**Action IDs:** %s\n", strings.Join(schedule.ActionIDs, ", "))
-	}
+	// Actions are managed via schedule_actions join table
 
 	if schedule.LastExecution != nil {
 		result += fmt.Sprintf("**Last Execution:** %s\n", schedule.LastExecution.Format("2006-01-02 15:04:05"))
@@ -985,8 +979,8 @@ func (s *Server) toolUpdateSchedule(ctx context.Context, args map[string]interfa
 				strActionIds = append(strActionIds, s)
 			}
 		}
-		schedule.ActionIDs = strActionIds
-		updates = append(updates, fmt.Sprintf("actions (%d attached)", len(strActionIds)))
+		// action_ids deprecated - use schedule_actions join table
+		updates = append(updates, "actions (use schedule_actions join table)")
 	}
 
 	// Save the updated schedule
@@ -1008,9 +1002,7 @@ func (s *Server) toolUpdateSchedule(ctx context.Context, args map[string]interfa
 	if updatedSchedule.Notes != "" {
 		result += fmt.Sprintf("- Notes: %s\n", updatedSchedule.Notes)
 	}
-	if len(updatedSchedule.ActionIDs) > 0 {
-		result += fmt.Sprintf("- Actions: %d attached\n", len(updatedSchedule.ActionIDs))
-	}
+	// Actions are managed via schedule_actions join table
 
 	return CallToolResult{
 		Content: []Content{TextContent(result)},
@@ -1050,28 +1042,17 @@ func (s *Server) toolExecuteRoutine(ctx context.Context, args map[string]interfa
 		}, nil
 	}
 
-	// Create execution log
-	actionResults := make(map[string]string)
-	execLog, err := s.storage.CreateExecutionLog(routine.ID, true, notes, actionResults)
-	if err != nil {
-		return CallToolResult{}, fmt.Errorf("failed to create execution log: %w", err)
-	}
-
-	// Update routine's last executed timestamp
+	// Update routine's last executed timestamp (execution logs deprecated)
 	if err := s.storage.UpdateRoutineLastExecuted(routine.ID); err != nil {
 		s.logger.Warn("Failed to update routine last executed", zap.Error(err))
 	}
 
 	result := fmt.Sprintf("✓ Executed routine '%s'\n", routine.Name)
-	result += fmt.Sprintf("  Execution time: %s\n", execLog.Timestamp.Format(time.RFC3339))
+	result += fmt.Sprintf("  Execution time: %s\n", time.Now().Format(time.RFC3339))
 	if notes != "" {
 		result += fmt.Sprintf("  Notes: %s\n", notes)
 	}
-	if len(routine.ActionIDs) > 0 {
-		result += fmt.Sprintf("  Actions executed: %d\n", len(routine.ActionIDs))
-	} else {
-		result += "  Note: This routine has no actions configured yet.\n"
-	}
+	// Actions are managed via schedule_actions join table
 
 	return CallToolResult{
 		Content: []Content{TextContent(result)},

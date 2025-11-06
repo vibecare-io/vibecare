@@ -377,12 +377,10 @@ struct RoutineRowView: View {
                         .lineLimit(2)
                 }
 
-                // Action count and last execution
+                // Last execution (action count removed - routines are metadata containers)
                 HStack {
-                    Label("\(routine.actionIds.count) action\(routine.actionIds.count != 1 ? "s" : "")",
-                          systemImage: "bolt.circle.fill")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    // TODO: Could show schedule count instead
+                    Spacer()
 
                     Spacer()
 

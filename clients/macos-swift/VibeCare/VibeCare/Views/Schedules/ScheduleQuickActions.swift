@@ -94,7 +94,7 @@ struct ScheduleQuickActions: View {
             Text("Hover to see actions:")
             Spacer()
             ScheduleQuickActions(
-                schedule: Schedule.example(routineId: "test-routine"),
+                schedule: Schedule.example(profileId: "test-profile", routineId: "test-routine"),
                 isVisible: true,
                 onToggleEnabled: { print("Toggle enabled") },
                 onQuickEdit: { print("Quick edit") },
@@ -110,7 +110,7 @@ struct ScheduleQuickActions: View {
             Text("Hidden state:")
             Spacer()
             ScheduleQuickActions(
-                schedule: Schedule.example(routineId: "test-routine"),
+                schedule: Schedule.example(profileId: "test-profile", routineId: "test-routine"),
                 isVisible: false,
                 onToggleEnabled: {},
                 onQuickEdit: {},
@@ -127,10 +127,13 @@ struct ScheduleQuickActions: View {
 }
 
 #Preview("Quick Actions - Disabled Schedule") {
-    var disabledSchedule = Schedule.example(routineId: "test-routine")
-    disabledSchedule.enabled = false
+    @Previewable @State var disabledSchedule = {
+        var schedule = Schedule.example(profileId: "test-profile", routineId: "test-routine")
+        schedule.enabled = false
+        return schedule
+    }()
 
-    return HStack {
+    HStack {
         Text("Disabled schedule:")
         Spacer()
         ScheduleQuickActions(

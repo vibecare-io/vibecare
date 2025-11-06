@@ -1435,19 +1435,20 @@ struct ScheduleEditView: View {
       return
     }
 
-    print("DEBUG [loadExistingActions]: Schedule '\(schedule.name)' has \(schedule.actionIDs.count) action IDs: \(schedule.actionIDs)")
+    print("DEBUG [loadExistingActions]: Loading actions for schedule '\(schedule.name)'")
 
-    guard !schedule.actionIDs.isEmpty else {
-      print("DEBUG [loadExistingActions]: Schedule has no action IDs, skipping load")
-      return
-    }
-
-    // Load actions from service asynchronously
+    // Load actions from schedule_actions join table
     Task {
       do {
-        // Fetch actions by calling getAction for each ID
+        // Fetch action IDs from join table
+        let scheduleService = ScheduleService()
+        let actionIDs = try await scheduleService.getScheduleActions(scheduleId: schedule.id)
+
+        print("DEBUG [loadExistingActions]: Found \(actionIDs.count) action IDs")
+
+        // Fetch full action details for each ID
         var actions: [Action] = []
-        for actionID in schedule.actionIDs {
+        for actionID in actionIDs {
           if let action = try await actionService.getAction(id: actionID) {
             actions.append(action)
           } else {
@@ -1536,20 +1537,22 @@ struct ScheduleEditView: View {
         }
       }
 
-      // Collect action IDs from action cards
-      let actionIDs = actionCards.map { $0.id }
+      // Save/update the schedule first
+      var savedScheduleId: String?
 
       if isCreating {
         await scheduleViewModel.createSchedule(
-          routineId: routineId,
+            routineId: routineId,
+            profileId: profileId,
           name: trimmedName,
           rrule: customRRule,
           dtstart: startDate,
           notes: trimmedNotes,
           enabled: enabled,
-          priority: selectedPriority,
-          actionIDs: actionIDs
+          priority: selectedPriority
         )
+        // Get the newly created schedule ID from viewModel
+        savedScheduleId = scheduleViewModel.schedules.first { $0.name == trimmedName }?.id
       } else if let schedule = schedule {
         var updatedSchedule = schedule
         updatedSchedule.name = trimmedName
@@ -1558,9 +1561,23 @@ struct ScheduleEditView: View {
         updatedSchedule.notes = trimmedNotes
         updatedSchedule.enabled = enabled
         updatedSchedule.priority = selectedPriority
-        updatedSchedule.actionIDs = actionIDs
 
         await scheduleViewModel.updateSchedule(updatedSchedule)
+        savedScheduleId = schedule.id
+      }
+
+      // Associate actions with schedule via join table
+      if let scheduleId = savedScheduleId, !actionCards.isEmpty {
+        let scheduleService = ScheduleService()
+        let actionIDs = actionCards.map { $0.id }
+
+        do {
+          try await scheduleService.replaceScheduleActions(scheduleId: scheduleId, actionIds: actionIDs)
+          print("DEBUG [saveSchedule]: Successfully associated \(actionIDs.count) actions with schedule")
+        } catch {
+          print("ERROR [saveSchedule]: Failed to associate actions: \(error)")
+          // Show error but don't fail the entire save
+        }
       }
 
       // Clear newly created action IDs on success

@@ -95,6 +95,7 @@ class ScheduleViewModel: ObservableObject {
 
     func createSchedule(
         routineId: String,
+        profileId: String,
         name: String,
         rrule: String,
         dtstart: Date = Date(),
@@ -105,18 +106,19 @@ class ScheduleViewModel: ObservableObject {
     ) async {
         do {
             let newSchedule = Schedule(
+                profileId: profileId,
                 routineId: routineId,
                 name: name,
                 rrule: rrule,
                 dtstart: dtstart,
                 notes: notes,
                 enabled: enabled,
-                priority: priority,
-                actionIDs: actionIDs
+                priority: priority
             )
 
             let savedSchedule = try await scheduleService.createSchedule(
                 id: newSchedule.id,
+                profileId: profileId,
                 routineId: newSchedule.routineId,
                 name: newSchedule.name,
                 rrule: newSchedule.rrule,
@@ -124,7 +126,6 @@ class ScheduleViewModel: ObservableObject {
                 exdates: newSchedule.exdates,
                 notes: newSchedule.notes,
                 enabled: newSchedule.enabled,
-                actionIDs: newSchedule.actionIDs
             )
             schedules.append(savedSchedule)
 
@@ -140,11 +141,13 @@ class ScheduleViewModel: ObservableObject {
 
     func createScheduleFromTemplate(
         routineId: String,
+        profileId: String,
         templateName: String,
         customName: String? = nil
     ) async {
         guard let template = Schedule.createFromTemplate(
             templateName: templateName,
+            profileId: profileId,
             routineId: routineId,
             name: customName
         ) else {
@@ -155,6 +158,7 @@ class ScheduleViewModel: ObservableObject {
 
         await createSchedule(
             routineId: template.routineId,
+            profileId: template.profileId,
             name: template.name,
             rrule: template.rrule,
             dtstart: template.dtstart,
@@ -208,6 +212,7 @@ class ScheduleViewModel: ObservableObject {
 
     func duplicateSchedule(_ schedule: Schedule) async {
         let duplicatedSchedule = Schedule(
+            profileId: schedule.profileId,
             routineId: schedule.routineId,
             name: "\(schedule.name) Copy",
             rrule: schedule.rrule,
@@ -229,6 +234,7 @@ class ScheduleViewModel: ObservableObject {
     private func createScheduleFromModel(_ schedule: Schedule) async {
         await createSchedule(
             routineId: schedule.routineId,
+            profileId: schedule.profileId,
             name: schedule.name,
             rrule: schedule.rrule,
             dtstart: schedule.dtstart,

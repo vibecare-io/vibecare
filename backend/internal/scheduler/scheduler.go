@@ -179,6 +179,21 @@ func (s *Scheduler) dispatchScheduleEvent(schedule *models.Schedule) {
 	// Get profile ID from routine
 	profileID := routine.ProfileID
 
+	// Fetch action IDs from schedule_actions join table
+	actions, err := s.db.GetScheduleActions(schedule.ScheduleID)
+	if err != nil {
+		s.logger.Error("Failed to fetch schedule actions",
+			zap.String("schedule_id", schedule.ScheduleID),
+			zap.Error(err))
+		// Continue with empty action list rather than failing the entire dispatch
+		actions = []*models.Action{}
+	}
+
+	actionIDs := make([]string, len(actions))
+	for i, action := range actions {
+		actionIDs[i] = action.ID
+	}
+
 	// Create the dispatch event
 	event := &pb.DispatchEvent{
 		EventId:   uuid.New().String(),
@@ -191,7 +206,7 @@ func (s *Scheduler) dispatchScheduleEvent(schedule *models.Schedule) {
 				RoutineId:     routine.ID,
 				RoutineName:   routine.Name,
 				ScheduledTime: timestamppb.Now(),
-				ActionIds:     schedule.ActionIDs, // Use schedule's actions, not routine's
+				ActionIds:     actionIDs,
 			},
 		},
 	}
