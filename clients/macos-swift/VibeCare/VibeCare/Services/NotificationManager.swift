@@ -140,6 +140,7 @@ class NotificationManager: NSObject, ObservableObject {
     /// Deserialize notification preferences from action parameters
     private func deserializeNotificationPreferences(from params: [String: String]) -> NotificationPreferences? {
         // Create notification preferences from parameters
+        // Only read svg_path (contains full URL for both bundled and custom icons)
         let svgPath = params["svg_path"]
         let svgWidth = params["svg_width"].flatMap { Double($0) }.map { CGFloat($0) }
         let svgHeight = params["svg_height"].flatMap { Double($0) }.map { CGFloat($0) }
@@ -156,6 +157,7 @@ class NotificationManager: NSObject, ObservableObject {
         // Otherwise return nil to use default notification appearance
         if svgPath != nil || width != nil || height != nil || position != .center {
             return NotificationPreferences(
+                bundledIconId: nil, // Always nil now - IDs converted to URLs
                 svgPath: svgPath,
                 svgWidth: svgWidth,
                 svgHeight: svgHeight,

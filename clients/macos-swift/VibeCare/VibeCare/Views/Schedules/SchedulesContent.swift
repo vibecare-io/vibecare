@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ScheduleListView: View {
     @ObservedObject var viewModel: ScheduleViewModel
+    @ObservedObject var routineViewModel: RoutineViewModel
     let searchText: String
     @Binding var selectedId: String?
     @EnvironmentObject private var appState: AppState
@@ -10,6 +11,9 @@ struct ScheduleListView: View {
     @State private var showDeleteAlert = false
     @State private var scheduleToDelete: Schedule?
     @State private var filterMode: FilterMode = .all
+    @State private var expandedRoutineIds: Set<String> = []
+    @State private var groupByRoutine: Bool = true
+    @State private var showWizard = false
 
     var filteredSchedules: [Schedule] {
         return viewModel.filteredSchedules(searchText: searchText)
@@ -47,9 +51,17 @@ struct ScheduleListView: View {
             }
         }
         .task {
-            // Load schedules when view appears
+            // Load schedules and routines when view appears
             if let profile = appState.currentProfile {
-                await viewModel.loadSchedules(for: profile.id)
+                async let loadSchedulesTask = viewModel.loadSchedules(for: profile.id)
+                async let loadRoutinesTask = routineViewModel.loadRoutines(for: profile.id)
+
+                _ = await (loadSchedulesTask, loadRoutinesTask)
+
+                // Auto-expand all routines on first load when grouping is enabled
+                if groupByRoutine && expandedRoutineIds.isEmpty {
+                    expandedRoutineIds = Set(routineViewModel.routines.map { $0.id })
+                }
             }
         }
         .alert("Delete Schedule", isPresented: $showDeleteAlert) {
@@ -65,6 +77,25 @@ struct ScheduleListView: View {
             if let schedule = scheduleToDelete {
                 Text("Are you sure you want to delete '\(schedule.name)'? This action cannot be undone.")
             }
+        }
+        .sheet(isPresented: $showWizard) {
+            ScheduleWizardView(
+                routineViewModel: routineViewModel,
+                scheduleViewModel: viewModel,
+                onComplete: { scheduleId in
+                    showWizard = false
+                    // Select the newly created schedule
+                    selectedId = scheduleId
+                    // Refresh data
+                    Task {
+                        await viewModel.refreshData()
+                        await routineViewModel.refreshData()
+                    }
+                },
+                onCancel: {
+                    showWizard = false
+                }
+            )
         }
     }
 
@@ -99,6 +130,22 @@ struct ScheduleListView: View {
                         color: .orange
                     )
                 }
+
+                // Group by routine toggle
+                Button {
+                    withAnimation(.easeInOut(duration: 0.25)) {
+                        groupByRoutine.toggle()
+                        // Auto-expand all routines when grouping is enabled
+                        if groupByRoutine {
+                            expandedRoutineIds = Set(routineViewModel.routines.map { $0.id })
+                        }
+                    }
+                } label: {
+                    Image(systemName: groupByRoutine ? "square.grid.2x2.fill" : "square.grid.2x2")
+                        .foregroundColor(groupByRoutine ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help(groupByRoutine ? "Show flat list" : "Group by routine")
 
                 // Refresh button
                 Button {
@@ -229,32 +276,37 @@ struct ScheduleListView: View {
     private var sectionedScheduleListContent: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 16) {
-                // Show sections based on filter mode
-                if filterMode == .all {
-                    // Active Schedules Section
-                    if !activeSchedules.isEmpty {
-                        scheduleSection(
-                            title: "Active Schedules",
-                            schedules: activeSchedules,
-                            emptyMessage: nil
-                        )
-                    }
-
-                    // Paused Schedules Section
-                    if !pausedSchedules.isEmpty {
-                        scheduleSection(
-                            title: "Paused Schedules",
-                            schedules: pausedSchedules,
-                            emptyMessage: nil
-                        )
-                    }
+                if groupByRoutine {
+                    // Grouped by routine view
+                    routineGroupedContent
                 } else {
-                    // Single filtered section
-                    scheduleSection(
-                        title: filterMode == .active ? "Active Schedules" : "Paused Schedules",
-                        schedules: displayedSchedules,
-                        emptyMessage: nil
-                    )
+                    // Flat view (original behavior)
+                    if filterMode == .all {
+                        // Active Schedules Section
+                        if !activeSchedules.isEmpty {
+                            scheduleSection(
+                                title: "Active Schedules",
+                                schedules: activeSchedules,
+                                emptyMessage: nil
+                            )
+                        }
+
+                        // Paused Schedules Section
+                        if !pausedSchedules.isEmpty {
+                            scheduleSection(
+                                title: "Paused Schedules",
+                                schedules: pausedSchedules,
+                                emptyMessage: nil
+                            )
+                        }
+                    } else {
+                        // Single filtered section
+                        scheduleSection(
+                            title: filterMode == .active ? "Active Schedules" : "Paused Schedules",
+                            schedules: displayedSchedules,
+                            emptyMessage: nil
+                        )
+                    }
                 }
             }
             .padding(.vertical, 16)
@@ -262,6 +314,134 @@ struct ScheduleListView: View {
         .refreshable {
             await viewModel.manualRefresh()
         }
+    }
+
+    // MARK: - Routine Grouped Content
+
+    private var routineGroupedContent: some View {
+        ForEach(schedulesByRoutine.keys.sorted(), id: \.self) { routineId in
+            if let schedulesInRoutine = schedulesByRoutine[routineId], !schedulesInRoutine.isEmpty {
+                routineGroupSection(
+                    routineId: routineId,
+                    schedules: schedulesInRoutine
+                )
+            }
+        }
+    }
+
+    // Group schedules by routine
+    private var schedulesByRoutine: [String: [Schedule]] {
+        Dictionary(grouping: displayedSchedules) { $0.routineId }
+    }
+
+    // MARK: - Routine Group Section
+
+    @ViewBuilder
+    private func routineGroupSection(
+        routineId: String,
+        schedules: [Schedule]
+    ) -> some View {
+        let routine = routineViewModel.routines.first(where: { $0.id == routineId })
+        let isExpanded = expandedRoutineIds.contains(routineId)
+
+        VStack(alignment: .leading, spacing: 0) {
+            // Routine header (collapsible)
+            Button {
+                withAnimation(.easeInOut(duration: 0.25)) {
+                    if isExpanded {
+                        expandedRoutineIds.remove(routineId)
+                    } else {
+                        expandedRoutineIds.insert(routineId)
+                    }
+                }
+            } label: {
+                routineHeaderView(
+                    routine: routine,
+                    scheduleCount: schedules.count,
+                    activeCount: schedules.filter { $0.enabled }.count,
+                    isExpanded: isExpanded
+                )
+            }
+            .buttonStyle(.plain)
+
+            // Schedules list (expandable)
+            if isExpanded {
+                LazyVStack(spacing: 1) {
+                    ForEach(schedules) { schedule in
+                        scheduleRow(for: schedule)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.top, 4)
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(.bottom, 8)
+    }
+
+    private func routineHeaderView(
+        routine: Routine?,
+        scheduleCount: Int,
+        activeCount: Int,
+        isExpanded: Bool
+    ) -> some View {
+        HStack(spacing: 12) {
+            // Chevron indicator
+            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(.secondary)
+                .frame(width: 16, height: 16)
+
+            // Routine icon
+            if let routine = routine {
+                Image(systemName: routine.iconName)
+                    .font(.system(size: 16))
+                    .foregroundColor(Color(routine.color))
+                    .frame(width: 24, height: 24)
+            } else {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 16))
+                    .foregroundColor(.gray)
+                    .frame(width: 24, height: 24)
+            }
+
+            // Routine name
+            Text(routine?.name ?? "Unknown Routine")
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+
+            Spacer()
+
+            // Active/total badge
+            HStack(spacing: 4) {
+                if activeCount > 0 {
+                    Circle()
+                        .fill(Color.green)
+                        .frame(width: 6, height: 6)
+                }
+
+                Text("\(activeCount)/\(scheduleCount)")
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(Color.secondary.opacity(0.1))
+                    .clipShape(Capsule())
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(
+            RoundedRectangle(cornerRadius: 8)
+                .fill(Color(NSColor.controlBackgroundColor))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+        )
+        .padding(.horizontal, 8)
     }
 
     // MARK: - Schedule Section
@@ -396,8 +576,8 @@ extension ScheduleListView {
 
 extension ScheduleListView {
     private func createNewSchedule() {
-        // Set selectedId to a special "new" value to trigger creation mode
-        selectedId = "new-schedule"
+        // Show the wizard for template-based creation
+        showWizard = true
     }
 }
 
@@ -459,8 +639,10 @@ struct FilterButton: View {
 #Preview {
     ScheduleListView(
         viewModel: ScheduleViewModel(),
+        routineViewModel: RoutineViewModel(),
         searchText: "",
         selectedId: .constant(nil)
     )
+    .environmentObject(AppState.shared)
     .frame(width: 400, height: 600)
 }

@@ -2,11 +2,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 // MARK: - ScheduleActionCard Model
-struct ScheduleActionCard: Identifiable {
+struct ScheduleActionCard: Identifiable, Equatable {
     let id: String
     var type: ActionType
     var parameters: [String: String]
-    var notificationPreferences: NotificationPreferences? // Only used for notification actions
+    var notificationPreferences: NotificationPreferences = .default // For notification actions
+
+    static func == (lhs: ScheduleActionCard, rhs: ScheduleActionCard) -> Bool {
+        return lhs.id == rhs.id &&
+               lhs.type == rhs.type &&
+               lhs.parameters == rhs.parameters &&
+               lhs.notificationPreferences == rhs.notificationPreferences
+    }
 
     init(id: String = UUID().uuidString, type: ActionType, parameters: [String: String] = [:]) {
         self.id = id
@@ -33,13 +40,11 @@ struct ScheduleActionCard: Identifiable {
                 print("DEBUG [ScheduleActionCard.init]: Deserialized notification prefs: \(deserialized != nil ? "present" : "nil")")
                 self.notificationPreferences = deserialized ?? .default
 
-                if let prefs = self.notificationPreferences {
-                    print("DEBUG [ScheduleActionCard.init]: Final prefs: title=\(prefs.title ?? "nil"), position=\(prefs.position)")
-                }
+                print("DEBUG [ScheduleActionCard.init]: Final prefs: title=\(notificationPreferences.title ?? "nil"), position=\(notificationPreferences.position)")
             }
         } else {
             self.parameters = parameters
-            self.notificationPreferences = nil
+            // notificationPreferences already has .default value
         }
     }
 
@@ -47,8 +52,8 @@ struct ScheduleActionCard: Identifiable {
         var actionParams = parameters
 
         // Serialize notification preferences into parameters for notification actions
-        if type == .notification, let prefs = notificationPreferences {
-            actionParams = Self.serializeNotificationPreferences(prefs, into: actionParams)
+        if type == .notification {
+            actionParams = Self.serializeNotificationPreferences(notificationPreferences, into: actionParams)
 
             // Apply defaults for empty title/body
             if actionParams["title"]?.isEmpty ?? true {
@@ -74,7 +79,7 @@ struct ScheduleActionCard: Identifiable {
         switch type {
         case .notification:
             // Check preferences first
-            if let title = notificationPreferences?.title, !title.isEmpty {
+            if let title = notificationPreferences.title, !title.isEmpty {
                 return title
             }
             // Then check parameters
@@ -133,10 +138,17 @@ struct ScheduleActionCard: Identifiable {
     private static func serializeNotificationPreferences(_ prefs: NotificationPreferences, into params: [String: String]) -> [String: String] {
         var result = params  // Start with existing params to preserve title/body from UI
 
-        // Serialize preference-specific fields
+        // Serialize SVG path (works for both bundled URLs and custom file paths)
         if let svgPath = prefs.svgPath {
             result["svg_path"] = svgPath
+            // Remove old bundled_id parameter if it exists (for migration)
+            result.removeValue(forKey: "svg_bundled_id")
+        } else {
+            // No icon selected - clear both parameters
+            result.removeValue(forKey: "svg_path")
+            result.removeValue(forKey: "svg_bundled_id")
         }
+
         if let svgWidth = prefs.svgWidth {
             result["svg_width"] = String(Double(svgWidth))
         }
@@ -178,6 +190,7 @@ struct ScheduleActionCard: Identifiable {
 
     private static func deserializeNotificationPreferences(from params: [String: String]) -> NotificationPreferences? {
         // Create notification preferences from parameters
+        // Only read svg_path (contains full URL for both bundled and custom icons)
         let svgPath = params["svg_path"]
         let svgWidth = params["svg_width"].flatMap { Double($0) }.map { CGFloat($0) }
         let svgHeight = params["svg_height"].flatMap { Double($0) }.map { CGFloat($0) }
@@ -191,6 +204,7 @@ struct ScheduleActionCard: Identifiable {
         let screenBlurEnabled = params["screen_blur_enabled"].flatMap { Bool($0) } ?? false
 
         return NotificationPreferences(
+            bundledIconId: nil, // Always nil now - IDs converted to URLs
             svgPath: svgPath,
             svgWidth: svgWidth,
             svgHeight: svgHeight,
@@ -244,11 +258,13 @@ struct ScheduleActionCardView: View {
             // Parameters
             if card.type == .notification {
                 NotificationActionParametersView(
-                    preferences: Binding(
-                        get: { card.notificationPreferences ?? .default },
-                        set: { card.notificationPreferences = $0 }
-                    ),
-                    parameters: $card.parameters  // Pass parameters binding for title/body
+                    preferences: card.notificationPreferences,
+                    onPreferencesChanged: { newPrefs in
+                        print("🟢 [ActionCardView] onPreferencesChanged called with svgPath=\(newPrefs.svgPath ?? "nil")")
+                        card.notificationPreferences = newPrefs
+                        print("🟢 [ActionCardView] card.notificationPreferences updated to svgPath=\(card.notificationPreferences.svgPath ?? "nil")")
+                    },
+                    parameters: $card.parameters
                 )
             } else {
                 ActionParametersView(type: card.type, parameters: $card.parameters)
@@ -348,10 +364,21 @@ struct ActionParametersView: View {
 
 // MARK: - NotificationActionParametersView
 struct NotificationActionParametersView: View {
-    @Binding var preferences: NotificationPreferences
-    @Binding var parameters: [String: String]  // Add parameters binding for title/body
+    var preferences: NotificationPreferences  // Read-only initial value
+    let onPreferencesChanged: (NotificationPreferences) -> Void  // Explicit callback
+    @Binding var parameters: [String: String]  // Keep parameters binding
+    @State private var currentPreferences: NotificationPreferences  // Track current state
     @State private var showingFilePicker = false
+    @State private var showingIconPicker = false
     @State private var previewNotification = false
+    @StateObject private var iconManager = SVGIconManager.shared
+
+    init(preferences: NotificationPreferences, onPreferencesChanged: @escaping (NotificationPreferences) -> Void, parameters: Binding<[String: String]>) {
+        self.preferences = preferences
+        self.onPreferencesChanged = onPreferencesChanged
+        self._parameters = parameters
+        self._currentPreferences = State(initialValue: preferences)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -376,6 +403,13 @@ struct NotificationActionParametersView: View {
             // Preview Button
             previewSection
         }
+        .onChange(of: preferences) { newValue in
+            print("🟣 [NotificationActionParametersView] Parent preferences changed")
+            print("🟣 [NotificationActionParametersView] Old currentPreferences.svgPath=\(currentPreferences.svgPath ?? "nil")")
+            print("🟣 [NotificationActionParametersView] New preferences.svgPath=\(newValue.svgPath ?? "nil")")
+            currentPreferences = newValue
+            print("🟣 [NotificationActionParametersView] Synced currentPreferences")
+        }
     }
 
     // MARK: - Preset Section
@@ -389,7 +423,8 @@ struct NotificationActionParametersView: View {
                 ForEach(NotificationPreferences.presetNames, id: \.self) { presetName in
                     Button(action: {
                         if let preset = NotificationPreferences.presets[presetName] {
-                            preferences = preset
+                            currentPreferences = preset
+                            onPreferencesChanged(preset)
                         }
                     }) {
                         Text(presetName)
@@ -408,70 +443,194 @@ struct NotificationActionParametersView: View {
     // MARK: - SVG Icon Section
     private var svgIconSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Custom Icon (SVG)")
+            Text("Icon")
                 .font(.subheadline)
                 .fontWeight(.medium)
 
-            if let svgPath = preferences.svgPath {
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(URL(fileURLWithPath: svgPath).lastPathComponent)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+            // Show selected icon preview
+            if currentPreferences.hasSVGIcon {
+                let _ = print("🟢 [ActionCardView UI] hasSVGIcon=true, svgPath=\(currentPreferences.svgPath ?? "nil")")
+                let _ = print("🟢 [ActionCardView UI] extractedIconId=\(currentPreferences.extractedIconId ?? "nil")")
+                let _ = print("🟢 [ActionCardView UI] iconManager.icons.count=\(iconManager.icons.count)")
 
-                    HStack {
-                        Text("Size:")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        TextField("Width", value: Binding(
-                            get: { Double(preferences.svgWidth ?? 350) },
-                            set: { preferences.svgWidth = CGFloat($0) }
-                        ), format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 60)
-
-                        Text("×")
-                            .foregroundColor(.secondary)
-
-                        TextField("Height", value: Binding(
-                            get: { Double(preferences.svgHeight ?? 320) },
-                            set: { preferences.svgHeight = CGFloat($0) }
-                        ), format: .number)
-                        .textFieldStyle(.roundedBorder)
-                        .frame(width: 60)
-
-                        Button("Remove") {
-                            preferences.svgPath = nil
-                            preferences.svgWidth = nil
-                            preferences.svgHeight = nil
+                HStack(spacing: 12) {
+                    // Icon preview card
+                    HStack(spacing: 8) {
+                        // Icon preview
+                        if let iconId = currentPreferences.extractedIconId,
+                           let icon = iconManager.icon(withId: iconId) {
+                            let _ = print("🟢 [ActionCardView UI] Found icon: \(icon.name)")
+                            // Bundled icon preview (from backend URL)
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.green)
+                                    Text(icon.name)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                Text(icon.category.displayName)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        } else if let svgPath = currentPreferences.svgPath {
+                            let _ = print("🟡 [ActionCardView UI] No icon found in manager, showing custom SVG fallback")
+                            let _ = print("🟡 [ActionCardView UI] svgPath: \(svgPath)")
+                            // Custom SVG file path preview
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "doc.fill")
+                                        .font(.caption2)
+                                        .foregroundColor(.blue)
+                                    Text("Custom SVG")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                Text(URL(fileURLWithPath: svgPath).lastPathComponent)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
                         }
-                        .buttonStyle(.plain)
-                        .foregroundColor(.red)
-                        .font(.caption)
-                    }
-                }
-                .padding(8)
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                .cornerRadius(6)
-            } else {
-                Button(action: {
-                    showingFilePicker = true
-                }) {
-                    HStack {
-                        Image(systemName: "photo")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                        Text("Choose SVG File")
-                            .foregroundColor(.accentColor)
-                            .font(.caption)
+
+                        Spacer()
+
+                        // Size controls
+                        HStack(spacing: 6) {
+                            Text("Size:")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+
+                            TextField("W", value: Binding(
+                                get: { Double(currentPreferences.svgWidth ?? 350) },
+                                set: {
+                                    var updated = currentPreferences
+                                    updated.svgWidth = CGFloat($0)
+                                    currentPreferences = updated
+                                    onPreferencesChanged(updated)
+                                }
+                            ), format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 50)
+
+                            Text("×")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+
+                            TextField("H", value: Binding(
+                                get: { Double(currentPreferences.svgHeight ?? 320) },
+                                set: {
+                                    var updated = currentPreferences
+                                    updated.svgHeight = CGFloat($0)
+                                    currentPreferences = updated
+                                    onPreferencesChanged(updated)
+                                }
+                            ), format: .number)
+                            .textFieldStyle(.roundedBorder)
+                            .frame(width: 50)
+                        }
                     }
                     .padding(8)
-                    .frame(maxWidth: .infinity)
                     .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
                     .cornerRadius(6)
+
+                    // Remove button
+                    Button("Remove") {
+                        var updated = currentPreferences
+                        updated.svgPath = nil
+                        updated.svgWidth = nil
+                        updated.svgHeight = nil
+                        currentPreferences = updated
+                        onPreferencesChanged(updated)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundColor(.red)
+                    .font(.caption)
                 }
-                .buttonStyle(.plain)
+            } else {
+                // No icon selected - show selection buttons
+                HStack(spacing: 8) {
+                    // Browse bundled icons button
+                    Button(action: {
+                        showingIconPicker = true
+                    }) {
+                        HStack {
+                            Image(systemName: "square.grid.3x3.fill")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text("Browse Icons")
+                                .foregroundColor(.accentColor)
+                                .font(.caption)
+                        }
+                        .padding(8)
+                        .frame(maxWidth: .infinity)
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showingIconPicker) {
+                        SVGIconPickerView(
+                            iconManager: iconManager,
+                            selectedIconId: Binding(
+                                get: { currentPreferences.extractedIconId },
+                                set: { _ in /* Icon ID extracted from URL, no direct set */ }
+                            ),
+                            onSelect: { icon in
+                                print("🔵 [NotificationActionParametersView] Icon selected: \(icon.id) - \(icon.name)")
+
+                                // Build full backend URL for bundled icon
+                                let iconURL = "http://localhost:8080/api/icons/\(icon.id).svg"
+                                print("🔵 [NotificationActionParametersView] Built URL: \(iconURL)")
+
+                                // Create mutable copy and modify
+                                var updated = currentPreferences
+                                updated.svgPath = iconURL
+                                updated.svgWidth = updated.svgWidth ?? 350
+                                updated.svgHeight = updated.svgHeight ?? 320
+                                print("🔵 [NotificationActionParametersView] Modified copy: updated.svgPath = \(updated.svgPath ?? "nil")")
+
+                                // Update local state first
+                                currentPreferences = updated
+                                print("🔵 [NotificationActionParametersView] currentPreferences updated, svgPath = \(currentPreferences.svgPath ?? "nil")")
+
+                                // Then call parent callback
+                                print("🔵 [NotificationActionParametersView] About to call onPreferencesChanged")
+                                onPreferencesChanged(updated)
+                                print("🔵 [NotificationActionParametersView] onPreferencesChanged returned")
+
+                                showingIconPicker = false
+                            },
+                            onDismiss: {
+                                showingIconPicker = false
+                            }
+                        )
+                    }
+
+                    // Custom SVG file button
+                    Button(action: {
+                        showingFilePicker = true
+                    }) {
+                        HStack {
+                            Image(systemName: "doc.badge.plus")
+                                .foregroundColor(.secondary)
+                                .font(.caption)
+                            Text("Custom SVG")
+                                .foregroundColor(.accentColor)
+                                .font(.caption)
+                        }
+                        .padding(8)
+                        .frame(maxWidth: .infinity)
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                        .cornerRadius(6)
+                    }
+                    .buttonStyle(.plain)
+                }
             }
+
+            Text("Choose from \(iconManager.icons.count) bundled icons or use your own")
+                .font(.caption2)
+                .foregroundColor(.secondary)
         }
         .fileImporter(
             isPresented: $showingFilePicker,
@@ -481,9 +640,12 @@ struct NotificationActionParametersView: View {
             switch result {
             case .success(let urls):
                 if let url = urls.first {
-                    preferences.svgPath = url.path
-                    preferences.svgWidth = preferences.svgWidth ?? 350
-                    preferences.svgHeight = preferences.svgHeight ?? 320
+                    var updated = currentPreferences
+                    updated.svgPath = url.path
+                    updated.svgWidth = updated.svgWidth ?? 350
+                    updated.svgHeight = updated.svgHeight ?? 320
+                    currentPreferences = updated
+                    onPreferencesChanged(updated)
                 }
             case .failure(let error):
                 print("Error selecting SVG: \(error)")
@@ -503,7 +665,10 @@ struct NotificationActionParametersView: View {
                 set: {
                     parameters["title"] = $0
                     // Sync to preferences for template variables
-                    preferences.title = $0.isEmpty ? nil : $0
+                    var updated = currentPreferences
+                    updated.title = $0.isEmpty ? nil : $0
+                    currentPreferences = updated
+                    onPreferencesChanged(updated)
                 }
             ))
             .textFieldStyle(.roundedBorder)
@@ -513,7 +678,10 @@ struct NotificationActionParametersView: View {
                 set: {
                     parameters["body"] = $0
                     // Sync to preferences for template variables
-                    preferences.message = $0.isEmpty ? nil : $0
+                    var updated = currentPreferences
+                    updated.message = $0.isEmpty ? nil : $0
+                    currentPreferences = updated
+                    onPreferencesChanged(updated)
                 }
             ), axis: .vertical)
             .textFieldStyle(.plain)
@@ -538,7 +706,10 @@ struct NotificationActionParametersView: View {
             HStack(spacing: 8) {
                 ForEach(NotificationPosition.allCases, id: \.self) { position in
                     Button(action: {
-                        preferences.position = position
+                        var updated = currentPreferences
+                        updated.position = position
+                        currentPreferences = updated
+                        onPreferencesChanged(updated)
                     }) {
                         VStack(spacing: 2) {
                             Image(systemName: position.iconName)
@@ -549,12 +720,12 @@ struct NotificationActionParametersView: View {
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 6)
                         .background(
-                            preferences.position == position
+                            currentPreferences.position == position
                                 ? Color.accentColor
                                 : Color(NSColor.controlBackgroundColor).opacity(0.5)
                         )
                         .foregroundColor(
-                            preferences.position == position
+                            currentPreferences.position == position
                                 ? .white
                                 : .primary
                         )
@@ -575,14 +746,19 @@ struct NotificationActionParametersView: View {
 
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Width: \(Int(preferences.width ?? 450))")
+                    Text("Width: \(Int(currentPreferences.width ?? 450))")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
                     Slider(
                         value: Binding(
-                            get: { preferences.width ?? 450 },
-                            set: { preferences.width = $0 }
+                            get: { currentPreferences.width ?? 450 },
+                            set: {
+                                var updated = currentPreferences
+                                updated.width = $0
+                                currentPreferences = updated
+                                onPreferencesChanged(updated)
+                            }
                         ),
                         in: 300...800,
                         step: 50
@@ -590,14 +766,19 @@ struct NotificationActionParametersView: View {
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Height: \(Int(preferences.height ?? 220))")
+                    Text("Height: \(Int(currentPreferences.height ?? 220))")
                         .font(.caption)
                         .foregroundColor(.secondary)
 
                     Slider(
                         value: Binding(
-                            get: { preferences.height ?? 220 },
-                            set: { preferences.height = $0 }
+                            get: { currentPreferences.height ?? 220 },
+                            set: {
+                                var updated = currentPreferences
+                                updated.height = $0
+                                currentPreferences = updated
+                                onPreferencesChanged(updated)
+                            }
                         ),
                         in: 150...500,
                         step: 25
@@ -614,23 +795,44 @@ struct NotificationActionParametersView: View {
                 .font(.subheadline)
                 .fontWeight(.medium)
 
-            Toggle("Allow moving notification", isOn: $preferences.moveable)
+            Toggle("Allow moving notification", isOn: Binding(
+                get: { currentPreferences.moveable },
+                set: {
+                    var updated = currentPreferences
+                    updated.moveable = $0
+                    currentPreferences = updated
+                    onPreferencesChanged(updated)
+                }
+            ))
                 .toggleStyle(.switch)
                 .font(.caption)
 
-            Toggle("Enable screen blur", isOn: $preferences.screenBlurEnabled)
+            Toggle("Enable screen blur", isOn: Binding(
+                get: { currentPreferences.screenBlurEnabled },
+                set: {
+                    var updated = currentPreferences
+                    updated.screenBlurEnabled = $0
+                    currentPreferences = updated
+                    onPreferencesChanged(updated)
+                }
+            ))
                 .toggleStyle(.switch)
                 .font(.caption)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text("Auto-dismiss: \(Int(preferences.autoDismissAfter ?? 20))s")
+                Text("Auto-dismiss: \(Int(currentPreferences.autoDismissAfter ?? 20))s")
                     .font(.caption)
                     .foregroundColor(.secondary)
 
                 Slider(
                     value: Binding(
-                        get: { preferences.autoDismissAfter ?? 20.0 },
-                        set: { preferences.autoDismissAfter = $0 }
+                        get: { currentPreferences.autoDismissAfter ?? 20.0 },
+                        set: {
+                            var updated = currentPreferences
+                            updated.autoDismissAfter = $0
+                            currentPreferences = updated
+                            onPreferencesChanged(updated)
+                        }
                     ),
                     in: 5...60,
                     step: 5
@@ -675,12 +877,17 @@ struct NotificationActionParametersView: View {
     // MARK: - Helper Methods
 
     private func showPreviewNotification() {
+        print("🔴 [Preview] Showing preview notification")
+        print("🔴 [Preview] currentPreferences.svgPath = \(currentPreferences.svgPath ?? "nil")")
+        print("🔴 [Preview] currentPreferences.svgWidth = \(currentPreferences.svgWidth ?? 0)")
+        print("🔴 [Preview] currentPreferences.svgHeight = \(currentPreferences.svgHeight ?? 0)")
+
         _ = VibeNotifyConfig.showScheduleNotification(
             scheduleName: "Preview Notification",
             routineName: "Preview Action",
             scheduledTime: Date(),
             notes: nil,
-            preferences: preferences
+            preferences: currentPreferences
         )
 
         previewNotification = true

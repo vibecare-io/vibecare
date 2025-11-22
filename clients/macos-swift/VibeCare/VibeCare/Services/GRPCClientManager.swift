@@ -301,6 +301,108 @@ class GRPCClientManager: ObservableObject {
 
         logger.info("Updated connection settings: \(host):\(port), TLS: \(useTLS)")
     }
+
+    // MARK: - Template Service Client
+
+    nonisolated func getTemplateServiceClient() -> VCScheduleTemplateService.Client<HTTP2ClientTransport.Posix> {
+        fatalError("Use withTemplateServiceClient instead - this is a placeholder for synchronous access")
+    }
+
+    nonisolated func withTemplateServiceClient<T: Sendable>(_ operation: @Sendable (VCScheduleTemplateService.Client<HTTP2ClientTransport.Posix>) async throws -> T) async throws -> T {
+        let host = await self.host
+        let port = await self.port
+        let useTLS = await self.useTLS
+        let logger = await self.logger
+
+        logger.info("Creating gRPC connection to \(host):\(port) for ScheduleTemplateService")
+
+        await MainActor.run {
+            self.connectionStatus = .connecting
+        }
+
+        do {
+            let transport = try HTTP2ClientTransport.Posix(
+                target: .dns(host: host, port: port),
+                transportSecurity: useTLS ? .tls : .plaintext
+            )
+
+            await MainActor.run {
+                self.isConnected = true
+                self.connectionStatus = .connected
+                self.lastError = nil
+            }
+
+            let result = try await withGRPCClient(transport: transport) { client in
+                let templateServiceClient = VCScheduleTemplateService.Client(wrapping: client)
+                return try await operation(templateServiceClient)
+            }
+
+            await MainActor.run {
+                self.isConnected = false
+                self.connectionStatus = .disconnected
+            }
+
+            return result
+
+        } catch {
+            await MainActor.run {
+                self.isConnected = false
+                self.connectionStatus = .failed
+                self.lastError = error
+            }
+            logger.error("gRPC operation failed: \(error)")
+            throw error
+        }
+    }
+
+    // MARK: - Icon Service Client
+
+    nonisolated func withIconServiceClient<T: Sendable>(_ operation: @Sendable (VCIconService.Client<HTTP2ClientTransport.Posix>) async throws -> T) async throws -> T {
+        let host = await self.host
+        let port = await self.port
+        let useTLS = await self.useTLS
+        let logger = await self.logger
+
+        logger.info("Creating gRPC connection to \(host):\(port) for IconService")
+
+        await MainActor.run {
+            self.connectionStatus = .connecting
+        }
+
+        do {
+            let transport = try HTTP2ClientTransport.Posix(
+                target: .dns(host: host, port: port),
+                transportSecurity: useTLS ? .tls : .plaintext
+            )
+
+            await MainActor.run {
+                self.isConnected = true
+                self.connectionStatus = .connected
+                self.lastError = nil
+            }
+
+            let result = try await withGRPCClient(transport: transport) { client in
+                let iconServiceClient = VCIconService.Client(wrapping: client)
+                return try await operation(iconServiceClient)
+            }
+
+            await MainActor.run {
+                self.isConnected = false
+                self.connectionStatus = .disconnected
+            }
+
+            return result
+
+        } catch {
+            await MainActor.run {
+                self.isConnected = false
+                self.connectionStatus = .failed
+                self.lastError = error
+            }
+            logger.error("gRPC IconService operation failed: \(error)")
+            throw error
+        }
+    }
 }
 
 // MARK: - Supporting Types

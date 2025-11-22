@@ -175,6 +175,7 @@ struct CreateProfileView: View {
 public struct MenuBarView: View {
   @EnvironmentObject private var appState: AppState
   @StateObject private var notificationPolicy = NotificationPolicy.shared
+  @Environment(\.openWindow) private var openWindow
 
   public init() {}
 
@@ -266,14 +267,8 @@ public struct MenuBarView: View {
   }
 
   private func openMainWindow() {
+    openWindow(id: "main")
     NSApp.activate(ignoringOtherApps: true)
-    if let window = NSApp.windows.first(where: { $0.identifier?.rawValue == "main" }) {
-      window.makeKeyAndOrderFront(nil)
-    } else {
-      if let url = URL(string: "vibecare://main") {
-        NSWorkspace.shared.open(url)
-      }
-    }
   }
 
   private func openSettings() {

@@ -186,6 +186,49 @@ public enum VCEventType: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 }
 
+/// Template category enum
+public enum VCTemplateCategory: SwiftProtobuf.Enum, Swift.CaseIterable {
+  public typealias RawValue = Int
+  case unspecified // = 0
+  case daily // = 1
+  case weekly // = 2
+  case monthlyYearly // = 3
+  case UNRECOGNIZED(Int)
+
+  public init() {
+    self = .unspecified
+  }
+
+  public init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .daily
+    case 2: self = .weekly
+    case 3: self = .monthlyYearly
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  public var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .daily: return 1
+    case .weekly: return 2
+    case .monthlyYearly: return 3
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  public static let allCases: [VCTemplateCategory] = [
+    .unspecified,
+    .daily,
+    .weekly,
+    .monthlyYearly,
+  ]
+
+}
+
 /// Profile entity - binds to a user
 public struct VCProfile: Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
@@ -1629,6 +1672,225 @@ public struct VCSubscribeEventsRequest: Sendable {
   public init() {}
 }
 
+/// Schedule template message
+public struct VCScheduleTemplate: @unchecked Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var id: String {
+    get {return _storage._id}
+    set {_uniqueStorage()._id = newValue}
+  }
+
+  public var category: VCTemplateCategory {
+    get {return _storage._category}
+    set {_uniqueStorage()._category = newValue}
+  }
+
+  public var routineName: String {
+    get {return _storage._routineName}
+    set {_uniqueStorage()._routineName = newValue}
+  }
+
+  public var routineDescription: String {
+    get {return _storage._routineDescription}
+    set {_uniqueStorage()._routineDescription = newValue}
+  }
+
+  public var routineIcon: String {
+    get {return _storage._routineIcon}
+    set {_uniqueStorage()._routineIcon = newValue}
+  }
+
+  public var routineColor: String {
+    get {return _storage._routineColor}
+    set {_uniqueStorage()._routineColor = newValue}
+  }
+
+  public var scheduleName: String {
+    get {return _storage._scheduleName}
+    set {_uniqueStorage()._scheduleName = newValue}
+  }
+
+  public var scheduleDescription: String {
+    get {return _storage._scheduleDescription}
+    set {_uniqueStorage()._scheduleDescription = newValue}
+  }
+
+  public var rrule: String {
+    get {return _storage._rrule}
+    set {_uniqueStorage()._rrule = newValue}
+  }
+
+  /// Format: "HH:MM"
+  public var defaultTimes: [String] {
+    get {return _storage._defaultTimes}
+    set {_uniqueStorage()._defaultTimes = newValue}
+  }
+
+  public var notification: VCScheduleTemplate.NotificationConfig {
+    get {return _storage._notification ?? VCScheduleTemplate.NotificationConfig()}
+    set {_uniqueStorage()._notification = newValue}
+  }
+  /// Returns true if `notification` has been explicitly set.
+  public var hasNotification: Bool {return _storage._notification != nil}
+  /// Clears the value of `notification`. Subsequent reads from it will return its default value.
+  public mutating func clearNotification() {_uniqueStorage()._notification = nil}
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  /// Embedded notification configuration (optional)
+  public struct NotificationConfig: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    public var title: String = String()
+
+    public var body: String = String()
+
+    public var iconID: String = String()
+
+    public var position: String = String()
+
+    public var autoDismiss: Int32 = 0
+
+    public var width: Int32 = 0
+
+    public var height: Int32 = 0
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+  }
+
+  public init() {}
+
+  fileprivate var _storage = _StorageClass.defaultInstance
+}
+
+/// Request/Response messages for template service
+public struct VCListScheduleTemplatesRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Filter by category
+  public var category: VCTemplateCategory {
+    get {return _category ?? .unspecified}
+    set {_category = newValue}
+  }
+  /// Returns true if `category` has been explicitly set.
+  public var hasCategory: Bool {return self._category != nil}
+  /// Clears the value of `category`. Subsequent reads from it will return its default value.
+  public mutating func clearCategory() {self._category = nil}
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _category: VCTemplateCategory? = nil
+}
+
+public struct VCListScheduleTemplatesResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var templates: [VCScheduleTemplate] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+/// Icon category definition
+public struct VCIconCategory: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var id: String = String()
+
+  public var name: String = String()
+
+  public var order: Int32 = 0
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+/// SVG icon definition
+public struct VCSVGIcon: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var id: String = String()
+
+  public var name: String = String()
+
+  public var category: String = String()
+
+  public var filename: String = String()
+
+  public var keywords: [String] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
+/// Request/Response messages for icon service
+public struct VCListIconsRequest: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  /// Filter by category
+  public var category: String {
+    get {return _category ?? String()}
+    set {_category = newValue}
+  }
+  /// Returns true if `category` has been explicitly set.
+  public var hasCategory: Bool {return self._category != nil}
+  /// Clears the value of `category`. Subsequent reads from it will return its default value.
+  public mutating func clearCategory() {self._category = nil}
+
+  /// Search by keywords
+  public var searchQuery: String {
+    get {return _searchQuery ?? String()}
+    set {_searchQuery = newValue}
+  }
+  /// Returns true if `searchQuery` has been explicitly set.
+  public var hasSearchQuery: Bool {return self._searchQuery != nil}
+  /// Clears the value of `searchQuery`. Subsequent reads from it will return its default value.
+  public mutating func clearSearchQuery() {self._searchQuery = nil}
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+
+  fileprivate var _category: String? = nil
+  fileprivate var _searchQuery: String? = nil
+}
+
+public struct VCListIconsResponse: Sendable {
+  // SwiftProtobuf.Message conformance is added in an extension below. See the
+  // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+  // methods supported on all messages.
+
+  public var icons: [VCSVGIcon] = []
+
+  public var categories: [VCIconCategory] = []
+
+  public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+  public init() {}
+}
+
 // MARK: - Code below here is support for the SwiftProtobuf runtime.
 
 fileprivate let _protobuf_package = "vibecare.v1"
@@ -1643,6 +1905,10 @@ extension VCActionType: SwiftProtobuf._ProtoNameProviding {
 
 extension VCEventType: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0EVENT_TYPE_UNSPECIFIED\0\u{1}EVENT_TYPE_SCHEDULE_TRIGGERED\0\u{1}EVENT_TYPE_ROUTINE_EXECUTED\0")
+}
+
+extension VCTemplateCategory: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0TEMPLATE_CATEGORY_UNSPECIFIED\0\u{1}TEMPLATE_CATEGORY_DAILY\0\u{1}TEMPLATE_CATEGORY_WEEKLY\0\u{1}TEMPLATE_CATEGORY_MONTHLY_YEARLY\0")
 }
 
 extension VCProfile: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
@@ -4595,6 +4861,434 @@ extension VCSubscribeEventsRequest: SwiftProtobuf.Message, SwiftProtobuf._Messag
   public static func ==(lhs: VCSubscribeEventsRequest, rhs: VCSubscribeEventsRequest) -> Bool {
     if lhs.profileID != rhs.profileID {return false}
     if lhs.eventTypes != rhs.eventTypes {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCScheduleTemplate: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".ScheduleTemplate"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}category\0\u{3}routine_name\0\u{3}routine_description\0\u{3}routine_icon\0\u{3}routine_color\0\u{3}schedule_name\0\u{3}schedule_description\0\u{1}rrule\0\u{3}default_times\0\u{1}notification\0")
+
+  fileprivate class _StorageClass {
+    var _id: String = String()
+    var _category: VCTemplateCategory = .unspecified
+    var _routineName: String = String()
+    var _routineDescription: String = String()
+    var _routineIcon: String = String()
+    var _routineColor: String = String()
+    var _scheduleName: String = String()
+    var _scheduleDescription: String = String()
+    var _rrule: String = String()
+    var _defaultTimes: [String] = []
+    var _notification: VCScheduleTemplate.NotificationConfig? = nil
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _id = source._id
+      _category = source._category
+      _routineName = source._routineName
+      _routineDescription = source._routineDescription
+      _routineIcon = source._routineIcon
+      _routineColor = source._routineColor
+      _scheduleName = source._scheduleName
+      _scheduleDescription = source._scheduleDescription
+      _rrule = source._rrule
+      _defaultTimes = source._defaultTimes
+      _notification = source._notification
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularStringField(value: &_storage._id) }()
+        case 2: try { try decoder.decodeSingularEnumField(value: &_storage._category) }()
+        case 3: try { try decoder.decodeSingularStringField(value: &_storage._routineName) }()
+        case 4: try { try decoder.decodeSingularStringField(value: &_storage._routineDescription) }()
+        case 5: try { try decoder.decodeSingularStringField(value: &_storage._routineIcon) }()
+        case 6: try { try decoder.decodeSingularStringField(value: &_storage._routineColor) }()
+        case 7: try { try decoder.decodeSingularStringField(value: &_storage._scheduleName) }()
+        case 8: try { try decoder.decodeSingularStringField(value: &_storage._scheduleDescription) }()
+        case 9: try { try decoder.decodeSingularStringField(value: &_storage._rrule) }()
+        case 10: try { try decoder.decodeRepeatedStringField(value: &_storage._defaultTimes) }()
+        case 11: try { try decoder.decodeSingularMessageField(value: &_storage._notification) }()
+        default: break
+        }
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      if !_storage._id.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._id, fieldNumber: 1)
+      }
+      if _storage._category != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._category, fieldNumber: 2)
+      }
+      if !_storage._routineName.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._routineName, fieldNumber: 3)
+      }
+      if !_storage._routineDescription.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._routineDescription, fieldNumber: 4)
+      }
+      if !_storage._routineIcon.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._routineIcon, fieldNumber: 5)
+      }
+      if !_storage._routineColor.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._routineColor, fieldNumber: 6)
+      }
+      if !_storage._scheduleName.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._scheduleName, fieldNumber: 7)
+      }
+      if !_storage._scheduleDescription.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._scheduleDescription, fieldNumber: 8)
+      }
+      if !_storage._rrule.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._rrule, fieldNumber: 9)
+      }
+      if !_storage._defaultTimes.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._defaultTimes, fieldNumber: 10)
+      }
+      try { if let v = _storage._notification {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+      } }()
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCScheduleTemplate, rhs: VCScheduleTemplate) -> Bool {
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._id != rhs_storage._id {return false}
+        if _storage._category != rhs_storage._category {return false}
+        if _storage._routineName != rhs_storage._routineName {return false}
+        if _storage._routineDescription != rhs_storage._routineDescription {return false}
+        if _storage._routineIcon != rhs_storage._routineIcon {return false}
+        if _storage._routineColor != rhs_storage._routineColor {return false}
+        if _storage._scheduleName != rhs_storage._scheduleName {return false}
+        if _storage._scheduleDescription != rhs_storage._scheduleDescription {return false}
+        if _storage._rrule != rhs_storage._rrule {return false}
+        if _storage._defaultTimes != rhs_storage._defaultTimes {return false}
+        if _storage._notification != rhs_storage._notification {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCScheduleTemplate.NotificationConfig: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = VCScheduleTemplate.protoMessageName + ".NotificationConfig"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}title\0\u{1}body\0\u{3}icon_id\0\u{1}position\0\u{3}auto_dismiss\0\u{1}width\0\u{1}height\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.title) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.body) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.iconID) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.position) }()
+      case 5: try { try decoder.decodeSingularInt32Field(value: &self.autoDismiss) }()
+      case 6: try { try decoder.decodeSingularInt32Field(value: &self.width) }()
+      case 7: try { try decoder.decodeSingularInt32Field(value: &self.height) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.title.isEmpty {
+      try visitor.visitSingularStringField(value: self.title, fieldNumber: 1)
+    }
+    if !self.body.isEmpty {
+      try visitor.visitSingularStringField(value: self.body, fieldNumber: 2)
+    }
+    if !self.iconID.isEmpty {
+      try visitor.visitSingularStringField(value: self.iconID, fieldNumber: 3)
+    }
+    if !self.position.isEmpty {
+      try visitor.visitSingularStringField(value: self.position, fieldNumber: 4)
+    }
+    if self.autoDismiss != 0 {
+      try visitor.visitSingularInt32Field(value: self.autoDismiss, fieldNumber: 5)
+    }
+    if self.width != 0 {
+      try visitor.visitSingularInt32Field(value: self.width, fieldNumber: 6)
+    }
+    if self.height != 0 {
+      try visitor.visitSingularInt32Field(value: self.height, fieldNumber: 7)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCScheduleTemplate.NotificationConfig, rhs: VCScheduleTemplate.NotificationConfig) -> Bool {
+    if lhs.title != rhs.title {return false}
+    if lhs.body != rhs.body {return false}
+    if lhs.iconID != rhs.iconID {return false}
+    if lhs.position != rhs.position {return false}
+    if lhs.autoDismiss != rhs.autoDismiss {return false}
+    if lhs.width != rhs.width {return false}
+    if lhs.height != rhs.height {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCListScheduleTemplatesRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".ListScheduleTemplatesRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}category\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularEnumField(value: &self._category) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._category {
+      try visitor.visitSingularEnumField(value: v, fieldNumber: 1)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCListScheduleTemplatesRequest, rhs: VCListScheduleTemplatesRequest) -> Bool {
+    if lhs._category != rhs._category {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCListScheduleTemplatesResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".ListScheduleTemplatesResponse"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}templates\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedMessageField(value: &self.templates) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.templates.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.templates, fieldNumber: 1)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCListScheduleTemplatesResponse, rhs: VCListScheduleTemplatesResponse) -> Bool {
+    if lhs.templates != rhs.templates {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCIconCategory: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".IconCategory"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}order\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 3: try { try decoder.decodeSingularInt32Field(value: &self.order) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    }
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
+    }
+    if self.order != 0 {
+      try visitor.visitSingularInt32Field(value: self.order, fieldNumber: 3)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCIconCategory, rhs: VCIconCategory) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.name != rhs.name {return false}
+    if lhs.order != rhs.order {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCSVGIcon: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".SVGIcon"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}category\0\u{1}filename\0\u{1}keywords\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.category) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.filename) }()
+      case 5: try { try decoder.decodeRepeatedStringField(value: &self.keywords) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.id.isEmpty {
+      try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
+    }
+    if !self.name.isEmpty {
+      try visitor.visitSingularStringField(value: self.name, fieldNumber: 2)
+    }
+    if !self.category.isEmpty {
+      try visitor.visitSingularStringField(value: self.category, fieldNumber: 3)
+    }
+    if !self.filename.isEmpty {
+      try visitor.visitSingularStringField(value: self.filename, fieldNumber: 4)
+    }
+    if !self.keywords.isEmpty {
+      try visitor.visitRepeatedStringField(value: self.keywords, fieldNumber: 5)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCSVGIcon, rhs: VCSVGIcon) -> Bool {
+    if lhs.id != rhs.id {return false}
+    if lhs.name != rhs.name {return false}
+    if lhs.category != rhs.category {return false}
+    if lhs.filename != rhs.filename {return false}
+    if lhs.keywords != rhs.keywords {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCListIconsRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".ListIconsRequest"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}category\0\u{3}search_query\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeSingularStringField(value: &self._category) }()
+      case 2: try { try decoder.decodeSingularStringField(value: &self._searchQuery) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
+    try { if let v = self._category {
+      try visitor.visitSingularStringField(value: v, fieldNumber: 1)
+    } }()
+    try { if let v = self._searchQuery {
+      try visitor.visitSingularStringField(value: v, fieldNumber: 2)
+    } }()
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCListIconsRequest, rhs: VCListIconsRequest) -> Bool {
+    if lhs._category != rhs._category {return false}
+    if lhs._searchQuery != rhs._searchQuery {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCListIconsResponse: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = _protobuf_package + ".ListIconsResponse"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}icons\0\u{1}categories\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedMessageField(value: &self.icons) }()
+      case 2: try { try decoder.decodeRepeatedMessageField(value: &self.categories) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.icons.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.icons, fieldNumber: 1)
+    }
+    if !self.categories.isEmpty {
+      try visitor.visitRepeatedMessageField(value: self.categories, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCListIconsResponse, rhs: VCListIconsResponse) -> Bool {
+    if lhs.icons != rhs.icons {return false}
+    if lhs.categories != rhs.categories {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

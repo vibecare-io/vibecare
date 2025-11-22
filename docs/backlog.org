@@ -11,26 +11,49 @@
 ** Current
 1. macos: proper scheduler Rest
 2. backend: scheduler eval fix
-3. lib: vnm support svg
-4. lib: vnm support inputs
-5. macos: support open link
+3. release: pkg via github actions
+4. lib: vnm support svg
+5. lib: vnm support inputs
+6. macos: support open link
 
 ** input
 *** macos:
-  - proper offline mode(graceful retry of connection errors)
+  - +proper offline mode(graceful retry of connection errors)+
+    - we have decided to go without local first for now, it added lots of hiccups/complexity 
   - data diff and sync plan
   - #+DATE: Monday, Oct 06 2025
     - notification policy(pause/resume/auto-detect)
   - menu/toolbar items fixes
   - allow users to create their collection of rrules
+  - curated videos to help maintain healthy {eye, posture}
+    - eye:
+      - https://www.youtube.com/shorts/eG51cFCbPZs
+      - https://www.youtube.com/shorts/91O3MT0Xp5g
+      - https://www.youtube.com/shorts/EOiy1ubLQLA
+    - neck 
+      - https://youtu.be/IlCyVaoLR4Y?t=68 
+      - https://x.com/wesbos/status/1985451176167383302 
+    - breathing:
+      - https://www.youtube.com/watch?v=5DqTuWve9t8 
+      - https://www.youtube.com/shorts/FWYkom7Enf8
+      - https://www.youtube.com/shorts/Cq7nmTw1epA
+      - wimhoff|11m: https://www.youtube.com/watch?v=tybOi4hjZFQ
+      - breathWorkoutBeats|9m: https://www.youtube.com/watch?v=sbTUwTWCzV8
+  - interactive games to move your eye, neck
+    - https://www.youtube.com/shorts/uUVml5pCQxQ
+    - https://www.youtube.com/watch?v=29pQZZWdooY&pp=ygUkYmVzdCBleWUgZXhlcmNpc2VzIHRvIGltcHJvdmUgdmlzaW9u
+    - 
+   
 *** backend:
   - dispatch event to the client
     - eg: action: send_notification
-
-  - bug: scheduler is dispatching every one minute
+  - fixed: bug: scheduler is dispatching every one minute
+  - 
 *** lib: vibe-notify-macos
-
-*** update - automatically
+*** extension
+- help you get rid of distractions on youtube/twitter
+  - an browser extension managed via vibecare
+   
 * dump:
 ** svg animations with rive for different notification                :macos:
     - rive animaiation imitate your eyes
@@ -69,7 +92,6 @@ Working In front of coumputer/devices leads to:
   - Distraction: less attents spans
   - Development of Addiction(content consumption)
 
-    
 ** RRule examples
 - Daily walk the pets(at 7pm)
 - Weekly check the mailbox (friday@7am)
@@ -86,8 +108,38 @@ Working In front of coumputer/devices leads to:
 - Anniversaries Reminder (every year one week before oct 10)
 - Declutter Donate Clothes( annually around july frist week)
 
-** Bugs
-*** with Tulsi
+  
+* roadmap brainstrom:
+  #+DATE: Friday, Oct 10 2025
+    |                     | free                              | pro                                | family |
+    |---------------------+-----------------------------------+------------------------------------+--------|
+    | cost                | always free                       | X$/yr                              | XX $   |
+    |                     |                                   |                                    |        |
+    |                     |                                   | ai features                        |        |
+    | eye                 | blink animation                   | exercise(l,r,u,d,round)            |        |
+    | posture             | neck                              | exercise                           |        |
+    | water               | basic reminder                    | animated rewards                   |        |
+    | stretch             | basic reminder                    | animated exercise                  |        |
+    |                     |                                   |                                    |        |
+    | notification policy | simple toggle, detect screenshare | auto detect meetings/screenshare   |        |
+    | advance schedule    |                                  |                                    |        |
+    |                     |                                   |                                    |        |
+    | family              |                                   |                                    |        |
+    | social              | share your progress               | challeges(5 mins plank) your frens |        |
+
+
+*** ai features:
+ - posture detection
+ - eye blinks detection
+**** Plans
+- family license()
+- lifetime single linces
+ 
+* features request
+** zen mode ?
+ 
+
+** Bugs:
 #+DATE: Wednesday, Nov 05 2025
 **Bugs:**
 - Schedule Element UI(show time)
@@ -100,9 +152,10 @@ UX:
 
 Refactor:
 - Direct Schedule
- - Create Schedule
+ - Create Schedule 
  -  you get the easy to use templates
  - or option to build your own
+
 
 Advance:
 - Auto Update

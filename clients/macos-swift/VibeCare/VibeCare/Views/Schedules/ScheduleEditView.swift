@@ -1472,10 +1472,9 @@ struct ScheduleEditView: View {
             )
 
             if card.type == .notification {
-              print("DEBUG [loadExistingActions]: Action[\(index)] - notification prefs after init: \(card.notificationPreferences != nil)")
-              if let prefs = card.notificationPreferences {
-                print("DEBUG [loadExistingActions]: Action[\(index)] - prefs details: title=\(prefs.title ?? "nil"), position=\(prefs.position), svgPath=\(prefs.svgPath ?? "nil")")
-              }
+              print("DEBUG [loadExistingActions]: Action[\(index)] - notification prefs: always present (non-optional)")
+              let prefs = card.notificationPreferences
+              print("DEBUG [loadExistingActions]: Action[\(index)] - prefs details: title=\(prefs.title ?? "nil"), position=\(prefs.position), svgPath=\(prefs.svgPath ?? "nil")")
             }
 
             return card

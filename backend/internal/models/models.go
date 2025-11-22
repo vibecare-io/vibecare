@@ -79,6 +79,10 @@ type Schedule struct {
 	Enabled       bool       `json:"enabled"`
 	CreatedAt     time.Time  `json:"created_at"`
 	UpdatedAt     time.Time  `json:"updated_at"`
+
+	// Join fields (not stored in DB, populated from joins)
+	RoutineName   string     `json:"routine_name,omitempty"`
+	ProfileName   string     `json:"profile_name,omitempty"`
 }
 
 // ScheduleAction represents the join table between schedules and actions

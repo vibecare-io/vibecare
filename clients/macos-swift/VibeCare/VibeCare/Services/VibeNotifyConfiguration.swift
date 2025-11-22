@@ -47,8 +47,8 @@ enum VibeNotifyConfig {
     // Start building notification
     var builder = VibeNotify.builder()
 
-    // Add SVG if specified
-    if let svgPath = prefs.svgPath, let svgSize = prefs.svgSize {
+    // Add SVG if specified (prioritizes bundled icon, falls back to custom path)
+    if let svgPath = prefs.resolvedSVGPath, let svgSize = prefs.svgSize {
       builder = builder.svg(svgPath, size: svgSize)
     } else {
       // Fallback to system icon

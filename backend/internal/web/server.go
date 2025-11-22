@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/http/pprof"
 	"time"
 
 	"github.com/vibecare-io/vibecare/backend/internal/mcp"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
+	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -16,25 +19,67 @@ import (
 type Server struct {
 	httpServer *http.Server
 	logger     *zap.Logger
+	tracer     trace.Tracer
 }
 
-// NewServer creates a new web server
-func NewServer(port int, db *storage.DB, sched *scheduler.Scheduler, mcpServer *mcp.Server, logger *zap.Logger) *Server {
+// NewServer creates a new web server with OpenTelemetry instrumentation
+func NewServer(port int, db *storage.DB, sched *scheduler.Scheduler, mcpServer *mcp.Server, iconLoader IconDataGetter, tracer trace.Tracer, logger *zap.Logger) *Server {
 	handler := NewHandler(db, sched, mcpServer, logger)
 
 	mux := http.NewServeMux()
-	mux.HandleFunc("/status", handler.DashboardHandler)
-	mux.HandleFunc("/api/scheduler/status", handler.StatusHandler)
-	mux.HandleFunc("/api/mcp/tools", handler.MCPToolsHandler)
+
+	// Helper function to apply middleware stack to handlers
+	// Middleware order (outer to inner): Panic Recovery → Request ID → OpenTelemetry → Logging → Handler
+	applyMiddleware := func(h http.HandlerFunc, operationName string) http.Handler {
+		// Start with the handler
+		var handler http.Handler = h
+
+		// Apply logging middleware (innermost, runs last)
+		handler = LoggingMiddleware(logger)(handler)
+
+		// Apply OpenTelemetry instrumentation (creates spans, propagates context)
+		handler = otelhttp.NewHandler(handler, operationName)
+
+		// Apply request ID middleware (early for logging correlation)
+		handler = RequestIDMiddleware(handler)
+
+		// Apply panic recovery (outermost, catches everything)
+		handler = PanicRecoveryMiddleware(logger)(handler)
+
+		return handler
+	}
+
+	// Register handlers with full middleware stack
+	mux.Handle("/status", applyMiddleware(handler.DashboardHandler, "dashboard_page"))
+	mux.Handle("/api/scheduler/status", applyMiddleware(handler.StatusHandler, "scheduler_status"))
+	mux.Handle("/api/mcp/tools", applyMiddleware(handler.MCPToolsHandler, "mcp_tools"))
+
+	// SVG icon serving endpoint
+	if iconLoader != nil {
+		iconHandler := func(w http.ResponseWriter, r *http.Request) {
+			ServeSVGIcon(w, r, iconLoader, logger)
+		}
+		mux.Handle("/api/icons/", applyMiddleware(iconHandler, "serve_icon"))
+	}
 
 	// Redirect root to /status
-	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	rootHandler := func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path == "/" {
 			http.Redirect(w, r, "/status", http.StatusFound)
 			return
 		}
 		http.NotFound(w, r)
-	})
+	}
+	mux.Handle("/", applyMiddleware(rootHandler, "root"))
+
+	// Register pprof handlers for profiling
+	// These are NOT wrapped with middleware to avoid overhead during profiling
+	mux.HandleFunc("/debug/pprof/", pprof.Index)
+	mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	logger.Info("pprof handlers registered at /debug/pprof/")
 
 	return &Server{
 		httpServer: &http.Server{
@@ -45,6 +90,7 @@ func NewServer(port int, db *storage.DB, sched *scheduler.Scheduler, mcpServer *
 			IdleTimeout:  60 * time.Second,
 		},
 		logger: logger,
+		tracer: tracer,
 	}
 }
 

@@ -1,6 +1,7 @@
 package web
 
 import (
+	"context"
 	_ "embed"
 	"encoding/json"
 	"net/http"
@@ -10,6 +11,9 @@ import (
 	"github.com/vibecare-io/vibecare/backend/internal/models"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
+	"github.com/vibecare-io/vibecare/backend/internal/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -36,6 +40,11 @@ func NewHandler(db *storage.DB, sched *scheduler.Scheduler, mcpServer *mcp.Serve
 
 // DashboardHandler serves the scheduler dashboard HTML
 func (h *Handler) DashboardHandler(w http.ResponseWriter, r *http.Request) {
+	// Create trace-aware logger
+	logger := telemetry.NewLoggerWithTrace(h.logger)
+
+	logger.Debug(r.Context(), "Serving dashboard page")
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Write(dashboardHTML)
 }
@@ -72,69 +81,65 @@ type ScheduleInfo struct {
 
 // StatusHandler serves the scheduler status as JSON
 func (h *Handler) StatusHandler(w http.ResponseWriter, r *http.Request) {
+	// Create trace-aware logger
+	logger := telemetry.NewLoggerWithTrace(h.logger)
+	span := trace.SpanFromContext(r.Context())
+
+	logger.Debug(r.Context(), "StatusHandler started")
+
+	// Add timeout to prevent indefinite hangs
+	ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+	defer cancel()
+
+	// Check if context already cancelled
+	select {
+	case <-ctx.Done():
+		err := ctx.Err()
+		logger.Error(r.Context(), "Request timeout before execution", zap.Error(err))
+		if span.IsRecording() {
+			telemetry.RecordErrorWithDetails(span, err, "")
+		}
+		http.Error(w, "Request timeout", http.StatusGatewayTimeout)
+		return
+	default:
+	}
+
 	// Get all schedules (not just active ones)
 	allSchedules, err := h.getAllSchedules()
 	if err != nil {
-		h.logger.Error("Failed to get schedules", zap.Error(err))
+		logger.Error(r.Context(), "Failed to get schedules", zap.Error(err))
+		if span.IsRecording() {
+			telemetry.RecordErrorWithDetails(span, err, "")
+		}
 		http.Error(w, "Failed to get schedules", http.StatusInternalServerError)
 		return
 	}
+	logger.Debug(r.Context(), "Fetched schedules", zap.Int("count", len(allSchedules)))
 
-	// Build schedule info with next execution times
+	// Build schedule info and calculate stats
+	logger.Debug(r.Context(), "Building schedule info", zap.Int("total_schedules", len(allSchedules)))
 	scheduleInfos := make([]ScheduleInfo, 0, len(allSchedules))
-	var nextUpcoming *ScheduleInfo
-	var earliestNext *time.Time
-
 	stats := Stats{
 		Total: len(allSchedules),
 	}
 
-	for _, schedule := range allSchedules {
-		// Get routine name and profile info
-		routine, err := h.db.GetRoutine(schedule.RoutineID)
-		routineName := "Unknown"
-		profileID := ""
-		profileName := "Unknown"
+	for i, schedule := range allSchedules {
+		// Create span for each schedule processing
+		ctx, scheduleSpan := trace.SpanFromContext(r.Context()).TracerProvider().Tracer("vibecare.http.server").Start(r.Context(), "process_schedule",
+			trace.WithAttributes(
+				attribute.Int("schedule.index", i),
+				attribute.String("schedule.id", schedule.ScheduleID),
+				attribute.String("schedule.name", schedule.Name),
+				attribute.Bool("schedule.enabled", schedule.Enabled),
+			))
 
-		if err == nil && routine != nil {
-			routineName = routine.Name
-			profileID = routine.ProfileID
-
-			// Get profile name
-			if profile, err := h.db.GetProfile(routine.ProfileID); err == nil && profile != nil {
-				profileName = profile.Name
-			}
-		}
-
-		// Calculate next execution
-		var nextExec *time.Time
-		if schedule.Enabled {
-			nextExec, err = h.scheduler.GetNextExecution(schedule)
-			if err != nil {
-				h.logger.Warn("Failed to calculate next execution",
-					zap.String("schedule_id", schedule.ScheduleID),
-					zap.Error(err))
-			}
-
-			// Track earliest upcoming schedule
-			if nextExec != nil && (earliestNext == nil || nextExec.Before(*earliestNext)) {
-				earliestNext = nextExec
-				info := ScheduleInfo{
-					ID:            schedule.ScheduleID,
-					Name:          schedule.Name,
-					RoutineID:     schedule.RoutineID,
-					RoutineName:   routineName,
-					ProfileID:     profileID,
-					ProfileName:   profileName,
-					RRule:         schedule.RRule,
-					LastExecution: schedule.LastExecution,
-					NextExecution: nextExec,
-					Enabled:       schedule.Enabled,
-					CreatedAt:     schedule.CreatedAt,
-				}
-				nextUpcoming = &info
-			}
-		}
+		logger.Debug(ctx, ">>> Processing schedule",
+			zap.Int("index", i),
+			zap.Int("total", len(allSchedules)),
+			zap.String("schedule_id", schedule.ScheduleID),
+			zap.String("name", schedule.Name),
+			zap.String("rrule", schedule.RRule),
+			zap.Bool("enabled", schedule.Enabled))
 
 		// Update stats
 		if schedule.Enabled {
@@ -143,22 +148,100 @@ func (h *Handler) StatusHandler(w http.ResponseWriter, r *http.Request) {
 			stats.Paused++
 		}
 
-		scheduleInfos = append(scheduleInfos, ScheduleInfo{
+		// Calculate next execution for enabled schedules
+		var nextExec *time.Time
+		if schedule.Enabled {
+			logger.Debug(ctx, "    Calculating next execution for schedule",
+				zap.String("schedule_id", schedule.ScheduleID),
+				zap.String("rrule", schedule.RRule))
+
+			// Create sub-span for the expensive calculation
+			_, execSpan := trace.SpanFromContext(ctx).TracerProvider().Tracer("vibecare.http.server").Start(ctx, "calculate_next_execution",
+				trace.WithAttributes(
+					attribute.String("schedule.id", schedule.ScheduleID),
+					attribute.String("schedule.rrule", schedule.RRule),
+				))
+
+			// Use a channel with timeout to prevent infinite hangs from malformed RRules
+			type result struct {
+				nextExec *time.Time
+				err      error
+			}
+			resultCh := make(chan result, 1)
+
+			go func() {
+				next, err := h.scheduler.GetNextExecution(schedule)
+				resultCh <- result{nextExec: next, err: err}
+			}()
+
+			select {
+			case res := <-resultCh:
+				nextExec = res.nextExec
+				err = res.err
+				if err != nil {
+					logger.Error(ctx, "    FAILED to calculate next execution",
+						zap.Int("index", i),
+						zap.String("schedule_id", schedule.ScheduleID),
+						zap.String("rrule", schedule.RRule),
+						zap.Error(err))
+					telemetry.RecordErrorWithDetails(execSpan, err, "")
+				} else {
+					logger.Debug(ctx, "    Calculated next execution successfully",
+						zap.String("schedule_id", schedule.ScheduleID),
+						zap.Any("next_execution", nextExec))
+				}
+			case <-time.After(2 * time.Second):
+				// Timeout - probably a malformed RRule causing infinite loop
+				logger.Error(ctx, "    TIMEOUT calculating next execution - malformed RRule?",
+					zap.String("schedule_id", schedule.ScheduleID),
+					zap.String("rrule", schedule.RRule),
+					zap.String("error", "timeout after 2 seconds"))
+				execSpan.SetAttributes(attribute.String("error.type", "timeout"))
+				nextExec = nil
+			}
+
+			execSpan.End()
+		}
+
+		// Build schedule info
+		info := ScheduleInfo{
 			ID:            schedule.ScheduleID,
 			Name:          schedule.Name,
 			RoutineID:     schedule.RoutineID,
-			RoutineName:   routineName,
-			ProfileID:     profileID,
-			ProfileName:   profileName,
+			RoutineName:   schedule.RoutineName,
+			ProfileID:     schedule.ProfileID,
+			ProfileName:   schedule.ProfileName,
 			RRule:         schedule.RRule,
 			LastExecution: schedule.LastExecution,
 			NextExecution: nextExec,
 			Enabled:       schedule.Enabled,
 			CreatedAt:     schedule.CreatedAt,
-		})
+		}
+		scheduleInfos = append(scheduleInfos, info)
+
+		logger.Debug(ctx, "<<< Finished processing schedule",
+			zap.Int("index", i),
+			zap.String("schedule_id", schedule.ScheduleID),
+			zap.Bool("has_next_execution", nextExec != nil))
+
+		scheduleSpan.End()
 	}
 
-	stats.NextUpcoming = nextUpcoming
+	logger.Debug(r.Context(), "Finished processing schedules",
+		zap.Int("active", stats.Active),
+		zap.Int("paused", stats.Paused))
+
+	// NextUpcoming not calculated since we skip next execution times
+	stats.NextUpcoming = nil
+
+	// Add span attributes for observability
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.Int("scheduler.schedule_count", stats.Total),
+			attribute.Int("scheduler.active_count", stats.Active),
+			attribute.Int("scheduler.paused_count", stats.Paused),
+		)
+	}
 
 	response := StatusResponse{
 		Stats:     stats,
@@ -168,19 +251,32 @@ func (h *Handler) StatusHandler(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.logger.Error("Failed to encode response", zap.Error(err))
+		logger.Error(r.Context(), "Failed to encode response", zap.Error(err))
+		if span.IsRecording() {
+			telemetry.RecordErrorWithDetails(span, err, "")
+		}
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
+		return
 	}
+
+	logger.Debug(r.Context(), "StatusHandler completed successfully",
+		zap.Int("schedule_count", len(scheduleInfos)))
 }
 
-// getAllSchedules retrieves all schedules from all routines
+// getAllSchedules retrieves all schedules with joined routine and profile data
 func (h *Handler) getAllSchedules() ([]*models.Schedule, error) {
-	// Query all schedules directly from storage
+	// Single JOIN query to get schedules with routine and profile names
 	query := `
-		SELECT schedule_id, routine_id, name, rrule, dtstart, exdates,
-		       last_execution, notes, enabled, created_at, updated_at
-		FROM schedules
-		ORDER BY created_at DESC
+		SELECT
+			s.schedule_id, s.profile_id, s.routine_id, s.name, s.rrule,
+			s.dtstart, s.exdates, s.last_execution, s.notes, s.enabled,
+			s.created_at, s.updated_at,
+			COALESCE(r.name, 'Unknown') as routine_name,
+			COALESCE(p.name, 'Unknown') as profile_name
+		FROM schedules s
+		LEFT JOIN routines r ON s.routine_id = r.id
+		LEFT JOIN profiles p ON s.profile_id = p.id
+		ORDER BY s.created_at DESC
 	`
 
 	rows, err := h.db.Query(query)
@@ -201,7 +297,7 @@ func (h *Handler) getAllSchedules() ([]*models.Schedule, error) {
 	return schedules, nil
 }
 
-// scanSchedule scans a schedule from a database row
+// scanSchedule scans a schedule from a database row with joined data
 func (h *Handler) scanSchedule(rows interface{}) (*models.Schedule, error) {
 	type scanner interface {
 		Scan(dest ...interface{}) error
@@ -213,6 +309,7 @@ func (h *Handler) scanSchedule(rows interface{}) (*models.Schedule, error) {
 
 	err := rows.(scanner).Scan(
 		&schedule.ScheduleID,
+		&schedule.ProfileID,
 		&schedule.RoutineID,
 		&schedule.Name,
 		&schedule.RRule,
@@ -223,6 +320,8 @@ func (h *Handler) scanSchedule(rows interface{}) (*models.Schedule, error) {
 		&schedule.Enabled,
 		&createdAt,
 		&updatedAt,
+		&schedule.RoutineName,
+		&schedule.ProfileName,
 	)
 	if err != nil {
 		return nil, err
@@ -264,15 +363,26 @@ type MCPToolsResponse struct {
 
 // MCPToolsHandler returns the list of available MCP tools and resources
 func (h *Handler) MCPToolsHandler(w http.ResponseWriter, r *http.Request) {
+	// Create trace-aware logger
+	logger := telemetry.NewLoggerWithTrace(h.logger)
+	span := trace.SpanFromContext(r.Context())
+
 	w.Header().Set("Content-Type", "application/json")
 
 	// Check if MCP server is enabled
 	if h.mcpServer == nil {
+		if span.IsRecording() {
+			span.SetAttributes(attribute.Bool("mcp.enabled", false))
+		}
+
 		response := MCPToolsResponse{
 			Enabled: false,
 		}
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			h.logger.Error("Failed to encode MCP response", zap.Error(err))
+			logger.Error(r.Context(), "Failed to encode MCP response", zap.Error(err))
+			if span.IsRecording() {
+				telemetry.RecordErrorWithDetails(span, err, "")
+			}
 			http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		}
 		return
@@ -282,6 +392,15 @@ func (h *Handler) MCPToolsHandler(w http.ResponseWriter, r *http.Request) {
 	tools := h.mcpServer.GetTools()
 	resources := h.mcpServer.GetResources()
 
+	// Add span attributes for observability
+	if span.IsRecording() {
+		span.SetAttributes(
+			attribute.Bool("mcp.enabled", true),
+			attribute.Int("mcp.tool_count", len(tools)),
+			attribute.Int("mcp.resource_count", len(resources)),
+		)
+	}
+
 	response := MCPToolsResponse{
 		Enabled:   true,
 		Tools:     tools,
@@ -289,7 +408,10 @@ func (h *Handler) MCPToolsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.logger.Error("Failed to encode MCP response", zap.Error(err))
+		logger.Error(r.Context(), "Failed to encode MCP response", zap.Error(err))
+		if span.IsRecording() {
+			telemetry.RecordErrorWithDetails(span, err, "")
+		}
 		http.Error(w, "Failed to encode response", http.StatusInternalServerError)
 		return
 	}

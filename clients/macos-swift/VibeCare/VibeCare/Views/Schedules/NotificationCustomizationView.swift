@@ -6,7 +6,9 @@ struct NotificationCustomizationView: View {
     let scheduleName: String
     let scheduleNotes: String
     @State private var showingFilePicker = false
+    @State private var showingIconPicker = false
     @State private var previewNotification = false
+    @StateObject private var iconManager = SVGIconManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -49,6 +51,12 @@ struct NotificationCustomizationView: View {
         .padding(16)
         .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
         .cornerRadius(12)
+        .task {
+            // Load icons from backend if not already loaded
+            if !iconManager.isLoaded && iconManager.loadError == nil {
+                try? await iconManager.loadIcons()
+            }
+        }
     }
 
     // MARK: - Preset Section
@@ -86,14 +94,74 @@ struct NotificationCustomizationView: View {
                 .font(.subheadline)
                 .fontWeight(.medium)
 
-            HStack(spacing: 12) {
-                if let svgPath = preferences.svgPath {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(URL(fileURLWithPath: svgPath).lastPathComponent)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
+            // Show selected icon preview
+            if preferences.hasSVGIcon {
+                HStack(spacing: 12) {
+                    // Icon preview card
+                    HStack(spacing: 12) {
+                        // Small icon preview image
+                        if let svgPath = preferences.svgPath,
+                           let iconURL = URL(string: svgPath) {
+                            AsyncImage(url: iconURL) { phase in
+                                switch phase {
+                                case .success(let image):
+                                    image
+                                        .resizable()
+                                        .aspectRatio(contentMode: .fit)
+                                        .frame(width: 40, height: 40)
+                                case .failure, .empty:
+                                    Image(systemName: "photo")
+                                        .font(.title2)
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 40, height: 40)
+                                @unknown default:
+                                    ProgressView()
+                                        .frame(width: 40, height: 40)
+                                }
+                            }
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .cornerRadius(6)
+                        }
 
-                        HStack {
+                        // Icon info
+                        if let iconId = preferences.extractedIconId,
+                           let icon = iconManager.icon(withId: iconId) {
+                            // Bundled icon preview (from backend URL)
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .font(.caption)
+                                        .foregroundColor(.green)
+                                    Text(icon.name)
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                Text(icon.category.displayName)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                            }
+                        } else if let svgPath = preferences.svgPath {
+                            // Custom SVG file path preview
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "doc.fill")
+                                        .font(.caption)
+                                        .foregroundColor(.blue)
+                                    Text("Custom SVG")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                }
+                                Text(URL(fileURLWithPath: svgPath).lastPathComponent)
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Spacer()
+
+                        // Size controls
+                        HStack(spacing: 8) {
                             Text("Size:")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
@@ -120,6 +188,7 @@ struct NotificationCustomizationView: View {
                     .background(Color(NSColor.controlBackgroundColor))
                     .cornerRadius(8)
 
+                    // Remove button
                     Button("Remove") {
                         preferences.svgPath = nil
                         preferences.svgWidth = nil
@@ -127,14 +196,60 @@ struct NotificationCustomizationView: View {
                     }
                     .buttonStyle(.plain)
                     .foregroundColor(.red)
-                } else {
+                }
+            } else {
+                // No icon selected - show selection buttons
+                HStack(spacing: 12) {
+                    // Browse bundled icons button
+                    Button(action: {
+                        showingIconPicker = true
+                    }) {
+                        HStack {
+                            Image(systemName: "square.grid.3x3.fill")
+                                .foregroundColor(.secondary)
+                            Text("Browse Icons")
+                                .foregroundColor(.accentColor)
+                        }
+                        .padding(12)
+                        .frame(maxWidth: .infinity)
+                        .background(Color(NSColor.controlBackgroundColor))
+                        .cornerRadius(8)
+                    }
+                    .buttonStyle(.plain)
+                    .popover(isPresented: $showingIconPicker) {
+                        SVGIconPickerView(
+                            iconManager: iconManager,
+                            selectedIconId: Binding(
+                                get: { preferences.extractedIconId },
+                                set: { _ in /* Icon ID extracted from URL, no direct set */ }
+                            ),
+                            onSelect: { icon in
+                                // Build full backend URL for bundled icon
+                                let iconURL = "http://localhost:8080/api/icons/\(icon.id).svg"
+
+                                // Create mutable copy, modify, then assign back
+                                var updated = preferences
+                                updated.svgPath = iconURL
+                                updated.svgWidth = updated.svgWidth ?? 350
+                                updated.svgHeight = updated.svgHeight ?? 320
+                                preferences = updated
+
+                                showingIconPicker = false
+                            },
+                            onDismiss: {
+                                showingIconPicker = false
+                            }
+                        )
+                    }
+
+                    // Custom SVG file button
                     Button(action: {
                         showingFilePicker = true
                     }) {
                         HStack {
-                            Image(systemName: "photo")
+                            Image(systemName: "doc.badge.plus")
                                 .foregroundColor(.secondary)
-                            Text("Choose SVG File")
+                            Text("Custom SVG")
                                 .foregroundColor(.accentColor)
                         }
                         .padding(12)
@@ -146,7 +261,7 @@ struct NotificationCustomizationView: View {
                 }
             }
 
-            Text("💡 Use custom SVG icons for personalized notifications")
+            Text("💡 Choose from \(iconManager.icons.count) bundled icons or use your own custom SVG")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
@@ -158,6 +273,7 @@ struct NotificationCustomizationView: View {
             switch result {
             case .success(let urls):
                 if let url = urls.first {
+                    preferences.bundledIconId = nil // Clear bundled icon
                     preferences.svgPath = url.path
                     preferences.svgWidth = preferences.svgWidth ?? 350
                     preferences.svgHeight = preferences.svgHeight ?? 320

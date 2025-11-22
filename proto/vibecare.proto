@@ -584,3 +584,92 @@ message SubscribeEventsRequest {
   string profile_id = 1;
   repeated EventType event_types = 2;  // Empty means subscribe to all events
 }
+
+// ============================================================================
+// Schedule Templates
+// ============================================================================
+
+// Template category enum
+enum TemplateCategory {
+  TEMPLATE_CATEGORY_UNSPECIFIED = 0;
+  TEMPLATE_CATEGORY_DAILY = 1;
+  TEMPLATE_CATEGORY_WEEKLY = 2;
+  TEMPLATE_CATEGORY_MONTHLY_YEARLY = 3;
+}
+
+// Schedule template message
+message ScheduleTemplate {
+  string id = 1;
+  TemplateCategory category = 2;
+  string routine_name = 3;
+  string routine_description = 4;
+  string routine_icon = 5;
+  string routine_color = 6;
+  string schedule_name = 7;
+  string schedule_description = 8;
+  string rrule = 9;
+  repeated string default_times = 10;  // Format: "HH:MM"
+
+  // Embedded notification configuration (optional)
+  message NotificationConfig {
+    string title = 1;
+    string body = 2;
+    string icon_id = 3;
+    string position = 4;
+    int32 auto_dismiss = 5;
+    int32 width = 6;
+    int32 height = 7;
+  }
+
+  optional NotificationConfig notification = 11;
+}
+
+// Request/Response messages for template service
+message ListScheduleTemplatesRequest {
+  optional TemplateCategory category = 1;  // Filter by category
+}
+
+message ListScheduleTemplatesResponse {
+  repeated ScheduleTemplate templates = 1;
+}
+
+// Service definition
+service ScheduleTemplateService {
+  rpc ListScheduleTemplates(ListScheduleTemplatesRequest) returns (ListScheduleTemplatesResponse);
+}
+
+// ============================================================================
+// SVG Icons
+// ============================================================================
+
+// Icon category definition
+message IconCategory {
+  string id = 1;
+  string name = 2;
+  int32 order = 3;
+}
+
+// SVG icon definition
+message SVGIcon {
+  string id = 1;
+  string name = 2;
+  string category = 3;
+  string filename = 4;
+  repeated string keywords = 5;
+}
+
+// Request/Response messages for icon service
+message ListIconsRequest {
+  optional string category = 1;      // Filter by category
+  optional string search_query = 2;  // Search by keywords
+}
+
+message ListIconsResponse {
+  repeated SVGIcon icons = 1;
+  repeated IconCategory categories = 2;
+}
+
+// Service definition
+service IconService {
+  rpc ListIcons(ListIconsRequest) returns (ListIconsResponse);
+}

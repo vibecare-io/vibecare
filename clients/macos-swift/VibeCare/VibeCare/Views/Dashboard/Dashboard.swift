@@ -118,6 +118,7 @@ public struct Dashboard: View {
   private var scheduleContentView: some View {
     ScheduleListView(
       viewModel: scheduleViewModel,
+      routineViewModel: routineViewModel,
       searchText: dashboardState.searchText,
       selectedId: $dashboardState.selectedScheduleId
     )

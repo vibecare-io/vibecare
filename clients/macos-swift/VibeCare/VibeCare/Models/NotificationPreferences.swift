@@ -32,7 +32,8 @@ enum NotificationPosition: String, Codable, CaseIterable {
 
 // MARK: - Notification Preferences
 struct NotificationPreferences: Codable, Equatable, Hashable {
-    var svgPath: String?
+    var bundledIconId: String? // ID of bundled SVG icon (e.g., "meditation", "water")
+    var svgPath: String? // Custom SVG file path (for user-provided SVGs)
     var svgWidth: CGFloat?
     var svgHeight: CGFloat?
     var title: String?
@@ -45,6 +46,7 @@ struct NotificationPreferences: Codable, Equatable, Hashable {
     var screenBlurEnabled: Bool // Enable/disable screen blur background
 
     init(
+        bundledIconId: String? = nil,
         svgPath: String? = nil,
         svgWidth: CGFloat? = nil,
         svgHeight: CGFloat? = nil,
@@ -57,6 +59,7 @@ struct NotificationPreferences: Codable, Equatable, Hashable {
         autoDismissAfter: TimeInterval? = 20.0,
         screenBlurEnabled: Bool = false
     ) {
+        self.bundledIconId = bundledIconId
         self.svgPath = svgPath
         self.svgWidth = svgWidth
         self.svgHeight = svgHeight
@@ -113,6 +116,36 @@ struct NotificationPreferences: Codable, Equatable, Hashable {
             return nil
         }
         return CGSize(width: width, height: height)
+    }
+
+    /// Resolves the SVG path/URL
+    /// VibeNotify 0.0.4+ supports both file paths and URLs
+    /// Since bundled icons are now stored as full URLs, this simply returns svgPath
+    var resolvedSVGPath: String? {
+        // svgPath now contains full URL for bundled icons (http://localhost:8080/api/icons/id.svg)
+        // or file path for custom icons (file:///path/to/icon.svg)
+        return svgPath
+    }
+
+    /// Returns true if using a bundled icon (URL starts with http), false if custom file or no icon
+    var usesBundledIcon: Bool {
+        return svgPath?.hasPrefix("http://") == true || svgPath?.hasPrefix("https://") == true
+    }
+
+    /// Returns true if an SVG icon is configured
+    var hasSVGIcon: Bool {
+        return svgPath != nil
+    }
+
+    /// Extract icon ID from backend URL for UI purposes
+    /// Example: "http://localhost:8080/api/icons/meditation.svg" → "meditation"
+    var extractedIconId: String? {
+        guard let svgPath = svgPath,
+              (svgPath.hasPrefix("http://") || svgPath.hasPrefix("https://")),
+              let url = URL(string: svgPath) else {
+            return nil
+        }
+        return url.deletingPathExtension().lastPathComponent
     }
 
     // MARK: - Message Template Support

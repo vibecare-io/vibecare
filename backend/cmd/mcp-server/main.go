@@ -14,7 +14,45 @@ import (
 	"github.com/vibecare-io/vibecare/backend/internal/mcp"
 	"github.com/vibecare-io/vibecare/backend/pkg/config"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
+
+// initLogger creates a zap logger with configurable level and format
+func initLogger(levelFlag, formatFlag string) (*zap.Logger, error) {
+	// Environment variables take precedence over flags
+	levelStr := os.Getenv("LOG_LEVEL")
+	if levelStr == "" {
+		levelStr = levelFlag
+	}
+
+	formatStr := os.Getenv("LOG_FORMAT")
+	if formatStr == "" {
+		formatStr = formatFlag
+	}
+
+	// Parse and validate log level
+	level, err := zapcore.ParseLevel(levelStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid log level %q: %w", levelStr, err)
+	}
+
+	// Create base config based on format
+	var config zap.Config
+	switch formatStr {
+	case "json":
+		config = zap.NewProductionConfig()
+	case "console":
+		config = zap.NewDevelopmentConfig()
+	default:
+		return nil, fmt.Errorf("invalid log format %q: must be 'console' or 'json'", formatStr)
+	}
+
+	// Set the log level
+	config.Level = zap.NewAtomicLevelAt(level)
+
+	// Build and return logger
+	return config.Build()
+}
 
 func main() {
 	// Load config from file first
@@ -29,6 +67,8 @@ func main() {
 		profileID = flag.String("profile-id", cfg.MCP.ProfileID, "Profile ID for MCP operations")
 		useHTTP   = flag.Bool("http", false, "Use HTTP+SSE transport instead of STDIO")
 		httpPort  = flag.Int("port", cfg.MCP.Port, "HTTP server port (only with --http)")
+		logLevel  = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+		logFormat = flag.String("log-format", "console", "Log format (console, json)")
 	)
 	flag.Parse()
 
@@ -39,7 +79,7 @@ func main() {
 	}
 
 	// Setup logger
-	logger, err := zap.NewDevelopment()
+	logger, err := initLogger(*logLevel, *logFormat)
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}

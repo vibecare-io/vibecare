@@ -20,9 +20,47 @@ import (
 	"github.com/vibecare-io/vibecare/backend/internal/web"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
 )
+
+// initLogger creates a zap logger with configurable level and format
+func initLogger(levelFlag, formatFlag string) (*zap.Logger, error) {
+	// Environment variables take precedence over flags
+	levelStr := os.Getenv("LOG_LEVEL")
+	if levelStr == "" {
+		levelStr = levelFlag
+	}
+
+	formatStr := os.Getenv("LOG_FORMAT")
+	if formatStr == "" {
+		formatStr = formatFlag
+	}
+
+	// Parse and validate log level
+	level, err := zapcore.ParseLevel(levelStr)
+	if err != nil {
+		return nil, fmt.Errorf("invalid log level %q: %w", levelStr, err)
+	}
+
+	// Create base config based on format
+	var config zap.Config
+	switch formatStr {
+	case "json":
+		config = zap.NewProductionConfig()
+	case "console":
+		config = zap.NewDevelopmentConfig()
+	default:
+		return nil, fmt.Errorf("invalid log format %q: must be 'console' or 'json'", formatStr)
+	}
+
+	// Set the log level
+	config.Level = zap.NewAtomicLevelAt(level)
+
+	// Build and return logger
+	return config.Build()
+}
 
 func main() {
 	var (
@@ -33,11 +71,13 @@ func main() {
 		enableTracing = flag.Bool("enable-tracing", true, "Enable OpenTelemetry tracing")
 		withMCP       = flag.Bool("with-mcp", false, "Enable MCP server (Model Context Protocol)")
 		mcpProfileID  = flag.String("mcp-profile-id", "", "Profile ID for MCP server (required if --with-mcp is set)")
+		logLevel      = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
+		logFormat     = flag.String("log-format", "console", "Log format (console, json)")
 	)
 	flag.Parse()
 
 	// Setup logger
-	logger, err := zap.NewDevelopment()
+	logger, err := initLogger(*logLevel, *logFormat)
 	if err != nil {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
@@ -99,6 +139,25 @@ func main() {
 		}
 	}
 
+	// Initialize template loader
+	logger.Info("Loading schedule templates")
+	templateLoader := storage.NewTemplateLoader(logger)
+	dataDir := filepath.Join(filepath.Dir(*dbPath), "..", "backend", "internal", "storage", "data")
+	// Try relative path from project root
+	if _, err := os.Stat(filepath.Join("backend", "internal", "storage", "data", "schedule_templates.json")); err == nil {
+		dataDir = filepath.Join("backend", "internal", "storage", "data")
+	}
+	if err := templateLoader.LoadTemplates(dataDir); err != nil {
+		logger.Warn("Failed to load templates, template service will not be available", zap.Error(err))
+	}
+
+	// Initialize icon loader
+	logger.Info("Loading SVG icon catalog")
+	iconLoader := storage.NewIconLoader(logger)
+	if err := iconLoader.LoadIcons(dataDir); err != nil {
+		logger.Warn("Failed to load icons, icon service will not be available", zap.Error(err))
+	}
+
 	// Initialize event hub
 	eventHub := scheduler.NewEventHub(logger)
 
@@ -106,8 +165,11 @@ func main() {
 	sched := scheduler.NewScheduler(db, eventHub, logger)
 	go sched.Start()
 
-	// Initialize and start web server (pass MCP server if enabled)
-	webServer := web.NewServer(*webPort, db, sched, mcpServer, logger)
+	// Create HTTP tracer for web server instrumentation
+	httpTracer := telemetry.GetTracer("vibecare.http.server")
+
+	// Initialize and start web server with OpenTelemetry instrumentation
+	webServer := web.NewServer(*webPort, db, sched, mcpServer, iconLoader, httpTracer, logger)
 	go func() {
 		if err := webServer.Start(); err != nil {
 			logger.Error("Web server failed", zap.Error(err))
@@ -129,7 +191,7 @@ func main() {
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	// Register services
-	api.RegisterServices(grpcServer, db, eventHub, logger)
+	api.RegisterServices(grpcServer, db, eventHub, templateLoader, iconLoader, logger)
 
 	// Register reflection service for debugging
 	reflection.Register(grpcServer)

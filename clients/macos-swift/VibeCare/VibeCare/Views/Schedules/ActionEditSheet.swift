@@ -58,10 +58,12 @@ struct ActionEditSheet: View {
                     VStack(alignment: .leading, spacing: 16) {
                         if actionCard.type == .notification {
                             NotificationActionParametersView(
-                                preferences: Binding(
-                                    get: { actionCard.notificationPreferences ?? .default },
-                                    set: { actionCard.notificationPreferences = $0 }
-                                ),
+                                preferences: actionCard.notificationPreferences,
+                                onPreferencesChanged: { newPrefs in
+                                    print("🟢 [ActionEditSheet] onPreferencesChanged called with svgPath=\(newPrefs.svgPath ?? "nil")")
+                                    actionCard.notificationPreferences = newPrefs
+                                    print("🟢 [ActionEditSheet] actionCard.notificationPreferences updated to svgPath=\(actionCard.notificationPreferences.svgPath ?? "nil")")
+                                },
                                 parameters: $actionCard.parameters
                             )
                         } else {

@@ -4,7 +4,7 @@ import OpenTelemetryApi
 // Context for action editing sheet presentation
 struct ActionEditContext: Identifiable {
     let id = UUID()
-    let actionCard: ScheduleActionCard
+    var actionCard: ScheduleActionCard  // Changed to var so it can be mutated
     let isCreating: Bool
     let profileId: String
     let schedule: Schedule
@@ -610,7 +610,20 @@ struct ScheduleDetailView: View {
                 schedule: context.schedule,
                 actionCard: Binding(
                     get: { context.actionCard },
-                    set: { _ in }
+                    set: { newCard in
+                        // Skip update if nothing changed
+                        guard let currentContext = actionEditContext, currentContext.actionCard != newCard else {
+                            print("🟡 [SchedulesDetail] Skipping update - actionCard unchanged")
+                            return
+                        }
+
+                        print("🟡 [SchedulesDetail] Binding setter called, updating actionCard")
+                        // Update the context with the new card
+                        var updatedContext = currentContext
+                        updatedContext.actionCard = newCard
+                        actionEditContext = updatedContext
+                        print("🟡 [SchedulesDetail] actionEditContext updated with svgPath=\(newCard.notificationPreferences.svgPath ?? "nil")")
+                    }
                 ),
                 isCreating: context.isCreating,
                 onSave: {

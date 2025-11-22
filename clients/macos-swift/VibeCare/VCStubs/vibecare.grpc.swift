@@ -9005,3 +9005,639 @@ extension VCEventService.ClientProtocol {
         )
     }
 }
+
+// MARK: - vibecare.v1.ScheduleTemplateService
+
+/// Namespace containing generated types for the "vibecare.v1.ScheduleTemplateService" service.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+public enum VCScheduleTemplateService {
+    /// Service descriptor for the "vibecare.v1.ScheduleTemplateService" service.
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleTemplateService")
+    /// Namespace for method metadata.
+    public enum Method {
+        /// Namespace for "ListScheduleTemplates" metadata.
+        public enum ListScheduleTemplates {
+            /// Request type for "ListScheduleTemplates".
+            public typealias Input = VCListScheduleTemplatesRequest
+            /// Response type for "ListScheduleTemplates".
+            public typealias Output = VCListScheduleTemplatesResponse
+            /// Descriptor for "ListScheduleTemplates".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleTemplateService"),
+                method: "ListScheduleTemplates"
+            )
+        }
+        /// Descriptors for all methods in the "vibecare.v1.ScheduleTemplateService" service.
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
+            ListScheduleTemplates.descriptor
+        ]
+    }
+}
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension GRPCCore.ServiceDescriptor {
+    /// Service descriptor for the "vibecare.v1.ScheduleTemplateService" service.
+    public static let vcScheduleTemplateService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.ScheduleTemplateService")
+}
+
+// MARK: vibecare.v1.ScheduleTemplateService (server)
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCScheduleTemplateService {
+    /// Streaming variant of the service protocol for the "vibecare.v1.ScheduleTemplateService" service.
+    ///
+    /// This protocol is the lowest-level of the service protocols generated for this service
+    /// giving you the most flexibility over the implementation of your service. This comes at
+    /// the cost of more verbose and less strict APIs. Each RPC requires you to implement it in
+    /// terms of a request stream and response stream. Where only a single request or response
+    /// message is expected, you are responsible for enforcing this invariant is maintained.
+    ///
+    /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
+    /// or ``SimpleServiceProtocol`` instead.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+        /// Handle the "ListScheduleTemplates" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCListScheduleTemplatesRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `VCListScheduleTemplatesResponse` messages.
+        func listScheduleTemplates(
+            request: GRPCCore.StreamingServerRequest<VCListScheduleTemplatesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<VCListScheduleTemplatesResponse>
+    }
+
+    /// Service protocol for the "vibecare.v1.ScheduleTemplateService" service.
+    ///
+    /// This protocol is higher level than ``StreamingServiceProtocol`` but lower level than
+    /// the ``SimpleServiceProtocol``, it provides access to request and response metadata and
+    /// trailing response metadata. If you don't need these then consider using
+    /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
+    /// use ``StreamingServiceProtocol``.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol ServiceProtocol: VCScheduleTemplateService.StreamingServiceProtocol {
+        /// Handle the "ListScheduleTemplates" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCListScheduleTemplatesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `VCListScheduleTemplatesResponse` message.
+        func listScheduleTemplates(
+            request: GRPCCore.ServerRequest<VCListScheduleTemplatesRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<VCListScheduleTemplatesResponse>
+    }
+
+    /// Simple service protocol for the "vibecare.v1.ScheduleTemplateService" service.
+    ///
+    /// This is the highest level protocol for the service. The API is the easiest to use but
+    /// doesn't provide access to request or response metadata. If you need access to these
+    /// then use ``ServiceProtocol`` instead.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol SimpleServiceProtocol: VCScheduleTemplateService.ServiceProtocol {
+        /// Handle the "ListScheduleTemplates" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `VCListScheduleTemplatesRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `VCListScheduleTemplatesResponse` to respond with.
+        func listScheduleTemplates(
+            request: VCListScheduleTemplatesRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> VCListScheduleTemplatesResponse
+    }
+}
+
+// Default implementation of 'registerMethods(with:)'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCScheduleTemplateService.StreamingServiceProtocol {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+        router.registerHandler(
+            forMethod: VCScheduleTemplateService.Method.ListScheduleTemplates.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCListScheduleTemplatesRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<VCListScheduleTemplatesResponse>(),
+            handler: { request, context in
+                try await self.listScheduleTemplates(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+    }
+}
+
+// Default implementation of streaming methods from 'StreamingServiceProtocol'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCScheduleTemplateService.ServiceProtocol {
+    public func listScheduleTemplates(
+        request: GRPCCore.StreamingServerRequest<VCListScheduleTemplatesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<VCListScheduleTemplatesResponse> {
+        let response = try await self.listScheduleTemplates(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+}
+
+// Default implementation of methods from 'ServiceProtocol'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCScheduleTemplateService.SimpleServiceProtocol {
+    public func listScheduleTemplates(
+        request: GRPCCore.ServerRequest<VCListScheduleTemplatesRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<VCListScheduleTemplatesResponse> {
+        return GRPCCore.ServerResponse<VCListScheduleTemplatesResponse>(
+            message: try await self.listScheduleTemplates(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+}
+
+// MARK: vibecare.v1.ScheduleTemplateService (client)
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCScheduleTemplateService {
+    /// Generated client protocol for the "vibecare.v1.ScheduleTemplateService" service.
+    ///
+    /// You don't need to implement this protocol directly, use the generated
+    /// implementation, ``Client``.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol ClientProtocol: Sendable {
+        /// Call the "ListScheduleTemplates" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCListScheduleTemplatesRequest` message.
+        ///   - serializer: A serializer for `VCListScheduleTemplatesRequest` messages.
+        ///   - deserializer: A deserializer for `VCListScheduleTemplatesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listScheduleTemplates<Result>(
+            request: GRPCCore.ClientRequest<VCListScheduleTemplatesRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCListScheduleTemplatesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<VCListScheduleTemplatesResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListScheduleTemplatesResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+    }
+
+    /// Generated client for the "vibecare.v1.ScheduleTemplateService" service.
+    ///
+    /// The ``Client`` provides an implementation of ``ClientProtocol`` which wraps
+    /// a `GRPCCore.GRPCCClient`. The underlying `GRPCClient` provides the long-lived
+    /// means of communication with the remote peer.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+        private let client: GRPCCore.GRPCClient<Transport>
+
+        /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
+        ///
+        /// - Parameters:
+        ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+            self.client = client
+        }
+
+        /// Call the "ListScheduleTemplates" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCListScheduleTemplatesRequest` message.
+        ///   - serializer: A serializer for `VCListScheduleTemplatesRequest` messages.
+        ///   - deserializer: A deserializer for `VCListScheduleTemplatesResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func listScheduleTemplates<Result>(
+            request: GRPCCore.ClientRequest<VCListScheduleTemplatesRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCListScheduleTemplatesRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<VCListScheduleTemplatesResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListScheduleTemplatesResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCScheduleTemplateService.Method.ListScheduleTemplates.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+    }
+}
+
+// Helpers providing default arguments to 'ClientProtocol' methods.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCScheduleTemplateService.ClientProtocol {
+    /// Call the "ListScheduleTemplates" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCListScheduleTemplatesRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func listScheduleTemplates<Result>(
+        request: GRPCCore.ClientRequest<VCListScheduleTemplatesRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListScheduleTemplatesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listScheduleTemplates(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCListScheduleTemplatesRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCListScheduleTemplatesResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+}
+
+// Helpers providing sugared APIs for 'ClientProtocol' methods.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCScheduleTemplateService.ClientProtocol {
+    /// Call the "ListScheduleTemplates" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func listScheduleTemplates<Result>(
+        _ message: VCListScheduleTemplatesRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListScheduleTemplatesResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCListScheduleTemplatesRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listScheduleTemplates(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+}
+
+// MARK: - vibecare.v1.IconService
+
+/// Namespace containing generated types for the "vibecare.v1.IconService" service.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+public enum VCIconService {
+    /// Service descriptor for the "vibecare.v1.IconService" service.
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.IconService")
+    /// Namespace for method metadata.
+    public enum Method {
+        /// Namespace for "ListIcons" metadata.
+        public enum ListIcons {
+            /// Request type for "ListIcons".
+            public typealias Input = VCListIconsRequest
+            /// Response type for "ListIcons".
+            public typealias Output = VCListIconsResponse
+            /// Descriptor for "ListIcons".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.IconService"),
+                method: "ListIcons"
+            )
+        }
+        /// Descriptors for all methods in the "vibecare.v1.IconService" service.
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
+            ListIcons.descriptor
+        ]
+    }
+}
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension GRPCCore.ServiceDescriptor {
+    /// Service descriptor for the "vibecare.v1.IconService" service.
+    public static let vcIconService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.IconService")
+}
+
+// MARK: vibecare.v1.IconService (server)
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCIconService {
+    /// Streaming variant of the service protocol for the "vibecare.v1.IconService" service.
+    ///
+    /// This protocol is the lowest-level of the service protocols generated for this service
+    /// giving you the most flexibility over the implementation of your service. This comes at
+    /// the cost of more verbose and less strict APIs. Each RPC requires you to implement it in
+    /// terms of a request stream and response stream. Where only a single request or response
+    /// message is expected, you are responsible for enforcing this invariant is maintained.
+    ///
+    /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
+    /// or ``SimpleServiceProtocol`` instead.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+        /// Handle the "ListIcons" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCListIconsRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `VCListIconsResponse` messages.
+        func listIcons(
+            request: GRPCCore.StreamingServerRequest<VCListIconsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<VCListIconsResponse>
+    }
+
+    /// Service protocol for the "vibecare.v1.IconService" service.
+    ///
+    /// This protocol is higher level than ``StreamingServiceProtocol`` but lower level than
+    /// the ``SimpleServiceProtocol``, it provides access to request and response metadata and
+    /// trailing response metadata. If you don't need these then consider using
+    /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
+    /// use ``StreamingServiceProtocol``.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol ServiceProtocol: VCIconService.StreamingServiceProtocol {
+        /// Handle the "ListIcons" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCListIconsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `VCListIconsResponse` message.
+        func listIcons(
+            request: GRPCCore.ServerRequest<VCListIconsRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<VCListIconsResponse>
+    }
+
+    /// Simple service protocol for the "vibecare.v1.IconService" service.
+    ///
+    /// This is the highest level protocol for the service. The API is the easiest to use but
+    /// doesn't provide access to request or response metadata. If you need access to these
+    /// then use ``ServiceProtocol`` instead.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol SimpleServiceProtocol: VCIconService.ServiceProtocol {
+        /// Handle the "ListIcons" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `VCListIconsRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `VCListIconsResponse` to respond with.
+        func listIcons(
+            request: VCListIconsRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> VCListIconsResponse
+    }
+}
+
+// Default implementation of 'registerMethods(with:)'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCIconService.StreamingServiceProtocol {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+        router.registerHandler(
+            forMethod: VCIconService.Method.ListIcons.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCListIconsRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<VCListIconsResponse>(),
+            handler: { request, context in
+                try await self.listIcons(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+    }
+}
+
+// Default implementation of streaming methods from 'StreamingServiceProtocol'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCIconService.ServiceProtocol {
+    public func listIcons(
+        request: GRPCCore.StreamingServerRequest<VCListIconsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<VCListIconsResponse> {
+        let response = try await self.listIcons(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+}
+
+// Default implementation of methods from 'ServiceProtocol'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCIconService.SimpleServiceProtocol {
+    public func listIcons(
+        request: GRPCCore.ServerRequest<VCListIconsRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<VCListIconsResponse> {
+        return GRPCCore.ServerResponse<VCListIconsResponse>(
+            message: try await self.listIcons(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+}
+
+// MARK: vibecare.v1.IconService (client)
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCIconService {
+    /// Generated client protocol for the "vibecare.v1.IconService" service.
+    ///
+    /// You don't need to implement this protocol directly, use the generated
+    /// implementation, ``Client``.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol ClientProtocol: Sendable {
+        /// Call the "ListIcons" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCListIconsRequest` message.
+        ///   - serializer: A serializer for `VCListIconsRequest` messages.
+        ///   - deserializer: A deserializer for `VCListIconsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listIcons<Result>(
+            request: GRPCCore.ClientRequest<VCListIconsRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCListIconsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<VCListIconsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListIconsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+    }
+
+    /// Generated client for the "vibecare.v1.IconService" service.
+    ///
+    /// The ``Client`` provides an implementation of ``ClientProtocol`` which wraps
+    /// a `GRPCCore.GRPCCClient`. The underlying `GRPCClient` provides the long-lived
+    /// means of communication with the remote peer.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+        private let client: GRPCCore.GRPCClient<Transport>
+
+        /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
+        ///
+        /// - Parameters:
+        ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+            self.client = client
+        }
+
+        /// Call the "ListIcons" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCListIconsRequest` message.
+        ///   - serializer: A serializer for `VCListIconsRequest` messages.
+        ///   - deserializer: A deserializer for `VCListIconsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func listIcons<Result>(
+            request: GRPCCore.ClientRequest<VCListIconsRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCListIconsRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<VCListIconsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListIconsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCIconService.Method.ListIcons.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+    }
+}
+
+// Helpers providing default arguments to 'ClientProtocol' methods.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCIconService.ClientProtocol {
+    /// Call the "ListIcons" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCListIconsRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func listIcons<Result>(
+        request: GRPCCore.ClientRequest<VCListIconsRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListIconsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listIcons(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCListIconsRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCListIconsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+}
+
+// Helpers providing sugared APIs for 'ClientProtocol' methods.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCIconService.ClientProtocol {
+    /// Call the "ListIcons" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func listIcons<Result>(
+        _ message: VCListIconsRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListIconsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCListIconsRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listIcons(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+}

@@ -31,7 +31,7 @@ func NewServer(db *storage.DB, eventHub *scheduler.EventHub, logger *zap.Logger)
 }
 
 // RegisterServices registers all gRPC services
-func RegisterServices(grpcServer *grpc.Server, db *storage.DB, eventHub *scheduler.EventHub, logger *zap.Logger) {
+func RegisterServices(grpcServer *grpc.Server, db *storage.DB, eventHub *scheduler.EventHub, templateLoader *storage.TemplateLoader, iconLoader *storage.IconLoader, logger *zap.Logger) {
 	server := NewServer(db, eventHub, logger)
 
 	pb.RegisterProfileServiceServer(grpcServer, server)
@@ -39,4 +39,12 @@ func RegisterServices(grpcServer *grpc.Server, db *storage.DB, eventHub *schedul
 	pb.RegisterScheduleServiceServer(grpcServer, server)
 	pb.RegisterActionServiceServer(grpcServer, server)
 	pb.RegisterEventServiceServer(grpcServer, server)
+
+	// Register template service
+	templateService := NewScheduleTemplateService(templateLoader, logger)
+	pb.RegisterScheduleTemplateServiceServer(grpcServer, templateService)
+
+	// Register icon service
+	iconService := NewIconService(iconLoader, logger)
+	pb.RegisterIconServiceServer(grpcServer, iconService)
 }

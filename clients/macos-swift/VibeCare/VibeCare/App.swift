@@ -4,6 +4,7 @@ import OpenTelemetryApi
 
 @main
 struct VibeCareApp: App {
+    @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
     @StateObject private var appState = AppState.shared
     private let logger = Logger(label: "com.vibecare.app")
 
