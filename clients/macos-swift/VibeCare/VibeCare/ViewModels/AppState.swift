@@ -64,71 +64,12 @@ public class AppState: ObservableObject {
 
             logger.info("Successfully loaded \(fetchedProfiles.count) profiles")
 
-            // Load SVG icons from backend (needed for notifications with custom icons)
-            do {
-                try await SVGIconManager.shared.loadIcons()
-                logger.info("Successfully loaded SVG icons from backend")
-            } catch {
-                // Don't fail initial load if icons fail - they can be loaded on-demand
-                logger.warning("Failed to load SVG icons: \(error)")
-            }
-
-            // Migrate action icon parameters from IDs to URLs (one-time migration)
-            await migrateIconParametersToURLs()
+            // SVG icons are loaded on-demand when user opens icon picker
         } catch {
             logger.error("Failed to load initial data: \(error)")
             await MainActor.run {
                 showConnectionError = true
             }
-        }
-    }
-
-    /// Migrate existing actions from svg_bundled_id to svg_path with full URLs
-    private func migrateIconParametersToURLs() async {
-        // Check if migration already done
-        guard !UserDefaults.standard.bool(forKey: "icon_params_migrated_to_urls") else {
-            logger.info("Icon parameter migration already completed")
-            return
-        }
-
-        logger.info("Starting migration: svg_bundled_id → svg_path URLs")
-
-        guard let currentProfile = currentProfile else {
-            logger.warning("No current profile - skipping migration")
-            return
-        }
-
-        do {
-            let actionService = ActionService()
-            let actions = try await actionService.listActions(for: currentProfile.id)
-
-            var migratedCount = 0
-            for action in actions where action.type == .notification {
-                // Check if action has old svg_bundled_id parameter
-                if let bundledIconId = action.parameters["svg_bundled_id"],
-                   !bundledIconId.isEmpty {
-                    // Build URL from icon ID
-                    let iconURL = "http://localhost:8080/api/icons/\(bundledIconId).svg"
-
-                    // Update action parameters
-                    var updatedAction = action
-                    updatedAction.parameters["svg_path"] = iconURL
-                    updatedAction.parameters.removeValue(forKey: "svg_bundled_id")
-
-                    // Save to backend
-                    _ = try await actionService.updateAction(updatedAction)
-                    migratedCount += 1
-
-                    logger.info("Migrated action '\(action.name)': \(bundledIconId) → \(iconURL)")
-                }
-            }
-
-            // Mark migration complete
-            UserDefaults.standard.set(true, forKey: "icon_params_migrated_to_urls")
-            logger.info("Icon parameter migration completed: \(migratedCount) actions migrated")
-        } catch {
-            logger.error("Icon parameter migration failed: \(error)")
-            // Don't set migration flag - will retry next time
         }
     }
 

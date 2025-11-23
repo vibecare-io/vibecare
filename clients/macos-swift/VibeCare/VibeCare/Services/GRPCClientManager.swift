@@ -17,19 +17,37 @@ class GRPCClientManager: ObservableObject {
     // MARK: - Private Properties
     private let logger = Logger(label: "com.vibecare.grpc-client")
 
-    // Connection settings
+    // Connection settings - reads from grpc_url or falls back to legacy keys
     private var host: String {
-        UserDefaults.standard.string(forKey: "grpc_host") ?? "localhost"
+        // Try new URL-based config first
+        if let grpcURL = UserDefaults.standard.string(forKey: "grpc_url"),
+           let components = NetworkConfiguration.parseGRPCURL(grpcURL) {
+            return components.host
+        }
+        // Fallback to legacy host key
+        return UserDefaults.standard.string(forKey: "grpc_host") ?? "localhost"
     }
 
     private var port: Int {
-        UserDefaults.standard.integer(forKey: "grpc_port") != 0
+        // Try new URL-based config first
+        if let grpcURL = UserDefaults.standard.string(forKey: "grpc_url"),
+           let components = NetworkConfiguration.parseGRPCURL(grpcURL) {
+            return components.port
+        }
+        // Fallback to legacy port key
+        return UserDefaults.standard.integer(forKey: "grpc_port") != 0
             ? UserDefaults.standard.integer(forKey: "grpc_port")
             : 50051
     }
 
     private var useTLS: Bool {
-        UserDefaults.standard.bool(forKey: "grpc_use_tls")
+        // Try new URL-based config first
+        if let grpcURL = UserDefaults.standard.string(forKey: "grpc_url"),
+           let components = NetworkConfiguration.parseGRPCURL(grpcURL) {
+            return components.useTLS
+        }
+        // Fallback to legacy TLS key
+        return UserDefaults.standard.bool(forKey: "grpc_use_tls")
     }
 
     private init() {
@@ -294,12 +312,13 @@ class GRPCClientManager: ObservableObject {
 
     // MARK: - Configuration
 
-    func updateConnectionSettings(host: String, port: Int, useTLS: Bool) {
+    func updateConnectionSettings(host: String, port: Int, webPort: Int, useTLS: Bool) {
         UserDefaults.standard.set(host, forKey: "grpc_host")
         UserDefaults.standard.set(port, forKey: "grpc_port")
+        UserDefaults.standard.set(webPort, forKey: "web_port")
         UserDefaults.standard.set(useTLS, forKey: "grpc_use_tls")
 
-        logger.info("Updated connection settings: \(host):\(port), TLS: \(useTLS)")
+        logger.info("Updated connection settings - gRPC: \(host):\(port), Web: \(webPort), TLS: \(useTLS)")
     }
 
     // MARK: - Template Service Client

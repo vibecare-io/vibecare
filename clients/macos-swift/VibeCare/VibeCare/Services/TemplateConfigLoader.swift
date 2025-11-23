@@ -73,18 +73,24 @@ class TemplateConfigLoader {
         // Create suggested action from notification config
         var suggestedActions: [ActionTemplate] = []
         if let notif = config.notification {
+            // Build icon URL if icon_id is provided
+            var parameters: [String: String] = [
+                "title": notif.title,
+                "body": notif.body,
+                "position": notif.position ?? "center",
+                "auto_dismiss_after": String(notif.auto_dismiss ?? 20),
+                "width": String(notif.width ?? 450),
+                "height": String(notif.height ?? 220)
+            ]
+
+            if let iconId = notif.icon_id, !iconId.isEmpty {
+                parameters["svg_path"] = NetworkConfiguration.buildIconURL(iconId: iconId)
+            }
+
             let actionTemplate = ActionTemplate(
                 type: .notification,
                 name: notif.title,
-                parameters: [
-                    "title": notif.title,
-                    "body": notif.body,
-                    "svg_bundled_id": notif.icon_id ?? "",
-                    "position": notif.position ?? "center",
-                    "auto_dismiss_after": String(notif.auto_dismiss ?? 20),
-                    "width": String(notif.width ?? 450),
-                    "height": String(notif.height ?? 220)
-                ]
+                parameters: parameters
             )
             suggestedActions.append(actionTemplate)
         }

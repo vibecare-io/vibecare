@@ -31,7 +31,8 @@ enum NotificationPosition: String, Codable, CaseIterable {
 }
 
 // MARK: - Notification Preferences
-struct NotificationPreferences: Codable, Equatable, Hashable {
+@Observable
+final class NotificationPreferences: Codable, Equatable, Hashable {
     var bundledIconId: String? // ID of bundled SVG icon (e.g., "meditation", "water")
     var svgPath: String? // Custom SVG file path (for user-provided SVGs)
     var svgWidth: CGFloat?
@@ -186,6 +187,38 @@ struct NotificationPreferences: Codable, Equatable, Hashable {
         return template
             .replacingOccurrences(of: "{scheduleName}", with: scheduleName)
             .replacingOccurrences(of: "{routineName}", with: routineName)
+    }
+
+    // MARK: - Equatable
+    static func == (lhs: NotificationPreferences, rhs: NotificationPreferences) -> Bool {
+        return lhs.bundledIconId == rhs.bundledIconId &&
+            lhs.svgPath == rhs.svgPath &&
+            lhs.svgWidth == rhs.svgWidth &&
+            lhs.svgHeight == rhs.svgHeight &&
+            lhs.title == rhs.title &&
+            lhs.message == rhs.message &&
+            lhs.position == rhs.position &&
+            lhs.width == rhs.width &&
+            lhs.height == rhs.height &&
+            lhs.moveable == rhs.moveable &&
+            lhs.autoDismissAfter == rhs.autoDismissAfter &&
+            lhs.screenBlurEnabled == rhs.screenBlurEnabled
+    }
+
+    // MARK: - Hashable
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(bundledIconId)
+        hasher.combine(svgPath)
+        hasher.combine(svgWidth)
+        hasher.combine(svgHeight)
+        hasher.combine(title)
+        hasher.combine(message)
+        hasher.combine(position)
+        hasher.combine(width)
+        hasher.combine(height)
+        hasher.combine(moveable)
+        hasher.combine(autoDismissAfter)
+        hasher.combine(screenBlurEnabled)
     }
 }
 

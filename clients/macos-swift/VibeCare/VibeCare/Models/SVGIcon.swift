@@ -16,8 +16,8 @@ struct SVGIcon: Identifiable, Codable, Hashable {
     let filename: String
     let keywords: [String]
 
-    /// Backend URL for the icon (if available)
-    let backendURL: URL?
+    /// Whether this icon is from backend (true) or local bundle (false)
+    let isBackendIcon: Bool
 
     /// Returns the full file path to this icon in the app bundle (fallback for local icons)
     var bundlePath: String? {
@@ -47,48 +47,53 @@ struct SVGIcon: Identifiable, Codable, Hashable {
         return nil
     }
 
-    /// Returns the URL for this icon (backend URL if available, otherwise file URL from bundle)
+    /// Returns the URL for this icon - computed dynamically from UserDefaults
     var iconURL: URL? {
-        if let backendURL = backendURL {
-            return backendURL
-        }
+        if isBackendIcon {
+            // Read backend URL from UserDefaults every time (always fresh)
+            let backendURLString = UserDefaults.standard.string(forKey: "backend_url") ?? "http://localhost:8080"
+            guard let baseURL = URL(string: backendURLString) else {
+                return nil
+            }
 
-        if let bundlePath = bundlePath {
-            return URL(fileURLWithPath: bundlePath)
+            // Build icon URL: {backend_url}/api/icons/{id}.svg
+            return baseURL
+                .appendingPathComponent("api")
+                .appendingPathComponent("icons")
+                .appendingPathComponent("\(id).svg")
+        } else {
+            // Local bundle icon
+            if let bundlePath = bundlePath {
+                return URL(fileURLWithPath: bundlePath)
+            }
+            return nil
         }
-
-        return nil
     }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, category, filename, keywords, backendURL
+        case id, name, category, filename, keywords, isBackendIcon
     }
 
     // MARK: - Protobuf Conversion
 
-    /// Initialize from protobuf message
-    init(from proto: VCSVGIcon, baseURL: URL) {
+    /// Initialize from protobuf message (backend icon)
+    init(from proto: VCSVGIcon) {
         self.id = proto.id
         self.name = proto.name
         self.category = IconCategory(rawValue: proto.category) ?? .health
         self.filename = proto.filename
         self.keywords = proto.keywords
-
-        // Construct backend URL: baseURL/api/icons/{id}.svg
-        self.backendURL = baseURL
-            .appendingPathComponent("api")
-            .appendingPathComponent("icons")
-            .appendingPathComponent("\(proto.id).svg")
+        self.isBackendIcon = true  // Icon from backend
     }
 
-    /// Legacy initializer for local icons (used by previews and fallbacks)
+    /// Legacy initializer for local bundle icons (used by previews and fallbacks)
     init(id: String, name: String, category: IconCategory, filename: String, keywords: [String]) {
         self.id = id
         self.name = name
         self.category = category
         self.filename = filename
         self.keywords = keywords
-        self.backendURL = nil
+        self.isBackendIcon = false  // Icon from local bundle
     }
 }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import Logging
 
 struct SettingsDetailView: View {
     let selectedSetting: SettingCategory?
@@ -45,6 +46,8 @@ struct SettingsDetailView: View {
                             AppearanceSettingsDetail()
                         case .privacy:
                             PrivacySettingsDetail()
+                        case .debug:
+                            DebugSettingsDetail()
                         case .about:
                             AboutSettingsDetail()
                         }
@@ -73,6 +76,7 @@ enum SettingCategory: String, CaseIterable, Identifiable {
     case network = "Network"
     case appearance = "Appearance"
     case privacy = "Privacy"
+    case debug = "Debug"
     case about = "About"
 
     var id: String { rawValue }
@@ -85,6 +89,7 @@ enum SettingCategory: String, CaseIterable, Identifiable {
         case .network: return "network"
         case .appearance: return "paintbrush"
         case .privacy: return "lock.shield"
+        case .debug: return "ant.circle.fill"
         case .about: return "info.circle"
         }
     }
@@ -97,6 +102,7 @@ enum SettingCategory: String, CaseIterable, Identifiable {
         case .network: return .green
         case .appearance: return .purple
         case .privacy: return .orange
+        case .debug: return .red
         case .about: return .gray
         }
     }
@@ -111,6 +117,7 @@ enum SettingCategory: String, CaseIterable, Identifiable {
         case .network: return "Configure network and server connections"
         case .appearance: return "Customize the app's appearance"
         case .privacy: return "Privacy and security settings"
+        case .debug: return "Debug logging and developer tools"
         case .about: return "About VibeCare and version information"
         }
     }
@@ -258,15 +265,177 @@ struct GeneralSettingsDetail: View {
 }
 
 struct NetworkSettingsDetail: View {
+    @State private var grpcURL: String = UserDefaults.standard.string(forKey: "grpc_url") ?? "grpc://localhost:50051"
+    @State private var backendURL: String = UserDefaults.standard.string(forKey: "backend_url") ?? "http://localhost:8080"
+    @State private var showSaveSuccess: Bool = false
+    @State private var validationError: String?
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Network Settings")
+        VStack(alignment: .leading, spacing: 20) {
+            Text("Server Connection")
                 .font(.headline)
 
-            // Add network settings controls here
-            Text("Network settings will be configured here")
+            // Connection Status
+            HStack {
+                Circle()
+                    .fill(Color.green)
+                    .frame(width: 8, height: 8)
+                Text("Connected to backend")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Divider()
+
+            // gRPC URL Configuration
+            VStack(alignment: .leading, spacing: 8) {
+                Text("gRPC URL")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                TextField("grpc://localhost:50051", text: $grpcURL)
+                    .textFieldStyle(.roundedBorder)
+                    .disableAutocorrection(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Full gRPC service URL (scheme://host:port)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Examples: grpc://localhost:50051 or grpcs://api.example.com:443")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // Backend URL Configuration
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Backend URL")
+                    .font(.subheadline)
+                    .fontWeight(.semibold)
+                TextField("http://localhost:8080", text: $backendURL)
+                    .textFieldStyle(.roundedBorder)
+                    .disableAutocorrection(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Full HTTP backend URL for icons and web services")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("Examples: http://localhost:8080 or https://api.example.com")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+
+            // Validation Error
+            if let error = validationError {
+                HStack(spacing: 8) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundColor(.red)
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.red)
+                }
+                .padding(.vertical, 8)
+            }
+
+            Divider()
+
+            // Save Button
+            HStack {
+                Button(action: saveSettings) {
+                    HStack {
+                        Image(systemName: "checkmark.circle.fill")
+                        Text("Save Settings")
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+
+                if showSaveSuccess {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.green)
+                        Text("Saved")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .transition(.opacity)
+                }
+
+                Spacer()
+
+                Button(action: resetToDefaults) {
+                    Text("Reset to Defaults")
+                }
+                .buttonStyle(.bordered)
+            }
+
+            Divider()
+
+            // Info Box
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.blue)
+                    Text("Connection Information")
+                        .font(.subheadline)
+                        .fontWeight(.semibold)
+                }
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("• gRPC service: \(grpcURL)")
+                    Text("• Backend server: \(backendURL)")
+                    Text("• Icon URLs: \(backendURL)/api/icons/{id}.svg")
+                }
+                .font(.caption)
                 .foregroundColor(.secondary)
+                .padding(.leading, 8)
+            }
+            .padding()
+            .background(Color.blue.opacity(0.05))
+            .cornerRadius(8)
         }
+    }
+
+    private func saveSettings() {
+        // Validate URLs
+        guard URL(string: grpcURL) != nil else {
+            validationError = "Invalid gRPC URL format"
+            return
+        }
+
+        guard URL(string: backendURL) != nil else {
+            validationError = "Invalid backend URL format"
+            return
+        }
+
+        validationError = nil
+
+        // Save URLs to UserDefaults
+        UserDefaults.standard.set(grpcURL, forKey: "grpc_url")
+        UserDefaults.standard.set(backendURL, forKey: "backend_url")
+
+        // Parse gRPC URL and update GRPCClientManager
+        if let components = NetworkConfiguration.parseGRPCURL(grpcURL) {
+            GRPCClientManager.shared.updateConnectionSettings(
+                host: components.host,
+                port: components.port,
+                webPort: 0, // Not used anymore but keep for backward compat
+                useTLS: components.useTLS
+            )
+        }
+
+        withAnimation {
+            showSaveSuccess = true
+        }
+
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+            withAnimation {
+                showSaveSuccess = false
+            }
+        }
+    }
+
+    private func resetToDefaults() {
+        grpcURL = "grpc://localhost:50051"
+        backendURL = "http://localhost:8080"
+        validationError = nil
     }
 }
 
@@ -446,6 +615,95 @@ struct FeatureRow: View {
             Spacer()
         }
         .opacity(isComingSoon ? 0.6 : 1.0)
+    }
+}
+
+struct DebugSettingsDetail: View {
+    @StateObject private var debugSettings = DebugSettings.shared
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 20) {
+            // Log Level Section
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Log Level")
+                    .font(.headline)
+
+                Picker("Log Level", selection: $debugSettings.currentLogLevel) {
+                    Text("Trace (Most Verbose)").tag(Logger.Level.trace)
+                    Text("Debug").tag(Logger.Level.debug)
+                    Text("Info").tag(Logger.Level.info)
+                    Text("Notice").tag(Logger.Level.notice)
+                    Text("Warning").tag(Logger.Level.warning)
+                    Text("Error").tag(Logger.Level.error)
+                    Text("Critical (Least Verbose)").tag(Logger.Level.critical)
+                }
+                .pickerStyle(.menu)
+                .help("Control which log messages are shown in Console.app")
+
+                Text("Current level: **\(debugSettings.currentLogLevel.rawValue.uppercased())**")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                Text("Debug logs include icon loading, notification preview, and data flow. Useful for troubleshooting.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+
+            Divider()
+
+            // Log Collection Section
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Log Collection")
+                    .font(.headline)
+
+                Toggle("Collect logs for in-app viewer", isOn: $debugSettings.collectLogsEnabled)
+                    .help("Store recent logs in memory for viewing within the app (future feature)")
+
+                if debugSettings.collectLogsEnabled {
+                    HStack {
+                        Image(systemName: "info.circle")
+                            .foregroundColor(.blue)
+                        Text("Logs are stored in memory. Maximum 1000 entries.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
+                    Button("Clear Collected Logs") {
+                        Task {
+                            await LogCollector.shared.clear()
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+
+            Divider()
+
+            // Info Section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("About Debug Logging")
+                    .font(.headline)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("• **Trace**: All messages (very verbose)")
+                    Text("• **Debug**: Debug information including 🔍 icon logs")
+                    Text("• **Info**: General information (recommended for development)")
+                    Text("• **Notice**: Important information (recommended for production)")
+                    Text("• **Warning**: Warning messages")
+                    Text("• **Error**: Error messages only")
+                    Text("• **Critical**: Critical errors only")
+                }
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+                Text("View logs in Console.app or use the in-app log viewer (coming soon).")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.top, 8)
+            }
+
+            Spacer()
+        }
     }
 }
 

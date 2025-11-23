@@ -110,8 +110,7 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
 
             // Add icon URL if icon ID is provided
             if !notif.iconID.isEmpty {
-                let iconURL = "http://localhost:8080/api/icons/\(notif.iconID).svg"
-                parameters["svg_path"] = iconURL
+                parameters["svg_path"] = NetworkConfiguration.buildIconURL(iconId: notif.iconID)
             }
 
             let actionTemplate = ActionTemplate(

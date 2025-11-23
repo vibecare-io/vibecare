@@ -15,6 +15,9 @@ struct SVGIconCell: View {
     let onTap: () -> Void
 
     @State private var isHovered: Bool = false
+    @State private var svgData: Data?
+    @State private var isLoading: Bool = false
+    @State private var loadError: Error?
 
     var body: some View {
         Button(action: onTap) {
@@ -39,13 +42,55 @@ struct SVGIconCell: View {
 
     private var iconPreview: some View {
         Group {
-            if let path = icon.bundlePath, FileManager.default.fileExists(atPath: path) {
-                SVGView(contentsOf: URL(fileURLWithPath: path))
+            if let data = svgData {
+                // Render SVG from data
+                SVGView(data: data)
                     .frame(width: 28, height: 28)
+            } else if isLoading {
+                // Show loading indicator
+                ProgressView()
+                    .scaleEffect(0.5)
+                    .frame(width: 28, height: 28)
+            } else if loadError != nil {
+                // Show error icon
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 18))
+                    .foregroundColor(.orange)
             } else {
+                // Show placeholder
                 Image(systemName: "photo")
                     .font(.system(size: 18))
                     .foregroundColor(.gray)
+            }
+        }
+        .task {
+            // Load SVG data when view appears
+            await loadSVGData()
+        }
+    }
+
+    // MARK: - SVG Loading
+
+    private func loadSVGData() async {
+        guard svgData == nil, !isLoading else { return }
+
+        guard let iconURL = icon.iconURL else {
+            return
+        }
+
+        isLoading = true
+        loadError = nil
+
+        do {
+            let (data, _) = try await URLSession.shared.data(from: iconURL)
+            await MainActor.run {
+                self.svgData = data
+                self.isLoading = false
+            }
+        } catch {
+            await MainActor.run {
+                self.loadError = error
+                self.isLoading = false
             }
         }
     }

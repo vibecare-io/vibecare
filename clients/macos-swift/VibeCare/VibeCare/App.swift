@@ -9,8 +9,10 @@ struct VibeCareApp: App {
     private let logger = Logger(label: "com.vibecare.app")
 
     init() {
-        // Setup logging
-        LoggingSystem.bootstrap(StreamLogHandler.standardError)
+        // Setup logging with custom handler that supports configurable log levels
+        LoggingSystem.bootstrap { label in
+            VibeCareLogHandler(label: label)
+        }
         let logger = Logger(label: "com.vibecare.app")
         logger.info("VibeCare macOS app starting up")
 

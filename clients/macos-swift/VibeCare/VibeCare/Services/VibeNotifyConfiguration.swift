@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import VibeNotify
+import Logging
 
 /// Centralized configuration for VibeNotify notifications
 /// Provides consistent styling and helper methods for VibeCare notifications
@@ -16,6 +17,10 @@ enum VibeNotifyConfig {
   static let quickDismissDelay: TimeInterval = 3.0
   static let defaultBannerHeight: CGFloat = 120
   static let compactBannerHeight: CGFloat = 80
+
+  // MARK: - Logger
+
+  private static let logger = Logger(label: "com.vibecare.vibe-notify-config")
 
   // MARK: - Schedule Notification
 
@@ -36,6 +41,14 @@ enum VibeNotifyConfig {
     // Use custom preferences or default
     let prefs = preferences ?? .default
 
+    logger.debug("🔍 showScheduleNotification - START", metadata: [
+      "svgPath": "\(prefs.svgPath ?? "nil")",
+      "svgWidth": "\(prefs.svgWidth?.description ?? "nil")",
+      "svgHeight": "\(prefs.svgHeight?.description ?? "nil")",
+      "svgSize": "\(prefs.svgSize?.debugDescription ?? "nil")",
+      "resolvedSVGPath": "\(prefs.resolvedSVGPath ?? "nil")"
+    ])
+
     // Format title and message using preferences
     let title = prefs.formatTitle(scheduleName: scheduleName, routineName: routineName)
     let message = prefs.formatMessage(
@@ -49,8 +62,31 @@ enum VibeNotifyConfig {
 
     // Add SVG if specified (prioritizes bundled icon, falls back to custom path)
     if let svgPath = prefs.resolvedSVGPath, let svgSize = prefs.svgSize {
-      builder = builder.svg(svgPath, size: svgSize)
+      logger.debug("🔍 showScheduleNotification - SVG icon will be used", metadata: [
+        "svgPath": "\(svgPath)",
+        "svgSize": "\(svgSize)"
+      ])
+
+      // Check if it's a URL (http/https) or local file path
+      if svgPath.hasPrefix("http://") || svgPath.hasPrefix("https://") {
+        // Remote URL - use .svgURL() method
+        if let url = URL(string: svgPath) {
+          logger.debug("🔍 showScheduleNotification - Using .svgURL() for remote icon")
+          builder = builder.svgURL(url, size: svgSize)
+        } else {
+          logger.warning("🔍 showScheduleNotification - Invalid URL, falling back to system icon", metadata: ["svgPath": "\(svgPath)"])
+          builder = builder.icon(.system("bell.badge.fill"))
+        }
+      } else {
+        // Local file path - use .svg() method
+        logger.debug("🔍 showScheduleNotification - Using .svg() for local file")
+        builder = builder.svg(svgPath, size: svgSize)
+      }
     } else {
+      logger.debug("🔍 showScheduleNotification - Fallback to system icon", metadata: [
+        "svgPath": "\(prefs.resolvedSVGPath == nil ? "nil" : "exists")",
+        "svgSize": "\(prefs.svgSize == nil ? "nil" : "exists")"
+      ])
       // Fallback to system icon
       builder = builder.icon(.system("bell.badge.fill"))
     }
@@ -91,7 +127,10 @@ enum VibeNotifyConfig {
       builder = builder.height(CGFloat(height))
     }
 
-    return builder.show()
+    logger.debug("🔍 showScheduleNotification - Calling builder.show()")
+    let notificationId = builder.show()
+    logger.debug("🔍 showScheduleNotification - END", metadata: ["notificationId": "\(notificationId.uuidString)"])
+    return Optional(notificationId)
   }
 
   // MARK: - Position Mapping

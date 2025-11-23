@@ -1,0 +1,1255 @@
+#+TITLE: VibeCare Architecture Documentation
+#+AUTHOR: VibeCare Team
+#+DATE: 2025-11-22
+#+OPTIONS: toc:3 num:t
+
+* Overview
+
+VibeCare is a wellness and routine management system consisting of:
+- *Backend*: Go server with gRPC API, SQLite database, RRule-based scheduling
+- *Frontend*: Native Swift macOS client (server-centric architecture)
+- *Protocol*: Type-safe Protocol Buffers for all communication
+- *Build Tool*: Just command runner for development tasks
+
+* System Architecture
+
+** High-Level Architecture
+
+#+BEGIN_SRC
+┌─────────────────────────────────────────────────────────────┐
+│                    macOS Swift Client                       │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │                  SwiftUI Views                       │   │
+│  └────────────────┬─────────────────────────────────────┘   │
+│                   │                                         │
+│  ┌────────────────▼─────────────────────────────────────┐   │
+│  │        ViewModels (@Published State)                 │   │
+│  │  - AppState (singleton)                              │   │
+│  │  - RoutineViewModel, ScheduleViewModel, etc.         │   │
+│  └────────────────┬─────────────────────────────────────┘   │
+│                   │                                         │
+│  ┌────────────────▼─────────────────────────────────────┐   │
+│  │              Service Layer                           │   │
+│  │  - ProfileService, RoutineService, etc.              │   │
+│  │  - GRPCClientManager (connection lifecycle)          │   │
+│  └────────────────┬─────────────────────────────────────┘   │
+│                   │                                         │
+│                   │ gRPC (Protocol Buffers)                 │
+└───────────────────┼─────────────────────────────────────────┘
+                    │
+┌───────────────────▼─────────────────────────────────────────┐
+│                   Go Backend Server                         │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │              gRPC Services                           │   │
+│  │  - ProfileService, RoutineService, etc.              │   │
+│  └────────────────┬─────────────────────────────────────┘   │
+│                   │                                         │
+│  ┌────────────────▼─────────────────────────────────────┐   │
+│  │            Storage Layer                             │   │
+│  │  - SQLite database (~/.vibecare/vibecare.db)         │   │
+│  │  - Goose migrations                                  │   │
+│  └──────────────────────────────────────────────────────┘   │
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │            Scheduler (Background)                    │   │
+│  │  - Polls database every 1 minute                     │   │
+│  │  - RRule evaluation for due schedules                │   │
+│  │  - Broadcasts events via EventHub                    │   │
+│  └────────────────┬─────────────────────────────────────┘   │
+│                   │                                         │
+│                   │ Server-Sent Events (SSE)                │
+│                   └─────────────────────────────────────────┤
+│                                                             │
+│  ┌──────────────────────────────────────────────────────┐   │
+│  │            HTTP Web Server                           │   │
+│  │  - Icon serving: /api/icons/{id}.svg                 │   │
+│  │  - Template API                                      │   │
+│  │  - Status endpoint: /status                          │   │
+│  └──────────────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────────────┘
+#+END_SRC
+
+** Data Flow Patterns
+
+*** CRUD Operations (Client → Backend)
+
+#+BEGIN_SRC
+User clicks "Create Routine"
+    ↓
+SwiftUI View captures input
+    ↓
+ViewModel.createRoutine() called
+    ↓
+RoutineService.createRoutine()
+    ↓
+GRPCClientManager.withRoutineServiceClient { client in
+    client.createRoutine(request)  ← gRPC call
+}
+    ↓
+Backend RoutineService receives request
+    ↓
+Storage layer inserts into SQLite
+    ↓
+Returns protobuf response
+    ↓
+Service converts protobuf → Swift model
+    ↓
+ViewModel updates @Published property
+    ↓
+SwiftUI View auto-refreshes
+#+END_SRC
+
+*** Real-Time Events (Backend → Client)
+
+#+BEGIN_SRC
+Scheduler polls database (every 1 minute)
+    ↓
+Finds due schedule
+    ↓
+EventHub broadcasts "scheduleTriggered" event
+    ↓
+EventService (client) receives event via SSE
+    ↓
+Fetches schedule details from backend
+    ↓
+Fetches actions from schedule_actions table
+    ↓
+Executes actions locally:
+    - notification → NotificationManager
+    - open_link → Opens URL
+    - run_script → Executes shell command
+    ↓
+Posts NotificationCenter event
+    ↓
+UI updates (if needed)
+#+END_SRC
+
+* Backend Architecture
+
+** Directory Structure
+
+#+BEGIN_SRC
+backend/
+├── cmd/
+│   └── server/
+│       └── main.go              # Entry point
+├── internal/
+│   ├── api/                     # gRPC service implementations
+│   │   ├── server.go           # Service registration
+│   │   ├── profile_service.go
+│   │   ├── routine_service.go
+│   │   ├── schedule_service.go
+│   │   ├── action_service.go
+│   │   ├── event_service.go
+│   │   ├── icon_service.go
+│   │   └── schedule_template_service.go
+│   ├── scheduler/
+│   │   ├── scheduler.go        # Background scheduler
+│   │   └── event_hub.go        # Event broadcasting
+│   ├── storage/
+│   │   ├── migrations/         # Goose SQL migrations
+│   │   ├── profile.go
+│   │   ├── routine.go
+│   │   ├── schedule.go
+│   │   ├── action.go
+│   │   ├── execution_log.go
+│   │   ├── icon_loader.go
+│   │   └── template_loader.go
+│   ├── telemetry/
+│   │   └── otel.go             # OpenTelemetry setup
+│   └── web/
+│       ├── icon_handler.go     # HTTP icon serving
+│       └── middleware.go       # Logging, CORS, etc.
+└── pkg/
+    └── proto/                   # Generated protobuf code
+#+END_SRC
+
+** Core Components
+
+*** gRPC Server
+- *Location*: =backend/cmd/server/main.go=
+- *Port*: 50051 (default)
+- *Initialization*:
+  1. Setup OpenTelemetry
+  2. Connect to SQLite
+  3. Run migrations
+  4. Initialize EventHub
+  5. Start scheduler
+  6. Register gRPC services
+  7. Start HTTP web server
+
+*** Scheduler
+- *Location*: =backend/internal/scheduler/scheduler.go=
+- *Polling Interval*: 1 minute
+- *Responsibilities*:
+  - Query database for due schedules
+  - Evaluate RRule expressions (using RFC 5545 library)
+  - Trigger routine executions
+  - Broadcast events via EventHub
+  - Log execution results
+
+*** Storage Layer
+- *Database*: SQLite at =~/.vibecare/vibecare.db=
+- *Migration Tool*: Goose (not go-migrate)
+- *Schema*:
+  - =profiles= - User profiles
+  - =devices= - Registered devices
+  - =routines= - Routine metadata (no embedded actions)
+  - =schedules= - Schedule definitions with RRule strings
+  - =actions= - Individual actions
+  - =schedule_actions= - Join table (schedule_id, action_id, action_order)
+  - =execution_logs= - Audit trail
+  - =icons= - SVG icon metadata
+  - =schedule_templates= - Template definitions
+
+*** HTTP Web Server
+- *Port*: 8080 (default)
+- *Endpoints*:
+  - =GET /status= - Server health check
+  - =GET /api/icons/{id}.svg= - Serve SVG icons
+  - =GET /api/templates= - List schedule templates
+  - =GET /api/templates/{id}= - Get template details
+
+*** EventHub
+- *Pattern*: Server-Sent Events (SSE)
+- *Events*:
+  - =scheduleTriggered= - Schedule became due
+  - =routineExecuted= - Routine finished execution
+- *Per-Profile Channels*: Each profile has dedicated event stream
+
+** Database Schema Details
+
+*** Schedule-Action Relationship
+
+*Architecture Decision*: Actions are *not embedded* in schedules. Instead, they're associated via a join table.
+
+#+BEGIN_SRC sql
+CREATE TABLE schedule_actions (
+    schedule_id TEXT NOT NULL,
+    action_id TEXT NOT NULL,
+    action_order INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (schedule_id, action_id),
+    FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE,
+    FOREIGN KEY (action_id) REFERENCES actions(id) ON DELETE CASCADE
+);
+#+END_SRC
+
+*Benefits*:
+- Actions can be reused across schedules
+- Ordering maintained via =action_order= field
+- Bulk updates via =replaceScheduleActions= RPC
+- Cascading deletes handled by DB
+
+*** RRule Storage
+
+Schedules store RRule strings directly:
+
+#+BEGIN_SRC sql
+CREATE TABLE schedules (
+    id TEXT PRIMARY KEY,
+    profile_id TEXT NOT NULL,
+    routine_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    rrule TEXT NOT NULL,  -- RFC 5545 RRule string
+    dtstart DATETIME NOT NULL,
+    priority TEXT DEFAULT 'none',
+    enabled BOOLEAN DEFAULT TRUE,
+    -- ... other fields
+);
+#+END_SRC
+
+*Example RRule*:
+#+BEGIN_EXAMPLE
+FREQ=DAILY;INTERVAL=1;BYHOUR=9;BYMINUTE=0
+#+END_EXAMPLE
+
+Means: "Daily at 9:00 AM"
+
+** OpenTelemetry Integration
+
+*** Backend Instrumentation
+- *Library*: OpenTelemetry Go SDK
+- *Exporters*:
+  - OTLP (localhost:4317)
+  - Jaeger UI (localhost:16686)
+- *Automatic Instrumentation*:
+  - gRPC calls via =otelgrpc=
+  - HTTP requests via =otelhttp=
+- *Manual Spans*:
+  - Database operations
+  - Scheduler evaluations
+  - Event broadcasts
+
+*** Tracing Flow
+
+#+BEGIN_SRC
+Client gRPC call → Backend service method
+    ↓ (trace context propagated)
+Storage layer DB query
+    ↓
+Scheduler evaluation
+    ↓
+EventHub broadcast
+    ↓
+Client receives event
+    ↓
+All visible in Jaeger UI
+#+END_SRC
+
+* Frontend Architecture (macOS Swift Client)
+
+** Architecture Pattern: Server-First MVVM
+
+*Key Decision*: The frontend has *NO local persistence layer*.
+
+- No SQLite database
+- No CoreData
+- No offline-first sync
+- No conflict resolution
+- All state is *transient in-memory*
+
+This is a *deliberate architectural choice* to simplify the codebase and rely on backend as single source of truth.
+
+** Directory Structure
+
+#+BEGIN_SRC
+clients/macos-swift/VibeCare/
+├── Package.swift                    # SPM configuration
+├── VCStubs/                        # Generated protobuf/gRPC (DO NOT EDIT)
+│   ├── vibecare.grpc.swift
+│   └── vibecare.pb.swift
+└── vibecare/                       # Main application
+    ├── App.swift                   # @main entry point
+    ├── AppDelegate.swift           # macOS lifecycle
+    ├── ContentView.swift           # Root view
+    ├── Models/                     # 8 domain models
+    │   ├── Profile.swift
+    │   ├── Routine.swift
+    │   ├── Schedule.swift
+    │   ├── Action.swift
+    │   ├── ExecutionLog.swift
+    │   ├── NotificationPreferences.swift
+    │   ├── RoutineScheduleTemplate.swift
+    │   └── SVGIcon.swift
+    ├── Services/                   # 16 service files
+    │   ├── GRPCClientManager.swift
+    │   ├── ProfileService.swift
+    │   ├── RoutineService.swift
+    │   ├── ScheduleService.swift
+    │   ├── ActionService.swift
+    │   ├── EventService.swift
+    │   ├── ScheduleTemplateService.swift
+    │   ├── SVGIconManager.swift
+    │   ├── TemplateConfigLoader.swift
+    │   ├── NotificationManager.swift
+    │   ├── NotificationPolicy.swift
+    │   ├── StatusBarManager.swift
+    │   ├── OTELManager.swift
+    │   ├── ViewInstrumentation.swift
+    │   ├── VibeNotifyConfiguration.swift
+    │   └── LinkHandler.swift
+    ├── ViewModels/                 # 5 ViewModels
+    │   ├── AppState.swift
+    │   ├── RoutineViewModel.swift
+    │   ├── ScheduleViewModel.swift
+    │   ├── ActionViewModel.swift
+    │   └── NotificationActionViewModel.swift
+    ├── Views/                      # 70+ SwiftUI views
+    │   ├── Actions/
+    │   ├── Common/
+    │   ├── Components/
+    │   ├── Dashboard/
+    │   ├── Logs/
+    │   ├── Routines/
+    │   ├── Schedules/
+    │   ├── Settings/
+    │   └── Testing/
+    ├── Utilities/
+    │   └── NetworkConfiguration.swift
+    └── Resources/
+        ├── TemplateConfigs.json
+        └── SVGIcons/
+            └── SVGIconCatalog.json
+#+END_SRC
+
+** MVVM Layers
+
+*** Models
+Simple Swift structs conforming to:
+- =Identifiable= - For SwiftUI lists
+- =Codable= - For JSON serialization
+- =Equatable= - For value comparison
+- =Hashable= - For Set/Dictionary usage
+- =Sendable= - For Swift concurrency
+
+*No persistence annotations* (no @Model, @Entity, etc.)
+
+*** Views
+SwiftUI views organized by feature:
+- *Actions/*: Action management UI
+- *Routines/*: Routine CRUD and list views
+- *Schedules/*: Schedule creation, editing, RRule builder
+- *Settings/*: Network config, preferences
+- *Dashboard/*: Main overview
+
+All views are *stateless* - state lives in ViewModels.
+
+*** ViewModels
+Manage feature state with =@Published= properties:
+
+#+BEGIN_SRC swift
+class RoutineViewModel: ObservableObject {
+    @Published var routines: [Routine] = []  // In-memory only!
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+
+    private let routineService = RoutineService()
+
+    func loadRoutines() async {
+        isLoading = true
+        do {
+            routines = try await routineService.listRoutines(...)
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        isLoading = false
+    }
+}
+#+END_SRC
+
+*State Lifecycle*:
+- Created when view appears
+- Destroyed when view disappears
+- *No persistence* - data refetched on next view appearance
+
+*** Services
+Backend communication wrappers:
+
+#+BEGIN_SRC swift
+class RoutineService {
+    func createRoutine(...) async throws -> Routine {
+        try await GRPCClientManager.shared.withRoutineServiceClient { client in
+            let request = VCCreateRoutineRequest(...)
+            let response = try await client.createRoutine(request)
+            return convertToRoutine(response.routine)  // protobuf → Swift
+        }
+    }
+}
+#+END_SRC
+
+Each service method:
+1. Builds protobuf request
+2. Calls gRPC via GRPCClientManager
+3. Converts protobuf response to Swift model
+4. Returns to ViewModel
+
+** State Management
+
+*** Global State: AppState (Singleton)
+
+#+BEGIN_SRC swift
+class AppState: ObservableObject {
+    static let shared = AppState()
+
+    @Published var currentProfile: Profile?
+    @Published var profiles: [Profile] = []
+    @Published var isConnected: Bool = false
+    @Published var showProfileSelector: Bool = false
+    @Published var showConnectionError: Bool = false
+    @Published var isLoading: Bool = false
+
+    func loadInitialData() async { ... }
+    func selectProfile(_ profile: Profile) async { ... }
+}
+#+END_SRC
+
+Used throughout app via:
+#+BEGIN_SRC swift
+@StateObject private var appState = AppState.shared
+#+END_SRC
+
+*** Feature ViewModels
+
+Each feature has dedicated ViewModel:
+- =RoutineViewModel= - Routine list and CRUD
+- =ScheduleViewModel= - Schedule list, validation, stats
+- =ActionViewModel= - Action list and CRUD
+
+ViewModels listen for profile changes via NotificationCenter:
+
+#+BEGIN_SRC swift
+init() {
+    NotificationCenter.default.addObserver(
+        forName: .profileDidChange,
+        ...
+    ) { [weak self] _ in
+        Task { await self?.loadRoutines() }
+    }
+}
+#+END_SRC
+
+** Service Layer Details
+
+*** GRPCClientManager: Connection Lifecycle
+
+*Pattern*: =withXServiceClient= provides automatic connection management:
+
+#+BEGIN_SRC swift
+func withRoutineServiceClient<T>(
+    _ body: (VCRoutineServiceAsyncClient) async throws -> T
+) async throws -> T {
+    let channel = try makeGRPCChannel()  // Create connection
+    let client = VCRoutineServiceAsyncClient(channel: channel)
+    defer { try? channel.close().wait() }  // Always close
+    return try await body(client)
+}
+#+END_SRC
+
+*Benefits*:
+- No connection leaks
+- Automatic error handling
+- Centralized configuration
+- gRPC interceptor support
+
+*** Configuration Management
+
+*Storage*: UserDefaults only
+
+*Keys*:
+- =grpc_url= - Full gRPC URL (e.g., "grpc://localhost:50051")
+- =backend_url= - HTTP backend (e.g., "http://localhost:8080")
+- =currentProfileId= - Last selected profile (for quick startup)
+
+*NetworkConfiguration Utility*:
+
+#+BEGIN_SRC swift
+static func getGRPCURL() -> String {
+    UserDefaults.standard.string(forKey: "grpc_url")
+        ?? "grpc://localhost:50051"
+}
+
+static func buildIconURL(iconId: String) -> URL? {
+    let baseURL = getBackendURL()  // "http://localhost:8080"
+    return URL(string: "\(baseURL)/api/icons/\(iconId).svg")
+}
+#+END_SRC
+
+*** EventService: Real-Time Updates
+
+*Purpose*: Listen for backend events and execute actions locally.
+
+*Flow*:
+
+#+BEGIN_SRC swift
+func startListening(for profileId: String) async {
+    try await GRPCClientManager.shared.withEventServiceClient { client in
+        let request = VCStreamEventsRequest(profileId: profileId)
+        for try await event in client.streamEvents(request) {
+            switch event.eventType {
+            case .scheduleTriggered:
+                await handleScheduleTriggered(event)
+            case .routineExecuted:
+                await handleRoutineExecuted(event)
+            }
+        }
+    }
+}
+
+private func handleScheduleTriggered(_ event: VCEvent) async {
+    // 1. Fetch schedule details
+    let schedule = try await scheduleService.getSchedule(event.scheduleId)
+
+    // 2. Fetch actions from schedule_actions table
+    let actions = try await scheduleService.getScheduleActions(event.scheduleId)
+
+    // 3. Execute each action
+    for action in actions {
+        switch action.type {
+        case .notification:
+            NotificationManager.shared.show(...)
+        case .open_link:
+            NSWorkspace.shared.open(URL(string: action.parameters["url"]))
+        case .run_script:
+            // Execute shell command
+        }
+    }
+
+    // 4. Broadcast to UI
+    NotificationCenter.default.post(name: .routineDidExecute, ...)
+}
+#+END_SRC
+
+*** Icon Management: Backend-Served Assets
+
+*Architecture Shift*: Icons moved from local bundle to backend HTTP API.
+
+*Old (Local Bundle)*:
+#+BEGIN_SRC swift
+// Icons bundled in app
+Image("icon-meditation")
+#+END_SRC
+
+*New (Backend HTTP)*:
+#+BEGIN_SRC swift
+// Icons loaded from backend
+AsyncImage(url: NetworkConfiguration.buildIconURL(iconId: "icon-123"))
+    // URL: http://localhost:8080/api/icons/icon-123.svg
+#+END_SRC
+
+*Benefits*:
+- Dynamic icon updates without app release
+- Centralized icon management
+- Smaller app bundle size
+
+*Flow*:
+1. =SVGIconManager= loads icon metadata via gRPC
+2. UI builds icon URLs dynamically from =backend_url=
+3. =AsyncImage= fetches from HTTP endpoint
+
+** Notification System
+
+*** VibeNotify Integration
+
+*Library*: Custom notification framework (not native =UNUserNotificationCenter=)
+- Repository: https://github.com/vibecare-io/vibe-notify-macos
+
+*Features*:
+- Custom layouts and styling
+- Position control (center, top-right, etc.)
+- Auto-dismiss with configurable duration
+- Interactive actions (buttons)
+- Bypasses native notification center for full control
+
+*Configuration*:
+
+#+BEGIN_SRC swift
+let config = VibeNotifyConfiguration(
+    position: .center,
+    autoDismiss: true,
+    duration: 5.0,
+    interactiveActions: [
+        .init(title: "Complete", handler: { ... }),
+        .init(title: "Snooze", handler: { ... })
+    ]
+)
+NotificationManager.shared.configure(config)
+#+END_SRC
+
+*Notification Flow*:
+
+#+BEGIN_SRC
+EventService receives scheduleTriggered
+    ↓
+Fetches action with type = "notification"
+    ↓
+NotificationManager.show(
+    title: action.parameters["title"],
+    body: action.parameters["body"],
+    iconURL: buildIconURL(action.parameters["icon_id"])
+)
+    ↓
+VibeNotify displays custom notification
+    ↓
+User interacts (Complete/Snooze/Dismiss)
+    ↓
+Callback handler executes
+#+END_SRC
+
+** Platform Requirements
+
+- *macOS*: 15+ (Sequoia)
+- *Xcode*: 16+
+- *Swift*: 6.0+
+
+Specified in =Package.swift=:
+
+#+BEGIN_SRC swift
+platforms: [
+    .macOS(.v15)
+],
+#+END_SRC
+
+* Domain Models
+
+** Profile
+
+#+BEGIN_SRC swift
+struct Profile: Identifiable, Codable {
+    var id: String
+    var name: String
+    var email: String?  // Optional (can be nil or empty)
+    var devices: [Device]
+    var preferences: [String: String]
+    var createdAt: Date
+    var updatedAt: Date
+}
+#+END_SRC
+
+*Email Handling*:
+- Protobuf uses empty string for missing email
+- Swift service converts: empty string ↔ nil
+- Backend validates email format if provided
+
+** Routine
+
+#+BEGIN_SRC swift
+struct Routine: Identifiable, Codable {
+    var id: String
+    var profileId: String
+    var name: String
+    var description: String
+    var metadata: [String: String]  // category, color, icon, tags
+    var enabled: Bool
+    var createdAt: Date
+    var updatedAt: Date
+}
+#+END_SRC
+
+*Architecture*: Routines are "simple metadata containers" - no embedded actions.
+Actions are associated via schedules (schedule → schedule_actions → actions).
+
+** Schedule
+
+#+BEGIN_SRC swift
+struct Schedule: Identifiable, Codable {
+    var id: String
+    var profileId: String
+    var routineId: String
+    var name: String
+    var rrule: String           // RFC 5545 RRule string
+    var dtstart: Date           // Start date/time
+    var priority: Priority      // none, low, medium, high
+    var enabled: Bool
+    var createdAt: Date
+    var updatedAt: Date
+
+    // Computed properties
+    var ruleComponents: RRuleComponents?  // Parsed RRule
+    var humanReadableRRule: String        // "Daily at 9:00 AM"
+    var nextExecution: Date?              // Calculated
+    var status: ScheduleStatus            // scheduled, upcoming, overdue, disabled
+}
+#+END_SRC
+
+*RRule Examples*:
+
+| Description | RRule String |
+|-------------|--------------|
+| Daily at 9 AM | =FREQ=DAILY;INTERVAL=1;BYHOUR=9;BYMINUTE=0= |
+| Weekdays at 2 PM | =FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=14;BYMINUTE=0= |
+| Every 2 weeks | =FREQ=WEEKLY;INTERVAL=2;BYDAY=MO;BYHOUR=10;BYMINUTE=0= |
+| Monthly on 1st | =FREQ=MONTHLY;BYMONTHDAY=1;BYHOUR=9;BYMINUTE=0= |
+
+** Action
+
+#+BEGIN_SRC swift
+enum ActionType: String, CaseIterable {
+    case notification
+    case open_link
+    case run_script
+    case api_call
+    case display_message
+    case system_command
+    case log_entry
+    case custom
+}
+
+struct Action: Identifiable, Codable {
+    var id: String
+    var profileId: String
+    var name: String
+    var type: ActionType
+    var parameters: [String: String]  // Type-specific params
+    var enabled: Bool
+    var createdAt: Date
+    var updatedAt: Date
+}
+#+END_SRC
+
+*Parameter Examples*:
+
+*** notification
+- =title= (required)
+- =body= (required)
+- =icon_id= (optional)
+- =sound= (optional)
+- =duration= (optional, seconds)
+
+*** open_link
+- =url= (required)
+
+*** run_script
+- =script_path= (required)
+- =args= (optional, comma-separated)
+
+*** api_call
+- =url= (required)
+- =method= (required: GET, POST, etc.)
+- =headers= (optional, JSON)
+- =body= (optional)
+
+* Communication Protocol
+
+** Protocol Buffers Definition
+
+All entities and services defined in =proto/vibecare.proto=.
+
+*** Example Service Definition
+
+#+BEGIN_SRC protobuf
+service RoutineService {
+    rpc CreateRoutine(CreateRoutineRequest) returns (CreateRoutineResponse);
+    rpc ListRoutines(ListRoutinesRequest) returns (ListRoutinesResponse);
+    rpc GetRoutine(GetRoutineRequest) returns (GetRoutineResponse);
+    rpc UpdateRoutine(UpdateRoutineRequest) returns (UpdateRoutineResponse);
+    rpc DeleteRoutine(DeleteRoutineRequest) returns (DeleteRoutineResponse);
+    rpc ExecuteRoutine(ExecuteRoutineRequest) returns (ExecuteRoutineResponse);
+}
+#+END_SRC
+
+*** Code Generation
+
+When protobuf changes:
+
+#+BEGIN_SRC bash
+just proto-gen
+#+END_SRC
+
+Generates:
+- *Backend*: =backend/pkg/proto/*.pb.go= and =*.pb.gw.go=
+- *Swift*: =clients/macos-swift/VibeCare/VCStubs/*.pb.swift= and =*.grpc.swift=
+
+*Never edit generated files manually!*
+
+** Type Safety Benefits
+
+#+BEGIN_SRC
+┌──────────────┐                    ┌──────────────┐
+│  Swift Model │                    │  Go Struct   │
+│  (Routine)   │                    │  (Routine)   │
+└──────┬───────┘                    └──────▲───────┘
+       │                                   │
+       │ Service.convert()                 │ Storage.scan()
+       │                                   │
+       ▼                                   │
+┌──────────────────────────────────────────────────┐
+│        Protobuf Message (VCRoutine)              │
+│  - Compile-time type checking                    │
+│  - Backward/forward compatibility                │
+│  - Efficient binary serialization                │
+└──────────────────────────────────────────────────┘
+#+END_SRC
+
+* Development Workflows
+
+** Common Tasks
+
+*** Start Development Environment
+
+#+BEGIN_SRC bash
+# Terminal 1: Start backend
+just run
+
+# Terminal 2: Start Jaeger (for tracing)
+docker run -d -p16686:16686 -p4317:4317 jaegertracing/all-in-one:latest
+
+# Terminal 3: Build and run Swift client
+just swift-run
+#+END_SRC
+
+*** Make Schema Changes
+
+#+BEGIN_SRC bash
+# 1. Create migration
+just new-migration add_new_field
+
+# 2. Edit SQL in backend/internal/storage/migrations/NNNN_add_new_field.sql
+# 3. Run migration
+just migrate
+
+# 4. Update storage layer (backend/internal/storage/*.go)
+# 5. Update protobuf (proto/vibecare.proto)
+# 6. Regenerate code
+just proto-gen
+
+# 7. Update Swift models (clients/macos-swift/VibeCare/vibecare/Models/*.swift)
+# 8. Update service conversion logic
+#+END_SRC
+
+*** Add New gRPC Endpoint
+
+#+BEGIN_SRC bash
+# 1. Define RPC in proto/vibecare.proto
+service RoutineService {
+    rpc NewMethod(NewMethodRequest) returns (NewMethodResponse);
+}
+
+# 2. Regenerate code
+just proto-gen
+
+# 3. Implement backend handler (backend/internal/api/*_service.go)
+# 4. Add Swift service method (clients/macos-swift/VibeCare/vibecare/Services/*Service.swift)
+# 5. Update ViewModel to call new method
+# 6. Update UI
+#+END_SRC
+
+*** Debug gRPC Calls
+
+#+BEGIN_SRC bash
+# List available services
+just grpc-test
+
+# Test specific RPC
+grpcurl -plaintext localhost:50051 vibecare.ProfileService/ListProfiles
+
+# With request payload
+grpcurl -plaintext -d '{"name": "Test"}' \
+    localhost:50051 vibecare.ProfileService/CreateProfile
+#+END_SRC
+
+*** View Traces
+
+1. Open Jaeger UI: http://localhost:16686
+2. Select service: "vibecare-backend" or "vibecare-macos"
+3. Search for traces
+4. View span details, timing, errors
+
+** Testing Strategy
+
+*** Backend Tests
+
+#+BEGIN_SRC bash
+# Unit tests
+just test
+
+# Coverage report
+just test-coverage
+
+# Integration test (starts server + tests gRPC)
+just test-stack
+#+END_SRC
+
+*** Swift Tests
+
+#+BEGIN_SRC bash
+just swift-test
+#+END_SRC
+
+*** Manual Testing Workflow
+
+1. Create test profile via gRPC:
+   #+BEGIN_SRC bash
+   just grpc-create-profile "Test User" "test@example.com"
+   #+END_SRC
+
+2. Launch Swift app, select profile
+
+3. Create routine with schedule
+
+4. Create actions
+
+5. Associate actions with schedule
+
+6. Wait for scheduler to trigger (or force execution)
+
+7. Verify notification appears
+
+8. Check execution logs
+
+* Architecture Decisions
+
+** ADR-001: Server-First Frontend (No Local Persistence)
+
+*** Context
+Early versions had local SQLite + sync managers for offline-first functionality.
+
+*** Decision
+Removed all local persistence. Frontend is now server-centric:
+- No local database
+- No sync managers
+- No conflict resolution
+- All state transient (in-memory ViewModels)
+
+*** Consequences
+
+*Benefits*:
+- Simpler codebase (no sync complexity)
+- Backend is single source of truth
+- No data inconsistencies
+- Easier debugging (one DB to inspect)
+
+*Drawbacks*:
+- No offline functionality
+- Requires active backend connection
+- State lost on app restart
+- Network errors more disruptive
+
+*** Rationale
+For a personal wellness app, offline support is less critical than simplicity.
+Users typically run both backend and frontend on same machine.
+
+** ADR-002: Schedule-Action Join Table
+
+*** Context
+Need to associate actions with schedules.
+
+*** Decision
+Use join table =schedule_actions= instead of embedding action IDs in schedule.
+
+*** Consequences
+
+*Benefits*:
+- Actions reusable across schedules
+- Ordering via =action_order= field
+- Bulk updates efficient
+- Cascading deletes handled by DB
+
+*Drawbacks*:
+- Extra DB queries to fetch actions
+- More complex data model
+
+*** Rationale
+Flexibility and reusability outweigh query complexity.
+
+** ADR-003: Backend-Served Icons
+
+*** Context
+Icons needed for routines, actions, notifications.
+
+*** Decision
+Serve icons from backend HTTP API instead of bundling in app.
+
+*** Consequences
+
+*Benefits*:
+- Dynamic icon updates without app release
+- Centralized icon management
+- Smaller app bundle
+- Icons shared across platforms (future web/mobile)
+
+*Drawbacks*:
+- Network request required for each icon
+- Requires backend running
+- No offline icon display
+
+*** Rationale
+Supports future multi-platform expansion and easier icon management.
+
+** ADR-004: VibeNotify for Notifications
+
+*** Context
+macOS native notifications have limited customization.
+
+*** Decision
+Use custom VibeNotify library instead of =UNUserNotificationCenter=.
+
+*** Consequences
+
+*Benefits*:
+- Full control over styling
+- Custom positioning
+- Interactive actions without notification center permissions
+- Better UX for wellness reminders
+
+*Drawbacks*:
+- Additional dependency
+- Notifications don't persist in notification center
+- No system-level notification history
+
+*** Rationale
+Better UX for immediate, actionable wellness reminders outweighs lack of persistence.
+
+* Future Considerations
+
+** Multi-Platform Support
+
+*** Web Client
+- TypeScript/React frontend
+- gRPC-Web for backend communication
+- Shared icon/template infrastructure
+
+*** iOS Client
+- Reuse Swift models/services
+- SwiftUI views adapted for iOS
+- Local persistence for mobile (different constraints than macOS)
+
+** Offline Support (If Needed)
+
+*** Frontend Changes Required
+1. Add local SQLite database
+2. Implement sync managers
+3. Conflict resolution strategy (last-write-wins or user-driven)
+4. Background sync jobs
+5. Queue for failed operations
+
+*** Backend Changes Required
+1. Version/timestamp all entities
+2. Conflict detection API
+3. Batch sync endpoints
+4. Change feed/delta sync
+
+** Performance Optimizations
+
+*** Backend
+- Database indexing (profile_id, routine_id on all tables)
+- Connection pooling
+- gRPC streaming for bulk operations
+- Caching layer (Redis for frequently accessed data)
+
+*** Frontend
+- Pagination for large lists
+- Lazy loading
+- In-memory LRU cache
+- Image caching for icons
+- Debounced search
+
+** Security Enhancements
+
+*** Authentication
+- User authentication (currently profile-based)
+- JWT tokens
+- Refresh token rotation
+
+*** Authorization
+- Profile-based access control
+- Device verification
+- API rate limiting
+
+*** Data Protection
+- Encryption at rest (SQLite encryption)
+- TLS for all gRPC calls
+- Secure credential storage (macOS Keychain)
+
+* Troubleshooting
+
+** Backend Won't Start
+
+*** Error: "address already in use"
+#+BEGIN_SRC bash
+# Find process using port
+lsof -i :50051
+
+# Kill process
+kill -9 <PID>
+#+END_SRC
+
+*** Error: "migration failed"
+#+BEGIN_SRC bash
+# Check migration status
+just inspect-db
+> SELECT * FROM goose_db_version;
+
+# Reset database
+rm ~/.vibecare/vibecare.db
+just migrate
+#+END_SRC
+
+** Swift Client Can't Connect
+
+*** Check Backend Status
+#+BEGIN_SRC bash
+# Is backend running?
+lsof -i :50051
+
+# Test gRPC connectivity
+grpcurl -plaintext localhost:50051 list
+#+END_SRC
+
+*** Check Configuration
+#+BEGIN_SRC bash
+# View UserDefaults
+defaults read io.vibecare.App.vibecare grpc_url
+defaults read io.vibecare.App.vibecare backend_url
+
+# Reset configuration
+defaults delete io.vibecare.App.vibecare grpc_url
+defaults delete io.vibecare.App.vibecare backend_url
+#+END_SRC
+
+*** Enable Debug Logging
+#+BEGIN_SRC swift
+// In App.swift init()
+LoggingSystem.bootstrap { label in
+    var handler = StreamLogHandler.standardOutput(label: label)
+    handler.logLevel = .debug  // Set to debug
+    return handler
+}
+#+END_SRC
+
+** Protobuf Errors
+
+*** Error: "unknown field"
+- Regenerate code: =just proto-gen=
+- Clean build: =swift package clean && swift build=
+
+*** Error: "type mismatch"
+- Check protobuf definition matches usage
+- Verify code generation ran successfully
+- Restart Xcode (caches can be stale)
+
+** Scheduler Not Triggering
+
+*** Check Schedule Status
+#+BEGIN_SRC bash
+just inspect-db
+> SELECT * FROM schedules WHERE enabled = 1;
+#+END_SRC
+
+*** Check Next Execution Time
+#+BEGIN_SRC bash
+# In Swift app, view schedule details
+# Or query via gRPC:
+grpcurl -plaintext -d '{"schedule_id": "..."}' \
+    localhost:50051 vibecare.ScheduleService/GetNextExecution
+#+END_SRC
+
+*** Check Scheduler Logs
+#+BEGIN_SRC bash
+# Backend logs show scheduler polls
+# Look for: "Scheduler found N due schedules"
+just run | grep -i scheduler
+#+END_SRC
+
+** Notifications Not Showing
+
+*** Check macOS Permissions
+System Preferences → Notifications → VibeCare → Allow notifications
+
+*** Check NotificationManager
+#+BEGIN_SRC swift
+// Add debug logging in EventService.handleScheduleTriggered()
+logger.debug("Showing notification: \(title)")
+NotificationManager.shared.show(...)
+#+END_SRC
+
+*** Check VibeNotify Configuration
+#+BEGIN_SRC swift
+// Verify configuration is set
+NotificationManager.shared.configure(...)
+#+END_SRC
+
+* References
+
+** Documentation
+- Main docs: =CLAUDE.md= (project root)
+- Frontend docs: =clients/macos-swift/VibeCare/CLAUDE.md=
+- MCP setup: =docs/MCP_SETUP.md=
+- Local build: =docs/LOCAL_BUILD.md=
+
+** External Libraries
+- gRPC Swift: https://github.com/grpc/grpc-swift
+- Swift Protobuf: https://github.com/apple/swift-protobuf
+- VibeNotify: https://github.com/vibecare-io/vibe-notify-macos
+- RRule library (Go): https://github.com/teambition/rrule-go
+
+** Specifications
+- RFC 5545 (iCalendar): https://tools.ietf.org/html/rfc5545
+- gRPC: https://grpc.io/docs/
+- Protocol Buffers: https://protobuf.dev/
+
+** Tools
+- Just: https://github.com/casey/just
+- Goose: https://github.com/pressly/goose
+- grpcurl: https://github.com/fullstorydev/grpcurl
+- Jaeger: https://www.jaegertracing.io/

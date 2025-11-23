@@ -89,10 +89,6 @@ swift run
 just swift-build
 just swift-run
 just swift-test
-
-# Database inspection
-just swift-inspect-app-db   # Open litecli for client DB
-just swift-reset-app-db     # Delete client database
 ```
 
 ### Code Generation
@@ -102,179 +98,58 @@ When modifying protobuf definitions in `proto/`:
 2. Backend code goes to: `backend/pkg/proto/`
 3. Swift code goes to: `clients/macos-swift/VibeCare/VCStubs/`
 
-## Architecture
+## Quick Reference
 
-### Backend (Go)
+### Architecture at a Glance
+- **Backend**: Go server (gRPC + HTTP), SQLite, RRule scheduler
+- **Frontend**: Swift macOS client (server-first, no local DB)
+- **Communication**: gRPC with Protocol Buffers
+- **Real-time**: Server-Sent Events (SSE) via EventHub
 
-**Entry Point**: `backend/cmd/server/main.go` - Initializes gRPC server, HTTP web server, scheduler, and telemetry
+### Key File Locations
+| Component | Location |
+|-----------|----------|
+| Backend entry point | `backend/cmd/server/main.go` |
+| Frontend entry point | `clients/macos-swift/VibeCare/vibecare/App.swift` |
+| gRPC services | `backend/internal/api/*_service.go` |
+| Frontend services | `clients/macos-swift/VibeCare/vibecare/Services/` |
+| Database migrations | `backend/internal/storage/migrations/` |
+| Protobuf definitions | `proto/vibecare.proto` |
+| Swift models | `clients/macos-swift/VibeCare/vibecare/Models/` |
+| ViewModels | `clients/macos-swift/VibeCare/vibecare/ViewModels/` |
+| UI Views | `clients/macos-swift/VibeCare/vibecare/Views/` |
 
-**Core Components**:
+### Important Architectural Decisions
+1. **Server-First Frontend**: No local persistence (no SQLite/CoreData), requires active backend
+2. **Schedule-Action Join Table**: Actions not embedded, managed via `schedule_actions` table
+3. **Backend-Served Icons**: Icons from HTTP API, not bundled in app
+4. **Custom Notifications**: Uses VibeNotify library for full control
 
-1. **gRPC Services** (`backend/internal/api/`)
-   - `server.go` - Registers all gRPC services
-   - Service implementations: `profile_service.go`, `routine_service.go`, `schedule_service.go`, `event_service.go`
-   - All services share DB connection and EventHub
+### Default Ports & Locations
+- gRPC: `localhost:50051`
+- HTTP: `localhost:8080`
+- Database: `~/.vibecare/vibecare.db`
+- Jaeger UI: `http://localhost:16686`
 
-2. **Scheduler** (`backend/internal/scheduler/`)
-   - `scheduler.go` - Polls database every minute for due schedules
-   - `event_hub.go` - Event streaming mechanism for client notifications
-   - Uses RRule library (RFC 5545) for recurring schedule calculations
+## Documentation Links
 
-3. **Storage Layer** (`backend/internal/storage/`)
-   - SQLite with Goose migrations (`internal/storage/migrations/`)
-   - Separate files per entity: `profile.go`, `routine.go`, `schedule.go`, `execution_log.go`
-   - Database location: `~/.vibecare/vibecare.db`
+**For detailed information, see:**
 
-4. **Telemetry** (`backend/internal/telemetry/`)
-   - OpenTelemetry integration with Jaeger
-   - Automatic gRPC instrumentation via `otelgrpc`
-   - Enable with `--enable-tracing` flag (default: true)
-   - OTLP endpoint: `localhost:4317` (configurable)
+- **[Architecture Deep Dive](./docs/arch.org)** - Complete system architecture, ADRs, diagrams
+- **[Frontend Details](./clients/macos-swift/VibeCare/CLAUDE.md)** - Swift client architecture, patterns
+- **[Documentation Index](./docs/README.md)** - All available documentation
+- **[MCP Setup](./docs/MCP_SETUP.md)** - Model Context Protocol integration
+- **[Local Build Guide](./docs/LOCAL_BUILD.md)** - Development environment setup
+- **[Release Process](./docs/RELEASE_PROCESS.md)** - Creating releases
 
-**Data Flow**:
-```
-gRPC Request → Service Layer → Storage Layer → SQLite
-                     ↓
-              Scheduler (polls) → EventHub → Client SSE Stream
-```
-
-### Swift Client (macOS/iOS)
-
-**Entry Point**: `clients/macos-swift/VibeCare/vibecare/App.swift`
-
-**Architecture Pattern**: MVVM with service layer
-- Models: Domain models matching protobuf definitions
-- Views: SwiftUI views with view-specific logic
-- ViewModels: Business logic and state management
-- Services: Backend communication and local storage
-
-**Key Services** (`vibecare/Services/`):
-
-1. **GRPCClientManager.swift** - Manages gRPC connection lifecycle
-2. **ProfileService.swift** - Profile CRUD operations
-3. **RoutineService.swift** / **RoutineLocalStorage.swift** - Routine management with local caching
-4. **ScheduleService.swift** / **ScheduleLocalStorage.swift** - Schedule management with local caching
-5. **EventService.swift** - Server-sent events for real-time schedule updates
-6. **NotificationManager.swift** - macOS notification integration using VibeNotify library
-7. **OTELManager.swift** - OpenTelemetry client instrumentation
-8. **SyncManagers** - Offline-first sync between local SQLite and backend
-
-**Local Storage**:
-- Client maintains local SQLite database for offline functionality
-- Location: `~/Library/Containers/io.vibecare.App.vibecare/Data/Library/Application Support/`
-- Sync managers handle bidirectional synchronization with backend
-
-**Notifications**:
-- Uses custom `VibeNotify` library (https://github.com/vibecare-io/vibe-notify-macos)
-- Supports interactive notifications with custom actions
-- Configured via `VibeNotifyConfiguration.swift`
-
-### Domain Models
-
-**Core Entities** (defined in protobuf):
-
-1. **Profile** - User account with preferences
-2. **Routine** - Collection of Actions executed together
-3. **Action** - Individual task (notification, script, API call, etc.)
-4. **Schedule** - RRule-based recurring schedule
-5. **ExecutionLog** - Audit trail of routine executions
-
-**RRule Schedule Examples**:
-```json
-// Daily at 9 AM and 6 PM
-{"freq": "DAILY", "interval": 1, "byhour": [9, 18], "byminute": [0]}
-
-// Weekdays at 2 PM
-{"freq": "WEEKLY", "byday": ["MO","TU","WE","TH","FR"], "byhour": [14], "byminute": [0]}
-```
-
-## Testing
-
-### Backend Tests
-```bash
-just test              # Run all tests
-just test-coverage     # Generate coverage report (opens HTML)
-just test-stack        # Integration test: start server + test gRPC
-```
-
-### Swift Tests
-```bash
-just swift-test
-# Or from Swift package directory:
-cd clients/macos-swift/VibeCare && swift test
-```
-
-### MCP Server (Model Context Protocol)
-
-VibeCare includes an MCP server for natural language interaction with routines and schedules via Claude Desktop.
-
-```bash
-# Show MCP setup guide
-just mcp-setup-guide
-
-# List available profiles (needed for MCP)
-just mcp-list-profiles
-
-# Run backend with MCP enabled
-just run-with-mcp PROFILE_ID
-
-# Build MCP-enabled server
-just build-mcp
-```
-
-**Available MCP Tools:**
-- `create_routine` - Create new routine
-- `list_routines` - List all routines
-- `get_routine` - Get routine details
-- `delete_routine` - Delete routine
-- `create_schedule` - Create RRule schedule
-- `list_schedules` - List schedules
-- `delete_schedule` - Delete schedule
-- `execute_routine` - Execute routine immediately
-
-**Available MCP Resources:**
-- `vibecare://routines` - All routines as JSON
-- `vibecare://schedules` - All schedules as JSON
-- `vibecare://actions` - All actions as JSON
-- `vibecare://execution-logs` - Execution history as JSON
-
-See `docs/MCP_SETUP.md` for complete setup instructions.
-
-## Common Development Workflows
+## Common Workflows
 
 ### Adding a New gRPC Service
+1. Define in `proto/vibecare.proto` → 2. `just proto-gen` → 3. Implement backend service → 4. Add Swift service wrapper → 5. Update ViewModel/UI
 
-1. Define service in `proto/vibecare.proto`
-2. Run `just proto-gen` to generate code
-3. Implement service in `backend/internal/api/` (create new file or extend existing)
-4. Register service in `backend/internal/api/server.go` RegisterServices()
-5. Add Swift client wrapper in `clients/macos-swift/VibeCare/vibecare/Services/`
-
-### Database Schema Changes
-
-1. Create migration: `just new-migration description`
-2. Edit SQL in `backend/internal/storage/migrations/NNNN_description.sql`
-3. Run migration: `just migrate`
-4. Update storage layer in `backend/internal/storage/` if needed
+### Database Schema Change
+1. `just new-migration NAME` → 2. Edit SQL → 3. `just migrate` → 4. Update storage layer → 5. Update protobuf → 6. `just proto-gen`
 
 ### Debugging
-
-**Backend**:
-- Logs go to stdout with structured logging (zap)
-- OpenTelemetry traces to Jaeger at http://localhost:16686
-- Database inspection: `just inspect-db`
-
-**Swift Client**:
-- Uses swift-log with console output
-- OpenTelemetry traces sent to backend's OTLP collector
-- View instrumentation in `ViewInstrumentation.swift`
-- Database inspection: `just swift-inspect-app-db`
-
-## Important Notes
-
-- Default gRPC port: 50051
-- Default web port: 8080
-- Database uses Goose for migrations (not go-migrate)
-- Scheduler checks for due schedules every 1 minute
-- Swift client requires macOS 15+ (specified in Package.swift)
-- EventHub uses server-sent events (SSE) for real-time client updates
+- **Backend**: Logs to stdout, traces at http://localhost:16686, DB via `just inspect-db`
+- **Frontend**: Console.app logs, check UserDefaults config, view traces in Jaeger

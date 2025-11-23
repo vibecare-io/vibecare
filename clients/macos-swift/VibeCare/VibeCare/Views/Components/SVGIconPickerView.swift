@@ -66,8 +66,17 @@ struct SVGIconPickerView: View {
         .background(Color(NSColor.windowBackgroundColor))
         .task {
             // Load icons from backend if not already loaded
+            print("🔍 [SVGIconPickerView] .task triggered")
+            print("🔍 [SVGIconPickerView] iconManager.isLoaded = \(iconManager.isLoaded)")
+            print("🔍 [SVGIconPickerView] iconManager.loadError = \(iconManager.loadError?.localizedDescription ?? "nil")")
+            print("🔍 [SVGIconPickerView] iconManager.icons.count = \(iconManager.icons.count)")
+
             if !iconManager.isLoaded && iconManager.loadError == nil {
+                print("🔍 [SVGIconPickerView] Calling iconManager.loadIcons()...")
                 try? await iconManager.loadIcons()
+                print("🔍 [SVGIconPickerView] After loadIcons: icons.count = \(iconManager.icons.count)")
+            } else {
+                print("🔍 [SVGIconPickerView] Skipping load: already loaded or has error")
             }
         }
     }

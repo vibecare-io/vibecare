@@ -3,15 +3,40 @@ import SwiftUI
 struct ActionEditSheet: View {
     let profileId: String
     let schedule: Schedule
-    @Binding var actionCard: ScheduleActionCard
+    let initialActionCard: ScheduleActionCard
     let isCreating: Bool
-    let onSave: () -> Void
+    let onSave: (ScheduleActionCard) -> Void
     let onCancel: () -> Void
 
     @Environment(\.dismiss) private var dismiss
     @StateObject private var actionService = ActionService()
+    @State private var viewModel: NotificationActionViewModel
+    @State private var actionType: ActionType
     @State private var isSaving = false
     @State private var errorMessage: String?
+
+    init(
+        profileId: String,
+        schedule: Schedule,
+        actionCard: ScheduleActionCard,
+        isCreating: Bool,
+        onSave: @escaping (ScheduleActionCard) -> Void,
+        onCancel: @escaping () -> Void
+    ) {
+        self.profileId = profileId
+        self.schedule = schedule
+        self.initialActionCard = actionCard
+        self.isCreating = isCreating
+        self.onSave = onSave
+        self.onCancel = onCancel
+
+        // Initialize state properties
+        self._actionType = State(initialValue: actionCard.type)
+        self._viewModel = State(initialValue: NotificationActionViewModel(
+            preferences: actionCard.notificationPreferences,
+            parameters: actionCard.parameters
+        ))
+    }
 
     var body: some View {
         NavigationStack {
@@ -36,19 +61,20 @@ struct ActionEditSheet: View {
                         Text("Action Type")
                             .font(.headline)
 
-                        Picker("Action Type", selection: Binding(
-                            get: { actionCard.type },
-                            set: { newType in
-                                // Reset card when type changes
-                                actionCard = ScheduleActionCard(type: newType)
-                            }
-                        )) {
+                        Picker("Action Type", selection: $actionType) {
                             ForEach(ActionType.allCases, id: \.self) { type in
                                 Label(type.displayName, systemImage: type.iconName)
                                     .tag(type)
                             }
                         }
                         .pickerStyle(.menu)
+                        .onChange(of: actionType) { _, newType in
+                            // Reset ViewModel when type changes
+                            viewModel = NotificationActionViewModel(
+                                preferences: .default,
+                                parameters: [:]
+                            )
+                        }
                     }
                     .padding(.horizontal)
                 }
@@ -56,20 +82,12 @@ struct ActionEditSheet: View {
                 // Action configuration card
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
-                        if actionCard.type == .notification {
-                            NotificationActionParametersView(
-                                preferences: actionCard.notificationPreferences,
-                                onPreferencesChanged: { newPrefs in
-                                    print("🟢 [ActionEditSheet] onPreferencesChanged called with svgPath=\(newPrefs.svgPath ?? "nil")")
-                                    actionCard.notificationPreferences = newPrefs
-                                    print("🟢 [ActionEditSheet] actionCard.notificationPreferences updated to svgPath=\(actionCard.notificationPreferences.svgPath ?? "nil")")
-                                },
-                                parameters: $actionCard.parameters
-                            )
+                        if actionType == .notification {
+                            NotificationActionParametersView(viewModel: viewModel)
                         } else {
                             ActionParametersView(
-                                type: actionCard.type,
-                                parameters: $actionCard.parameters
+                                type: actionType,
+                                parameters: $viewModel.parameters
                             )
                         }
                     }
@@ -115,10 +133,17 @@ struct ActionEditSheet: View {
     }
 
     private var isValid: Bool {
-        // Basic validation - ensure required parameters are filled
-        let requiredParams = actionCard.type.requiredParameters
+        // Special handling for notification type - check preferences instead of parameters
+        if actionType == .notification {
+            // For notifications, title and body are optional (can use defaults)
+            // So notification actions are always valid
+            return true
+        }
+
+        // For other action types, validate required parameters
+        let requiredParams = actionType.requiredParameters.filter { $0.required }
         return requiredParams.allSatisfy { param in
-            if let value = actionCard.parameters[param.name] {
+            if let value = viewModel.parameters[param.name] {
                 return !value.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             }
             return false
@@ -130,7 +155,17 @@ struct ActionEditSheet: View {
         errorMessage = nil
 
         do {
-            var action = actionCard.toAction(
+            // Serialize ViewModel preferences to parameters
+            viewModel.serializeToParameters()
+
+            // Create updated action card from ViewModel state
+            var updatedCard = initialActionCard
+            updatedCard.type = actionType
+            updatedCard.parameters = viewModel.parameters
+            updatedCard.notificationPreferences = viewModel.preferences
+
+            // Convert to Action for API call
+            var action = updatedCard.toAction(
                 profileId: profileId,
                 scheduleName: schedule.name,
                 scheduleNotes: schedule.notes
@@ -138,13 +173,28 @@ struct ActionEditSheet: View {
             action.enabled = true
 
             if isCreating {
-                _ = try await actionService.createAction(action)
+                // Create the action
+                let createdAction = try await actionService.createAction(action)
+
+                // Associate the action with the schedule
+                let scheduleService = ScheduleService()
+
+                // Get current action count to determine proper ordering
+                let existingActionIds = try await scheduleService.getScheduleActions(scheduleId: schedule.id)
+                let actionOrder = existingActionIds.count
+
+                // Add action to schedule via join table
+                try await scheduleService.addActionToSchedule(
+                    scheduleId: schedule.id,
+                    actionId: createdAction.id,
+                    order: actionOrder
+                )
             } else {
                 _ = try await actionService.updateAction(action)
             }
 
             await MainActor.run {
-                onSave()
+                onSave(updatedCard)
                 dismiss()
             }
         } catch {
@@ -165,9 +215,9 @@ struct ActionEditSheet: View {
             name: "Test Schedule",
             rrule: "FREQ=DAILY"
         ),
-        actionCard: .constant(ScheduleActionCard(type: .notification)),
+        actionCard: ScheduleActionCard(type: .notification),
         isCreating: true,
-        onSave: {},
+        onSave: { _ in },
         onCancel: {}
     )
 }
