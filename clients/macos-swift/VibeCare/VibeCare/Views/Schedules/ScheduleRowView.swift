@@ -94,17 +94,6 @@ struct ScheduleRowView: View {
                     // Action count removed - actions managed via schedule_actions join table
                     // TODO: Could fetch action count from join table if needed
 
-                    // Priority indicator
-                    if schedule.priority != .none {
-                        HStack(spacing: 2) {
-                            Image(systemName: "flag.fill")
-                                .font(.caption2)
-                            Text(schedule.priority.displayName)
-                                .font(.caption)
-                        }
-                        .foregroundColor(priorityColor)
-                    }
-
                     Spacer()
 
                     // Next run preview
@@ -235,15 +224,6 @@ struct ScheduleRowView: View {
         } else {
             // Scheduled normally
             return .green
-        }
-    }
-
-    private var priorityColor: Color {
-        switch schedule.priority {
-        case .none: return .secondary
-        case .low: return .green
-        case .medium: return .orange
-        case .high: return .red
         }
     }
 

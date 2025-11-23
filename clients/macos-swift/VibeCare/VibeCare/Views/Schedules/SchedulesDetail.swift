@@ -25,7 +25,6 @@ struct ScheduleDetailView: View {
     @State private var scheduleName: String = ""
     @State private var scheduleNotes: String = ""
     @State private var scheduleEnabled: Bool = true
-    @State private var schedulePriority: Priority = .none
     @State private var scheduleStartDate: Date = Date()
     @State private var scheduleRRule: String = ""
     @State private var scheduleExdates: [String] = []
@@ -59,7 +58,6 @@ struct ScheduleDetailView: View {
             self._scheduleName = State(initialValue: schedule.name)
             self._scheduleNotes = State(initialValue: schedule.notes)
             self._scheduleEnabled = State(initialValue: schedule.enabled)
-            self._schedulePriority = State(initialValue: schedule.priority)
             self._scheduleStartDate = State(initialValue: schedule.dtstart)
             self._scheduleRRule = State(initialValue: schedule.rrule)
             self._scheduleExdates = State(initialValue: schedule.exdates)
@@ -67,7 +65,6 @@ struct ScheduleDetailView: View {
             self._scheduleName = State(initialValue: "New Schedule")
             self._scheduleNotes = State(initialValue: "")
             self._scheduleEnabled = State(initialValue: true)
-            self._schedulePriority = State(initialValue: .none)
             self._scheduleStartDate = State(initialValue: Date())
             self._scheduleRRule = State(initialValue: "FREQ=DAILY")
             self._scheduleExdates = State(initialValue: [])
@@ -192,7 +189,6 @@ struct ScheduleDetailView: View {
             scheduleName = schedule.name
             scheduleNotes = schedule.notes
             scheduleEnabled = schedule.enabled
-            schedulePriority = schedule.priority
             scheduleStartDate = schedule.dtstart
             scheduleRRule = schedule.rrule
             scheduleExdates = schedule.exdates
@@ -201,7 +197,6 @@ struct ScheduleDetailView: View {
             scheduleName = "New Schedule"
             scheduleNotes = ""
             scheduleEnabled = true
-            schedulePriority = .none
             scheduleStartDate = Date()
             scheduleRRule = "FREQ=DAILY"
             scheduleExdates = []
@@ -217,7 +212,6 @@ struct ScheduleDetailView: View {
             scheduleName = "New Schedule"
             scheduleNotes = ""
             scheduleEnabled = true
-            schedulePriority = .none
             scheduleStartDate = Date()
             scheduleRRule = "FREQ=DAILY"
             scheduleExdates = []
@@ -225,7 +219,6 @@ struct ScheduleDetailView: View {
             scheduleName = schedule.name
             scheduleNotes = schedule.notes
             scheduleEnabled = schedule.enabled
-            schedulePriority = schedule.priority
             scheduleStartDate = schedule.dtstart
             scheduleRRule = schedule.rrule
             scheduleExdates = schedule.exdates
@@ -293,31 +286,6 @@ struct ScheduleDetailView: View {
                 }
 
                 Spacer()
-
-                // Priority selector
-                HStack(spacing: 8) {
-                    Text("Priority:")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-
-                    Picker("", selection: Binding(
-                        get: { currentPriority },
-                        set: { newValue in
-                            schedulePriority = newValue
-                            if let schedule = schedule {
-                                Task {
-                                    await updateSchedulePriority(schedule, priority: newValue)
-                                }
-                            }
-                        }
-                    )) {
-                        ForEach(Priority.allCases, id: \.self) { priority in
-                            Text(priority.displayName).tag(priority)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(width: 120)
-                }
             }
 
             // Routine link
@@ -730,14 +698,6 @@ struct ScheduleDetailView: View {
         }
     }
 
-    private var currentPriority: Priority {
-        if isCreating {
-            return schedulePriority
-        } else {
-            return schedule?.priority ?? .none
-        }
-    }
-
     private var currentStartDate: Date {
         if isCreating {
             return scheduleStartDate
@@ -758,12 +718,6 @@ struct ScheduleDetailView: View {
     private func updateScheduleEnabled(_ schedule: Schedule, enabled: Bool) async {
         var updatedSchedule = schedule
         updatedSchedule.enabled = enabled
-        await viewModel.updateSchedule(updatedSchedule)
-    }
-
-    private func updateSchedulePriority(_ schedule: Schedule, priority: Priority) async {
-        var updatedSchedule = schedule
-        updatedSchedule.priority = priority
         await viewModel.updateSchedule(updatedSchedule)
     }
 
@@ -902,8 +856,7 @@ struct ScheduleDetailView: View {
             rrule: scheduleRRule,
             dtstart: scheduleStartDate,
             notes: scheduleNotes.trimmingCharacters(in: .whitespacesAndNewlines),
-            enabled: scheduleEnabled,
-            priority: schedulePriority
+            enabled: scheduleEnabled
             // TODO: actions managed via schedule_actions join table
         )
 

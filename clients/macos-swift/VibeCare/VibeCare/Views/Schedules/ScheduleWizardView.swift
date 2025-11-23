@@ -311,8 +311,7 @@ struct ScheduleWizardView: View {
                 rrule: rruleWithTimes,
                 dtstart: dtstart,
                 notes: scheduleDescription,
-                enabled: true,
-                priority: .none
+                enabled: true
             )
 
             // Create schedule

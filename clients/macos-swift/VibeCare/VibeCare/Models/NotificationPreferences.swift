@@ -76,7 +76,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
 
     // MARK: - Default Presets
 
-    static let `default` = NotificationPreferences(
+    nonisolated(unsafe) static let `default` = NotificationPreferences(
         position: .center,
         width: 450,
         height: 220,
@@ -85,7 +85,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         screenBlurEnabled: false
     )
 
-    static let minimal = NotificationPreferences(
+    nonisolated(unsafe) static let minimal = NotificationPreferences(
         position: .topRight,
         width: 350,
         height: 150,
@@ -94,7 +94,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         screenBlurEnabled: false
     )
 
-    static let prominent = NotificationPreferences(
+    nonisolated(unsafe) static let prominent = NotificationPreferences(
         position: .center,
         width: 500,
         height: 300,
@@ -224,7 +224,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
 
 // MARK: - Preset Management
 extension NotificationPreferences {
-    static let presets: [String: NotificationPreferences] = [
+    nonisolated(unsafe) static let presets: [String: NotificationPreferences] = [
         "Default": .default,
         "Minimal": .minimal,
         "Prominent": .prominent

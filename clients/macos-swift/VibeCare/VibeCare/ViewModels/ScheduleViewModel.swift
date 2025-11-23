@@ -101,7 +101,6 @@ class ScheduleViewModel: ObservableObject {
         dtstart: Date = Date(),
         notes: String = "",
         enabled: Bool = true,
-        priority: Priority = .none,
         actionIDs: [String] = []
     ) async {
         do {
@@ -112,8 +111,7 @@ class ScheduleViewModel: ObservableObject {
                 rrule: rrule,
                 dtstart: dtstart,
                 notes: notes,
-                enabled: enabled,
-                priority: priority
+                enabled: enabled
             )
 
             let savedSchedule = try await scheduleService.createSchedule(

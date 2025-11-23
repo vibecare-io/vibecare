@@ -285,7 +285,6 @@ struct ScheduleEditView: View {
     return Calendar.current.date(byAdding: .minute, value: 5, to: now) ?? now
   }()
   @State private var enabled: Bool = true
-  @State private var selectedPriority: Priority = .none
 
   // Recurrence state
   @State private var recurrenceMode: RecurrenceMode = .ui
@@ -368,7 +367,6 @@ struct ScheduleEditView: View {
       self._startDate = State(initialValue: schedule.dtstart)
       self._notes = State(initialValue: schedule.notes)
       self._enabled = State(initialValue: schedule.enabled)
-      self._selectedPriority = State(initialValue: schedule.priority)
       self._selectedTemplate = State(initialValue: nil)
 
       // UI fields will be populated by syncRRuleStringToUI() in onAppear
@@ -400,9 +398,6 @@ struct ScheduleEditView: View {
           if !isOneTimeEvent {
             recurrenceSection
           }
-
-          // Priority
-          prioritySection
 
           // Actions
           actionsSection
@@ -1066,27 +1061,6 @@ struct ScheduleEditView: View {
     }
   }
 
-  // MARK: - Priority Section
-  private var prioritySection: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Text("Priority")
-        .font(.headline)
-        .fontWeight(.semibold)
-
-      HStack(spacing: 12) {
-        ForEach(Priority.allCases, id: \.self) { priority in
-          PriorityButton(
-            priority: priority,
-            isSelected: selectedPriority == priority,
-            action: {
-              selectedPriority = priority
-            }
-          )
-        }
-      }
-    }
-  }
-
   // MARK: - Actions Section
   private var actionsSection: some View {
     VStack(alignment: .leading, spacing: 12) {
@@ -1548,7 +1522,6 @@ struct ScheduleEditView: View {
           dtstart: startDate,
           notes: trimmedNotes,
           enabled: enabled,
-          priority: selectedPriority
         )
         // Get the newly created schedule ID from viewModel
         savedScheduleId = scheduleViewModel.schedules.first { $0.name == trimmedName }?.id
@@ -1559,7 +1532,6 @@ struct ScheduleEditView: View {
         updatedSchedule.dtstart = startDate
         updatedSchedule.notes = trimmedNotes
         updatedSchedule.enabled = enabled
-        updatedSchedule.priority = selectedPriority
 
         await scheduleViewModel.updateSchedule(updatedSchedule)
         savedScheduleId = schedule.id
@@ -1623,55 +1595,6 @@ struct QuickTemplateButton: View {
             lineWidth: 1
           )
       )
-    }
-    .buttonStyle(.plain)
-  }
-}
-
-// MARK: - Priority Button Component
-struct PriorityButton: View {
-  let priority: Priority
-  let isSelected: Bool
-  let action: () -> Void
-
-  private var borderColor: Color {
-    switch priority {
-    case .none: return .gray
-    case .low: return .green
-    case .medium: return .orange
-    case .high: return .red
-    }
-  }
-
-  private var textColor: Color {
-    if isSelected {
-      return .white
-    }
-    switch priority {
-    case .none: return .primary
-    case .low: return .green
-    case .medium: return .orange
-    case .high: return .red
-    }
-  }
-
-  var body: some View {
-    Button(action: action) {
-      Text(priority.displayName)
-        .font(.subheadline)
-        .fontWeight(.medium)
-        .padding(.horizontal, 20)
-        .padding(.vertical, 10)
-        .frame(maxWidth: .infinity)
-        .background(
-          isSelected ? borderColor : Color.clear
-        )
-        .foregroundColor(textColor)
-        .overlay(
-          RoundedRectangle(cornerRadius: 8)
-            .stroke(borderColor, lineWidth: 1.5)
-        )
-        .cornerRadius(8)
     }
     .buttonStyle(.plain)
   }

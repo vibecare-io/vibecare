@@ -1,31 +1,5 @@
 import Foundation
 
-// MARK: - Priority Level
-enum Priority: String, Codable, CaseIterable {
-    case none
-    case low
-    case medium
-    case high
-
-    var displayName: String {
-        switch self {
-        case .none: return "None"
-        case .low: return "Low"
-        case .medium: return "Medium"
-        case .high: return "High"
-        }
-    }
-
-    var color: String {
-        switch self {
-        case .none: return "gray"
-        case .low: return "green"
-        case .medium: return "orange"
-        case .high: return "red"
-        }
-    }
-}
-
 struct Schedule: Identifiable, Codable, Equatable, Hashable {
     let id: String  // Client-authoritative ID for local-first architecture
     let profileId: String  // Direct profile reference for easier querying
@@ -37,7 +11,6 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
     var lastExecution: Date?
     var notes: String
     var enabled: Bool
-    var priority: Priority
     // Note: action associations are handled via schedule_actions join table
     let createdAt: Date
     var updatedAt: Date
@@ -53,7 +26,6 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         lastExecution: Date? = nil,
         notes: String = "",
         enabled: Bool = true,
-        priority: Priority = .none,
         createdAt: Date = Date(),
         updatedAt: Date = Date()
     ) {
@@ -67,7 +39,6 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         self.lastExecution = lastExecution
         self.notes = notes
         self.enabled = enabled
-        self.priority = priority
         self.createdAt = createdAt
         self.updatedAt = updatedAt
     }
