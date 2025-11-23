@@ -160,6 +160,7 @@ struct SVGIconCell: View {
     .padding()
 }
 
+#if DEBUG
 #Preview("Grid of Icons") {
     LazyVGrid(columns: [
         GridItem(.adaptive(minimum: 70), spacing: 12)
@@ -175,3 +176,4 @@ struct SVGIconCell: View {
     .padding()
     .frame(width: 400)
 }
+#endif
