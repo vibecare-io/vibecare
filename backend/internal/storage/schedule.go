@@ -7,9 +7,37 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/teambition/rrule-go"
 	"github.com/vibecare-io/vibecare/backend/internal/models"
 	"github.com/vibecare-io/vibecare/backend/internal/validation"
 )
+
+// calculateNextFromRRule calculates the next execution time based on an RRule string.
+// Returns zero time if the rrule is empty, invalid, or has no future occurrences.
+func calculateNextFromRRule(rruleStr string, dtstart, after time.Time) (time.Time, error) {
+	// Empty rrule means one-time event (no next execution)
+	if strings.TrimSpace(rruleStr) == "" {
+		return time.Time{}, fmt.Errorf("empty rrule")
+	}
+
+	// Build complete RRule string with DTSTART
+	fullRRule := "DTSTART:" + dtstart.Format("20060102T150405Z") + "\nRRULE:" + rruleStr
+
+	// Parse the RRule using rrule-go library
+	rule, err := rrule.StrToRRule(fullRRule)
+	if err != nil {
+		return time.Time{}, fmt.Errorf("failed to parse rrule: %w", err)
+	}
+
+	// Create RSet and add the rule
+	rset := &rrule.Set{}
+	rset.RRule(rule)
+
+	// Get the next occurrence after the given time
+	next := rset.After(after, false)
+
+	return next, nil
+}
 
 // CreateSchedule creates a new schedule
 func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
@@ -31,7 +59,8 @@ func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule strin
 		return nil, err
 	}
 
-	if err := validation.ValidateRequired("rrule", rrule); err != nil {
+	// Validate RRule (empty string allowed for one-time events)
+	if err := validation.ValidateRRule(rrule); err != nil {
 		return nil, err
 	}
 
@@ -72,23 +101,48 @@ func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule strin
 		return nil, fmt.Errorf("routine with ID %s does not exist", routineID)
 	}
 
+	// Determine schedule type based on rrule
+	scheduleType := models.ScheduleTypeRecurring
+	if strings.TrimSpace(rrule) == "" {
+		scheduleType = models.ScheduleTypeOneShot
+	}
+
+	// Calculate initial next_execution
+	var nextExecution *time.Time
+	if scheduleType == models.ScheduleTypeOneShot {
+		// For one-time events, next_execution is dtstart (if in future)
+		if dtstart != nil && dtstart.After(time.Now()) {
+			nextExecution = dtstart
+		}
+	} else {
+		// For recurring events, calculate from rrule
+		if dtstart != nil {
+			nextTime, err := calculateNextFromRRule(rrule, *dtstart, time.Now())
+			if err == nil && !nextTime.IsZero() {
+				nextExecution = &nextTime
+			}
+		}
+	}
+
 	schedule := &models.Schedule{
-		ScheduleID: scheduleID,
-		ProfileID:  profileID,
-		RoutineID:  routineID,
-		Name:      sanitizedName,
-		RRule:     rrule,
-		DTStart:   dtstart,
-		ExDates:   exdates,
-		Notes:     sanitizedNotes,
-		Enabled:   enabled,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ScheduleID:    scheduleID,
+		ProfileID:     profileID,
+		RoutineID:     routineID,
+		ScheduleType:  scheduleType,
+		Name:          sanitizedName,
+		RRule:         rrule,
+		DTStart:       dtstart,
+		ExDates:       exdates,
+		NextExecution: nextExecution,
+		Notes:         sanitizedNotes,
+		Enabled:       enabled,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	query := `
-		INSERT INTO schedules (schedule_id, profile_id, routine_id, name, rrule, dtstart, exdates, notes, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO schedules (schedule_id, profile_id, routine_id, schedule_type, name, rrule, dtstart, exdates, next_execution, notes, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	var dtStartStr sql.NullString
@@ -103,14 +157,22 @@ func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule strin
 		exdatesStr.String = strings.Join(exdates, ",")
 	}
 
+	var nextExecStr sql.NullString
+	if nextExecution != nil {
+		nextExecStr.Valid = true
+		nextExecStr.String = nextExecution.Format(time.RFC3339)
+	}
+
 	_, err = db.Exec(query,
 		schedule.ScheduleID,
 		schedule.ProfileID,
 		schedule.RoutineID,
+		string(schedule.ScheduleType),
 		schedule.Name,
 		schedule.RRule,
 		dtStartStr,
 		exdatesStr,
+		nextExecStr,
 		schedule.Notes,
 		schedule.Enabled,
 		schedule.CreatedAt.Format(time.RFC3339),
@@ -127,25 +189,28 @@ func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule strin
 // GetSchedule retrieves a schedule by ID
 func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 	query := `
-		SELECT schedule_id, profile_id, routine_id, name, rrule, dtstart, exdates,
-		       last_execution, notes, enabled, created_at, updated_at
+		SELECT schedule_id, profile_id, routine_id, schedule_type, name, rrule, dtstart, exdates,
+		       last_execution, next_execution, notes, enabled, created_at, updated_at
 		FROM schedules
 		WHERE schedule_id = ?
 	`
 
 	var schedule models.Schedule
-	var dtstart, lastExecution, exdatesStr sql.NullString
+	var scheduleType string
+	var dtstart, lastExecution, nextExecution, exdatesStr sql.NullString
 	var createdAt, updatedAt string
 
 	err := db.QueryRow(query, id).Scan(
 		&schedule.ScheduleID,
 		&schedule.ProfileID,
 		&schedule.RoutineID,
+		&scheduleType,
 		&schedule.Name,
 		&schedule.RRule,
 		&dtstart,
 		&exdatesStr,
 		&lastExecution,
+		&nextExecution,
 		&schedule.Notes,
 		&schedule.Enabled,
 		&createdAt,
@@ -158,6 +223,8 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	schedule.ScheduleType = models.ScheduleType(scheduleType)
 
 	if dtstart.Valid {
 		t, parseErr := time.Parse(time.RFC3339, dtstart.String)
@@ -173,6 +240,14 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 			return nil, fmt.Errorf("failed to parse last_execution: %w", parseErr)
 		}
 		schedule.LastExecution = &t
+	}
+
+	if nextExecution.Valid {
+		t, parseErr := time.Parse(time.RFC3339, nextExecution.String)
+		if parseErr != nil {
+			return nil, fmt.Errorf("failed to parse next_execution: %w", parseErr)
+		}
+		schedule.NextExecution = &t
 	}
 
 	if exdatesStr.Valid && exdatesStr.String != "" {
@@ -196,8 +271,8 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 // ListSchedulesByRoutine lists all schedules for a routine
 func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, error) {
 	query := `
-		SELECT schedule_id, profile_id, routine_id, name, rrule, dtstart, exdates,
-		       last_execution, notes, enabled, created_at, updated_at
+		SELECT schedule_id, profile_id, routine_id, schedule_type, name, rrule, dtstart, exdates,
+		       last_execution, next_execution, notes, enabled, created_at, updated_at
 		FROM schedules
 		WHERE routine_id = ?
 		ORDER BY created_at DESC
@@ -212,18 +287,21 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 	var schedules []*models.Schedule
 	for rows.Next() {
 		var schedule models.Schedule
-		var dtstart, lastExecution, exdatesStr sql.NullString
+		var scheduleType string
+		var dtstart, lastExecution, nextExecution, exdatesStr sql.NullString
 		var createdAt, updatedAt string
 
 		err := rows.Scan(
 			&schedule.ScheduleID,
 			&schedule.ProfileID,
 			&schedule.RoutineID,
+			&scheduleType,
 			&schedule.Name,
 			&schedule.RRule,
 			&dtstart,
 			&exdatesStr,
 			&lastExecution,
+			&nextExecution,
 			&schedule.Notes,
 			&schedule.Enabled,
 			&createdAt,
@@ -232,6 +310,8 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 		if err != nil {
 			return nil, err
 		}
+
+		schedule.ScheduleType = models.ScheduleType(scheduleType)
 
 		if dtstart.Valid {
 			t, parseErr := time.Parse(time.RFC3339, dtstart.String)
@@ -247,6 +327,14 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 				return nil, fmt.Errorf("failed to parse last_execution for schedule %s: %w", schedule.ScheduleID, parseErr)
 			}
 			schedule.LastExecution = &t
+		}
+
+		if nextExecution.Valid {
+			t, parseErr := time.Parse(time.RFC3339, nextExecution.String)
+			if parseErr != nil {
+				return nil, fmt.Errorf("failed to parse next_execution for schedule %s: %w", schedule.ScheduleID, parseErr)
+			}
+			schedule.NextExecution = &t
 		}
 
 		if exdatesStr.Valid && exdatesStr.String != "" {
@@ -279,7 +367,8 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 	}
 	schedule.Name = sanitizedName
 
-	if err := validation.ValidateRequired("rrule", schedule.RRule); err != nil {
+	// Validate RRule (empty string allowed for one-time events)
+	if err := validation.ValidateRRule(schedule.RRule); err != nil {
 		return nil, err
 	}
 
@@ -295,9 +384,38 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 
 	schedule.UpdatedAt = time.Now()
 
+	// Recalculate schedule_type based on rrule
+	scheduleType := models.ScheduleTypeRecurring
+	if strings.TrimSpace(schedule.RRule) == "" {
+		scheduleType = models.ScheduleTypeOneShot
+	}
+	schedule.ScheduleType = scheduleType
+
+	// Recalculate next_execution
+	var nextExecution *time.Time
+	if scheduleType == models.ScheduleTypeOneShot {
+		// One-time event: next_execution is dtstart if in future and not yet executed
+		if schedule.DTStart != nil && schedule.DTStart.After(time.Now()) && schedule.LastExecution == nil {
+			nextExecution = schedule.DTStart
+		}
+	} else {
+		// Recurring event: calculate from rrule
+		if schedule.DTStart != nil {
+			now := time.Now()
+			if schedule.LastExecution != nil {
+				now = *schedule.LastExecution
+			}
+			nextTime, err := calculateNextFromRRule(schedule.RRule, *schedule.DTStart, now)
+			if err == nil && !nextTime.IsZero() {
+				nextExecution = &nextTime
+			}
+		}
+	}
+	schedule.NextExecution = nextExecution
+
 	query := `
 		UPDATE schedules
-		SET name = ?, rrule = ?, dtstart = ?, exdates = ?, notes = ?, enabled = ?, updated_at = ?
+		SET name = ?, rrule = ?, dtstart = ?, exdates = ?, schedule_type = ?, next_execution = ?, notes = ?, enabled = ?, updated_at = ?
 		WHERE schedule_id = ?
 	`
 
@@ -313,11 +431,19 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 		exdatesStr.String = strings.Join(schedule.ExDates, ",")
 	}
 
+	var nextExecStr sql.NullString
+	if nextExecution != nil {
+		nextExecStr.Valid = true
+		nextExecStr.String = nextExecution.Format(time.RFC3339)
+	}
+
 	_, err = db.Exec(query,
 		schedule.Name,
 		schedule.RRule,
 		dtStartStr,
 		exdatesStr,
+		string(scheduleType),
+		nextExecStr,
 		schedule.Notes,
 		schedule.Enabled,
 		schedule.UpdatedAt.Format(time.RFC3339),
@@ -351,6 +477,7 @@ func (db *DB) EnableSchedule(scheduleID string, enabled bool) error {
 }
 
 // UpdateLastExecution updates the last execution time for a schedule
+// DEPRECATED: Use UpdateScheduleExecution instead for atomic updates
 func (db *DB) UpdateLastExecution(scheduleID string, executionTime time.Time) error {
 	query := `
 		UPDATE schedules
@@ -364,6 +491,56 @@ func (db *DB) UpdateLastExecution(scheduleID string, executionTime time.Time) er
 		scheduleID,
 	)
 	return err
+}
+
+// UpdateScheduleExecution atomically updates last_execution and calculates/stores next_execution.
+// This prevents race conditions by updating both fields in a single transaction.
+func (db *DB) UpdateScheduleExecution(scheduleID string, scheduleType models.ScheduleType, rrule string, dtstart time.Time) error {
+	// Begin transaction for atomic update
+	tx, err := db.Begin()
+	if err != nil {
+		return fmt.Errorf("failed to begin transaction: %w", err)
+	}
+	defer tx.Rollback()
+
+	now := time.Now()
+	var nextExecStr sql.NullString
+
+	// Calculate next execution based on schedule type
+	if scheduleType == models.ScheduleTypeRecurring {
+		nextTime, err := calculateNextFromRRule(rrule, dtstart, now)
+		if err == nil && !nextTime.IsZero() {
+			nextExecStr.Valid = true
+			nextExecStr.String = nextTime.Format(time.RFC3339)
+		}
+		// If error or zero time, nextExecStr remains NULL (no more occurrences)
+	}
+	// For ONE_SHOT, nextExecStr remains NULL (no next execution after first run)
+
+	query := `
+		UPDATE schedules
+		SET last_execution = ?,
+		    next_execution = ?,
+		    updated_at = ?
+		WHERE schedule_id = ?
+	`
+
+	_, err = tx.Exec(query,
+		now.Format(time.RFC3339),
+		nextExecStr,
+		now.Format(time.RFC3339),
+		scheduleID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to update schedule execution: %w", err)
+	}
+
+	// Commit transaction
+	if err := tx.Commit(); err != nil {
+		return fmt.Errorf("failed to commit transaction: %w", err)
+	}
+
+	return nil
 }
 
 // GetActiveSchedules retrieves all enabled schedules

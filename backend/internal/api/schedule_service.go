@@ -46,7 +46,8 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
 	}
 
-	if err := validation.ValidateRequired("rrule", req.Rrule); err != nil {
+	// Validate RRule (empty string allowed for one-time events)
+	if err := validation.ValidateRRule(req.Rrule); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid rrule: %v", err)
 	}
 
@@ -126,7 +127,8 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.UpdateScheduleReque
 		return nil, status.Errorf(codes.InvalidArgument, "invalid name: %v", err)
 	}
 
-	if err := validation.ValidateRequired("rrule", req.Rrule); err != nil {
+	// Validate RRule (empty string allowed for one-time events)
+	if err := validation.ValidateRRule(req.Rrule); err != nil {
 		return nil, status.Errorf(codes.InvalidArgument, "invalid rrule: %v", err)
 	}
 
@@ -228,7 +230,7 @@ func (s *Server) ListSchedules(ctx context.Context, req *pb.ListSchedulesRequest
 	}, nil
 }
 
-// GetNextExecution calculates the next execution time for a schedule
+// GetNextExecution returns the pre-calculated next execution time for a schedule
 func (s *Server) GetNextExecution(ctx context.Context, req *pb.GetNextExecutionRequest) (*pb.GetNextExecutionResponse, error) {
 	s.logger.Info("Getting next execution", zap.String("schedule_id", req.ScheduleId))
 
@@ -240,17 +242,13 @@ func (s *Server) GetNextExecution(ctx context.Context, req *pb.GetNextExecutionR
 		return nil, status.Errorf(codes.NotFound, "schedule not found")
 	}
 
-	// TODO: Implement RRule parsing and next execution calculation
-	// For now, return a placeholder response
 	response := &pb.GetNextExecutionResponse{
 		IsPaused: !schedule.Enabled,
 	}
 
-	// If enabled and has dtstart, calculate a simple next execution
-	if schedule.Enabled && schedule.DTStart != nil {
-		// Simple implementation: add 1 hour to dtstart for demo
-		nextExecution := schedule.DTStart.Add(time.Hour)
-		response.NextExecution = timestamppb.New(nextExecution)
+	// Return the pre-calculated next_execution from the database
+	if schedule.NextExecution != nil {
+		response.NextExecution = timestamppb.New(*schedule.NextExecution)
 	}
 
 	return response, nil
@@ -328,17 +326,29 @@ func (s *Server) ResumeAllSchedules(ctx context.Context, req *pb.ResumeAllSchedu
 
 // Helper function to convert between models and protobuf
 func convertToProtoSchedule(schedule *models.Schedule) *pb.Schedule {
+	// Convert schedule_type enum to protobuf enum
+	var scheduleType pb.ScheduleType
+	switch schedule.ScheduleType {
+	case models.ScheduleTypeOneShot:
+		scheduleType = pb.ScheduleType_SCHEDULE_TYPE_ONE_SHOT
+	case models.ScheduleTypeRecurring:
+		scheduleType = pb.ScheduleType_SCHEDULE_TYPE_RECURRING
+	default:
+		scheduleType = pb.ScheduleType_SCHEDULE_TYPE_UNSPECIFIED
+	}
+
 	pbSchedule := &pb.Schedule{
-		ScheduleId: schedule.ScheduleID,
-		ProfileId:  schedule.ProfileID,
-		RoutineId:  schedule.RoutineID,
-		Name:       schedule.Name,
-		Rrule:      schedule.RRule,
-		Exdates:    schedule.ExDates,
-		Notes:      schedule.Notes,
-		Enabled:    schedule.Enabled,
-		CreatedAt:  timestamppb.New(schedule.CreatedAt),
-		UpdatedAt:  timestamppb.New(schedule.UpdatedAt),
+		ScheduleId:   schedule.ScheduleID,
+		ProfileId:    schedule.ProfileID,
+		RoutineId:    schedule.RoutineID,
+		ScheduleType: scheduleType,
+		Name:         schedule.Name,
+		Rrule:        schedule.RRule,
+		Exdates:      schedule.ExDates,
+		Notes:        schedule.Notes,
+		Enabled:      schedule.Enabled,
+		CreatedAt:    timestamppb.New(schedule.CreatedAt),
+		UpdatedAt:    timestamppb.New(schedule.UpdatedAt),
 	}
 
 	if schedule.DTStart != nil {
@@ -347,6 +357,10 @@ func convertToProtoSchedule(schedule *models.Schedule) *pb.Schedule {
 
 	if schedule.LastExecution != nil {
 		pbSchedule.LastExecution = timestamppb.New(*schedule.LastExecution)
+	}
+
+	if schedule.NextExecution != nil {
+		pbSchedule.NextExecution = timestamppb.New(*schedule.NextExecution)
 	}
 
 	return pbSchedule

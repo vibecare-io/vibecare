@@ -148,6 +148,49 @@ public enum VCActionType: SwiftProtobuf.Enum, Swift.CaseIterable {
 
 }
 
+/// ScheduleType defines whether a schedule runs once or repeats
+public enum VCScheduleType: SwiftProtobuf.Enum, Swift.CaseIterable {
+  public typealias RawValue = Int
+  case unspecified // = 0
+
+  /// Execute once at dtstart
+  case oneShot // = 1
+
+  /// Repeat according to rrule
+  case recurring // = 2
+  case UNRECOGNIZED(Int)
+
+  public init() {
+    self = .unspecified
+  }
+
+  public init?(rawValue: Int) {
+    switch rawValue {
+    case 0: self = .unspecified
+    case 1: self = .oneShot
+    case 2: self = .recurring
+    default: self = .UNRECOGNIZED(rawValue)
+    }
+  }
+
+  public var rawValue: Int {
+    switch self {
+    case .unspecified: return 0
+    case .oneShot: return 1
+    case .recurring: return 2
+    case .UNRECOGNIZED(let i): return i
+    }
+  }
+
+  // The compiler won't synthesize support with the UNRECOGNIZED case.
+  public static let allCases: [VCScheduleType] = [
+    .unspecified,
+    .oneShot,
+    .recurring,
+  ]
+
+}
+
 public enum VCEventType: SwiftProtobuf.Enum, Swift.CaseIterable {
   public typealias RawValue = Int
   case unspecified // = 0
@@ -398,71 +441,108 @@ public struct VCRoutine: Sendable {
 }
 
 /// Schedule - RRule-based scheduling aligned with SQLite schema
-public struct VCSchedule: Sendable {
+public struct VCSchedule: @unchecked Sendable {
   // SwiftProtobuf.Message conformance is added in an extension below. See the
   // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
   // methods supported on all messages.
 
-  public var scheduleID: String = String()
+  public var scheduleID: String {
+    get {return _storage._scheduleID}
+    set {_uniqueStorage()._scheduleID = newValue}
+  }
 
-  public var profileID: String = String()
+  public var profileID: String {
+    get {return _storage._profileID}
+    set {_uniqueStorage()._profileID = newValue}
+  }
 
-  public var routineID: String = String()
+  public var routineID: String {
+    get {return _storage._routineID}
+    set {_uniqueStorage()._routineID = newValue}
+  }
 
-  public var name: String = String()
+  public var name: String {
+    get {return _storage._name}
+    set {_uniqueStorage()._name = newValue}
+  }
 
-  public var rrule: String = String()
+  public var rrule: String {
+    get {return _storage._rrule}
+    set {_uniqueStorage()._rrule = newValue}
+  }
 
   public var dtstart: SwiftProtobuf.Google_Protobuf_Timestamp {
-    get {return _dtstart ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
-    set {_dtstart = newValue}
+    get {return _storage._dtstart ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_uniqueStorage()._dtstart = newValue}
   }
   /// Returns true if `dtstart` has been explicitly set.
-  public var hasDtstart: Bool {return self._dtstart != nil}
+  public var hasDtstart: Bool {return _storage._dtstart != nil}
   /// Clears the value of `dtstart`. Subsequent reads from it will return its default value.
-  public mutating func clearDtstart() {self._dtstart = nil}
+  public mutating func clearDtstart() {_uniqueStorage()._dtstart = nil}
 
-  public var exdates: [String] = []
+  public var exdates: [String] {
+    get {return _storage._exdates}
+    set {_uniqueStorage()._exdates = newValue}
+  }
 
   public var lastExecution: SwiftProtobuf.Google_Protobuf_Timestamp {
-    get {return _lastExecution ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
-    set {_lastExecution = newValue}
+    get {return _storage._lastExecution ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_uniqueStorage()._lastExecution = newValue}
   }
   /// Returns true if `lastExecution` has been explicitly set.
-  public var hasLastExecution: Bool {return self._lastExecution != nil}
+  public var hasLastExecution: Bool {return _storage._lastExecution != nil}
   /// Clears the value of `lastExecution`. Subsequent reads from it will return its default value.
-  public mutating func clearLastExecution() {self._lastExecution = nil}
+  public mutating func clearLastExecution() {_uniqueStorage()._lastExecution = nil}
 
-  public var notes: String = String()
+  public var notes: String {
+    get {return _storage._notes}
+    set {_uniqueStorage()._notes = newValue}
+  }
 
-  public var enabled: Bool = false
+  public var enabled: Bool {
+    get {return _storage._enabled}
+    set {_uniqueStorage()._enabled = newValue}
+  }
 
   public var createdAt: SwiftProtobuf.Google_Protobuf_Timestamp {
-    get {return _createdAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
-    set {_createdAt = newValue}
+    get {return _storage._createdAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_uniqueStorage()._createdAt = newValue}
   }
   /// Returns true if `createdAt` has been explicitly set.
-  public var hasCreatedAt: Bool {return self._createdAt != nil}
+  public var hasCreatedAt: Bool {return _storage._createdAt != nil}
   /// Clears the value of `createdAt`. Subsequent reads from it will return its default value.
-  public mutating func clearCreatedAt() {self._createdAt = nil}
+  public mutating func clearCreatedAt() {_uniqueStorage()._createdAt = nil}
 
   public var updatedAt: SwiftProtobuf.Google_Protobuf_Timestamp {
-    get {return _updatedAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
-    set {_updatedAt = newValue}
+    get {return _storage._updatedAt ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_uniqueStorage()._updatedAt = newValue}
   }
   /// Returns true if `updatedAt` has been explicitly set.
-  public var hasUpdatedAt: Bool {return self._updatedAt != nil}
+  public var hasUpdatedAt: Bool {return _storage._updatedAt != nil}
   /// Clears the value of `updatedAt`. Subsequent reads from it will return its default value.
-  public mutating func clearUpdatedAt() {self._updatedAt = nil}
+  public mutating func clearUpdatedAt() {_uniqueStorage()._updatedAt = nil}
+
+  /// Type of schedule
+  public var scheduleType: VCScheduleType {
+    get {return _storage._scheduleType}
+    set {_uniqueStorage()._scheduleType = newValue}
+  }
+
+  /// Pre-calculated next run time
+  public var nextExecution: SwiftProtobuf.Google_Protobuf_Timestamp {
+    get {return _storage._nextExecution ?? SwiftProtobuf.Google_Protobuf_Timestamp()}
+    set {_uniqueStorage()._nextExecution = newValue}
+  }
+  /// Returns true if `nextExecution` has been explicitly set.
+  public var hasNextExecution: Bool {return _storage._nextExecution != nil}
+  /// Clears the value of `nextExecution`. Subsequent reads from it will return its default value.
+  public mutating func clearNextExecution() {_uniqueStorage()._nextExecution = nil}
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
 
-  fileprivate var _dtstart: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
-  fileprivate var _lastExecution: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
-  fileprivate var _createdAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
-  fileprivate var _updatedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+  fileprivate var _storage = _StorageClass.defaultInstance
 }
 
 /// RRule structure for JSON encoding/decoding
@@ -1903,6 +1983,10 @@ extension VCActionType: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0ACTION_TYPE_UNSPECIFIED\0\u{1}ACTION_TYPE_NOTIFICATION\0\u{1}ACTION_TYPE_OPEN_LINK\0\u{1}ACTION_TYPE_SEND_EMAIL\0\u{1}ACTION_TYPE_RUN_SCRIPT\0\u{1}ACTION_TYPE_PLAY_SOUND\0\u{1}ACTION_TYPE_SYSTEM_COMMAND\0\u{1}ACTION_TYPE_API_CALL\0\u{1}ACTION_TYPE_LOG_ENTRY\0")
 }
 
+extension VCScheduleType: SwiftProtobuf._ProtoNameProviding {
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0SCHEDULE_TYPE_UNSPECIFIED\0\u{1}SCHEDULE_TYPE_ONE_SHOT\0\u{1}SCHEDULE_TYPE_RECURRING\0")
+}
+
 extension VCEventType: SwiftProtobuf._ProtoNameProviding {
   public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{2}\0EVENT_TYPE_UNSPECIFIED\0\u{1}EVENT_TYPE_SCHEDULE_TRIGGERED\0\u{1}EVENT_TYPE_ROUTINE_EXECUTED\0")
 }
@@ -2179,88 +2263,160 @@ extension VCRoutine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
 
 extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Schedule"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}profile_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}profile_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0\u{3}schedule_type\0\u{3}next_execution\0")
+
+  fileprivate class _StorageClass {
+    var _scheduleID: String = String()
+    var _profileID: String = String()
+    var _routineID: String = String()
+    var _name: String = String()
+    var _rrule: String = String()
+    var _dtstart: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+    var _exdates: [String] = []
+    var _lastExecution: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+    var _notes: String = String()
+    var _enabled: Bool = false
+    var _createdAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+    var _updatedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+    var _scheduleType: VCScheduleType = .unspecified
+    var _nextExecution: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+
+      // This property is used as the initial default value for new instances of the type.
+      // The type itself is protecting the reference to its storage via CoW semantics.
+      // This will force a copy to be made of this reference when the first mutation occurs;
+      // hence, it is safe to mark this as `nonisolated(unsafe)`.
+      static nonisolated(unsafe) let defaultInstance = _StorageClass()
+
+    private init() {}
+
+    init(copying source: _StorageClass) {
+      _scheduleID = source._scheduleID
+      _profileID = source._profileID
+      _routineID = source._routineID
+      _name = source._name
+      _rrule = source._rrule
+      _dtstart = source._dtstart
+      _exdates = source._exdates
+      _lastExecution = source._lastExecution
+      _notes = source._notes
+      _enabled = source._enabled
+      _createdAt = source._createdAt
+      _updatedAt = source._updatedAt
+      _scheduleType = source._scheduleType
+      _nextExecution = source._nextExecution
+    }
+  }
+
+  fileprivate mutating func _uniqueStorage() -> _StorageClass {
+    if !isKnownUniquelyReferenced(&_storage) {
+      _storage = _StorageClass(copying: _storage)
+    }
+    return _storage
+  }
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
-    while let fieldNumber = try decoder.nextFieldNumber() {
-      // The use of inline closures is to circumvent an issue where the compiler
-      // allocates stack space for every case branch when no optimizations are
-      // enabled. https://github.com/apple/swift-protobuf/issues/1034
-      switch fieldNumber {
-      case 1: try { try decoder.decodeSingularStringField(value: &self.scheduleID) }()
-      case 2: try { try decoder.decodeSingularStringField(value: &self.profileID) }()
-      case 3: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
-      case 4: try { try decoder.decodeSingularStringField(value: &self.name) }()
-      case 5: try { try decoder.decodeSingularStringField(value: &self.rrule) }()
-      case 6: try { try decoder.decodeSingularMessageField(value: &self._dtstart) }()
-      case 7: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
-      case 8: try { try decoder.decodeSingularMessageField(value: &self._lastExecution) }()
-      case 9: try { try decoder.decodeSingularStringField(value: &self.notes) }()
-      case 10: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
-      case 11: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
-      case 12: try { try decoder.decodeSingularMessageField(value: &self._updatedAt) }()
-      default: break
+    _ = _uniqueStorage()
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      while let fieldNumber = try decoder.nextFieldNumber() {
+        // The use of inline closures is to circumvent an issue where the compiler
+        // allocates stack space for every case branch when no optimizations are
+        // enabled. https://github.com/apple/swift-protobuf/issues/1034
+        switch fieldNumber {
+        case 1: try { try decoder.decodeSingularStringField(value: &_storage._scheduleID) }()
+        case 2: try { try decoder.decodeSingularStringField(value: &_storage._profileID) }()
+        case 3: try { try decoder.decodeSingularStringField(value: &_storage._routineID) }()
+        case 4: try { try decoder.decodeSingularStringField(value: &_storage._name) }()
+        case 5: try { try decoder.decodeSingularStringField(value: &_storage._rrule) }()
+        case 6: try { try decoder.decodeSingularMessageField(value: &_storage._dtstart) }()
+        case 7: try { try decoder.decodeRepeatedStringField(value: &_storage._exdates) }()
+        case 8: try { try decoder.decodeSingularMessageField(value: &_storage._lastExecution) }()
+        case 9: try { try decoder.decodeSingularStringField(value: &_storage._notes) }()
+        case 10: try { try decoder.decodeSingularBoolField(value: &_storage._enabled) }()
+        case 11: try { try decoder.decodeSingularMessageField(value: &_storage._createdAt) }()
+        case 12: try { try decoder.decodeSingularMessageField(value: &_storage._updatedAt) }()
+        case 13: try { try decoder.decodeSingularEnumField(value: &_storage._scheduleType) }()
+        case 14: try { try decoder.decodeSingularMessageField(value: &_storage._nextExecution) }()
+        default: break
+        }
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
-    // The use of inline closures is to circumvent an issue where the compiler
-    // allocates stack space for every if/case branch local when no optimizations
-    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
-    // https://github.com/apple/swift-protobuf/issues/1182
-    if !self.scheduleID.isEmpty {
-      try visitor.visitSingularStringField(value: self.scheduleID, fieldNumber: 1)
+    try withExtendedLifetime(_storage) { (_storage: _StorageClass) in
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every if/case branch local when no optimizations
+      // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+      // https://github.com/apple/swift-protobuf/issues/1182
+      if !_storage._scheduleID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._scheduleID, fieldNumber: 1)
+      }
+      if !_storage._profileID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._profileID, fieldNumber: 2)
+      }
+      if !_storage._routineID.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._routineID, fieldNumber: 3)
+      }
+      if !_storage._name.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._name, fieldNumber: 4)
+      }
+      if !_storage._rrule.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._rrule, fieldNumber: 5)
+      }
+      try { if let v = _storage._dtstart {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      } }()
+      if !_storage._exdates.isEmpty {
+        try visitor.visitRepeatedStringField(value: _storage._exdates, fieldNumber: 7)
+      }
+      try { if let v = _storage._lastExecution {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
+      } }()
+      if !_storage._notes.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._notes, fieldNumber: 9)
+      }
+      if _storage._enabled != false {
+        try visitor.visitSingularBoolField(value: _storage._enabled, fieldNumber: 10)
+      }
+      try { if let v = _storage._createdAt {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
+      } }()
+      try { if let v = _storage._updatedAt {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 12)
+      } }()
+      if _storage._scheduleType != .unspecified {
+        try visitor.visitSingularEnumField(value: _storage._scheduleType, fieldNumber: 13)
+      }
+      try { if let v = _storage._nextExecution {
+        try visitor.visitSingularMessageField(value: v, fieldNumber: 14)
+      } }()
     }
-    if !self.profileID.isEmpty {
-      try visitor.visitSingularStringField(value: self.profileID, fieldNumber: 2)
-    }
-    if !self.routineID.isEmpty {
-      try visitor.visitSingularStringField(value: self.routineID, fieldNumber: 3)
-    }
-    if !self.name.isEmpty {
-      try visitor.visitSingularStringField(value: self.name, fieldNumber: 4)
-    }
-    if !self.rrule.isEmpty {
-      try visitor.visitSingularStringField(value: self.rrule, fieldNumber: 5)
-    }
-    try { if let v = self._dtstart {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
-    } }()
-    if !self.exdates.isEmpty {
-      try visitor.visitRepeatedStringField(value: self.exdates, fieldNumber: 7)
-    }
-    try { if let v = self._lastExecution {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
-    } }()
-    if !self.notes.isEmpty {
-      try visitor.visitSingularStringField(value: self.notes, fieldNumber: 9)
-    }
-    if self.enabled != false {
-      try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 10)
-    }
-    try { if let v = self._createdAt {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 11)
-    } }()
-    try { if let v = self._updatedAt {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 12)
-    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
   public static func ==(lhs: VCSchedule, rhs: VCSchedule) -> Bool {
-    if lhs.scheduleID != rhs.scheduleID {return false}
-    if lhs.profileID != rhs.profileID {return false}
-    if lhs.routineID != rhs.routineID {return false}
-    if lhs.name != rhs.name {return false}
-    if lhs.rrule != rhs.rrule {return false}
-    if lhs._dtstart != rhs._dtstart {return false}
-    if lhs.exdates != rhs.exdates {return false}
-    if lhs._lastExecution != rhs._lastExecution {return false}
-    if lhs.notes != rhs.notes {return false}
-    if lhs.enabled != rhs.enabled {return false}
-    if lhs._createdAt != rhs._createdAt {return false}
-    if lhs._updatedAt != rhs._updatedAt {return false}
+    if lhs._storage !== rhs._storage {
+      let storagesAreEqual: Bool = withExtendedLifetime((lhs._storage, rhs._storage)) { (_args: (_StorageClass, _StorageClass)) in
+        let _storage = _args.0
+        let rhs_storage = _args.1
+        if _storage._scheduleID != rhs_storage._scheduleID {return false}
+        if _storage._profileID != rhs_storage._profileID {return false}
+        if _storage._routineID != rhs_storage._routineID {return false}
+        if _storage._name != rhs_storage._name {return false}
+        if _storage._rrule != rhs_storage._rrule {return false}
+        if _storage._dtstart != rhs_storage._dtstart {return false}
+        if _storage._exdates != rhs_storage._exdates {return false}
+        if _storage._lastExecution != rhs_storage._lastExecution {return false}
+        if _storage._notes != rhs_storage._notes {return false}
+        if _storage._enabled != rhs_storage._enabled {return false}
+        if _storage._createdAt != rhs_storage._createdAt {return false}
+        if _storage._updatedAt != rhs_storage._updatedAt {return false}
+        if _storage._scheduleType != rhs_storage._scheduleType {return false}
+        if _storage._nextExecution != rhs_storage._nextExecution {return false}
+        return true
+      }
+      if !storagesAreEqual {return false}
+    }
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

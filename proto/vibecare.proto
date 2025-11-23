@@ -79,6 +79,13 @@ message Routine {
   google.protobuf.Timestamp last_executed_at = 9;
 }
 
+// ScheduleType defines whether a schedule runs once or repeats
+enum ScheduleType {
+  SCHEDULE_TYPE_UNSPECIFIED = 0;
+  SCHEDULE_TYPE_ONE_SHOT = 1;    // Execute once at dtstart
+  SCHEDULE_TYPE_RECURRING = 2;   // Repeat according to rrule
+}
+
 // Schedule - RRule-based scheduling aligned with SQLite schema
 message Schedule {
   string schedule_id = 1;
@@ -93,6 +100,8 @@ message Schedule {
   bool enabled = 10;
   google.protobuf.Timestamp created_at = 11;
   google.protobuf.Timestamp updated_at = 12;
+  ScheduleType schedule_type = 13;                   // Type of schedule
+  google.protobuf.Timestamp next_execution = 14;     // Pre-calculated next run time
 }
 
 // RRule structure for JSON encoding/decoding

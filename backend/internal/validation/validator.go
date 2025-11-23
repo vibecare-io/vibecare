@@ -8,6 +8,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/google/uuid"
+	"github.com/teambition/rrule-go"
 )
 
 // Validation limits
@@ -234,4 +235,32 @@ func ValidateAndSanitizeNotes(notes string) (string, error) {
 		return "", err
 	}
 	return sanitized, nil
+}
+
+// ValidateRRule validates an RRule string according to RFC 5545 format
+// Empty rrule is allowed (represents one-time events)
+// Non-empty rrule must be valid RFC 5545 recurrence rule format
+func ValidateRRule(rruleStr string) error {
+	// Trim whitespace
+	rruleStr = strings.TrimSpace(rruleStr)
+
+	// Empty rrule is valid - represents one-time event that executes once at DTSTART
+	if rruleStr == "" {
+		return nil
+	}
+
+	// For non-empty rrule, validate it's proper RFC 5545 format
+	// We need a DTSTART to parse with rrule-go, use a dummy value for validation
+	testDtstart := "20250101T000000Z"
+	fullRRule := "DTSTART:" + testDtstart + "\nRRULE:" + rruleStr
+
+	// Attempt to parse the RRule
+	if _, err := rrule.StrToRRule(fullRRule); err != nil {
+		return &ValidationError{
+			Field:   "rrule",
+			Message: fmt.Sprintf("invalid RFC 5545 format: %v", err),
+		}
+	}
+
+	return nil
 }

@@ -65,24 +65,34 @@ type Routine struct {
 	LastExecutedAt *time.Time        `json:"last_executed_at,omitempty"`
 }
 
+// ScheduleType defines the type of schedule (one-time or recurring)
+type ScheduleType string
+
+const (
+	ScheduleTypeOneShot   ScheduleType = "ONE_SHOT"
+	ScheduleTypeRecurring ScheduleType = "RECURRING"
+)
+
 // Schedule represents a schedule for a routine
 type Schedule struct {
-	ScheduleID    string     `json:"schedule_id"` // UUID for local-first architecture
-	ProfileID     string     `json:"profile_id"`
-	RoutineID     string     `json:"routine_id"`
-	Name          string     `json:"name"`
-	RRule         string     `json:"rrule"` // RFC 5545 RRule string
-	DTStart       *time.Time `json:"dtstart,omitempty"`
-	ExDates       []string   `json:"exdates,omitempty"`
-	LastExecution *time.Time `json:"last_execution,omitempty"`
-	Notes         string     `json:"notes"`
-	Enabled       bool       `json:"enabled"`
-	CreatedAt     time.Time  `json:"created_at"`
-	UpdatedAt     time.Time  `json:"updated_at"`
+	ScheduleID    string       `json:"schedule_id"` // UUID for local-first architecture
+	ProfileID     string       `json:"profile_id"`
+	RoutineID     string       `json:"routine_id"`
+	ScheduleType  ScheduleType `json:"schedule_type"` // ONE_SHOT or RECURRING
+	Name          string       `json:"name"`
+	RRule         string       `json:"rrule"` // RFC 5545 RRule string (empty for ONE_SHOT)
+	DTStart       *time.Time   `json:"dtstart,omitempty"`
+	ExDates       []string     `json:"exdates,omitempty"`
+	LastExecution *time.Time   `json:"last_execution,omitempty"`
+	NextExecution *time.Time   `json:"next_execution,omitempty"` // Pre-calculated for performance
+	Notes         string       `json:"notes"`
+	Enabled       bool         `json:"enabled"`
+	CreatedAt     time.Time    `json:"created_at"`
+	UpdatedAt     time.Time    `json:"updated_at"`
 
 	// Join fields (not stored in DB, populated from joins)
-	RoutineName   string     `json:"routine_name,omitempty"`
-	ProfileName   string     `json:"profile_name,omitempty"`
+	RoutineName   string       `json:"routine_name,omitempty"`
+	ProfileName   string       `json:"profile_name,omitempty"`
 }
 
 // ScheduleAction represents the join table between schedules and actions

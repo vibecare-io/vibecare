@@ -84,37 +84,20 @@ func (s *Scheduler) checkAndDispatch() {
 }
 
 // shouldTrigger determines if a schedule should be triggered at the given time
+// Now simplified to just check the pre-calculated next_execution field
 func (s *Scheduler) shouldTrigger(schedule *models.Schedule, now time.Time) bool {
-	// Parse RRule
-	rruleSet, err := s.parseRRule(schedule)
-	if err != nil {
-		s.logger.Error("Failed to parse RRule",
-			zap.String("schedule_id", schedule.ScheduleID),
-			zap.Error(err))
+	// Check if schedule has a next_execution time set
+	if schedule.NextExecution == nil {
+		// No next execution scheduled (either completed one-time or no valid next occurrence)
 		return false
 	}
 
-	// Determine the time window to check
-	// We check from last_execution (or dtstart) to now
-	var startTime time.Time
-	if schedule.LastExecution != nil {
-		startTime = *schedule.LastExecution
-	} else if schedule.DTStart != nil {
-		startTime = *schedule.DTStart
-	} else {
-		// No start time, use a reasonable default
-		startTime = now.Add(-24 * time.Hour)
-	}
-
-	// Get all occurrences between last execution and now
-	// Use false to exclude startTime (already dispatched) and avoid re-triggering
-	occurrences := rruleSet.Between(startTime, now, false)
-
-	// Check if there are any occurrences in this window
-	if len(occurrences) > 0 {
+	// Trigger if next_execution is now or in the past
+	if now.After(*schedule.NextExecution) || now.Equal(*schedule.NextExecution) {
 		s.logger.Info("Schedule should be triggered",
 			zap.String("schedule_id", schedule.ScheduleID),
-			zap.Time("last_occurrence", occurrences[len(occurrences)-1]))
+			zap.String("schedule_type", string(schedule.ScheduleType)),
+			zap.Time("next_execution", *schedule.NextExecution))
 		return true
 	}
 
@@ -159,6 +142,20 @@ func (s *Scheduler) parseRRule(schedule *models.Schedule) (*rrule.Set, error) {
 
 // dispatchScheduleEvent creates and dispatches a schedule triggered event
 func (s *Scheduler) dispatchScheduleEvent(schedule *models.Schedule) {
+	// IMPORTANT: Update execution BEFORE dispatch (optimistic locking)
+	// This prevents race conditions where the same schedule triggers multiple times
+	dtstart := time.Now()
+	if schedule.DTStart != nil {
+		dtstart = *schedule.DTStart
+	}
+
+	if err := s.db.UpdateScheduleExecution(schedule.ScheduleID, schedule.ScheduleType, schedule.RRule, dtstart); err != nil {
+		s.logger.Error("Failed to update schedule execution atomically",
+			zap.String("schedule_id", schedule.ScheduleID),
+			zap.Error(err))
+		return // Don't dispatch if we can't update - prevents duplicate triggers
+	}
+
 	// Get the routine details
 	routine, err := s.db.GetRoutine(schedule.RoutineID)
 	if err != nil {
@@ -214,13 +211,6 @@ func (s *Scheduler) dispatchScheduleEvent(schedule *models.Schedule) {
 	// Broadcast the event to subscribed clients
 	s.eventHub.Broadcast(profileID, event)
 
-	// Update last execution time
-	if err := s.db.UpdateLastExecution(schedule.ScheduleID, time.Now()); err != nil {
-		s.logger.Error("Failed to update last execution time",
-			zap.String("schedule_id", schedule.ScheduleID),
-			zap.Error(err))
-	}
-
 	s.logger.Info("Dispatched schedule event",
 		zap.String("schedule_id", schedule.ScheduleID),
 		zap.String("routine_id", routine.ID),
@@ -228,29 +218,14 @@ func (s *Scheduler) dispatchScheduleEvent(schedule *models.Schedule) {
 		zap.String("profile_id", profileID))
 }
 
-// GetNextExecution calculates the next execution time for a schedule
+// GetNextExecution returns the pre-calculated next execution time for a schedule
 // Returns nil if schedule is disabled or has no future occurrences
 func (s *Scheduler) GetNextExecution(schedule *models.Schedule) (*time.Time, error) {
 	if !schedule.Enabled {
 		return nil, nil
 	}
 
-	rruleSet, err := s.parseRRule(schedule)
-	if err != nil {
-		return nil, err
-	}
-
-	// Start from last execution or now, whichever is later
-	startTime := time.Now()
-	if schedule.LastExecution != nil && schedule.LastExecution.After(startTime) {
-		startTime = *schedule.LastExecution
-	}
-
-	// Get the next occurrence after the start time
-	next := rruleSet.After(startTime, false)
-	if next.IsZero() {
-		return nil, nil // No more occurrences
-	}
-
-	return &next, nil
+	// Simply return the pre-calculated next_execution field
+	// No need to parse RRule - it's already calculated in the database
+	return schedule.NextExecution, nil
 }
