@@ -1,0 +1,577 @@
+{
+  "version": "1.0.0",
+  "categories": [
+    {
+      "id": "health",
+      "name": "Health & Wellness",
+      "description": "Icons for health, wellness, and self-care routines",
+      "order": 1
+    },
+    {
+      "id": "productivity",
+      "name": "Productivity",
+      "description": "Icons for work, focus, and time management",
+      "order": 2
+    },
+    {
+      "id": "communication",
+      "name": "Communication",
+      "description": "Icons for meetings, messages, and notifications",
+      "order": 3
+    },
+    {
+      "id": "lifestyle",
+      "name": "Lifestyle",
+      "description": "Icons for daily activities and hobbies",
+      "order": 4
+    }
+  ],
+  "icons": [
+    {
+      "id": "water-bottle",
+      "name": "Water Bottle",
+      "category": "health",
+      "filename": "water-bottle-svgrepo-com.svg",
+      "keywords": ["water", "hydration", "drink", "bottle", "health"]
+    },
+    {
+      "id": "water-rate",
+      "name": "Water Rate",
+      "category": "health",
+      "filename": "water-rate-two-svgrepo-com.svg",
+      "keywords": ["water", "hydration", "rate", "drink"]
+    },
+    {
+      "id": "sleep",
+      "name": "Sleep",
+      "category": "health",
+      "filename": "sleep.svg",
+      "keywords": ["sleep", "rest", "bedtime", "night"]
+    },
+    {
+      "id": "eye",
+      "name": "Eye",
+      "category": "health",
+      "filename": "eye.svg",
+      "keywords": ["eye", "vision", "look", "see", "blink"]
+    },
+    {
+      "id": "eye-closed",
+      "name": "Eye Closed",
+      "category": "health",
+      "filename": "eye-closed-svgrepo-com.svg",
+      "keywords": ["eye", "closed", "rest", "blink", "sleep"]
+    },
+    {
+      "id": "back-pain",
+      "name": "Back Pain",
+      "category": "health",
+      "filename": "back-pain-svgrepo-com.svg",
+      "keywords": ["back", "pain", "posture", "health", "spine"]
+    },
+    {
+      "id": "food",
+      "name": "Food",
+      "category": "health",
+      "filename": "food.svg",
+      "keywords": ["food", "meal", "eat", "nutrition"]
+    },
+    {
+      "id": "running",
+      "name": "Running",
+      "category": "health",
+      "filename": "running-svgrepo-com.svg",
+      "keywords": ["run", "running", "exercise", "cardio", "fitness"]
+    },
+    {
+      "id": "yoga",
+      "name": "Yoga",
+      "category": "health",
+      "filename": "yoga-svgrepo-com.svg",
+      "keywords": ["yoga", "meditation", "stretch", "exercise"]
+    },
+    {
+      "id": "yoga-posture",
+      "name": "Yoga Posture",
+      "category": "health",
+      "filename": "yoga-1.svg",
+      "keywords": ["yoga", "posture", "meditation", "stretch"]
+    },
+    {
+      "id": "inverted-yoga",
+      "name": "Inverted Yoga",
+      "category": "health",
+      "filename": "inverted-yoga-posture-of-a-man-with-flexed-legs-svgrepo-com.svg",
+      "keywords": ["yoga", "inverted", "posture", "advanced", "flexibility"]
+    },
+    {
+      "id": "cross-legged",
+      "name": "Cross Legged",
+      "category": "health",
+      "filename": "cross-legged-svgrepo-com.svg",
+      "keywords": ["sit", "meditation", "lotus", "posture", "yoga"]
+    },
+    {
+      "id": "shoulder-bridge",
+      "name": "Shoulder Bridge",
+      "category": "health",
+      "filename": "shoulder-bridge-posture-svgrepo-com.svg",
+      "keywords": ["shoulder", "bridge", "posture", "yoga", "stretch"]
+    },
+    {
+      "id": "leg-stretch",
+      "name": "Leg Stretch",
+      "category": "health",
+      "filename": "man-holding-right-leg-posture-svgrepo-com.svg",
+      "keywords": ["leg", "stretch", "flexibility", "posture"]
+    },
+    {
+      "id": "stiff-shoulders",
+      "name": "Stiff Shoulders",
+      "category": "health",
+      "filename": "man-with-stiff-shoulders-svgrepo-com.svg",
+      "keywords": ["shoulder", "stiff", "pain", "posture", "desk"]
+    },
+    {
+      "id": "weightlifting",
+      "name": "Weightlifting",
+      "category": "health",
+      "filename": "man-lifting-weights-svgrepo-com.svg",
+      "keywords": ["weights", "lifting", "strength", "exercise", "gym"]
+    },
+    {
+      "id": "plank",
+      "name": "Plank",
+      "category": "health",
+      "filename": "arcticons--plank-workout.svg",
+      "keywords": ["plank", "core", "exercise", "workout", "pushup"]
+    },
+    {
+      "id": "calendar",
+      "name": "Calendar",
+      "category": "productivity",
+      "filename": "calendar.svg",
+      "keywords": ["calendar", "schedule", "date", "time", "plan"]
+    },
+    {
+      "id": "tasks",
+      "name": "Tasks",
+      "category": "productivity",
+      "filename": "tasks.svg",
+      "keywords": ["tasks", "todo", "checklist", "work"]
+    },
+    {
+      "id": "focus",
+      "name": "Focus",
+      "category": "productivity",
+      "filename": "focus.svg",
+      "keywords": ["focus", "concentrate", "work", "attention"]
+    },
+    {
+      "id": "timer",
+      "name": "Timer",
+      "category": "productivity",
+      "filename": "timer.svg",
+      "keywords": ["timer", "clock", "time", "countdown", "pomodoro"]
+    },
+    {
+      "id": "break",
+      "name": "Break",
+      "category": "productivity",
+      "filename": "break.svg",
+      "keywords": ["break", "rest", "pause", "coffee"]
+    },
+    {
+      "id": "meeting",
+      "name": "Meeting",
+      "category": "productivity",
+      "filename": "meeting.svg",
+      "keywords": ["meeting", "video", "call", "conference"]
+    },
+    {
+      "id": "email",
+      "name": "Email",
+      "category": "communication",
+      "filename": "email-18-svgrepo-com.svg",
+      "keywords": ["email", "mail", "message", "inbox"]
+    },
+    {
+      "id": "email-opened",
+      "name": "Email Opened",
+      "category": "communication",
+      "filename": "email-opened-svgrepo-com.svg",
+      "keywords": ["email", "opened", "read", "mail"]
+    },
+    {
+      "id": "email-success",
+      "name": "Email Success",
+      "category": "communication",
+      "filename": "email-successfully-svgrepo-com.svg",
+      "keywords": ["email", "success", "sent", "delivered"]
+    },
+    {
+      "id": "gmail",
+      "name": "Gmail",
+      "category": "communication",
+      "filename": "gmail-svgrepo-com.svg",
+      "keywords": ["gmail", "google", "email", "mail"]
+    },
+    {
+      "id": "notification",
+      "name": "Notification",
+      "category": "communication",
+      "filename": "notification.svg",
+      "keywords": ["notification", "alert", "bell", "reminder"]
+    },
+    {
+      "id": "reminder",
+      "name": "Reminder",
+      "category": "communication",
+      "filename": "reminder.svg",
+      "keywords": ["reminder", "alert", "notification", "bell"]
+    },
+    {
+      "id": "link-circle",
+      "name": "Link Circle",
+      "category": "communication",
+      "filename": "link-circle-svgrepo-com.svg",
+      "keywords": ["link", "url", "connection", "share"]
+    },
+    {
+      "id": "link-round",
+      "name": "Link Round",
+      "category": "communication",
+      "filename": "link-round-svgrepo-com.svg",
+      "keywords": ["link", "url", "connection", "share"]
+    },
+    {
+      "id": "discord",
+      "name": "Discord",
+      "category": "communication",
+      "filename": "skill-icons--discord.svg",
+      "keywords": ["discord", "chat", "communication", "gaming"]
+    },
+    {
+      "id": "github",
+      "name": "GitHub",
+      "category": "productivity",
+      "filename": "skill-icons--github-light.svg",
+      "keywords": ["github", "git", "code", "development"]
+    },
+    {
+      "id": "stock-chart",
+      "name": "Stock Chart",
+      "category": "lifestyle",
+      "filename": "stockchart-svgrepo-com.svg",
+      "keywords": ["stock", "chart", "finance", "trading"]
+    },
+    {
+      "id": "stock-up",
+      "name": "Stock Up",
+      "category": "lifestyle",
+      "filename": "stock-up-svgrepo-com.svg",
+      "keywords": ["stock", "up", "profit", "finance"]
+    },
+    {
+      "id": "chart-bearish",
+      "name": "Chart Bearish",
+      "category": "lifestyle",
+      "filename": "chart-bearish-svgrepo-com.svg",
+      "keywords": ["chart", "bearish", "down", "finance"]
+    },
+    {
+      "id": "see-no-evil",
+      "name": "See No Evil",
+      "category": "lifestyle",
+      "filename": "see-no-evil-monkey-svgrepo-com.svg",
+      "keywords": ["monkey", "emoji", "see", "evil", "fun"]
+    },
+    {
+      "id": "speak-no-evil",
+      "name": "Speak No Evil",
+      "category": "lifestyle",
+      "filename": "speak-no-evil-monkey-svgrepo-com.svg",
+      "keywords": ["monkey", "emoji", "speak", "evil", "fun"]
+    },
+    {
+      "id": "kissing-face",
+      "name": "Kissing Face",
+      "category": "lifestyle",
+      "filename": "kissing-face-with-closed-eyes-svgrepo-com.svg",
+      "keywords": ["kiss", "emoji", "face", "love", "fun"]
+    },
+    {
+      "id": "spinner-dots",
+      "name": "Spinner Dots",
+      "category": "productivity",
+      "filename": "svg-spinners--3-dots-rotate.svg",
+      "keywords": ["spinner", "loading", "wait", "progress"]
+    },
+    {
+      "id": "spinner-clock",
+      "name": "Spinner Clock",
+      "category": "productivity",
+      "filename": "svg-spinners--clock.svg",
+      "keywords": ["spinner", "clock", "loading", "time"]
+    },
+    {
+      "id": "spinner-ball",
+      "name": "Spinner Ball",
+      "category": "productivity",
+      "filename": "svg-spinners--bouncing-ball.svg",
+      "keywords": ["spinner", "ball", "loading", "bounce"]
+    },
+    {
+      "id": "spinner-pulse",
+      "name": "Spinner Pulse",
+      "category": "productivity",
+      "filename": "svg-spinners--pulse-multiple.svg",
+      "keywords": ["spinner", "pulse", "loading", "wave"]
+    },
+    {
+      "id": "bun-dark",
+      "name": "Bun Dark",
+      "category": "productivity",
+      "filename": "skill-icons--bun-dark.svg",
+      "keywords": ["bun", "javascript", "runtime", "development"]
+    },
+    {
+      "id": "bun-light",
+      "name": "Bun Light",
+      "category": "productivity",
+      "filename": "skill-icons--bun-light.svg",
+      "keywords": ["bun", "javascript", "runtime", "development"]
+    },
+    {
+      "id": "baby-bottle",
+      "name": "Baby Bottle",
+      "category": "lifestyle",
+      "filename": "baby-bottle-svgrepo-com.svg",
+      "keywords": ["baby", "bottle", "feed", "infant", "parenting"]
+    },
+    {
+      "id": "baby-bottle-alt",
+      "name": "Baby Bottle Alt",
+      "category": "lifestyle",
+      "filename": "baby-bottle-svgrepo-com-1.svg",
+      "keywords": ["baby", "bottle", "feed", "infant", "parenting"]
+    },
+    {
+      "id": "diaper",
+      "name": "Diaper",
+      "category": "lifestyle",
+      "filename": "diaper-svgrepo-com.svg",
+      "keywords": ["diaper", "baby", "change", "infant", "parenting"]
+    },
+    {
+      "id": "diaper-alt",
+      "name": "Diaper Alt",
+      "category": "lifestyle",
+      "filename": "diaper-svgrepo-com-1.svg",
+      "keywords": ["diaper", "baby", "change", "infant", "parenting"]
+    },
+    {
+      "id": "diaper-change",
+      "name": "Diaper Change",
+      "category": "lifestyle",
+      "filename": "streamline-freehand--family-baby-change-diaper.svg",
+      "keywords": ["diaper", "change", "baby", "parenting"]
+    },
+    {
+      "id": "kids",
+      "name": "Kids",
+      "category": "lifestyle",
+      "filename": "kids.svg",
+      "keywords": ["kids", "children", "family", "parenting"]
+    },
+    {
+      "id": "pickup-kids",
+      "name": "Pickup Kids",
+      "category": "lifestyle",
+      "filename": "pickup-kids.svg",
+      "keywords": ["pickup", "kids", "school", "children", "parenting"]
+    },
+    {
+      "id": "dog-breed",
+      "name": "Dog Breed",
+      "category": "lifestyle",
+      "filename": "dog-breed-svgrepo-com.svg",
+      "keywords": ["dog", "pet", "animal", "puppy"]
+    },
+    {
+      "id": "dog",
+      "name": "Dog",
+      "category": "lifestyle",
+      "filename": "dog-svgrepo-com.svg",
+      "keywords": ["dog", "pet", "animal", "puppy"]
+    },
+    {
+      "id": "puppy-leash",
+      "name": "Puppy Leash",
+      "category": "lifestyle",
+      "filename": "puppy-pet-leash-animal-svgrepo-com.svg",
+      "keywords": ["puppy", "dog", "leash", "walk", "pet"]
+    },
+    {
+      "id": "dog-walk",
+      "name": "Dog Walk",
+      "category": "lifestyle",
+      "filename": "man-carrying-a-dog-with-a-belt-to-walk-svgrepo-com.svg",
+      "keywords": ["dog", "walk", "pet", "exercise", "leash"]
+    },
+    {
+      "id": "trash",
+      "name": "Trash",
+      "category": "lifestyle",
+      "filename": "trash-svgrepo-com.svg",
+      "keywords": ["trash", "garbage", "waste", "bin", "chores"]
+    },
+    {
+      "id": "garbage",
+      "name": "Garbage",
+      "category": "lifestyle",
+      "filename": "garbage-trash-svgrepo-com.svg",
+      "keywords": ["garbage", "trash", "waste", "bin", "chores"]
+    },
+    {
+      "id": "cleaning",
+      "name": "Cleaning",
+      "category": "lifestyle",
+      "filename": "cleaning-svgrepo-com.svg",
+      "keywords": ["clean", "cleaning", "chores", "house"]
+    },
+    {
+      "id": "cleaning-man",
+      "name": "Cleaning Man",
+      "category": "lifestyle",
+      "filename": "streamline-freehand-color--cleaning-man.svg",
+      "keywords": ["clean", "cleaning", "man", "chores", "house"]
+    },
+    {
+      "id": "bathtub",
+      "name": "Bathtub",
+      "category": "lifestyle",
+      "filename": "bathtub-clean-svgrepo-com.svg",
+      "keywords": ["bathtub", "bath", "clean", "bathroom", "hygiene"]
+    },
+    {
+      "id": "rent",
+      "name": "Rent",
+      "category": "lifestyle",
+      "filename": "real-estate-rent-svgrepo-com.svg",
+      "keywords": ["rent", "house", "home", "real estate", "payment"]
+    },
+    {
+      "id": "money-bag",
+      "name": "Money Bag",
+      "category": "lifestyle",
+      "filename": "dollar-bag-svgrepo-com.svg",
+      "keywords": ["money", "dollar", "finance", "payment", "savings"]
+    },
+    {
+      "id": "money-bag-alt",
+      "name": "Money Bag Alt",
+      "category": "lifestyle",
+      "filename": "dollar-bag-svgrepo-com-1.svg",
+      "keywords": ["money", "dollar", "finance", "payment", "savings"]
+    },
+    {
+      "id": "money-bag-emoji",
+      "name": "Money Bag Emoji",
+      "category": "lifestyle",
+      "filename": "emojione--money-bag.svg",
+      "keywords": ["money", "bag", "emoji", "finance", "dollar"]
+    },
+    {
+      "id": "money-bag-color",
+      "name": "Money Bag Color",
+      "category": "lifestyle",
+      "filename": "streamline-ultimate-color--money-bag-dollar.svg",
+      "keywords": ["money", "bag", "dollar", "finance", "savings"]
+    },
+    {
+      "id": "shopping-cart",
+      "name": "Shopping Cart",
+      "category": "lifestyle",
+      "filename": "shopping-cart-svgrepo-com.svg",
+      "keywords": ["shopping", "cart", "groceries", "store", "buy"]
+    },
+    {
+      "id": "shopping-cart-alt",
+      "name": "Shopping Cart Alt",
+      "category": "lifestyle",
+      "filename": "shopping-cart-svgrepo-com-1.svg",
+      "keywords": ["shopping", "cart", "groceries", "store", "buy"]
+    },
+    {
+      "id": "cart",
+      "name": "Cart",
+      "category": "lifestyle",
+      "filename": "cart-4-svgrepo-com.svg",
+      "keywords": ["cart", "shopping", "groceries", "store"]
+    },
+    {
+      "id": "groceries",
+      "name": "Groceries",
+      "category": "lifestyle",
+      "filename": "groceries-svgrepo-com.svg",
+      "keywords": ["groceries", "shopping", "food", "store"]
+    },
+    {
+      "id": "supermarket",
+      "name": "Supermarket",
+      "category": "lifestyle",
+      "filename": "supermarket-svgrepo-com.svg",
+      "keywords": ["supermarket", "store", "shopping", "groceries"]
+    },
+    {
+      "id": "birthday-cake",
+      "name": "Birthday Cake",
+      "category": "lifestyle",
+      "filename": "birthday-cake-cake-svgrepo-com.svg",
+      "keywords": ["birthday", "cake", "celebration", "party", "gift"]
+    },
+    {
+      "id": "birthday-balloons",
+      "name": "Birthday Balloons",
+      "category": "lifestyle",
+      "filename": "balloons-birthday-svgrepo-com.svg",
+      "keywords": ["birthday", "balloons", "celebration", "party"]
+    },
+    {
+      "id": "balloons",
+      "name": "Balloons",
+      "category": "lifestyle",
+      "filename": "balloons-svgrepo-com.svg",
+      "keywords": ["balloons", "celebration", "party", "fun"]
+    },
+    {
+      "id": "birthday-celebration",
+      "name": "Birthday Celebration",
+      "category": "lifestyle",
+      "filename": "birthday-celebration-party-svgrepo-com.svg",
+      "keywords": ["birthday", "celebration", "party", "gift"]
+    },
+    {
+      "id": "birthday-flags",
+      "name": "Birthday Flags",
+      "category": "lifestyle",
+      "filename": "birthday-flags-party-svgrepo-com.svg",
+      "keywords": ["birthday", "flags", "party", "celebration"]
+    },
+    {
+      "id": "gift",
+      "name": "Gift",
+      "category": "lifestyle",
+      "filename": "gift-love-svgrepo-com.svg",
+      "keywords": ["gift", "present", "love", "celebration"]
+    },
+    {
+      "id": "calendar-events",
+      "name": "Calendar Events",
+      "category": "productivity",
+      "filename": "calendar-events-svgrepo-com.svg",
+      "keywords": ["calendar", "events", "schedule", "date", "plan"]
+    }
+  ]
+}

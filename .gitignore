@@ -129,7 +129,6 @@ node_modules/
 *.pfx
 
 # Application data
-data/
 .data/
 /clients/macos-swift/VibeCare/.build/
 /clients/macos-swift/VibeCare/.swiftpm/

@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Uploaded to: SVG Repo, www.svgrepo.com, Generator: SVG Repo Mixer Tools -->
+<svg width="800px" height="800px" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+<defs>
+<style>.cls-1,.cls-2{fill:#55a6ff;}.cls-1,.cls-2,.cls-3,.cls-6,.cls-8{stroke:#54596e;stroke-linecap:round;stroke-linejoin:round;}.cls-1,.cls-3,.cls-6,.cls-8{stroke-width:2px;}.cls-2{stroke-width:2.19px;}.cls-3{fill:#f3f3f3;}.cls-4{fill:#55596c;opacity:0.2;}.cls-5{fill:#ffffff;}.cls-6{fill:#fff35f;}.cls-7{fill:#54596e;}.cls-8{fill:none;}</style>
+</defs>
+<title>water-bottle</title>
+<g id="water-bottle">
+<rect class="cls-1" x="16" y="44" width="28" height="19" rx="2.54" ry="2.54"/>
+<path class="cls-1" d="M16,38H38a6,6,0,0,1,6,6v0a0,0,0,0,1,0,0H22a6,6,0,0,1-6-6v0A0,0,0,0,1,16,38Z"/>
+<path class="cls-1" d="M16,32H38a6,6,0,0,1,6,6v0a0,0,0,0,1,0,0H22a6,6,0,0,1-6-6v0A0,0,0,0,1,16,32Z"/>
+<rect class="cls-2" x="20" y="4" width="20" height="6" rx="2.12" ry="2.12"/>
+<path class="cls-1" d="M18.54,32H41.46A2.54,2.54,0,0,0,44,29.46V27a13.92,13.92,0,0,0-3.09-8.76A8.88,8.88,0,0,0,35,20c-4.4,3.52-12.65,3.17-17.3.31A14,14,0,0,0,16,27v2.46A2.54,2.54,0,0,0,18.54,32Z"/>
+<path class="cls-3" d="M35,20a8.88,8.88,0,0,1,5.91-1.76C38.34,15.05,34.41,10,30,10c-5.31,0-9.93,6-12.3,10.31C22.35,23.17,30.6,23.52,35,20Z"/>
+<path class="cls-4" d="M44,29.46V27a13.92,13.92,0,0,0-3.09-8.76C38.34,15.05,34.41,10,30,10a8.81,8.81,0,0,0-4.69,1.49c2.62,1.74,4.91,4.64,6.6,6.75A13.92,13.92,0,0,1,35,27v2.46A2.54,2.54,0,0,1,32.46,32H29a6,6,0,0,1,6,6H29a6,6,0,0,1,6,6H32.46A2.54,2.54,0,0,1,35,46.54V60.46A2.54,2.54,0,0,1,32.46,63h9A2.54,2.54,0,0,0,44,60.46V46.54A2.54,2.54,0,0,0,41.46,44H44a6,6,0,0,0-6-6h6a6,6,0,0,0-6-6h3.46A2.54,2.54,0,0,0,44,29.46Z"/>
+<circle class="cls-5" cx="22.5" cy="51.5" r="1.5"/>
+<circle class="cls-5" cx="35.5" cy="56.5" r="1.5"/>
+<circle class="cls-5" cx="34.5" cy="49.5" r="1.5"/>
+<circle class="cls-5" cx="37.5" cy="25.5" r="1.5"/>
+<circle class="cls-5" cx="25.5" cy="28.5" r="1.5"/>
+<circle class="cls-6" cx="51" cy="11" r="7"/>
+<circle class="cls-7" cx="47.96" cy="9.07" r="1"/>
+<circle class="cls-7" cx="53.96" cy="8.93" r="1"/>
+<path class="cls-8" d="M48,12.71a4,4,0,0,0,6-.13"/>
+</g>
+</svg>
