@@ -561,8 +561,8 @@ func (db *DB) UpdateScheduleExecution(scheduleID string, scheduleType models.Sch
 // GetActiveSchedules retrieves all enabled schedules
 func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 	query := `
-		SELECT s.schedule_id, s.profile_id, s.routine_id, s.name, s.rrule, s.dtstart, s.exdates,
-		       s.last_execution, s.notes, s.enabled, s.created_at, s.updated_at
+		SELECT s.schedule_id, s.profile_id, s.routine_id, s.schedule_type, s.name, s.rrule, s.schedule_timezone,
+		       s.dtstart, s.exdates, s.last_execution, s.next_execution, s.notes, s.enabled, s.created_at, s.updated_at
 		FROM schedules s
 		INNER JOIN routines r ON s.routine_id = r.id
 		WHERE s.enabled = 1 AND r.enabled = 1
@@ -578,18 +578,22 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 	var schedules []*models.Schedule
 	for rows.Next() {
 		var schedule models.Schedule
-		var dtstart, lastExecution, exdatesStr sql.NullString
+		var scheduleType string
+		var dtstart, lastExecution, nextExecution, exdatesStr sql.NullString
 		var createdAt, updatedAt string
 
 		err := rows.Scan(
 			&schedule.ScheduleID,
 			&schedule.ProfileID,
 			&schedule.RoutineID,
+			&scheduleType,
 			&schedule.Name,
 			&schedule.RRule,
+			&schedule.ScheduleTimezone,
 			&dtstart,
 			&exdatesStr,
 			&lastExecution,
+			&nextExecution,
 			&schedule.Notes,
 			&schedule.Enabled,
 			&createdAt,
@@ -598,6 +602,9 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// Convert schedule type string to enum
+		schedule.ScheduleType = models.ScheduleType(scheduleType)
 
 		if dtstart.Valid {
 			t, parseErr := time.Parse(time.RFC3339, dtstart.String)
@@ -613,6 +620,14 @@ func (db *DB) GetActiveSchedules() ([]*models.Schedule, error) {
 				return nil, fmt.Errorf("failed to parse last_execution for schedule %s: %w", schedule.ScheduleID, parseErr)
 			}
 			schedule.LastExecution = &t
+		}
+
+		if nextExecution.Valid {
+			t, parseErr := time.Parse(time.RFC3339, nextExecution.String)
+			if parseErr != nil {
+				return nil, fmt.Errorf("failed to parse next_execution for schedule %s: %w", schedule.ScheduleID, parseErr)
+			}
+			schedule.NextExecution = &t
 		}
 
 		if exdatesStr.Valid && exdatesStr.String != "" {

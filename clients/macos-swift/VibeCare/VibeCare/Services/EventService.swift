@@ -6,6 +6,12 @@ import GRPCProtobuf
 import GRPCNIOTransportHTTP2
 import VCStubs
 
+// MARK: - Notification Names
+extension Notification.Name {
+    /// Posted when a schedule is triggered, allowing views to refresh their data
+    static let scheduleTriggered = Notification.Name("com.vibecare.scheduleTriggered")
+}
+
 @MainActor
 class EventService: ObservableObject {
     static let shared = EventService()
@@ -135,6 +141,15 @@ class EventService: ObservableObject {
         // Call the registered handler on main actor
         await MainActor.run { [weak self] in
             self?.scheduleTriggeredHandler?(event)
+        }
+
+        // Post notification so ScheduleViewModel can refresh and update the "Next:" timer
+        await MainActor.run {
+            NotificationCenter.default.post(
+                name: .scheduleTriggered,
+                object: nil,
+                userInfo: ["scheduleId": event.scheduleID]
+            )
         }
 
         // Fetch schedule and actions from backend services

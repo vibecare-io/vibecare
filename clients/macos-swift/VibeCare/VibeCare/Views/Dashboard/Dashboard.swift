@@ -119,7 +119,6 @@ public struct Dashboard: View {
     ScheduleListView(
       viewModel: scheduleViewModel,
       routineViewModel: routineViewModel,
-      searchText: dashboardState.searchText,
       selectedId: $dashboardState.selectedScheduleId
     )
   }

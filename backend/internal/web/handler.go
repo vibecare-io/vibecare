@@ -269,7 +269,7 @@ func (h *Handler) getAllSchedules() ([]*models.Schedule, error) {
 	query := `
 		SELECT
 			s.schedule_id, s.profile_id, s.routine_id, s.name, s.rrule,
-			s.dtstart, s.exdates, s.last_execution, s.notes, s.enabled,
+			s.dtstart, s.exdates, s.last_execution, s.next_execution, s.notes, s.enabled,
 			s.created_at, s.updated_at,
 			COALESCE(r.name, 'Unknown') as routine_name,
 			COALESCE(p.name, 'Unknown') as profile_name
@@ -304,7 +304,7 @@ func (h *Handler) scanSchedule(rows interface{}) (*models.Schedule, error) {
 	}
 
 	var schedule models.Schedule
-	var dtstart, lastExecution, exdatesStr, notes interface{}
+	var dtstart, lastExecution, nextExecution, exdatesStr, notes interface{}
 	var createdAt, updatedAt string
 
 	err := rows.(scanner).Scan(
@@ -316,6 +316,7 @@ func (h *Handler) scanSchedule(rows interface{}) (*models.Schedule, error) {
 		&dtstart,
 		&exdatesStr,
 		&lastExecution,
+		&nextExecution,
 		&notes,
 		&schedule.Enabled,
 		&createdAt,
@@ -339,6 +340,13 @@ func (h *Handler) scanSchedule(rows interface{}) (*models.Schedule, error) {
 		if leStr, ok := lastExecution.(string); ok && leStr != "" {
 			t, _ := time.Parse(time.RFC3339, leStr)
 			schedule.LastExecution = &t
+		}
+	}
+
+	if nextExecution != nil {
+		if neStr, ok := nextExecution.(string); ok && neStr != "" {
+			t, _ := time.Parse(time.RFC3339, neStr)
+			schedule.NextExecution = &t
 		}
 	}
 

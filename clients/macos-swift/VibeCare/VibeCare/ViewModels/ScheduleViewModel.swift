@@ -26,6 +26,15 @@ class ScheduleViewModel: ObservableObject {
                 }
             }
             .store(in: &cancellables)
+
+        // Listen for schedule triggered events to refresh and update "Next:" timer
+        NotificationCenter.default.publisher(for: .scheduleTriggered)
+            .sink { [weak self] _ in
+                Task { [weak self] in
+                    await self?.refreshData()
+                }
+            }
+            .store(in: &cancellables)
     }
 
 
