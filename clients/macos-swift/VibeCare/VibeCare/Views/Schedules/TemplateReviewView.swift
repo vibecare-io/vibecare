@@ -83,16 +83,12 @@ struct TemplateReviewView: View {
 
     private var summaryCard: some View {
         HStack(spacing: 20) {
-            // Large icon
-            ZStack {
-                Circle()
-                    .fill(Color(routineColor).opacity(0.15))
-                    .frame(width: 80, height: 80)
-
-                Image(systemName: routineIcon)
-                    .font(.system(size: 36))
-                    .foregroundColor(Color(routineColor))
-            }
+            // Large icon - show backend SVG icon
+            TemplateIconView(
+                iconId: routineIcon,
+                backgroundColor: Color(routineColor).opacity(0.15),
+                size: 80
+            )
 
             VStack(alignment: .leading, spacing: 8) {
                 Text(routineName)
@@ -148,8 +144,11 @@ struct TemplateReviewView: View {
                 previewRow(label: "Icon & Color", value: "", customValue: {
                     AnyView(
                         HStack(spacing: 8) {
-                            Image(systemName: routineIcon)
-                                .foregroundColor(Color(routineColor))
+                            TemplateIconView(
+                                iconId: routineIcon,
+                                backgroundColor: Color(routineColor).opacity(0.15),
+                                size: 24
+                            )
 
                             Text(routineColor.capitalized)
                                 .font(.subheadline)

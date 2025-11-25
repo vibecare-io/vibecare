@@ -43,6 +43,7 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
     let rruleString: String
     let defaultTimes: [TimeComponents] // Store as hour/minute components
     let suggestedActions: [ActionTemplate]
+    let notificationIconId: String? // Backend SVG icon ID for template preview
 
     init(
         id: String,
@@ -55,7 +56,8 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
         scheduleDescription: String = "",
         rruleString: String,
         defaultTimes: [TimeComponents] = [TimeComponents(hour: 9, minute: 0)],
-        suggestedActions: [ActionTemplate] = []
+        suggestedActions: [ActionTemplate] = [],
+        notificationIconId: String? = nil
     ) {
         self.id = id
         self.category = category
@@ -68,6 +70,7 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
         self.rruleString = rruleString
         self.defaultTimes = defaultTimes
         self.suggestedActions = suggestedActions
+        self.notificationIconId = notificationIconId
     }
 
     /// Initialize from protobuf message
@@ -95,8 +98,14 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
 
         // Convert notification config to action template
         var actions: [ActionTemplate] = []
+        var iconId: String? = nil
         if proto.hasNotification {
             let notif = proto.notification
+
+            // Extract icon ID for template preview
+            if !notif.iconID.isEmpty {
+                iconId = notif.iconID
+            }
 
             // Build full backend URL for icon (if icon ID provided)
             var parameters: [String: String] = [
@@ -121,6 +130,7 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
             actions.append(actionTemplate)
         }
         self.suggestedActions = actions
+        self.notificationIconId = iconId
     }
 
     // Hashable conformance

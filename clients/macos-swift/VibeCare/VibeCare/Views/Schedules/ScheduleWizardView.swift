@@ -20,6 +20,7 @@ struct ScheduleWizardView: View {
     @State private var routineColor: String = ""
     @State private var times: [Date] = []
     @State private var actions: [ActionTemplate] = []
+    @State private var selectedRoutineId: String? = nil  // Track if user selected existing routine
 
     @GestureState private var dragOffset: CGFloat = 0
     @State private var contentOffset: CGFloat = 0
@@ -91,6 +92,7 @@ struct ScheduleWizardView: View {
                     routineColor: $routineColor,
                     times: $times,
                     actions: $actions,
+                    selectedRoutineId: $selectedRoutineId,
                     routineViewModel: routineViewModel,
                     onBack: {
                         withAnimation {
@@ -235,10 +237,11 @@ struct ScheduleWizardView: View {
         routineName = template.routineName
         scheduleName = template.scheduleName
         scheduleDescription = template.scheduleDescription
-        routineIcon = template.routineIcon
+        routineIcon = template.notificationIconId ?? ""
         routineColor = template.routineColor
         times = template.defaultTimes.map { $0.toDate() }
         actions = template.suggestedActions
+        selectedRoutineId = nil  // Reset when template changes
     }
 
     // MARK: - Create Routine and Schedule
@@ -250,31 +253,42 @@ struct ScheduleWizardView: View {
         }
 
         do {
-            // Step 1: Create the routine
-            logger.info("Creating routine: \(routineName)")
+            // Step 1: Get or create the routine
+            let routineId: String
 
-            try await routineViewModel.createRoutine(
-                name: routineName,
-                description: scheduleDescription,
-                category: selectedTemplate?.category.rawValue ?? "General",
-                enabled: true
-            )
+            if let existingId = selectedRoutineId {
+                // User selected an existing routine - reuse it
+                logger.info("Using existing routine: \(existingId)")
+                routineId = existingId
+            } else {
+                // Create a new routine
+                logger.info("Creating routine: \(routineName)")
 
-            // Get the created routine to get its ID
-            guard let routine = routineViewModel.routines.first(where: { $0.name == routineName }) else {
-                logger.error("Failed to find created routine")
-                return false
+                try await routineViewModel.createRoutine(
+                    name: routineName,
+                    description: scheduleDescription,
+                    category: selectedTemplate?.category.rawValue ?? "General",
+                    enabled: true
+                )
+
+                // Get the created routine to get its ID
+                guard let routine = routineViewModel.routines.first(where: { $0.name == routineName }) else {
+                    logger.error("Failed to find created routine")
+                    return false
+                }
+
+                // Update routine metadata (icon and color)
+                var updatedRoutine = routine
+                updatedRoutine.updateMetadata(
+                    category: selectedTemplate?.category.rawValue,
+                    color: routineColor,
+                    icon: routineIcon,
+                    tags: nil
+                )
+                try await routineViewModel.updateRoutine(updatedRoutine)
+
+                routineId = routine.id
             }
-
-            // Update routine metadata (icon and color)
-            var updatedRoutine = routine
-            updatedRoutine.updateMetadata(
-                category: selectedTemplate?.category.rawValue,
-                color: routineColor,
-                icon: routineIcon,
-                tags: nil
-            )
-            try await routineViewModel.updateRoutine(updatedRoutine)
 
             // Step 2: Create actions
             logger.info("Creating \(actions.count) actions")
@@ -306,7 +320,7 @@ struct ScheduleWizardView: View {
 
             let schedule = Schedule(
                 profileId: profile.id,
-                routineId: routine.id,
+                routineId: routineId,
                 name: scheduleName,
                 rrule: rruleWithTimes,
                 dtstart: dtstart,
@@ -318,7 +332,7 @@ struct ScheduleWizardView: View {
             let createdSchedule = try await ScheduleService().createSchedule(
                 id: schedule.id,
                 profileId: profile.id,
-                routineId: routine.id,
+                routineId: routineId,
                 name: schedule.name,
                 rrule: schedule.rrule,
                 dtstart: ISO8601DateFormatter().string(from: schedule.dtstart),

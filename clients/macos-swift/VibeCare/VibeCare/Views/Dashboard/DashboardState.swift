@@ -2,7 +2,7 @@ import SwiftUI
 
 final class DashboardState: ObservableObject {
     // MARK: - Selection State
-    @Published var selectedSidebarItem: SidebarItem? = .routines
+    @Published var selectedSidebarItem: SidebarItem? = .schedules
     @Published var selectedRoutineId: String?
     @Published var selectedScheduleId: String?
     @Published var selectedActionId: String?

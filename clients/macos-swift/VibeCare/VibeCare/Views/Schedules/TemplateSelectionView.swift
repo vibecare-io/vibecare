@@ -220,15 +220,11 @@ struct TemplateSelectionView: View {
             VStack(alignment: .leading, spacing: 12) {
                 // Icon and color indicator
                 HStack {
-                    ZStack {
-                        Circle()
-                            .fill(Color(template.routineColor).opacity(0.15))
-                            .frame(width: 48, height: 48)
-
-                        Image(systemName: template.routineIcon)
-                            .font(.system(size: 22))
-                            .foregroundColor(Color(template.routineColor))
-                    }
+                    TemplateIconView(
+                        iconId: template.notificationIconId,
+                        backgroundColor: Color(template.routineColor).opacity(0.15),
+                        size: 48
+                    )
 
                     Spacer()
 

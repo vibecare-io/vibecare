@@ -2,8 +2,8 @@ import SwiftUI
 
 // MARK: - Sidebar Item Definition
 enum SidebarItem: String, CaseIterable, Identifiable {
-    case routines = "Routines"
     case schedules = "Schedules"
+    case routines = "Routines"
     case actions = "Actions"
     case logs = "Execution Logs"
     case testing = "gRPC Testing"

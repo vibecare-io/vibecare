@@ -9,6 +9,7 @@ struct TemplateCustomizationView: View {
     @Binding var routineColor: String
     @Binding var times: [Date]
     @Binding var actions: [ActionTemplate]
+    @Binding var selectedRoutineId: String?  // Track if user selected existing routine
 
     @ObservedObject var routineViewModel: RoutineViewModel
 
@@ -16,6 +17,8 @@ struct TemplateCustomizationView: View {
     let onNext: () -> Void
 
     @State private var expandedSection: String? = "times"
+    @State private var showingIconPicker = false
+    @StateObject private var iconManager = SVGIconManager.shared
 
     var body: some View {
         VStack(spacing: 0) {
@@ -80,16 +83,12 @@ struct TemplateCustomizationView: View {
 
     private var templatePreviewCard: some View {
         HStack(spacing: 16) {
-            // Icon
-            ZStack {
-                Circle()
-                    .fill(Color(routineColor).opacity(0.15))
-                    .frame(width: 60, height: 60)
-
-                Image(systemName: routineIcon)
-                    .font(.system(size: 28))
-                    .foregroundColor(Color(routineColor))
-            }
+            // Icon - show backend SVG icon
+            TemplateIconView(
+                iconId: routineIcon,
+                backgroundColor: Color(routineColor).opacity(0.15),
+                size: 60
+            )
 
             VStack(alignment: .leading, spacing: 6) {
                 Text(routineName)
@@ -144,6 +143,14 @@ struct TemplateCustomizationView: View {
                     HStack(spacing: 8) {
                         TextField("e.g., Morning Workout", text: $routineName)
                             .textFieldStyle(.roundedBorder)
+                            .onChange(of: routineName) { _, newValue in
+                                // Clear selectedRoutineId if user edits name to differ from selected routine
+                                if let existingId = selectedRoutineId,
+                                   let selectedRoutine = routineViewModel.routines.first(where: { $0.id == existingId }),
+                                   selectedRoutine.name != newValue {
+                                    selectedRoutineId = nil
+                                }
+                            }
 
                         // Dropdown menu for existing routines
                         if !filteredRoutineSuggestions.isEmpty {
@@ -153,6 +160,7 @@ struct TemplateCustomizationView: View {
                                         routineName = routine.name
                                         routineIcon = routine.iconName
                                         routineColor = routine.color
+                                        selectedRoutineId = routine.id  // Track selected routine
                                     } label: {
                                         Label {
                                             Text(routine.name)
@@ -336,33 +344,46 @@ struct TemplateCustomizationView: View {
     // MARK: - Icon Picker
 
     private var iconPicker: some View {
-        let commonIcons = [
-            "list.bullet", "star.fill", "heart.fill", "bolt.fill",
-            "bell.fill", "calendar", "clock.fill", "flag.fill",
-            "checkmark.circle.fill", "plus.circle.fill", "minus.circle.fill",
-            "house.fill", "briefcase.fill", "book.fill", "cart.fill"
-        ]
+        Button {
+            showingIconPicker.toggle()
+        } label: {
+            HStack(spacing: 8) {
+                // Show current icon preview
+                TemplateIconView(
+                    iconId: routineIcon,
+                    backgroundColor: Color(routineColor).opacity(0.15),
+                    size: 36
+                )
 
-        return HStack(spacing: 8) {
-            ForEach(commonIcons.prefix(8), id: \.self) { icon in
-                Button {
-                    routineIcon = icon
-                } label: {
-                    Image(systemName: icon)
-                        .font(.system(size: 18))
-                        .foregroundColor(routineIcon == icon ? .white : .primary)
-                        .frame(width: 36, height: 36)
-                        .background(
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(routineIcon == icon ? Color.accentColor : Color(NSColor.controlBackgroundColor))
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 6)
-                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                        )
-                }
-                .buttonStyle(.plain)
+                Text("Choose Icon")
+                    .font(.subheadline)
+                    .foregroundColor(.primary)
+
+                Image(systemName: "chevron.down")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.controlBackgroundColor))
+            .cornerRadius(8)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $showingIconPicker) {
+            SVGIconPickerView(
+                iconManager: iconManager,
+                selectedIconId: .constant(routineIcon.isEmpty ? nil : routineIcon),
+                onSelect: { icon in
+                    routineIcon = icon.id
+                },
+                onDismiss: {
+                    showingIconPicker = false
+                }
+            )
         }
     }
 
@@ -629,6 +650,7 @@ struct TemplateCustomizationView: View {
         routineColor: .constant(template.routineColor),
         times: .constant(template.defaultTimes.map { $0.toDate() }),
         actions: .constant(template.suggestedActions),
+        selectedRoutineId: .constant(nil),
         routineViewModel: RoutineViewModel(),
         onBack: {},
         onNext: {}

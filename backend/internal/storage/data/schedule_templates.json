@@ -36,11 +36,32 @@
       "notification": {
         "title": "Pushup Time!",
         "body": "Drop and give me 20!",
-        "icon_id": "fitness-strength",
+        "icon_id": "dumbbells",
         "position": "center",
         "auto_dismiss": 20,
         "width": 450,
         "height": 220
+      }
+    },
+    {
+      "id": "eye-20-20-20",
+      "category": "daily",
+      "routine_name": "20-20-20 Eye Rule",
+      "routine_description": "Protect your eyes from screen strain",
+      "routine_icon": "eye",
+      "routine_color": "teal",
+      "schedule_name": "Every 20 Minutes",
+      "schedule_description": "Look at something 20 feet away for 20 seconds",
+      "rrule": "FREQ=MINUTELY;INTERVAL=20",
+      "default_times": ["09:00", "09:20", "09:40", "10:00", "10:20", "10:40", "11:00", "11:20", "11:40", "12:00"],
+      "notification": {
+        "title": "20-20-20 Eye Break",
+        "body": "Look at something 20 feet away for 20 seconds. Blink!",
+        "icon_id": "eye",
+        "position": "topRight",
+        "auto_dismiss": 25,
+        "width": 400,
+        "height": 200
       }
     },
     {
@@ -57,7 +78,7 @@
       "notification": {
         "title": "Time to Pick Up the Kids",
         "body": "Leave in 10 minutes to be on time",
-        "icon_id": "family-kids",
+        "icon_id": "pickup-kids",
         "position": "center",
         "auto_dismiss": 25,
         "width": 450,
@@ -78,7 +99,7 @@
       "notification": {
         "title": "Good Morning!",
         "body": "Time to start your day",
-        "icon_id": "sunrise",
+        "icon_id": "sun",
         "position": "center",
         "auto_dismiss": 20,
         "width": 450,
@@ -99,7 +120,7 @@
       "notification": {
         "title": "Hydration Time",
         "body": "Drink a glass of water!",
-        "icon_id": "water-drop",
+        "icon_id": "water-bottle",
         "position": "topRight",
         "auto_dismiss": 15,
         "width": 400,
@@ -120,7 +141,7 @@
       "notification": {
         "title": "Check the Mailbox",
         "body": "Time to collect today's mail",
-        "icon_id": "mailbox",
+        "icon_id": "email",
         "position": "center",
         "auto_dismiss": 20,
         "width": 450,
@@ -141,7 +162,7 @@
       "notification": {
         "title": "Take Out the Trash",
         "body": "Move bins to curb for tomorrow's pickup",
-        "icon_id": "trash-bin",
+        "icon_id": "trash",
         "position": "center",
         "auto_dismiss": 25,
         "width": 450,
@@ -162,7 +183,7 @@
       "notification": {
         "title": "Security Training",
         "body": "Complete this week's security module",
-        "icon_id": "shield-lock",
+        "icon_id": "security-shield",
         "position": "center",
         "auto_dismiss": 30,
         "width": 450,
@@ -204,7 +225,7 @@
       "notification": {
         "title": "Bathroom Cleaning",
         "body": "Time for weekly bathroom cleanup",
-        "icon_id": "cleaning-spray",
+        "icon_id": "bathtub",
         "position": "center",
         "auto_dismiss": 20,
         "width": 450,
@@ -225,7 +246,7 @@
       "notification": {
         "title": "Weekly Review",
         "body": "Take time to reflect on the week",
-        "icon_id": "checklist",
+        "icon_id": "tasks",
         "position": "center",
         "auto_dismiss": 25,
         "width": 450,
@@ -246,7 +267,7 @@
       "notification": {
         "title": "Rent Payment Due",
         "body": "Don't forget to pay rent today",
-        "icon_id": "money-dollar",
+        "icon_id": "rent",
         "position": "center",
         "auto_dismiss": 30,
         "width": 450,
@@ -288,7 +309,7 @@
       "notification": {
         "title": "Happy Anniversary!",
         "body": "Don't forget your special day",
-        "icon_id": "heart-celebration",
+        "icon_id": "gift",
         "position": "center",
         "auto_dismiss": 30,
         "width": 450,
@@ -309,7 +330,7 @@
       "notification": {
         "title": "Time to Declutter",
         "body": "Review your wardrobe and donate unused items",
-        "icon_id": "wardrobe-hanger",
+        "icon_id": "cleaning",
         "position": "center",
         "auto_dismiss": 25,
         "width": 450,
@@ -330,7 +351,7 @@
       "notification": {
         "title": "Car Maintenance",
         "body": "Time to check your vehicle",
-        "icon_id": "car-garage",
+        "icon_id": "car-maintenance",
         "position": "center",
         "auto_dismiss": 25,
         "width": 450,
@@ -354,6 +375,216 @@
         "icon_id": "meditation",
         "position": "center",
         "auto_dismiss": 20,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "check-gmail",
+      "category": "daily",
+      "routine_name": "Check Gmail",
+      "routine_description": "Morning email check routine",
+      "routine_icon": "envelope.badge.fill",
+      "routine_color": "red",
+      "schedule_name": "Weekday Mornings",
+      "schedule_description": "Open Gmail at 8 AM every workday",
+      "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+      "default_times": ["08:00"],
+      "notification": {
+        "title": "Check Your Email",
+        "body": "Time to review your Gmail inbox",
+        "icon_id": "gmail",
+        "position": "center",
+        "auto_dismiss": 30,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "laundry-reminder",
+      "category": "oneshot",
+      "routine_name": "Laundry Reminder",
+      "routine_description": "Remember to move laundry",
+      "routine_icon": "washer.fill",
+      "routine_color": "blue",
+      "schedule_name": "Laundry Timer",
+      "schedule_description": "Reminder when laundry cycle is done",
+      "rrule": "FREQ=DAILY;COUNT=1",
+      "default_times": ["09:45"],
+      "notification": {
+        "title": "Laundry Done!",
+        "body": "Time to move clothes to dryer or hang them",
+        "icon_id": "laundry-machine",
+        "position": "center",
+        "auto_dismiss": 30,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "timer-generic",
+      "category": "oneshot",
+      "routine_name": "Custom Timer",
+      "routine_description": "Generic countdown reminder",
+      "routine_icon": "timer",
+      "routine_color": "orange",
+      "schedule_name": "Timer",
+      "schedule_description": "Set a custom reminder",
+      "rrule": "FREQ=DAILY;COUNT=1",
+      "default_times": ["10:00"],
+      "notification": {
+        "title": "Timer Complete",
+        "body": "Your timer has finished",
+        "icon_id": "hourglass",
+        "position": "center",
+        "auto_dismiss": 30,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "meeting-prep",
+      "category": "oneshot",
+      "routine_name": "Meeting Preparation",
+      "routine_description": "Prepare for upcoming meeting",
+      "routine_icon": "person.3.fill",
+      "routine_color": "blue",
+      "schedule_name": "Pre-Meeting Prep",
+      "schedule_description": "Get ready before your meeting starts",
+      "rrule": "FREQ=DAILY;COUNT=1",
+      "default_times": ["09:45"],
+      "notification": {
+        "title": "Meeting in 15 Minutes",
+        "body": "Time to prepare for your upcoming meeting",
+        "icon_id": "meeting",
+        "position": "center",
+        "auto_dismiss": 30,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "take-medication",
+      "category": "oneshot",
+      "routine_name": "Take Medication",
+      "routine_description": "One-time medication reminder",
+      "routine_icon": "pill.fill",
+      "routine_color": "green",
+      "schedule_name": "Medication Reminder",
+      "schedule_description": "Remember to take your medication",
+      "rrule": "FREQ=DAILY;COUNT=1",
+      "default_times": ["09:00"],
+      "notification": {
+        "title": "Take Your Medication",
+        "body": "Time to take your scheduled medication",
+        "icon_id": "reminder-alert",
+        "position": "center",
+        "auto_dismiss": 30,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "call-reminder",
+      "category": "oneshot",
+      "routine_name": "Call Reminder",
+      "routine_description": "Reminder to make a call",
+      "routine_icon": "phone.fill",
+      "routine_color": "green",
+      "schedule_name": "Call Back",
+      "schedule_description": "Remember to call someone",
+      "rrule": "FREQ=DAILY;COUNT=1",
+      "default_times": ["10:00"],
+      "notification": {
+        "title": "Time to Call",
+        "body": "Don't forget to make that call",
+        "icon_id": "notification",
+        "position": "center",
+        "auto_dismiss": 30,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "food-ready",
+      "category": "oneshot",
+      "routine_name": "Food Timer",
+      "routine_description": "Cooking or baking timer",
+      "routine_icon": "flame.fill",
+      "routine_color": "orange",
+      "schedule_name": "Cooking Timer",
+      "schedule_description": "Food is ready to check",
+      "rrule": "FREQ=DAILY;COUNT=1",
+      "default_times": ["12:30"],
+      "notification": {
+        "title": "Food Ready!",
+        "body": "Time to check your food - it should be done",
+        "icon_id": "food",
+        "position": "center",
+        "auto_dismiss": 30,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "break-reminder",
+      "category": "oneshot",
+      "routine_name": "Take a Break",
+      "routine_description": "Step away from work",
+      "routine_icon": "cup.and.saucer.fill",
+      "routine_color": "brown",
+      "schedule_name": "Break Time",
+      "schedule_description": "Time for a quick break",
+      "rrule": "FREQ=DAILY;COUNT=1",
+      "default_times": ["15:00"],
+      "notification": {
+        "title": "Break Time!",
+        "body": "Step away and take a short break",
+        "icon_id": "break",
+        "position": "center",
+        "auto_dismiss": 25,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "pickup-delivery",
+      "category": "oneshot",
+      "routine_name": "Pickup Delivery",
+      "routine_description": "Package or delivery pickup",
+      "routine_icon": "shippingbox.fill",
+      "routine_color": "brown",
+      "schedule_name": "Delivery Pickup",
+      "schedule_description": "Reminder to pick up your delivery",
+      "rrule": "FREQ=DAILY;COUNT=1",
+      "default_times": ["14:00"],
+      "notification": {
+        "title": "Pickup Your Delivery",
+        "body": "Your package is ready for pickup",
+        "icon_id": "shopping-cart",
+        "position": "center",
+        "auto_dismiss": 30,
+        "width": 450,
+        "height": 220
+      }
+    },
+    {
+      "id": "event-reminder",
+      "category": "oneshot",
+      "routine_name": "Event Reminder",
+      "routine_description": "Upcoming event or meetup",
+      "routine_icon": "calendar.badge.clock",
+      "routine_color": "purple",
+      "schedule_name": "Event Starting",
+      "schedule_description": "Your event is coming up",
+      "rrule": "FREQ=DAILY;COUNT=1",
+      "default_times": ["18:00"],
+      "notification": {
+        "title": "Event Starting Soon",
+        "body": "Your scheduled event is about to begin",
+        "icon_id": "calendar-events",
+        "position": "center",
+        "auto_dismiss": 30,
         "width": 450,
         "height": 220
       }

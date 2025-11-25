@@ -572,6 +572,244 @@
       "category": "productivity",
       "filename": "calendar-events-svgrepo-com.svg",
       "keywords": ["calendar", "events", "schedule", "date", "plan"]
+    },
+    {
+      "id": "sun",
+      "name": "Sun",
+      "category": "lifestyle",
+      "filename": "sun-svgrepo-com.svg",
+      "keywords": ["sun", "morning", "sunrise", "day", "weather"]
+    },
+    {
+      "id": "dumbbells",
+      "name": "Dumbbells",
+      "category": "health",
+      "filename": "dumbbells-svgrepo-com.svg",
+      "keywords": ["dumbbells", "fitness", "strength", "gym", "exercise", "workout"]
+    },
+    {
+      "id": "security-shield",
+      "name": "Security Shield",
+      "category": "productivity",
+      "filename": "security-protection-shield-fire-flame-svgrepo-com.svg",
+      "keywords": ["security", "shield", "protection", "firewall", "safety"]
+    },
+    {
+      "id": "security-key",
+      "name": "Security Key",
+      "category": "productivity",
+      "filename": "security-protection-key-svgrepo-com.svg",
+      "keywords": ["security", "key", "lock", "protection", "access"]
+    },
+    {
+      "id": "security",
+      "name": "Security",
+      "category": "productivity",
+      "filename": "security-medium-svgrepo-com.svg",
+      "keywords": ["security", "protection", "safe", "shield"]
+    },
+    {
+      "id": "meditation",
+      "name": "Meditation",
+      "category": "health",
+      "filename": "meditation-yoga-posture-of-a-sitting-man-svgrepo-com.svg",
+      "keywords": ["meditation", "yoga", "mindfulness", "relaxation", "sitting", "calm"]
+    },
+    {
+      "id": "car-maintenance",
+      "name": "Car Maintenance",
+      "category": "lifestyle",
+      "filename": "car-maitenance-car-maintenance-car-mechanic-auto-repair-svgrepo-com.svg",
+      "keywords": ["car", "maintenance", "mechanic", "auto", "repair", "vehicle"]
+    },
+    {
+      "id": "car-service",
+      "name": "Car Service",
+      "category": "lifestyle",
+      "filename": "car-service-svgrepo-com.svg",
+      "keywords": ["car", "service", "vehicle", "auto", "garage"]
+    },
+    {
+      "id": "email-part-2",
+      "name": "Email Part 2",
+      "category": "communication",
+      "filename": "email-part-2-svgrepo-com.svg",
+      "keywords": ["email", "mail", "message", "inbox"]
+    },
+    {
+      "id": "eye-alt",
+      "name": "Eye Alt",
+      "category": "health",
+      "filename": "eye-1.svg",
+      "keywords": ["eye", "vision", "look", "see", "blink"]
+    },
+    {
+      "id": "flag-nepal",
+      "name": "Flag Nepal",
+      "category": "lifestyle",
+      "filename": "flag-for-flag-nepal-svgrepo-com.svg",
+      "keywords": ["flag", "nepal", "country", "nation"]
+    },
+    {
+      "id": "gmail-alt",
+      "name": "Gmail Alt",
+      "category": "communication",
+      "filename": "gmail-svgrepo-com-1.svg",
+      "keywords": ["gmail", "google", "email", "mail"]
+    },
+    {
+      "id": "kissing-face-alt",
+      "name": "Kissing Face Alt",
+      "category": "lifestyle",
+      "filename": "kissing-face-with-closed-eyes-svgrepo-com-1.svg",
+      "keywords": ["kiss", "emoji", "face", "love", "fun"]
+    },
+    {
+      "id": "lotus-position",
+      "name": "Lotus Position",
+      "category": "health",
+      "filename": "man-in-lotus-position-light-skin-tone-svgrepo-com.svg",
+      "keywords": ["lotus", "meditation", "yoga", "sitting", "mindfulness"]
+    },
+    {
+      "id": "nepal-monument",
+      "name": "Nepal Monument",
+      "category": "lifestyle",
+      "filename": "nepal-monument-svgrepo-com.svg",
+      "keywords": ["nepal", "monument", "temple", "landmark"]
+    },
+    {
+      "id": "person-lotus",
+      "name": "Person in Lotus",
+      "category": "health",
+      "filename": "person-in-lotus-position-svgrepo-com.svg",
+      "keywords": ["lotus", "meditation", "yoga", "person", "mindfulness"]
+    },
+    {
+      "id": "running-alt",
+      "name": "Running Alt",
+      "category": "health",
+      "filename": "running-svgrepo-com-1.svg",
+      "keywords": ["run", "running", "exercise", "cardio", "fitness"]
+    },
+    {
+      "id": "security-alt",
+      "name": "Security Alt",
+      "category": "productivity",
+      "filename": "security-svgrepo-com.svg",
+      "keywords": ["security", "protection", "safe", "lock"]
+    },
+    {
+      "id": "see-no-evil-alt",
+      "name": "See No Evil Alt",
+      "category": "lifestyle",
+      "filename": "see-no-evil-monkey-svgrepo-com-1.svg",
+      "keywords": ["monkey", "emoji", "see", "evil", "fun"]
+    },
+    {
+      "id": "speak-no-evil-alt",
+      "name": "Speak No Evil Alt",
+      "category": "lifestyle",
+      "filename": "speak-no-evil-monkey-svgrepo-com-1.svg",
+      "keywords": ["monkey", "emoji", "speak", "evil", "fun"]
+    },
+    {
+      "id": "stockfx-chart",
+      "name": "StockFX Chart",
+      "category": "lifestyle",
+      "filename": "stockfx-chart-svgrepo-com.svg",
+      "keywords": ["stock", "forex", "chart", "finance", "trading"]
+    },
+    {
+      "id": "spinner-12-dots",
+      "name": "Spinner 12 Dots",
+      "category": "productivity",
+      "filename": "svg-spinners--12-dots-scale-rotate.svg",
+      "keywords": ["spinner", "loading", "wait", "progress", "dots"]
+    },
+    {
+      "id": "spinner-6-dots",
+      "name": "Spinner 6 Dots",
+      "category": "productivity",
+      "filename": "svg-spinners--6-dots-scale.svg",
+      "keywords": ["spinner", "loading", "wait", "progress", "dots"]
+    },
+    {
+      "id": "spinner-blocks",
+      "name": "Spinner Blocks",
+      "category": "productivity",
+      "filename": "svg-spinners--blocks-wave.svg",
+      "keywords": ["spinner", "loading", "wait", "progress", "blocks"]
+    },
+    {
+      "id": "spinner-gooey",
+      "name": "Spinner Gooey",
+      "category": "productivity",
+      "filename": "svg-spinners--gooey-balls-2.svg",
+      "keywords": ["spinner", "loading", "wait", "progress", "gooey"]
+    },
+    {
+      "id": "spinner-pulse-rings",
+      "name": "Spinner Pulse Rings",
+      "category": "productivity",
+      "filename": "svg-spinners--pulse-rings-multiple.svg",
+      "keywords": ["spinner", "loading", "wait", "progress", "pulse", "rings"]
+    },
+    {
+      "id": "flag-usa",
+      "name": "Flag USA",
+      "category": "lifestyle",
+      "filename": "usa-svgrepo-com.svg",
+      "keywords": ["flag", "usa", "america", "country", "nation"]
+    },
+    {
+      "id": "eye-2",
+      "name": "Eye 2",
+      "category": "health",
+      "filename": "eye 2.svg",
+      "keywords": ["eye", "vision", "look", "see", "blink"]
+    },
+    {
+      "id": "sun-alt-1",
+      "name": "Sun Alt 1",
+      "category": "lifestyle",
+      "filename": "sun-svgrepo-com 1.svg",
+      "keywords": ["sun", "morning", "sunrise", "day", "weather"]
+    },
+    {
+      "id": "sun-alt-2",
+      "name": "Sun Alt 2",
+      "category": "lifestyle",
+      "filename": "sun-svgrepo-com 2.svg",
+      "keywords": ["sun", "morning", "sunrise", "day", "weather"]
+    },
+    {
+      "id": "hourglass",
+      "name": "Hourglass",
+      "category": "productivity",
+      "filename": "hourglass-countdown-svgrepo-com.svg",
+      "keywords": ["hourglass", "countdown", "timer", "time", "waiting"]
+    },
+    {
+      "id": "laundry-machine",
+      "name": "Laundry Machine",
+      "category": "lifestyle",
+      "filename": "laundry-machine-svgrepo-com.svg",
+      "keywords": ["laundry", "machine", "washing", "clothes", "chores"]
+    },
+    {
+      "id": "reminder-alert",
+      "name": "Reminder Alert",
+      "category": "communication",
+      "filename": "reminder-alert-svgrepo-com.svg",
+      "keywords": ["reminder", "alert", "notification", "bell", "alarm"]
+    },
+    {
+      "id": "washing-machine",
+      "name": "Washing Machine",
+      "category": "lifestyle",
+      "filename": "washing-machine-svgrepo-com.svg",
+      "keywords": ["washing", "machine", "laundry", "clothes", "chores"]
     }
   ]
 }
