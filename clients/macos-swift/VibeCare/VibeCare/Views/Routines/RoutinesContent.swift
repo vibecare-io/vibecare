@@ -117,95 +117,132 @@ struct RoutineListView: View {
     // MARK: - Sectioned Routine List Content
 
     private var sectionedRoutineListContent: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 16) {
-                // Active Routines Section
-                if !filteredRoutines.isEmpty {
-                    VStack(alignment: .leading, spacing: 8) {
-                        HStack {
-                            Text("Active Routines")
-                                .font(.headline)
-                                .fontWeight(.semibold)
-                                .foregroundColor(.primary)
-
-                            Spacer()
-
-                            Text("\(filteredRoutines.count)")
-                                .font(.caption)
-                                .fontWeight(.medium)
-                                .foregroundColor(.secondary)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.secondary.opacity(0.1))
-                                .clipShape(Capsule())
-                        }
-                        .padding(.horizontal, 16)
-
-                        LazyVStack(spacing: 1) {
-                            ForEach(filteredRoutines) { routine in
-                                RoutineRowView(
-                                    routine: routine,
-                                    isSelected: selectedId == routine.id,
-                                    isHovered: hoveredRoutineId == routine.id,
-                                    onSelect: {
-                                        selectedId = routine.id
-                                    },
-                                    onToggleEnabled: {
-                                        Task {
-                                            await viewModel.toggleRoutineEnabled(routine)
-                                        }
-                                    },
-                                    onDelete: {
-                                        routineToDelete = routine
-                                        showDeleteAlert = true
-                                    },
-                                    onDuplicate: {
-                                        Task {
-                                            await viewModel.duplicateRoutine(routine)
-                                        }
-                                    },
-                                    onTest: {
-                                        Task {
-                                            await viewModel.testRoutine(routine)
-                                        }
-                                    }
-                                )
-                                .onHover { isHovered in
-                                    hoveredRoutineId = isHovered ? routine.id : nil
-                                }
-                                .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                                    Button("Delete", role: .destructive) {
-                                        routineToDelete = routine
-                                        showDeleteAlert = true
-                                    }
-                                }
-                                .swipeActions(edge: .leading) {
-                                    Button {
-                                        Task {
-                                            await viewModel.toggleRoutineEnabled(routine)
-                                        }
-                                    } label: {
-                                        Label(routine.enabled ? "Disable" : "Enable",
-                                              systemImage: routine.enabled ? "pause.circle" : "play.circle")
-                                    }
-                                    .tint(routine.enabled ? .orange : .green)
-
-                                    Button {
-                                        Task {
-                                            await viewModel.duplicateRoutine(routine)
-                                        }
-                                    } label: {
-                                        Label("Duplicate", systemImage: "doc.on.doc")
-                                    }
-                                    .tint(.blue)
-                                }
-                            }
-                        }
-                        .padding(.horizontal, 8)
+        List {
+            // Active Routines Section
+            let activeRoutines = filteredRoutines.filter { $0.enabled }
+            if !activeRoutines.isEmpty {
+                Section {
+                    ForEach(activeRoutines) { routine in
+                        routineRow(for: routine)
                     }
+                } header: {
+                    sectionHeader(title: "Active Routines", count: activeRoutines.count)
                 }
             }
-            .padding(.vertical, 16)
+
+            // Disabled Routines Section
+            let disabledRoutines = filteredRoutines.filter { !$0.enabled }
+            if !disabledRoutines.isEmpty {
+                Section {
+                    ForEach(disabledRoutines) { routine in
+                        routineRow(for: routine)
+                    }
+                } header: {
+                    sectionHeader(title: "Disabled Routines", count: disabledRoutines.count)
+                }
+            }
+        }
+        .listStyle(.plain)
+        .scrollContentBackground(.hidden)
+    }
+
+    // MARK: - Section Header
+
+    private func sectionHeader(title: String, count: Int) -> some View {
+        HStack {
+            Text(title)
+                .font(.headline)
+                .fontWeight(.semibold)
+                .foregroundColor(.primary)
+            Spacer()
+            Text("\(count)")
+                .font(.caption)
+                .fontWeight(.medium)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color.secondary.opacity(0.1))
+                .clipShape(Capsule())
+        }
+        .padding(.horizontal, 8)
+    }
+
+    // MARK: - Routine Row
+
+    private func routineRow(for routine: Routine) -> some View {
+        RoutineRowView(
+            routine: routine,
+            isSelected: selectedId == routine.id,
+            isHovered: hoveredRoutineId == routine.id,
+            onSelect: {
+                selectedId = routine.id
+            },
+            onToggleEnabled: {
+                Task {
+                    await viewModel.toggleRoutineEnabled(routine)
+                }
+            },
+            onDelete: {
+                routineToDelete = routine
+                showDeleteAlert = true
+            },
+            onDuplicate: {
+                Task {
+                    await viewModel.duplicateRoutine(routine)
+                }
+            },
+            onTest: {
+                Task {
+                    await viewModel.testRoutine(routine)
+                }
+            }
+        )
+        .tag(routine.id)
+        .listRowSeparator(.hidden)
+        .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+        .listRowBackground(Color.clear)
+        .onHover { isHovered in
+            hoveredRoutineId = isHovered ? routine.id : nil
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
+            Button("Delete", role: .destructive) {
+                routineToDelete = routine
+                showDeleteAlert = true
+            }
+
+            Button {
+                Task {
+                    await viewModel.toggleRoutineEnabled(routine)
+                }
+            } label: {
+                Label(
+                    routine.enabled ? "Disable" : "Enable",
+                    systemImage: routine.enabled ? "pause.circle" : "play.circle"
+                )
+            }
+            .tint(routine.enabled ? .orange : .green)
+        }
+        .swipeActions(edge: .leading) {
+            Button {
+                Task {
+                    await viewModel.toggleRoutineEnabled(routine)
+                }
+            } label: {
+                Label(
+                    routine.enabled ? "Disable" : "Enable",
+                    systemImage: routine.enabled ? "pause.circle" : "play.circle"
+                )
+            }
+            .tint(routine.enabled ? .orange : .green)
+
+            Button {
+                Task {
+                    await viewModel.duplicateRoutine(routine)
+                }
+            } label: {
+                Label("Duplicate", systemImage: "doc.on.doc")
+            }
+            .tint(.blue)
         }
     }
 

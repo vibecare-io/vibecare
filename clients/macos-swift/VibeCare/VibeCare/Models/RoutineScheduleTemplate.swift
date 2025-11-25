@@ -96,39 +96,34 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
             return TimeComponents(hour: hour, minute: minute)
         }
 
-        // Convert notification config to action template
+        // Convert actions array to ActionTemplate array
         var actions: [ActionTemplate] = []
         var iconId: String? = nil
-        if proto.hasNotification {
-            let notif = proto.notification
 
-            // Extract icon ID for template preview
-            if !notif.iconID.isEmpty {
-                iconId = notif.iconID
-            }
+        for protoAction in proto.actions {
+            let actionType = ActionType(from: protoAction.type)
+            var parameters = protoAction.parameters
 
-            // Build full backend URL for icon (if icon ID provided)
-            var parameters: [String: String] = [
-                "title": notif.title,
-                "body": notif.body,
-                "position": notif.position,
-                "auto_dismiss_after": String(notif.autoDismiss),
-                "width": String(notif.width),
-                "height": String(notif.height)
-            ]
-
-            // Add icon URL if icon ID is provided
-            if !notif.iconID.isEmpty {
-                parameters["svg_path"] = NetworkConfiguration.buildIconURL(iconId: notif.iconID)
+            // For notification actions, extract icon ID and build full URL
+            if actionType == .notification {
+                if let iconIdParam = parameters["icon_id"], !iconIdParam.isEmpty {
+                    iconId = iconIdParam
+                    parameters["svg_path"] = NetworkConfiguration.buildIconURL(iconId: iconIdParam)
+                }
+                // Map parameter names to what the action expects
+                if let autoDismiss = parameters["auto_dismiss"] {
+                    parameters["auto_dismiss_after"] = autoDismiss
+                }
             }
 
             let actionTemplate = ActionTemplate(
-                type: .notification,
-                name: notif.title,
+                type: actionType,
+                name: protoAction.name,
                 parameters: parameters
             )
             actions.append(actionTemplate)
         }
+
         self.suggestedActions = actions
         self.notificationIconId = iconId
     }

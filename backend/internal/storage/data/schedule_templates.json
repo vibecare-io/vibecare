@@ -1,5 +1,5 @@
 {
-  "version": "1.0",
+  "version": "2.0",
   "templates": [
     {
       "id": "walk-pets",
@@ -12,15 +12,21 @@
       "schedule_description": "Take the dogs out twice daily",
       "rrule": "FREQ=DAILY;INTERVAL=1",
       "default_times": ["07:00", "18:00"],
-      "notification": {
-        "title": "Time to Walk the Pets",
-        "body": "The dogs are waiting for their walk!",
-        "icon_id": "dog-walk",
-        "position": "center",
-        "auto_dismiss": 20,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Walk Reminder",
+          "parameters": {
+            "title": "Time to Walk the Pets",
+            "body": "The dogs are waiting for their walk!",
+            "icon_id": "dog-walk",
+            "position": "center",
+            "auto_dismiss": "20",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "pushups",
@@ -33,15 +39,21 @@
       "schedule_description": "3 sets of pushups daily",
       "rrule": "FREQ=DAILY;INTERVAL=1",
       "default_times": ["08:00", "13:00", "19:00"],
-      "notification": {
-        "title": "Pushup Time!",
-        "body": "Drop and give me 20!",
-        "icon_id": "dumbbells",
-        "position": "center",
-        "auto_dismiss": 20,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Pushup Reminder",
+          "parameters": {
+            "title": "Pushup Time!",
+            "body": "Drop and give me 20!",
+            "icon_id": "dumbbells",
+            "position": "center",
+            "auto_dismiss": "20",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "eye-20-20-20",
@@ -53,16 +65,22 @@
       "schedule_name": "Every 20 Minutes",
       "schedule_description": "Look at something 20 feet away for 20 seconds",
       "rrule": "FREQ=MINUTELY;INTERVAL=20",
-      "default_times": ["09:00", "09:20", "09:40", "10:00", "10:20", "10:40", "11:00", "11:20", "11:40", "12:00"],
-      "notification": {
-        "title": "20-20-20 Eye Break",
-        "body": "Look at something 20 feet away for 20 seconds. Blink!",
-        "icon_id": "eye",
-        "position": "topRight",
-        "auto_dismiss": 25,
-        "width": 400,
-        "height": 200
-      }
+      "default_times": [],
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Eye Break",
+          "parameters": {
+            "title": "20-20-20 Eye Break",
+            "body": "Look at something 20 feet away for 20 seconds. Blink!",
+            "icon_id": "eye",
+            "position": "topRight",
+            "auto_dismiss": "25",
+            "width": "400",
+            "height": "200"
+          }
+        }
+      ]
     },
     {
       "id": "pick-up-kids",
@@ -75,15 +93,21 @@
       "schedule_description": "Daily school pickup reminder",
       "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
       "default_times": ["15:00"],
-      "notification": {
-        "title": "Time to Pick Up the Kids",
-        "body": "Leave in 10 minutes to be on time",
-        "icon_id": "pickup-kids",
-        "position": "center",
-        "auto_dismiss": 25,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Pickup Reminder",
+          "parameters": {
+            "title": "Time to Pick Up the Kids",
+            "body": "Leave in 10 minutes to be on time",
+            "icon_id": "pickup-kids",
+            "position": "center",
+            "auto_dismiss": "25",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "morning-routine",
@@ -96,15 +120,21 @@
       "schedule_description": "Morning wake-up and prep",
       "rrule": "FREQ=DAILY;INTERVAL=1",
       "default_times": ["06:00"],
-      "notification": {
-        "title": "Good Morning!",
-        "body": "Time to start your day",
-        "icon_id": "sun",
-        "position": "center",
-        "auto_dismiss": 20,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Morning Wake-up",
+          "parameters": {
+            "title": "Good Morning!",
+            "body": "Time to start your day",
+            "icon_id": "sun",
+            "position": "center",
+            "auto_dismiss": "20",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "hydration-reminder",
@@ -117,15 +147,21 @@
       "schedule_description": "Drink water regularly",
       "rrule": "FREQ=HOURLY;INTERVAL=2",
       "default_times": ["09:00", "11:00", "13:00", "15:00", "17:00"],
-      "notification": {
-        "title": "Hydration Time",
-        "body": "Drink a glass of water!",
-        "icon_id": "water-bottle",
-        "position": "topRight",
-        "auto_dismiss": 15,
-        "width": 400,
-        "height": 200
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Hydration Alert",
+          "parameters": {
+            "title": "Hydration Time",
+            "body": "Drink a glass of water!",
+            "icon_id": "water-bottle",
+            "position": "topRight",
+            "auto_dismiss": "15",
+            "width": "400",
+            "height": "200"
+          }
+        }
+      ]
     },
     {
       "id": "check-mailbox",
@@ -138,15 +174,21 @@
       "schedule_description": "Check mail every day",
       "rrule": "FREQ=DAILY;INTERVAL=1",
       "default_times": ["16:00"],
-      "notification": {
-        "title": "Check the Mailbox",
-        "body": "Time to collect today's mail",
-        "icon_id": "email",
-        "position": "center",
-        "auto_dismiss": 20,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Mail Reminder",
+          "parameters": {
+            "title": "Check the Mailbox",
+            "body": "Time to collect today's mail",
+            "icon_id": "email",
+            "position": "center",
+            "auto_dismiss": "20",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "take-out-trash",
@@ -159,15 +201,21 @@
       "schedule_description": "Prepare trash for Monday pickup",
       "rrule": "FREQ=WEEKLY;BYDAY=SU",
       "default_times": ["19:00"],
-      "notification": {
-        "title": "Take Out the Trash",
-        "body": "Move bins to curb for tomorrow's pickup",
-        "icon_id": "trash",
-        "position": "center",
-        "auto_dismiss": 25,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Trash Reminder",
+          "parameters": {
+            "title": "Take Out the Trash",
+            "body": "Move bins to curb for tomorrow's pickup",
+            "icon_id": "trash",
+            "position": "center",
+            "auto_dismiss": "25",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "security-training",
@@ -180,15 +228,21 @@
       "schedule_description": "Complete security module",
       "rrule": "FREQ=WEEKLY;BYDAY=FR",
       "default_times": ["15:00"],
-      "notification": {
-        "title": "Security Training",
-        "body": "Complete this week's security module",
-        "icon_id": "security-shield",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Training Reminder",
+          "parameters": {
+            "title": "Security Training",
+            "body": "Complete this week's security module",
+            "icon_id": "security-shield",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "groceries",
@@ -201,15 +255,21 @@
       "schedule_description": "Grocery shopping reminder",
       "rrule": "FREQ=WEEKLY;BYDAY=SA",
       "default_times": ["10:00"],
-      "notification": {
-        "title": "Grocery Shopping",
-        "body": "Time for your weekly grocery run",
-        "icon_id": "shopping-cart",
-        "position": "center",
-        "auto_dismiss": 20,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Shopping Reminder",
+          "parameters": {
+            "title": "Grocery Shopping",
+            "body": "Time for your weekly grocery run",
+            "icon_id": "shopping-cart",
+            "position": "center",
+            "auto_dismiss": "20",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "bathroom-cleanup",
@@ -222,15 +282,21 @@
       "schedule_description": "Deep clean bathroom",
       "rrule": "FREQ=WEEKLY;BYDAY=SA",
       "default_times": ["09:00"],
-      "notification": {
-        "title": "Bathroom Cleaning",
-        "body": "Time for weekly bathroom cleanup",
-        "icon_id": "bathtub",
-        "position": "center",
-        "auto_dismiss": 20,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Cleaning Reminder",
+          "parameters": {
+            "title": "Bathroom Cleaning",
+            "body": "Time for weekly bathroom cleanup",
+            "icon_id": "bathtub",
+            "position": "center",
+            "auto_dismiss": "20",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "weekly-review",
@@ -243,15 +309,21 @@
       "schedule_description": "Review week and plan ahead",
       "rrule": "FREQ=WEEKLY;BYDAY=SU",
       "default_times": ["18:00"],
-      "notification": {
-        "title": "Weekly Review",
-        "body": "Take time to reflect on the week",
-        "icon_id": "tasks",
-        "position": "center",
-        "auto_dismiss": 25,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Review Reminder",
+          "parameters": {
+            "title": "Weekly Review",
+            "body": "Take time to reflect on the week",
+            "icon_id": "tasks",
+            "position": "center",
+            "auto_dismiss": "25",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "rent-reminder",
@@ -264,15 +336,21 @@
       "schedule_description": "Pay monthly rent",
       "rrule": "FREQ=MONTHLY;BYMONTHDAY=1",
       "default_times": ["09:00"],
-      "notification": {
-        "title": "Rent Payment Due",
-        "body": "Don't forget to pay rent today",
-        "icon_id": "rent",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Rent Reminder",
+          "parameters": {
+            "title": "Rent Payment Due",
+            "body": "Don't forget to pay rent today",
+            "icon_id": "rent",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "birthday-reminder",
@@ -285,15 +363,21 @@
       "schedule_description": "Track family birthdays",
       "rrule": "FREQ=YEARLY;BYMONTH=1;BYMONTHDAY=1",
       "default_times": ["09:00"],
-      "notification": {
-        "title": "Birthday Coming Up",
-        "body": "Someone's birthday is today!",
-        "icon_id": "birthday-cake",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Birthday Alert",
+          "parameters": {
+            "title": "Birthday Coming Up",
+            "body": "Someone's birthday is today!",
+            "icon_id": "birthday-cake",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "anniversary",
@@ -306,15 +390,21 @@
       "schedule_description": "Important anniversary reminder",
       "rrule": "FREQ=YEARLY;BYMONTH=1;BYMONTHDAY=1",
       "default_times": ["08:00"],
-      "notification": {
-        "title": "Happy Anniversary!",
-        "body": "Don't forget your special day",
-        "icon_id": "gift",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Anniversary Alert",
+          "parameters": {
+            "title": "Happy Anniversary!",
+            "body": "Don't forget your special day",
+            "icon_id": "gift",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "declutter-clothes",
@@ -327,15 +417,21 @@
       "schedule_description": "Review and donate unused clothes",
       "rrule": "FREQ=MONTHLY;INTERVAL=3;BYMONTHDAY=1",
       "default_times": ["10:00"],
-      "notification": {
-        "title": "Time to Declutter",
-        "body": "Review your wardrobe and donate unused items",
-        "icon_id": "cleaning",
-        "position": "center",
-        "auto_dismiss": 25,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Declutter Reminder",
+          "parameters": {
+            "title": "Time to Declutter",
+            "body": "Review your wardrobe and donate unused items",
+            "icon_id": "cleaning",
+            "position": "center",
+            "auto_dismiss": "25",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "car-maintenance",
@@ -348,15 +444,21 @@
       "schedule_description": "Oil change and maintenance",
       "rrule": "FREQ=MONTHLY;BYMONTHDAY=15",
       "default_times": ["09:00"],
-      "notification": {
-        "title": "Car Maintenance",
-        "body": "Time to check your vehicle",
-        "icon_id": "car-maintenance",
-        "position": "center",
-        "auto_dismiss": 25,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Maintenance Reminder",
+          "parameters": {
+            "title": "Car Maintenance",
+            "body": "Time to check your vehicle",
+            "icon_id": "car-maintenance",
+            "position": "center",
+            "auto_dismiss": "25",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "meditation",
@@ -369,15 +471,21 @@
       "schedule_description": "10-minute meditation sessions",
       "rrule": "FREQ=DAILY;INTERVAL=1",
       "default_times": ["07:00", "20:00"],
-      "notification": {
-        "title": "Meditation Time",
-        "body": "Take 10 minutes for mindfulness",
-        "icon_id": "meditation",
-        "position": "center",
-        "auto_dismiss": 20,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Meditation Reminder",
+          "parameters": {
+            "title": "Meditation Time",
+            "body": "Take 10 minutes for mindfulness",
+            "icon_id": "meditation",
+            "position": "center",
+            "auto_dismiss": "20",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "check-gmail",
@@ -390,15 +498,15 @@
       "schedule_description": "Open Gmail at 8 AM every workday",
       "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
       "default_times": ["08:00"],
-      "notification": {
-        "title": "Check Your Email",
-        "body": "Time to review your Gmail inbox",
-        "icon_id": "gmail",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "open_link",
+          "name": "Open Gmail",
+          "parameters": {
+            "url": "https://gmail.com"
+          }
+        }
+      ]
     },
     {
       "id": "laundry-reminder",
@@ -411,15 +519,21 @@
       "schedule_description": "Reminder when laundry cycle is done",
       "rrule": "FREQ=DAILY;COUNT=1",
       "default_times": ["09:45"],
-      "notification": {
-        "title": "Laundry Done!",
-        "body": "Time to move clothes to dryer or hang them",
-        "icon_id": "laundry-machine",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Laundry Alert",
+          "parameters": {
+            "title": "Laundry Done!",
+            "body": "Time to move clothes to dryer or hang them",
+            "icon_id": "laundry-machine",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "timer-generic",
@@ -432,15 +546,21 @@
       "schedule_description": "Set a custom reminder",
       "rrule": "FREQ=DAILY;COUNT=1",
       "default_times": ["10:00"],
-      "notification": {
-        "title": "Timer Complete",
-        "body": "Your timer has finished",
-        "icon_id": "hourglass",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Timer Alert",
+          "parameters": {
+            "title": "Timer Complete",
+            "body": "Your timer has finished",
+            "icon_id": "hourglass",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "meeting-prep",
@@ -453,15 +573,21 @@
       "schedule_description": "Get ready before your meeting starts",
       "rrule": "FREQ=DAILY;COUNT=1",
       "default_times": ["09:45"],
-      "notification": {
-        "title": "Meeting in 15 Minutes",
-        "body": "Time to prepare for your upcoming meeting",
-        "icon_id": "meeting",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Meeting Prep Alert",
+          "parameters": {
+            "title": "Meeting in 15 Minutes",
+            "body": "Time to prepare for your upcoming meeting",
+            "icon_id": "meeting",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "take-medication",
@@ -474,15 +600,21 @@
       "schedule_description": "Remember to take your medication",
       "rrule": "FREQ=DAILY;COUNT=1",
       "default_times": ["09:00"],
-      "notification": {
-        "title": "Take Your Medication",
-        "body": "Time to take your scheduled medication",
-        "icon_id": "reminder-alert",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Medication Alert",
+          "parameters": {
+            "title": "Take Your Medication",
+            "body": "Time to take your scheduled medication",
+            "icon_id": "reminder-alert",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "call-reminder",
@@ -495,15 +627,21 @@
       "schedule_description": "Remember to call someone",
       "rrule": "FREQ=DAILY;COUNT=1",
       "default_times": ["10:00"],
-      "notification": {
-        "title": "Time to Call",
-        "body": "Don't forget to make that call",
-        "icon_id": "notification",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Call Alert",
+          "parameters": {
+            "title": "Time to Call",
+            "body": "Don't forget to make that call",
+            "icon_id": "notification",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "food-ready",
@@ -516,15 +654,21 @@
       "schedule_description": "Food is ready to check",
       "rrule": "FREQ=DAILY;COUNT=1",
       "default_times": ["12:30"],
-      "notification": {
-        "title": "Food Ready!",
-        "body": "Time to check your food - it should be done",
-        "icon_id": "food",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Food Alert",
+          "parameters": {
+            "title": "Food Ready!",
+            "body": "Time to check your food - it should be done",
+            "icon_id": "food",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "break-reminder",
@@ -537,15 +681,21 @@
       "schedule_description": "Time for a quick break",
       "rrule": "FREQ=DAILY;COUNT=1",
       "default_times": ["15:00"],
-      "notification": {
-        "title": "Break Time!",
-        "body": "Step away and take a short break",
-        "icon_id": "break",
-        "position": "center",
-        "auto_dismiss": 25,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Break Alert",
+          "parameters": {
+            "title": "Break Time!",
+            "body": "Step away and take a short break",
+            "icon_id": "break",
+            "position": "center",
+            "auto_dismiss": "25",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "pickup-delivery",
@@ -558,15 +708,21 @@
       "schedule_description": "Reminder to pick up your delivery",
       "rrule": "FREQ=DAILY;COUNT=1",
       "default_times": ["14:00"],
-      "notification": {
-        "title": "Pickup Your Delivery",
-        "body": "Your package is ready for pickup",
-        "icon_id": "shopping-cart",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Delivery Alert",
+          "parameters": {
+            "title": "Pickup Your Delivery",
+            "body": "Your package is ready for pickup",
+            "icon_id": "shopping-cart",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     },
     {
       "id": "event-reminder",
@@ -579,15 +735,21 @@
       "schedule_description": "Your event is coming up",
       "rrule": "FREQ=DAILY;COUNT=1",
       "default_times": ["18:00"],
-      "notification": {
-        "title": "Event Starting Soon",
-        "body": "Your scheduled event is about to begin",
-        "icon_id": "calendar-events",
-        "position": "center",
-        "auto_dismiss": 30,
-        "width": 450,
-        "height": 220
-      }
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Event Alert",
+          "parameters": {
+            "title": "Event Starting Soon",
+            "body": "Your scheduled event is about to begin",
+            "icon_id": "calendar-events",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
     }
   ]
 }

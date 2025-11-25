@@ -625,18 +625,15 @@ message ScheduleTemplate {
   string rrule = 9;
   repeated string default_times = 10;  // Format: "HH:MM"
 
-  // Embedded notification configuration (optional)
-  message NotificationConfig {
-    string title = 1;
-    string body = 2;
-    string icon_id = 3;
-    string position = 4;
-    int32 auto_dismiss = 5;
-    int32 width = 6;
-    int32 height = 7;
+  // Generic template action - supports any ActionType
+  message TemplateAction {
+    ActionType type = 1;
+    string name = 2;
+    map<string, string> parameters = 3;
   }
 
-  optional NotificationConfig notification = 11;
+  // Actions to execute when this template is used
+  repeated TemplateAction actions = 11;
 }
 
 // Request/Response messages for template service

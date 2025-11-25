@@ -1,4 +1,5 @@
 import Foundation
+import VCStubs
 
 struct Action: Identifiable, Codable, Equatable, Hashable {
     let id: String
@@ -40,6 +41,30 @@ enum ActionType: String, Codable, CaseIterable {
     case systemCommand = "system_command"
     case apiCall = "api_call"
     case logEntry = "log_entry"
+
+    /// Initialize from protobuf VCActionType
+    init(from proto: VCActionType) {
+        switch proto {
+        case .notification:
+            self = .notification
+        case .openLink:
+            self = .openLink
+        case .sendEmail:
+            self = .sendEmail
+        case .runScript:
+            self = .runScript
+        case .playSound:
+            self = .playSound
+        case .systemCommand:
+            self = .systemCommand
+        case .apiCall:
+            self = .apiCall
+        case .logEntry:
+            self = .logEntry
+        case .unspecified, .UNRECOGNIZED:
+            self = .notification // Default fallback
+        }
+    }
 
     var displayName: String {
         switch self {

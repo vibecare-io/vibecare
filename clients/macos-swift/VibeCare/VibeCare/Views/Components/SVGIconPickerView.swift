@@ -326,28 +326,27 @@ struct SVGIconPickerView: View {
 }
 
 // MARK: - Previews
-
-#Preview("Icon Picker") {
-  SVGIconPickerView(
-    iconManager: .shared,
-    selectedIconId: .constant("meditation"),
-    onSelect: { icon in
-      print("Selected: \(icon.name)")
-    },
-    onDismiss: {}
-  )
-}
-
-#Preview("Icon Picker - Empty") {
-  SVGIconPickerView(
-    iconManager: SVGIconManager.mock(withIcons: []),
-    selectedIconId: .constant(nil),
-    onSelect: { _ in },
-    onDismiss: {}
-  )
-}
-
 #if DEBUG
+  #Preview("Icon Picker") {
+    SVGIconPickerView(
+      iconManager: .shared,
+      selectedIconId: .constant("meditation"),
+      onSelect: { icon in
+        print("Selected: \(icon.name)")
+      },
+      onDismiss: {}
+    )
+  }
+
+  #Preview("Icon Picker - Empty") {
+    SVGIconPickerView(
+      iconManager: SVGIconManager.mock(withIcons: []),
+      selectedIconId: .constant(nil),
+      onSelect: { _ in },
+      onDismiss: {}
+    )
+  }
+
   #Preview("Icon Picker - With Sample Icons") {
     SVGIconPickerView(
       iconManager: SVGIconManager.mock(withIcons: SVGIconManager.sampleIcons),

@@ -86,27 +86,23 @@ type templateConfig struct {
 }
 
 type templateConfigItem struct {
-	ID                  string                     `json:"id"`
-	Category            string                     `json:"category"`
-	RoutineName         string                     `json:"routine_name"`
-	RoutineDescription  string                     `json:"routine_description,omitempty"`
-	RoutineIcon         string                     `json:"routine_icon"`
-	RoutineColor        string                     `json:"routine_color"`
-	ScheduleName        string                     `json:"schedule_name"`
-	ScheduleDescription string                     `json:"schedule_description,omitempty"`
-	RRule               string                     `json:"rrule"`
-	DefaultTimes        []string                   `json:"default_times"`
-	Notification        *notificationConfigItem    `json:"notification,omitempty"`
+	ID                  string               `json:"id"`
+	Category            string               `json:"category"`
+	RoutineName         string               `json:"routine_name"`
+	RoutineDescription  string               `json:"routine_description,omitempty"`
+	RoutineIcon         string               `json:"routine_icon"`
+	RoutineColor        string               `json:"routine_color"`
+	ScheduleName        string               `json:"schedule_name"`
+	ScheduleDescription string               `json:"schedule_description,omitempty"`
+	RRule               string               `json:"rrule"`
+	DefaultTimes        []string             `json:"default_times"`
+	Actions             []templateActionItem `json:"actions,omitempty"`
 }
 
-type notificationConfigItem struct {
-	Title       string `json:"title"`
-	Body        string `json:"body"`
-	IconID      string `json:"icon_id,omitempty"`
-	Position    string `json:"position,omitempty"`
-	AutoDismiss int32  `json:"auto_dismiss,omitempty"`
-	Width       int32  `json:"width,omitempty"`
-	Height      int32  `json:"height,omitempty"`
+type templateActionItem struct {
+	Type       string            `json:"type"`
+	Name       string            `json:"name,omitempty"`
+	Parameters map[string]string `json:"parameters"`
 }
 
 // convertToProto converts JSON config to protobuf message
@@ -124,20 +120,44 @@ func convertToProto(item templateConfigItem) *pb.ScheduleTemplate {
 		DefaultTimes:        item.DefaultTimes,
 	}
 
-	// Convert notification config if present
-	if item.Notification != nil {
-		template.Notification = &pb.ScheduleTemplate_NotificationConfig{
-			Title:       item.Notification.Title,
-			Body:        item.Notification.Body,
-			IconId:      item.Notification.IconID,
-			Position:    item.Notification.Position,
-			AutoDismiss: item.Notification.AutoDismiss,
-			Width:       item.Notification.Width,
-			Height:      item.Notification.Height,
+	// Convert actions array
+	if len(item.Actions) > 0 {
+		template.Actions = make([]*pb.ScheduleTemplate_TemplateAction, 0, len(item.Actions))
+		for _, action := range item.Actions {
+			pbAction := &pb.ScheduleTemplate_TemplateAction{
+				Type:       parseActionType(action.Type),
+				Name:       action.Name,
+				Parameters: action.Parameters,
+			}
+			template.Actions = append(template.Actions, pbAction)
 		}
 	}
 
 	return template
+}
+
+// parseActionType converts string action type to enum
+func parseActionType(actionType string) pb.ActionType {
+	switch actionType {
+	case "notification":
+		return pb.ActionType_ACTION_TYPE_NOTIFICATION
+	case "open_link":
+		return pb.ActionType_ACTION_TYPE_OPEN_LINK
+	case "send_email":
+		return pb.ActionType_ACTION_TYPE_SEND_EMAIL
+	case "run_script":
+		return pb.ActionType_ACTION_TYPE_RUN_SCRIPT
+	case "play_sound":
+		return pb.ActionType_ACTION_TYPE_PLAY_SOUND
+	case "system_command":
+		return pb.ActionType_ACTION_TYPE_SYSTEM_COMMAND
+	case "api_call":
+		return pb.ActionType_ACTION_TYPE_API_CALL
+	case "log_entry":
+		return pb.ActionType_ACTION_TYPE_LOG_ENTRY
+	default:
+		return pb.ActionType_ACTION_TYPE_UNSPECIFIED
+	}
 }
 
 // parseCategory converts string category to enum
