@@ -586,3 +586,12 @@ xcode:
 [group('📦 Build & Run')]
 build-all: build swift-build
     @echo "{{GREEN}}✓ All components built{{NC}}"
+
+# Trigger GitHub release workflow
+[group('🚀 Release')]
+release version ref="release":
+    @echo "{{GREEN}}Triggering release workflow...{{NC}}"
+    @echo "{{YELLOW}}Version: {{version}}{{NC}}"
+    @echo "{{YELLOW}}Ref: {{ref}}{{NC}}"
+    gh workflow run "Release 🎉" --ref {{ref}} --field version={{version}}
+    @echo "{{GREEN}}✓ Workflow triggered. Check status at: https://github.com/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/actions{{NC}}"

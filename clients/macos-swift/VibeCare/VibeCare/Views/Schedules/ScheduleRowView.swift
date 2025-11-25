@@ -1,489 +1,451 @@
 import SwiftUI
 
 struct ScheduleRowView: View {
-    let schedule: Schedule
-    let isSelected: Bool
-    let isHovered: Bool
-    let onSelect: () -> Void
-    let onToggleEnabled: () -> Void
-    let onDelete: () -> Void
-    let onDuplicate: () -> Void
-    let onTest: () -> Void
+  let schedule: Schedule
+  let isSelected: Bool
+  let isHovered: Bool
+  let onSelect: () -> Void
+  let onToggleEnabled: () -> Void
+  let onDelete: () -> Void
+  let onDuplicate: () -> Void
+  let onTest: () -> Void
 
-    // Optional routine name for context (passed from parent)
-    var routineName: String?
+  // Optional routine name for context (passed from parent)
+  var routineName: String?
 
-    init(
-        schedule: Schedule,
-        isSelected: Bool,
-        isHovered: Bool,
-        onSelect: @escaping () -> Void,
-        onToggleEnabled: @escaping () -> Void,
-        onDelete: @escaping () -> Void,
-        onDuplicate: @escaping () -> Void,
-        onTest: @escaping () -> Void,
-        routineName: String? = nil
-    ) {
-        self.schedule = schedule
-        self.isSelected = isSelected
-        self.isHovered = isHovered
-        self.onSelect = onSelect
-        self.onToggleEnabled = onToggleEnabled
-        self.onDelete = onDelete
-        self.onDuplicate = onDuplicate
-        self.onTest = onTest
-        self.routineName = routineName
-    }
+  init(
+    schedule: Schedule,
+    isSelected: Bool,
+    isHovered: Bool,
+    onSelect: @escaping () -> Void,
+    onToggleEnabled: @escaping () -> Void,
+    onDelete: @escaping () -> Void,
+    onDuplicate: @escaping () -> Void,
+    onTest: @escaping () -> Void,
+    routineName: String? = nil
+  ) {
+    self.schedule = schedule
+    self.isSelected = isSelected
+    self.isHovered = isHovered
+    self.onSelect = onSelect
+    self.onToggleEnabled = onToggleEnabled
+    self.onDelete = onDelete
+    self.onDuplicate = onDuplicate
+    self.onTest = onTest
+    self.routineName = routineName
+  }
 
-    @State private var showActionMenu = false
+  @State private var showActionMenu = false
 
-    var body: some View {
-        HStack(spacing: 12) {
-            // Status indicator - color-coded based on schedule state
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
+  var body: some View {
+    HStack(spacing: 12) {
+      // Status indicator - color-coded based on schedule state
+      Circle()
+        .fill(statusColor)
+        .frame(width: 8, height: 8)
 
-            VStack(alignment: .leading, spacing: 4) {
-                // Title and routine context
-                HStack {
-                    Text(schedule.name)
-                        .font(.body)
-                        .fontWeight(.medium)
-                        .lineLimit(1)
+      VStack(alignment: .leading, spacing: 2) {
+        // Title row with badges on right
+        HStack {
+          Text(schedule.name)
+            .font(.body)
+            .fontWeight(.medium)
+            .lineLimit(1)
 
-                    Spacer()
+          Spacer()
 
-                    // Routine context tag - shows parent routine
-                    HStack(spacing: 4) {
-                        Image(systemName: "list.bullet.circle.fill")
-                            .font(.caption2)
-                        Text(routineDisplayName)
-                            .font(.caption)
-                    }
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.accentColor.opacity(0.1))
-                    .foregroundColor(.accentColor)
-                    .clipShape(Capsule())
-                }
-
-                // RRule summary - human-readable description
-                if let rruleDescription = schedule.parsedRRule?.humanReadableDescription {
-                    HStack(spacing: 4) {
-                        Image(systemName: "repeat.circle.fill")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                        Text(rruleDescription)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-
-                        // Timezone indicator - only show if schedule timezone differs from system
-                        if schedule.scheduleTimezone != TimeZone.current.identifier {
-                            HStack(spacing: 2) {
-                                Image(systemName: "globe")
-                                    .font(.caption2)
-                                Text(TimeZone(identifier: schedule.scheduleTimezone)?.abbreviation() ?? schedule.scheduleTimezone)
-                                    .font(.caption2)
-                            }
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.blue.opacity(0.1))
-                            .foregroundColor(.blue)
-                            .clipShape(Capsule())
-                        }
-                    }
-                }
-
-                // Notes (if available)
-                if !schedule.notes.isEmpty {
-                    Text(schedule.notes)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                }
-
-                // Schedule metadata and next execution
-                HStack {
-                    // Action count removed - actions managed via schedule_actions join table
-                    // TODO: Could fetch action count from join table if needed
-
-                    Spacer()
-
-                    // Next run preview
-                    nextRunView
-                }
+          // Timezone indicator - only show if schedule timezone differs from system
+          if schedule.scheduleTimezone != TimeZone.current.identifier {
+            HStack(spacing: 2) {
+              Image(systemName: "globe")
+                .font(.caption2)
+              Text(
+                TimeZone(identifier: schedule.scheduleTimezone)?.abbreviation()
+                  ?? schedule.scheduleTimezone
+              )
+              .font(.caption2)
             }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(Color.blue.opacity(0.1))
+            .foregroundColor(.blue)
+            .clipShape(Capsule())
+          }
 
-            // Hover actions (visible on hover or selection)
-            if isHovered || isSelected {
-                HStack(spacing: 4) {
-                    Button {
-                        onToggleEnabled()
-                    } label: {
-                        Image(systemName: schedule.enabled ? "pause.circle" : "play.circle")
-                            .foregroundColor(schedule.enabled ? .orange : .green)
-                    }
-                    .buttonStyle(.plain)
-                    .help(schedule.enabled ? "Disable schedule" : "Enable schedule")
+        }
 
-                    Button {
-                        onTest()
-                    } label: {
-                        Image(systemName: "eye.fill")
-                            .foregroundColor(.purple)
-                    }
-                    .buttonStyle(.plain)
-                    .help("Preview notification")
+        // Description/notes with next run on same line
+        HStack(spacing: 4) {
+          if !schedule.notes.isEmpty {
+            Text(schedule.notes)
+              .font(.caption)
+              .foregroundColor(.secondary)
+              .lineLimit(1)
+          }
 
-                    Menu {
-                        Button("Duplicate") {
-                            onDuplicate()
-                        }
-                        Button("Edit") {
-                            onSelect()
-                        }
-                        Divider()
-                        Button("Delete", role: .destructive) {
-                            onDelete()
-                        }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                    .help("More actions")
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
+          Spacer()
+
+          // Next run preview
+          nextRunView
+        }
+      }
+
+      // Hover actions (visible on hover or selection)
+      if isHovered || isSelected {
+        HStack(spacing: 4) {
+          Button {
+            onToggleEnabled()
+          } label: {
+            Image(systemName: schedule.enabled ? "pause.circle" : "play.circle")
+              .foregroundColor(schedule.enabled ? .orange : .green)
+          }
+          .buttonStyle(.plain)
+          .help(schedule.enabled ? "Disable schedule" : "Enable schedule")
+
+          Button {
+            onTest()
+          } label: {
+            Image(systemName: "eye.fill")
+              .foregroundColor(.purple)
+          }
+          .buttonStyle(.plain)
+          .help("Preview notification")
+
+          Menu {
+            Button("Duplicate") {
+              onDuplicate()
             }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
-        )
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onSelect()
-        }
-        .animation(.easeInOut(duration: 0.2), value: isHovered)
-        .animation(.easeInOut(duration: 0.2), value: isSelected)
-    }
-
-    // MARK: - Subviews
-
-    private var nextRunView: some View {
-        Group {
-            if !schedule.enabled {
-                HStack(spacing: 4) {
-                    Image(systemName: "pause.circle.fill")
-                        .font(.caption2)
-                    Text("Paused")
-                        .font(.caption)
-                }
-                .foregroundColor(.orange)
-            } else if let nextExecution = schedule.nextExecution {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock.fill")
-                        .font(.caption2)
-                    Text("Next: \(nextExecution, style: .relative)")
-                        .font(.caption)
-                }
-                .foregroundColor(nextRunColor(for: nextExecution))
-            } else {
-                HStack(spacing: 4) {
-                    Image(systemName: "clock.arrow.circlepath")
-                        .font(.caption2)
-                    Text("No upcoming run")
-                        .font(.caption)
-                }
-                .foregroundColor(.secondary)
+            Button("Edit") {
+              onSelect()
             }
+            Divider()
+            Button("Delete", role: .destructive) {
+              onDelete()
+            }
+          } label: {
+            Image(systemName: "ellipsis.circle")
+              .foregroundColor(.secondary)
+          }
+          .buttonStyle(.plain)
+          .help("More actions")
         }
+        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+      }
+    }
+    .padding(.horizontal, 10)
+    .padding(.vertical, 6)
+    .background(
+      RoundedRectangle(cornerRadius: 8)
+        .fill(isSelected ? Color.accentColor.opacity(0.1) : Color.clear)
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1)
+    )
+    .contentShape(Rectangle())
+    .onTapGesture {
+      onSelect()
+    }
+    .animation(.easeInOut(duration: 0.2), value: isHovered)
+    .animation(.easeInOut(duration: 0.2), value: isSelected)
+  }
+
+  // MARK: - Subviews
+
+  private var nextRunView: some View {
+    Group {
+      if !schedule.enabled {
+        HStack(spacing: 4) {
+          Image(systemName: "pause.circle.fill")
+            .font(.caption2)
+          Text("Paused")
+            .font(.caption)
+        }
+        .foregroundColor(.orange)
+      } else if let nextExecution = schedule.nextExecution {
+        HStack(spacing: 4) {
+          Image(systemName: "clock.fill")
+            .font(.caption2)
+          Text("Next: \(nextExecution, style: .relative)")
+            .font(.caption)
+        }
+        .foregroundColor(nextRunColor(for: nextExecution))
+      } else {
+        HStack(spacing: 4) {
+          Image(systemName: "clock.arrow.circlepath")
+            .font(.caption2)
+          Text("No upcoming run")
+            .font(.caption)
+        }
+        .foregroundColor(.secondary)
+      }
+    }
+  }
+
+  // MARK: - Helper Properties
+
+  private var statusColor: Color {
+    if !schedule.enabled {
+      return .gray
     }
 
-    // MARK: - Helper Properties
-
-    private var routineDisplayName: String {
-        if let routineName = routineName, !routineName.isEmpty {
-            return routineName
-        }
-        // Fallback to truncated routine ID
-        return String(schedule.routineId.prefix(8))
+    guard let nextRun = schedule.nextExecution else {
+      return .gray
     }
 
-    private var statusColor: Color {
-        if !schedule.enabled {
-            return .gray
-        }
+    let now = Date()
+    let timeInterval = nextRun.timeIntervalSince(now)
 
-        guard let nextRun = schedule.nextExecution else {
-            return .gray
-        }
-
-        let now = Date()
-        let timeInterval = nextRun.timeIntervalSince(now)
-
-        if timeInterval < 0 {
-            // Overdue
-            return .red
-        } else if timeInterval < 3600 {
-            // Upcoming (within 1 hour)
-            return .orange
-        } else {
-            // Scheduled normally
-            return .green
-        }
+    if timeInterval < 0 {
+      // Overdue
+      return .red
+    } else if timeInterval < 3600 {
+      // Upcoming (within 1 hour)
+      return .orange
+    } else {
+      // Scheduled normally
+      return .green
     }
+  }
 
-    private func nextRunColor(for date: Date) -> Color {
-        let now = Date()
-        let timeInterval = date.timeIntervalSince(now)
+  private func nextRunColor(for date: Date) -> Color {
+    let now = Date()
+    let timeInterval = date.timeIntervalSince(now)
 
-        if timeInterval < 0 {
-            return .red // Overdue
-        } else if timeInterval < 3600 {
-            return .orange // Within next hour
-        } else {
-            return .secondary // Normal
-        }
+    if timeInterval < 0 {
+      return .red  // Overdue
+    } else if timeInterval < 3600 {
+      return .orange  // Within next hour
+    } else {
+      return .secondary  // Normal
     }
+  }
 }
 
 // MARK: - Simplified Schedule Row for Lists
 
 struct ScheduleRowSimpleView: View {
-    let schedule: Schedule
-    let onToggle: (() -> Void)?
-    let onEdit: (() -> Void)?
-    let onDelete: (() -> Void)?
-    var routineName: String?
+  let schedule: Schedule
+  let onToggle: (() -> Void)?
+  let onEdit: (() -> Void)?
+  let onDelete: (() -> Void)?
+  var routineName: String?
 
-    init(
-        schedule: Schedule,
-        onToggle: (() -> Void)? = nil,
-        onEdit: (() -> Void)? = nil,
-        onDelete: (() -> Void)? = nil,
-        routineName: String? = nil
-    ) {
-        self.schedule = schedule
-        self.onToggle = onToggle
-        self.onEdit = onEdit
-        self.onDelete = onDelete
-        self.routineName = routineName
+  init(
+    schedule: Schedule,
+    onToggle: (() -> Void)? = nil,
+    onEdit: (() -> Void)? = nil,
+    onDelete: (() -> Void)? = nil,
+    routineName: String? = nil
+  ) {
+    self.schedule = schedule
+    self.onToggle = onToggle
+    self.onEdit = onEdit
+    self.onDelete = onDelete
+    self.routineName = routineName
+  }
+
+  @State private var isHovered = false
+
+  var body: some View {
+    HStack(spacing: 12) {
+      // Status indicator
+      Circle()
+        .fill(statusColor)
+        .frame(width: 8, height: 8)
+
+      VStack(alignment: .leading, spacing: 2) {
+        // Title row with timezone badge
+        HStack {
+          Text(schedule.name)
+            .font(.subheadline)
+            .fontWeight(.medium)
+
+          Spacer()
+
+          // Timezone indicator - only show if schedule timezone differs from system
+          if schedule.scheduleTimezone != TimeZone.current.identifier {
+            HStack(spacing: 2) {
+              Image(systemName: "globe")
+                .font(.caption2)
+              Text(
+                TimeZone(identifier: schedule.scheduleTimezone)?.abbreviation()
+                  ?? schedule.scheduleTimezone
+              )
+              .font(.caption2)
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 1)
+            .background(Color.blue.opacity(0.1))
+            .foregroundColor(.blue)
+            .clipShape(Capsule())
+          }
+        }
+
+        // Next execution
+        if schedule.enabled, let nextExecution = schedule.nextExecution {
+          HStack(spacing: 4) {
+            Image(systemName: "clock.fill")
+              .font(.caption2)
+            Text("Next: \(nextExecution, style: .relative)")
+              .font(.caption)
+          }
+          .foregroundColor(.secondary)
+        } else if !schedule.enabled {
+          HStack(spacing: 4) {
+            Image(systemName: "pause.circle.fill")
+              .font(.caption2)
+            Text("Paused")
+              .font(.caption)
+          }
+          .foregroundColor(.orange)
+        }
+      }
+
+      if isHovered {
+        HStack(spacing: 8) {
+          if let onToggle = onToggle {
+            Button {
+              onToggle()
+            } label: {
+              HStack(spacing: 4) {
+                Image(systemName: schedule.enabled ? "pause.circle" : "play.circle")
+                Text(schedule.enabled ? "Pause" : "Enable")
+                  .font(.caption)
+              }
+              .foregroundColor(schedule.enabled ? .orange : .green)
+            }
+            .buttonStyle(.plain)
+            .help(schedule.enabled ? "Disable schedule" : "Enable schedule")
+          }
+
+          if let onEdit = onEdit {
+            Button {
+              onEdit()
+            } label: {
+              HStack(spacing: 4) {
+                Image(systemName: "pencil")
+                Text("Edit")
+                  .font(.caption)
+              }
+              .foregroundColor(.blue)
+            }
+            .buttonStyle(.plain)
+            .help("Edit schedule")
+          }
+
+          if let onDelete = onDelete {
+            Button {
+              onDelete()
+            } label: {
+              HStack(spacing: 4) {
+                Image(systemName: "trash")
+                Text("Delete")
+                  .font(.caption)
+              }
+              .foregroundColor(.red)
+            }
+            .buttonStyle(.plain)
+            .help("Delete schedule")
+          }
+        }
+        .transition(.opacity.combined(with: .scale(scale: 0.8)))
+      }
+    }
+    .padding(.horizontal, 12)
+    .padding(.vertical, 10)
+    .background(
+      RoundedRectangle(cornerRadius: 8)
+        .fill(Color(NSColor.controlBackgroundColor))
+    )
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(isHovered ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+    )
+    .onHover { hovering in
+      withAnimation(.easeInOut(duration: 0.2)) {
+        isHovered = hovering
+      }
+    }
+  }
+
+  // MARK: - Helper Properties
+
+  private var statusColor: Color {
+    if !schedule.enabled {
+      return .gray
     }
 
-    @State private var isHovered = false
-
-    var body: some View {
-        HStack(spacing: 12) {
-            // Status indicator
-            Circle()
-                .fill(statusColor)
-                .frame(width: 8, height: 8)
-
-            VStack(alignment: .leading, spacing: 2) {
-                // Title
-                Text(schedule.name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                // RRule summary
-                if let rruleDescription = schedule.parsedRRule?.humanReadableDescription {
-                    HStack(spacing: 4) {
-                        Image(systemName: "repeat.circle.fill")
-                            .font(.caption2)
-                        Text(rruleDescription)
-                            .font(.caption)
-
-                        // Timezone indicator - only show if schedule timezone differs from system
-                        if schedule.scheduleTimezone != TimeZone.current.identifier {
-                            HStack(spacing: 2) {
-                                Image(systemName: "globe")
-                                    .font(.caption2)
-                                Text(TimeZone(identifier: schedule.scheduleTimezone)?.abbreviation() ?? schedule.scheduleTimezone)
-                                    .font(.caption2)
-                            }
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.blue.opacity(0.1))
-                            .foregroundColor(.blue)
-                            .clipShape(Capsule())
-                        }
-                    }
-                    .foregroundColor(.secondary)
-                }
-
-                // Next execution
-                if schedule.enabled, let nextExecution = schedule.nextExecution {
-                    HStack(spacing: 4) {
-                        Image(systemName: "clock.fill")
-                            .font(.caption2)
-                        Text("Next: \(nextExecution, style: .relative)")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.secondary)
-                } else if !schedule.enabled {
-                    HStack(spacing: 4) {
-                        Image(systemName: "pause.circle.fill")
-                            .font(.caption2)
-                        Text("Paused")
-                            .font(.caption)
-                    }
-                    .foregroundColor(.orange)
-                }
-            }
-
-            if isHovered {
-                HStack(spacing: 8) {
-                    if let onToggle = onToggle {
-                        Button {
-                            onToggle()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: schedule.enabled ? "pause.circle" : "play.circle")
-                                Text(schedule.enabled ? "Pause" : "Enable")
-                                    .font(.caption)
-                            }
-                            .foregroundColor(schedule.enabled ? .orange : .green)
-                        }
-                        .buttonStyle(.plain)
-                        .help(schedule.enabled ? "Disable schedule" : "Enable schedule")
-                    }
-
-                    if let onEdit = onEdit {
-                        Button {
-                            onEdit()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "pencil")
-                                Text("Edit")
-                                    .font(.caption)
-                            }
-                            .foregroundColor(.blue)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Edit schedule")
-                    }
-
-                    if let onDelete = onDelete {
-                        Button {
-                            onDelete()
-                        } label: {
-                            HStack(spacing: 4) {
-                                Image(systemName: "trash")
-                                Text("Delete")
-                                    .font(.caption)
-                            }
-                            .foregroundColor(.red)
-                        }
-                        .buttonStyle(.plain)
-                        .help("Delete schedule")
-                    }
-                }
-                .transition(.opacity.combined(with: .scale(scale: 0.8)))
-            }
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color(NSColor.controlBackgroundColor))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(isHovered ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
-        )
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.2)) {
-                isHovered = hovering
-            }
-        }
+    guard let nextRun = schedule.nextExecution else {
+      return .gray
     }
 
-    // MARK: - Helper Properties
+    let now = Date()
+    let timeInterval = nextRun.timeIntervalSince(now)
 
-    private var statusColor: Color {
-        if !schedule.enabled {
-            return .gray
-        }
-
-        guard let nextRun = schedule.nextExecution else {
-            return .gray
-        }
-
-        let now = Date()
-        let timeInterval = nextRun.timeIntervalSince(now)
-
-        if timeInterval < 0 {
-            return .red
-        } else if timeInterval < 3600 {
-            return .orange
-        } else {
-            return .green
-        }
+    if timeInterval < 0 {
+      return .red
+    } else if timeInterval < 3600 {
+      return .orange
+    } else {
+      return .green
     }
+  }
 }
 
 // MARK: - Preview
 
 #Preview {
-    VStack(spacing: 16) {
-        ScheduleRowView(
-            schedule: Schedule.example(profileId: "preview-profile", routineId: "preview-routine"),
-            isSelected: false,
-            isHovered: false,
-            onSelect: {},
-            onToggleEnabled: {},
-            onDelete: {},
-            onDuplicate: {},
-            onTest: {},
-            routineName: "Morning Routine"
-        )
+  VStack(spacing: 16) {
+    ScheduleRowView(
+      schedule: Schedule.example(profileId: "preview-profile", routineId: "preview-routine"),
+      isSelected: false,
+      isHovered: false,
+      onSelect: {},
+      onToggleEnabled: {},
+      onDelete: {},
+      onDuplicate: {},
+      onTest: {},
+      routineName: "Morning Routine"
+    )
 
-        ScheduleRowView(
-            schedule: Schedule.example(profileId: "preview-profile", routineId: "preview-routine"),
-            isSelected: true,
-            isHovered: true,
-            onSelect: {},
-            onToggleEnabled: {},
-            onDelete: {},
-            onDuplicate: {},
-            onTest: {},
-            routineName: "Evening Routine"
-        )
+    ScheduleRowView(
+      schedule: Schedule.example(profileId: "preview-profile", routineId: "preview-routine"),
+      isSelected: true,
+      isHovered: true,
+      onSelect: {},
+      onToggleEnabled: {},
+      onDelete: {},
+      onDuplicate: {},
+      onTest: {},
+      routineName: "Evening Routine"
+    )
 
-        // Disabled schedule
-        ScheduleRowView(
-            schedule: {
-                var s = Schedule.example(profileId: "preview-profile", routineId: "preview-routine")
-                s.enabled = false
-                return s
-            }(),
-            isSelected: false,
-            isHovered: false,
-            onSelect: {},
-            onToggleEnabled: {},
-            onDelete: {},
-            onDuplicate: {},
-            onTest: {},
-            routineName: "Afternoon Routine"
-        )
+    // Disabled schedule
+    ScheduleRowView(
+      schedule: {
+        var s = Schedule.example(profileId: "preview-profile", routineId: "preview-routine")
+        s.enabled = false
+        return s
+      }(),
+      isSelected: false,
+      isHovered: false,
+      onSelect: {},
+      onToggleEnabled: {},
+      onDelete: {},
+      onDuplicate: {},
+      onTest: {},
+      routineName: "Afternoon Routine"
+    )
 
-        ScheduleRowSimpleView(
-            schedule: Schedule.example(profileId: "preview-profile", routineId: "preview-routine"),
-            onToggle: {},
-            onEdit: {},
-            onDelete: {},
-            routineName: "Test Routine"
-        )
-    }
-    .padding()
-    .frame(width: 500)
+    ScheduleRowSimpleView(
+      schedule: Schedule.example(profileId: "preview-profile", routineId: "preview-routine"),
+      onToggle: {},
+      onEdit: {},
+      onDelete: {},
+      routineName: "Test Routine"
+    )
+  }
+  .padding()
+  .frame(width: 500)
 }

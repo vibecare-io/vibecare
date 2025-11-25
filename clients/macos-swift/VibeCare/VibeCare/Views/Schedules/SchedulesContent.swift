@@ -389,7 +389,7 @@ struct ScheduleListView: View {
   // MARK: - Sectioned Schedule List Content
 
   private var sectionedScheduleListContent: some View {
-    List(selection: $selectedIds) {
+    List {
       if groupByRoutine {
         routineGroupedContent
       } else {
@@ -398,18 +398,40 @@ struct ScheduleListView: View {
     }
     .listStyle(.plain)
     .scrollContentBackground(.hidden)
+    .background(Color.clear)
     .refreshable {
       await viewModel.manualRefresh()
     }
-    .onChange(of: selectedIds) { _, newValue in
-      // Update single selection for detail view (use first selected if any)
-      if let firstId = newValue.first, newValue.count == 1 {
-        selectedId = firstId
+  }
+
+  // MARK: - Flat Scroll Content
+
+  @ViewBuilder
+  private var flatScrollContent: some View {
+    if filterMode == .all {
+      if !activeSchedules.isEmpty {
+        sectionHeader(title: "Active Schedules", count: activeSchedules.count)
+          .padding(.top, 4)
+        ForEach(activeSchedules) { schedule in
+          scheduleRowForScroll(for: schedule)
+        }
+      }
+
+      if !pausedSchedules.isEmpty {
+        sectionHeader(title: "Paused Schedules", count: pausedSchedules.count)
+          .padding(.top, 8)
+        ForEach(pausedSchedules) { schedule in
+          scheduleRowForScroll(for: schedule)
+        }
+      }
+    } else {
+      ForEach(displayedSchedules) { schedule in
+        scheduleRowForScroll(for: schedule)
       }
     }
   }
 
-  // MARK: - Flat List Content
+  // MARK: - Flat List Content (Legacy)
 
   @ViewBuilder
   private var flatListContent: some View {
@@ -461,7 +483,42 @@ struct ScheduleListView: View {
     .padding(.horizontal, 8)
   }
 
-  // MARK: - Routine Grouped Content
+  // MARK: - Routine Grouped Scroll Content
+
+  @ViewBuilder
+  private var routineGroupedScrollContent: some View {
+    ForEach(schedulesByRoutine.keys.sorted(), id: \.self) { routineId in
+      if let schedulesInRoutine = schedulesByRoutine[routineId],
+        !schedulesInRoutine.isEmpty
+      {
+        let routine = routineViewModel.routines.first { $0.id == routineId }
+        let isExpanded = expandedRoutineIds.contains(routineId)
+
+        // Routine Header
+        routineHeader(routine: routine, schedules: schedulesInRoutine)
+          .contentShape(Rectangle())
+          .onTapGesture {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+              if isExpanded {
+                expandedRoutineIds.remove(routineId)
+              } else {
+                expandedRoutineIds.insert(routineId)
+              }
+            }
+          }
+          .padding(.top, 4)
+
+        // Schedules (shown when expanded)
+        if isExpanded {
+          ForEach(schedulesInRoutine) { schedule in
+            scheduleRowForScroll(for: schedule)
+          }
+        }
+      }
+    }
+  }
+
+  // MARK: - Routine Grouped Content (Legacy List-based, kept for flatListContent)
 
   @ViewBuilder
   private var routineGroupedContent: some View {
@@ -473,7 +530,7 @@ struct ScheduleListView: View {
         let isExpanded = Binding(
           get: { expandedRoutineIds.contains(routineId) },
           set: { newValue in
-            withAnimation(.easeInOut(duration: 0.25)) {
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
               if newValue {
                 expandedRoutineIds.insert(routineId)
               } else {
@@ -489,7 +546,15 @@ struct ScheduleListView: View {
           }
         } header: {
           routineHeader(routine: routine, schedules: schedulesInRoutine)
+            .listRowInsets(EdgeInsets(top: 4, leading: 8, bottom: 0, trailing: 8))
+            .listRowBackground(Color.clear)
+            .contentShape(Rectangle())
+            .onTapGesture {
+              isExpanded.wrappedValue.toggle()
+            }
         }
+        .listSectionSeparator(.hidden)
+        .listRowBackground(Color.clear)
       }
     }
   }
@@ -499,34 +564,55 @@ struct ScheduleListView: View {
     Dictionary(grouping: displayedSchedules) { $0.routineId }
   }
 
+  // MARK: - Color Helper
+
+  private func colorFromString(_ colorName: String) -> Color {
+    switch colorName.lowercased() {
+    case "blue": return .blue
+    case "red": return .red
+    case "green": return .green
+    case "orange": return .orange
+    case "purple": return .purple
+    case "pink": return .pink
+    case "yellow": return .yellow
+    case "gray", "grey": return .gray
+    case "brown": return .brown
+    case "cyan": return .cyan
+    case "indigo": return .indigo
+    case "mint": return .mint
+    case "teal": return .teal
+    default: return .blue
+    }
+  }
+
   // MARK: - Routine Header
 
   private func routineHeader(routine: Routine?, schedules: [Schedule]) -> some View {
     let activeCount = schedules.filter { $0.enabled }.count
+    let routineColor = colorFromString(routine?.color ?? "blue")
+    let isExpanded = expandedRoutineIds.contains(routine?.id ?? "")
 
-    return HStack(spacing: 12) {
-      // Routine icon
-      if let routine = routine {
-        Image(systemName: routine.iconName)
-          .font(.system(size: 16))
-          .foregroundColor(Color(routine.color))
-          .frame(width: 24, height: 24)
-      } else {
-        Image(systemName: "list.bullet")
-          .font(.system(size: 16))
-          .foregroundColor(.gray)
-          .frame(width: 24, height: 24)
-      }
+    return HStack(spacing: 6) {
+      // Left accent bar (routine color)
+      RoundedRectangle(cornerRadius: 2)
+        .fill(routineColor)
+        .frame(width: 3)
+
+      // Chevron for expand/collapse
+      Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+        .font(.system(size: 10, weight: .medium))
+        .foregroundColor(.secondary)
+        .frame(width: 12)
 
       // Routine name
       Text(routine?.name ?? "Unknown Routine")
-        .font(.headline)
+        .font(.subheadline)
         .fontWeight(.semibold)
         .foregroundColor(.primary)
 
       Spacer()
 
-      // Active/total badge
+      // Active/total count badge
       HStack(spacing: 4) {
         if activeCount > 0 {
           Circle()
@@ -538,12 +624,14 @@ struct ScheduleListView: View {
           .font(.caption)
           .fontWeight(.medium)
           .foregroundColor(.secondary)
-          .padding(.horizontal, 8)
-          .padding(.vertical, 3)
+          .padding(.horizontal, 6)
+          .padding(.vertical, 2)
           .background(Color.secondary.opacity(0.1))
           .clipShape(Capsule())
       }
     }
+    .padding(.vertical, 4)
+    .padding(.trailing, 4)
   }
 
   // MARK: - Schedule Row
@@ -580,8 +668,9 @@ struct ScheduleListView: View {
       routineName: getRoutineName(for: schedule)
     )
     .tag(schedule.id)
-    .listRowSeparator(.hidden)
-    .listRowInsets(EdgeInsets(top: 2, leading: 8, bottom: 2, trailing: 8))
+    .listRowSeparator(.visible, edges: .bottom)
+    .listRowSeparatorTint(Color.secondary.opacity(0.15))
+    .listRowInsets(EdgeInsets(top: 1, leading: 24, bottom: 1, trailing: 8))
     .listRowBackground(Color.clear)
     .onHover { isHovered in
       hoveredScheduleId = isHovered ? schedule.id : nil
@@ -624,6 +713,52 @@ struct ScheduleListView: View {
         Label("Duplicate", systemImage: "doc.on.doc")
       }
       .tint(.blue)
+    }
+  }
+
+  // MARK: - Schedule Row for ScrollView
+
+  private func scheduleRowForScroll(for schedule: Schedule) -> some View {
+    VStack(spacing: 0) {
+      ScheduleRowView(
+        schedule: schedule,
+        isSelected: selectedIds.contains(schedule.id),
+        isHovered: hoveredScheduleId == schedule.id,
+        onSelect: {
+          selectedId = schedule.id
+          selectedIds = [schedule.id]
+        },
+        onToggleEnabled: {
+          Task {
+            await viewModel.toggleScheduleEnabled(schedule)
+          }
+        },
+        onDelete: {
+          scheduleToDelete = schedule
+          showDeleteAlert = true
+        },
+        onDuplicate: {
+          Task {
+            await viewModel.duplicateSchedule(schedule)
+          }
+        },
+        onTest: {
+          Task {
+            await viewModel.testSchedule(schedule)
+          }
+        },
+        routineName: getRoutineName(for: schedule)
+      )
+      .padding(.leading, 16)
+      .padding(.vertical, 1)
+      .onHover { isHovered in
+        hoveredScheduleId = isHovered ? schedule.id : nil
+      }
+
+      // Separator line
+      Divider()
+        .padding(.leading, 24)
+        .opacity(0.5)
     }
   }
 

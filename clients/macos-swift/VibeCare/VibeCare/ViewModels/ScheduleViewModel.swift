@@ -1,6 +1,8 @@
 import SwiftUI
 import Logging
 import Combine
+import VCStubs
+import SwiftProtobuf
 
 @MainActor
 class ScheduleViewModel: ObservableObject {
@@ -236,9 +238,81 @@ class ScheduleViewModel: ObservableObject {
     }
 
     func testSchedule(_ schedule: Schedule) async {
-        // TODO: Implement schedule testing
-        logger.info("Testing schedule: \(schedule.name)")
-        StatusBarManager.shared.showSuccess("Testing schedule '\(schedule.name)'")
+        logger.info("Preview/dry-run for schedule: \(schedule.name)")
+
+        do {
+            // 1. Fetch action IDs for this schedule
+            let actionIds = try await scheduleService.getScheduleActions(scheduleId: schedule.id)
+
+            if actionIds.isEmpty {
+                StatusBarManager.shared.showMessage("No actions configured for '\(schedule.name)'", type: .info)
+                return
+            }
+
+            // 2. Fetch full action details
+            var actions: [Action] = []
+            for actionId in actionIds {
+                if let action = try await actionService.getAction(id: actionId) {
+                    actions.append(action)
+                }
+            }
+
+            if actions.isEmpty {
+                StatusBarManager.shared.showMessage("Could not load actions for '\(schedule.name)'", type: .info)
+                return
+            }
+
+            // 3. Execute each action locally (no backend logging)
+            logger.info("Executing \(actions.count) action(s) for preview")
+            for action in actions {
+                executeActionLocally(action, schedule: schedule)
+            }
+
+            StatusBarManager.shared.showSuccess("Previewed \(actions.count) action(s)")
+
+        } catch {
+            logger.error("Failed to preview schedule: \(error)")
+            StatusBarManager.shared.showError("Failed to preview: \(error.localizedDescription)")
+        }
+    }
+
+    /// Execute an action locally for preview/dry-run (no backend logging)
+    private func executeActionLocally(_ action: Action, schedule: Schedule) {
+        logger.info("Preview executing action: \(action.name) (type: \(action.type))")
+
+        switch action.type {
+        case .notification:
+            // Create a mock event for the notification manager
+            var mockEvent = VCScheduleTriggeredEvent()
+            mockEvent.scheduleID = schedule.id
+            mockEvent.scheduleName = schedule.name
+            mockEvent.routineID = schedule.routineId
+            mockEvent.routineName = schedule.name  // Use schedule name as fallback
+            mockEvent.scheduledTime = Google_Protobuf_Timestamp(date: Date())
+
+            NotificationManager.shared.executeAction(action, for: mockEvent)
+
+        case .openLink:
+            LinkHandler.shared.executeAction(action)
+
+        case .playSound:
+            logger.info("Preview: play_sound action (not yet implemented)")
+
+        case .runScript:
+            logger.info("Preview: run_script action (not yet implemented)")
+
+        case .sendEmail:
+            logger.info("Preview: send_email action (not yet implemented)")
+
+        case .systemCommand:
+            logger.info("Preview: system_command action (not yet implemented)")
+
+        case .apiCall:
+            logger.info("Preview: api_call action (not yet implemented)")
+
+        case .logEntry:
+            logger.info("Preview log entry: \(action.parameters["message"] ?? "No message")")
+        }
     }
 
     private func createScheduleFromModel(_ schedule: Schedule) async {
