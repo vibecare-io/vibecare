@@ -19,7 +19,7 @@ type Storage interface {
 	// Schedule operations
 	ListSchedulesByRoutine(routineID string) ([]*models.Schedule, error)
 	GetSchedule(scheduleID string) (*models.Schedule, error)
-	CreateSchedule(scheduleID, profileID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error)
+	CreateSchedule(scheduleID, profileID, routineID, name, rrule, scheduleTimezone string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error)
 	UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error)
 	DeleteSchedule(scheduleID string) error
 

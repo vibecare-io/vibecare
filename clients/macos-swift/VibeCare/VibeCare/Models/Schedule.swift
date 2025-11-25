@@ -6,9 +6,11 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
     let routineId: String
     var name: String
     var rrule: String  // RFC 5545 RRule string
+    var scheduleTimezone: String  // IANA timezone for RRule calculations (e.g., "America/Los_Angeles")
     var dtstart: Date
     var exdates: [String]
     var lastExecution: Date?
+    var nextExecution: Date?  // Pre-calculated by backend
     var notes: String
     var enabled: Bool
     // Note: action associations are handled via schedule_actions join table
@@ -21,9 +23,11 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         routineId: String,
         name: String,
         rrule: String,
+        scheduleTimezone: String = TimeZone.current.identifier,  // Default to system timezone
         dtstart: Date = Date(),
         exdates: [String] = [],
         lastExecution: Date? = nil,
+        nextExecution: Date? = nil,
         notes: String = "",
         enabled: Bool = true,
         createdAt: Date = Date(),
@@ -34,13 +38,25 @@ struct Schedule: Identifiable, Codable, Equatable, Hashable {
         self.routineId = routineId
         self.name = name
         self.rrule = rrule
+        self.scheduleTimezone = scheduleTimezone
         self.dtstart = dtstart
         self.exdates = exdates
         self.lastExecution = lastExecution
+        self.nextExecution = nextExecution
         self.notes = notes
         self.enabled = enabled
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    /// Returns the TimeZone object for this schedule's timezone identifier
+    var timeZone: TimeZone? {
+        TimeZone(identifier: scheduleTimezone)
+    }
+
+    /// Returns a human-readable name for the schedule timezone
+    var timeZoneDisplayName: String {
+        timeZone?.localizedName(for: .standard, locale: .current) ?? scheduleTimezone
     }
 }
 
@@ -263,59 +279,8 @@ extension Schedule {
         return parsedRRule?.humanReadableDescription ?? "Untitled Schedule"
     }
 
-    var nextExecution: Date? {
-        guard let rrule = parsedRRule else { return nil }
-
-        let now = Date()
-        let calendar = Calendar.current
-
-        // Start from the most recent reference point (last execution or dtstart)
-        var candidate = lastExecution ?? dtstart
-
-        // Determine the time component to add based on frequency
-        let component: Calendar.Component
-        switch rrule.freq {
-        case .minutely: component = .minute
-        case .hourly: component = .hour
-        case .daily: component = .day
-        case .weekly: component = .weekOfYear
-        case .monthly: component = .month
-        case .yearly: component = .year
-        }
-
-        // Keep adding intervals until we find the next occurrence after now
-        while candidate <= now {
-            guard let next = calendar.date(byAdding: component, value: rrule.interval, to: candidate) else {
-                return nil
-            }
-            candidate = next
-        }
-
-        // Apply BYHOUR and BYMINUTE constraints if present
-        if !rrule.byhour.isEmpty || !rrule.byminute.isEmpty {
-            let hour = rrule.byhour.first ?? calendar.component(.hour, from: candidate)
-            let minute = rrule.byminute.first ?? calendar.component(.minute, from: candidate)
-
-            guard let adjusted = calendar.date(
-                bySettingHour: hour,
-                minute: minute,
-                second: 0,
-                of: candidate
-            ) else {
-                return candidate
-            }
-
-            // If adjustment moved time backwards, keep the original
-            candidate = adjusted > now ? adjusted : candidate
-        }
-
-        // Check UNTIL constraint
-        if let until = rrule.until, candidate > until {
-            return nil // No more occurrences
-        }
-
-        return candidate
-    }
+    // nextExecution is now a stored property populated from backend
+    // Removed local RRule calculation - backend provides pre-calculated value
 
     var status: ScheduleStatus {
         if !enabled {

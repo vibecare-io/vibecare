@@ -127,6 +127,7 @@ enum SettingCategory: String, CaseIterable, Identifiable {
 struct ProfileSettingsDetail: View {
     @EnvironmentObject private var appState: AppState
     @State private var profileName: String = ""
+    @State private var showTimezonePicker: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 20) {
@@ -182,6 +183,55 @@ struct ProfileSettingsDetail: View {
                     if let newName = newName {
                         profileName = newName
                     }
+                }
+            }
+
+            Divider()
+
+            // Timezone Section
+            if let currentProfile = appState.currentProfile {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Timezone")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 12) {
+                        Image(systemName: "globe")
+                            .font(.title2)
+                            .foregroundColor(.blue)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(currentProfile.timeZoneDisplayName)
+                                .font(.body)
+                                .fontWeight(.medium)
+
+                            Text(currentProfile.timezone)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                                .monospaced()
+                        }
+
+                        Spacer()
+
+                        Button("Change") {
+                            showTimezonePicker = true
+                        }
+                        .buttonStyle(.bordered)
+                    }
+                    .padding()
+                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
+                    .cornerRadius(12)
+                }
+                .sheet(isPresented: $showTimezonePicker) {
+                    TimezonePickerView(
+                        selectedTimezone: currentProfile.timezone,
+                        onSelect: { newTimezone in
+                            var updatedProfile = currentProfile
+                            updatedProfile.timezone = newTimezone
+                            appState.updateProfile(updatedProfile)
+                            showTimezonePicker = false
+                        }
+                    )
                 }
             }
 

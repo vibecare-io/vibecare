@@ -139,17 +139,18 @@ func (a *GRPCStorageAdapter) GetSchedule(scheduleID string) (*models.Schedule, e
 	return protoToSchedule(schedule), nil
 }
 
-func (a *GRPCStorageAdapter) CreateSchedule(scheduleID, profileID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
+func (a *GRPCStorageAdapter) CreateSchedule(scheduleID, profileID, routineID, name, rrule, scheduleTimezone string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
 	ctx := context.Background()
 
 	req := &pb.CreateScheduleRequest{
-		ProfileId: profileID,
-		RoutineId: routineID,
-		Name:      name,
-		Rrule:     rrule,
-		Exdates:   exdates,
-		Notes:     notes,
-		Enabled:   enabled,
+		ProfileId:        profileID,
+		RoutineId:        routineID,
+		Name:             name,
+		Rrule:            rrule,
+		ScheduleTimezone: scheduleTimezone,
+		Exdates:          exdates,
+		Notes:            notes,
+		Enabled:          enabled,
 	}
 
 	if dtstart != nil {

@@ -1,9 +1,11 @@
 package storage
 
 import (
+	"os"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/vibecare-io/vibecare/backend/internal/models"
 )
 
@@ -203,5 +205,463 @@ func TestUpdateScheduleRecalculation(t *testing.T) {
 				t.Errorf("type change: expected %v, got %v", tt.expectTypeChange, oldType != newType)
 			}
 		})
+	}
+}
+
+// ========== Timezone-Specific Tests ==========
+
+// TestCreateScheduleWithTimezone tests schedule creation with timezone field
+func TestCreateScheduleWithTimezone(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	// Create test profile and routine first
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+
+	routine, err := db.CreateRoutine("", profile.ID, "Test Routine", "Test Description", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	tests := []struct {
+		name             string
+		scheduleTimezone string
+		expectedTimezone string
+	}{
+		{
+			name:             "Schedule with America/Los_Angeles timezone",
+			scheduleTimezone: "America/Los_Angeles",
+			expectedTimezone: "America/Los_Angeles",
+		},
+		{
+			name:             "Schedule with Asia/Tokyo timezone",
+			scheduleTimezone: "Asia/Tokyo",
+			expectedTimezone: "Asia/Tokyo",
+		},
+		{
+			name:             "Schedule with empty timezone defaults to UTC",
+			scheduleTimezone: "",
+			expectedTimezone: "UTC",
+		},
+		{
+			name:             "Schedule with Europe/Berlin timezone",
+			scheduleTimezone: "Europe/Berlin",
+			expectedTimezone: "Europe/Berlin",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheduleID := uuid.New().String()
+			dtstart := time.Now().Add(24 * time.Hour)
+
+			schedule, err := db.CreateSchedule(
+				scheduleID,
+				profile.ID,
+				routine.ID,
+				"Test Schedule",
+				"FREQ=DAILY",
+				tt.scheduleTimezone,
+				&dtstart,
+				[]string{},
+				"Test notes",
+				true,
+			)
+			if err != nil {
+				t.Fatalf("CreateSchedule failed: %v", err)
+			}
+
+			if schedule.ScheduleTimezone != tt.expectedTimezone {
+				t.Errorf("Expected schedule_timezone %s, got %s", tt.expectedTimezone, schedule.ScheduleTimezone)
+			}
+
+			// Verify schedule was created in database
+			retrieved, err := db.GetSchedule(schedule.ScheduleID)
+			if err != nil {
+				t.Fatalf("GetSchedule failed: %v", err)
+			}
+
+			if retrieved.ScheduleTimezone != tt.expectedTimezone {
+				t.Errorf("Retrieved schedule_timezone %s, expected %s", retrieved.ScheduleTimezone, tt.expectedTimezone)
+			}
+		})
+	}
+}
+
+// TestUpdateScheduleTimezone tests updating schedule timezone
+func TestUpdateScheduleTimezone(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	// Create test profile and routine
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+
+	routine, err := db.CreateRoutine("", profile.ID, "Test Routine", "Test Description", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	// Create schedule with America/New_York timezone
+	scheduleID := uuid.New().String()
+	dtstart := time.Now().Add(24 * time.Hour)
+	schedule, err := db.CreateSchedule(
+		scheduleID,
+		profile.ID,
+		routine.ID,
+		"Test Schedule",
+		"FREQ=DAILY",
+		"America/New_York",
+		&dtstart,
+		[]string{},
+		"Test notes",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("CreateSchedule failed: %v", err)
+	}
+
+	if schedule.ScheduleTimezone != "America/New_York" {
+		t.Errorf("Initial schedule_timezone should be America/New_York, got %s", schedule.ScheduleTimezone)
+	}
+
+	// Update timezone to Asia/Tokyo
+	schedule.ScheduleTimezone = "Asia/Tokyo"
+	updated, err := db.UpdateSchedule(schedule)
+	if err != nil {
+		t.Fatalf("UpdateSchedule failed: %v", err)
+	}
+
+	if updated.ScheduleTimezone != "Asia/Tokyo" {
+		t.Errorf("Updated schedule_timezone should be Asia/Tokyo, got %s", updated.ScheduleTimezone)
+	}
+
+	// Verify update persisted
+	retrieved, err := db.GetSchedule(schedule.ScheduleID)
+	if err != nil {
+		t.Fatalf("GetSchedule failed: %v", err)
+	}
+
+	if retrieved.ScheduleTimezone != "Asia/Tokyo" {
+		t.Errorf("Retrieved schedule_timezone should be Asia/Tokyo, got %s", retrieved.ScheduleTimezone)
+	}
+}
+
+// TestListSchedulesWithTimezone tests listing schedules includes timezone
+func TestListSchedulesWithTimezone(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	// Create test profile and routine
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+
+	routine, err := db.CreateRoutine("", profile.ID, "Test Routine", "Test Description", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	// Create multiple schedules with different timezones
+	timezones := []string{"America/Los_Angeles", "Europe/Paris", "Asia/Singapore"}
+	dtstart := time.Now().Add(24 * time.Hour)
+
+	for i, tz := range timezones {
+		scheduleID := uuid.New().String()
+		name := "Schedule " + string(rune('A'+i))
+		_, err := db.CreateSchedule(
+			scheduleID,
+			profile.ID,
+			routine.ID,
+			name,
+			"FREQ=DAILY",
+			tz,
+			&dtstart,
+			[]string{},
+			"",
+			true,
+		)
+		if err != nil {
+			t.Fatalf("CreateSchedule failed for %s: %v", name, err)
+		}
+	}
+
+	// List all schedules for the routine
+	schedules, err := db.ListSchedulesByRoutine(routine.ID)
+	if err != nil {
+		t.Fatalf("ListSchedulesByRoutine failed: %v", err)
+	}
+
+	if len(schedules) != 3 {
+		t.Fatalf("Expected 3 schedules, got %d", len(schedules))
+	}
+
+	// Verify all schedules have correct timezones
+	foundTimezones := make(map[string]bool)
+	for _, schedule := range schedules {
+		if schedule.ScheduleTimezone == "" {
+			t.Errorf("Schedule %s has empty timezone", schedule.Name)
+		}
+		foundTimezones[schedule.ScheduleTimezone] = true
+	}
+
+	for _, tz := range timezones {
+		if !foundTimezones[tz] {
+			t.Errorf("Expected to find timezone %s in results", tz)
+		}
+	}
+}
+
+// TestScheduleTimezoneDefaultBehavior tests timezone defaults
+func TestScheduleTimezoneDefaultBehavior(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	// Create test profile and routine
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+
+	routine, err := db.CreateRoutine("", profile.ID, "Test Routine", "Test Description", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	tests := []struct {
+		name             string
+		timezone         string
+		expectedTimezone string
+	}{
+		{
+			name:             "Empty string defaults to UTC",
+			timezone:         "",
+			expectedTimezone: "UTC",
+		},
+		{
+			name:             "Explicit UTC",
+			timezone:         "UTC",
+			expectedTimezone: "UTC",
+		},
+		{
+			name:             "Custom timezone preserved",
+			timezone:         "America/Chicago",
+			expectedTimezone: "America/Chicago",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scheduleID := uuid.New().String()
+			dtstart := time.Now().Add(24 * time.Hour)
+
+			schedule, err := db.CreateSchedule(
+				scheduleID,
+				profile.ID,
+				routine.ID,
+				"Test",
+				"FREQ=DAILY",
+				tt.timezone,
+				&dtstart,
+				[]string{},
+				"",
+				true,
+			)
+			if err != nil {
+				t.Fatalf("CreateSchedule failed: %v", err)
+			}
+
+			if schedule.ScheduleTimezone != tt.expectedTimezone {
+				t.Errorf("Expected timezone %s, got %s", tt.expectedTimezone, schedule.ScheduleTimezone)
+			}
+		})
+	}
+}
+
+// TestScheduleTimezonePreservesOtherFields tests that timezone updates don't affect other fields
+func TestScheduleTimezonePreservesOtherFields(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	// Create test profile and routine
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+
+	routine, err := db.CreateRoutine("", profile.ID, "Test Routine", "Test Description", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	// Create schedule
+	scheduleID := uuid.New().String()
+	dtstart := time.Now().Add(24 * time.Hour)
+	schedule, err := db.CreateSchedule(
+		scheduleID,
+		profile.ID,
+		routine.ID,
+		"Test Schedule",
+		"FREQ=WEEKLY;BYDAY=MO,WE,FR",
+		"UTC",
+		&dtstart,
+		[]string{"2025-01-15"},
+		"Important meeting",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("CreateSchedule failed: %v", err)
+	}
+
+	originalCreatedAt := schedule.CreatedAt
+	originalRRule := schedule.RRule
+	originalExDates := schedule.ExDates
+
+	time.Sleep(10 * time.Millisecond) // Ensure timestamps differ
+
+	// Update only timezone
+	schedule.ScheduleTimezone = "America/New_York"
+	updated, err := db.UpdateSchedule(schedule)
+	if err != nil {
+		t.Fatalf("UpdateSchedule failed: %v", err)
+	}
+
+	// Verify timezone changed
+	if updated.ScheduleTimezone != "America/New_York" {
+		t.Errorf("Timezone should be America/New_York, got %s", updated.ScheduleTimezone)
+	}
+
+	// Verify other fields preserved
+	if updated.RRule != originalRRule {
+		t.Errorf("RRule should be preserved, got %s", updated.RRule)
+	}
+	if len(updated.ExDates) != len(originalExDates) {
+		t.Errorf("ExDates should be preserved, got %v", updated.ExDates)
+	}
+	if updated.Notes != "Important meeting" {
+		t.Errorf("Notes should be preserved, got %s", updated.Notes)
+	}
+
+	// CreatedAt should not change
+	if !updated.CreatedAt.Equal(originalCreatedAt) {
+		t.Errorf("CreatedAt should not change on update")
+	}
+
+	// UpdatedAt should change
+	if !updated.UpdatedAt.After(originalCreatedAt) {
+		t.Errorf("UpdatedAt should be after CreatedAt")
+	}
+}
+
+// TestScheduleTimezoneWithRecurringSchedules tests timezone handling for recurring schedules
+func TestScheduleTimezoneWithRecurringSchedules(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	// Create test profile and routine
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+
+	routine, err := db.CreateRoutine("", profile.ID, "Test Routine", "Test Description", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	// Create recurring schedule with specific timezone
+	scheduleID := uuid.New().String()
+	dtstart := time.Now().Add(24 * time.Hour)
+	schedule, err := db.CreateSchedule(
+		scheduleID,
+		profile.ID,
+		routine.ID,
+		"Daily Standup",
+		"FREQ=DAILY;BYHOUR=9;BYMINUTE=0",
+		"America/Los_Angeles",
+		&dtstart,
+		[]string{},
+		"Team meeting",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("CreateSchedule failed: %v", err)
+	}
+
+	if schedule.ScheduleType != models.ScheduleTypeRecurring {
+		t.Errorf("Schedule should be RECURRING, got %s", schedule.ScheduleType)
+	}
+
+	if schedule.ScheduleTimezone != "America/Los_Angeles" {
+		t.Errorf("Schedule timezone should be America/Los_Angeles, got %s", schedule.ScheduleTimezone)
+	}
+
+	// Verify next_execution was calculated
+	if schedule.NextExecution == nil {
+		t.Error("NextExecution should be calculated for recurring schedule")
+	}
+}
+
+// TestScheduleTimezoneWithOneTimeEvents tests timezone handling for one-time events
+func TestScheduleTimezoneWithOneTimeEvents(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	// Create test profile and routine
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+
+	routine, err := db.CreateRoutine("", profile.ID, "Test Routine", "Test Description", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	// Create one-time event with specific timezone
+	scheduleID := uuid.New().String()
+	dtstart := time.Now().Add(48 * time.Hour)
+	schedule, err := db.CreateSchedule(
+		scheduleID,
+		profile.ID,
+		routine.ID,
+		"Project Deadline",
+		"", // Empty rrule = one-time event
+		"Europe/London",
+		&dtstart,
+		[]string{},
+		"Final submission",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("CreateSchedule failed: %v", err)
+	}
+
+	if schedule.ScheduleType != models.ScheduleTypeOneShot {
+		t.Errorf("Schedule should be ONE_SHOT, got %s", schedule.ScheduleType)
+	}
+
+	if schedule.ScheduleTimezone != "Europe/London" {
+		t.Errorf("Schedule timezone should be Europe/London, got %s", schedule.ScheduleTimezone)
+	}
+
+	// For one-time events in the future, next_execution should be dtstart
+	if schedule.NextExecution == nil {
+		t.Error("NextExecution should be set for future one-time event")
+	} else if !schedule.NextExecution.Equal(dtstart) {
+		t.Errorf("NextExecution should equal dtstart for one-time event")
 	}
 }

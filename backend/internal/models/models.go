@@ -9,6 +9,7 @@ type Profile struct {
 	ID          string            `json:"id"`
 	Name        string            `json:"name"`
 	Email       string            `json:"email"`
+	Timezone    string            `json:"timezone"` // IANA timezone (e.g., "America/Los_Angeles")
 	Preferences map[string]string `json:"preferences"`
 	Devices     []Device          `json:"devices"`
 	CreatedAt   time.Time         `json:"created_at"`
@@ -75,24 +76,25 @@ const (
 
 // Schedule represents a schedule for a routine
 type Schedule struct {
-	ScheduleID    string       `json:"schedule_id"` // UUID for local-first architecture
-	ProfileID     string       `json:"profile_id"`
-	RoutineID     string       `json:"routine_id"`
-	ScheduleType  ScheduleType `json:"schedule_type"` // ONE_SHOT or RECURRING
-	Name          string       `json:"name"`
-	RRule         string       `json:"rrule"` // RFC 5545 RRule string (empty for ONE_SHOT)
-	DTStart       *time.Time   `json:"dtstart,omitempty"`
-	ExDates       []string     `json:"exdates,omitempty"`
-	LastExecution *time.Time   `json:"last_execution,omitempty"`
-	NextExecution *time.Time   `json:"next_execution,omitempty"` // Pre-calculated for performance
-	Notes         string       `json:"notes"`
-	Enabled       bool         `json:"enabled"`
-	CreatedAt     time.Time    `json:"created_at"`
-	UpdatedAt     time.Time    `json:"updated_at"`
+	ScheduleID       string       `json:"schedule_id"` // UUID for local-first architecture
+	ProfileID        string       `json:"profile_id"`
+	RoutineID        string       `json:"routine_id"`
+	ScheduleType     ScheduleType `json:"schedule_type"` // ONE_SHOT or RECURRING
+	Name             string       `json:"name"`
+	RRule            string       `json:"rrule"`            // RFC 5545 RRule string (empty for ONE_SHOT)
+	ScheduleTimezone string       `json:"schedule_timezone"` // IANA timezone for RRule calculations
+	DTStart          *time.Time   `json:"dtstart,omitempty"`
+	ExDates          []string     `json:"exdates,omitempty"`
+	LastExecution    *time.Time   `json:"last_execution,omitempty"`
+	NextExecution    *time.Time   `json:"next_execution,omitempty"` // Pre-calculated for performance
+	Notes            string       `json:"notes"`
+	Enabled          bool         `json:"enabled"`
+	CreatedAt        time.Time    `json:"created_at"`
+	UpdatedAt        time.Time    `json:"updated_at"`
 
 	// Join fields (not stored in DB, populated from joins)
-	RoutineName   string       `json:"routine_name,omitempty"`
-	ProfileName   string       `json:"profile_name,omitempty"`
+	RoutineName string `json:"routine_name,omitempty"`
+	ProfileName string `json:"profile_name,omitempty"`
 }
 
 // ScheduleAction represents the join table between schedules and actions

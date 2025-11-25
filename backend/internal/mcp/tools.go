@@ -602,7 +602,7 @@ func (s *Server) toolCreateSchedule(ctx context.Context, args map[string]interfa
 
 	// Create schedule with profile_id
 	now := time.Now()
-	schedule, err := s.storage.CreateSchedule(scheduleID, s.profileID, routineID, scheduleName, rrule, &now, []string{}, "", enabled)
+	schedule, err := s.storage.CreateSchedule(scheduleID, s.profileID, routineID, scheduleName, rrule, "UTC", &now, []string{}, "", enabled)
 	if err != nil {
 		return CallToolResult{}, fmt.Errorf("failed to create schedule: %w", err)
 	}

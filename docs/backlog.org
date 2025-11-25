@@ -159,3 +159,10 @@ Refactor:
 
 Advance:
 - Auto Update
+
+
+
+* Sabin
+- read certain courses daily
+  - missed something yesterday ? 
+  - tracking of yesterday.

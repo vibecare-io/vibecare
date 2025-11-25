@@ -12,7 +12,7 @@ import (
 )
 
 // CreateProfile creates a new profile
-func (db *DB) CreateProfile(name, email string, preferences map[string]string) (*models.Profile, error) {
+func (db *DB) CreateProfile(name, email, timezone string, preferences map[string]string) (*models.Profile, error) {
 	// Validate and sanitize inputs
 	sanitizedName, err := validation.ValidateAndSanitizeName("name", name)
 	if err != nil {
@@ -27,13 +27,19 @@ func (db *DB) CreateProfile(name, email string, preferences map[string]string) (
 		return nil, err
 	}
 
+	// Default to UTC if timezone is empty
+	if timezone == "" {
+		timezone = "UTC"
+	}
+
 	profile := &models.Profile{
 		ID:          uuid.New().String(),
 		Name:        sanitizedName,
 		Email:       email,
+		Timezone:    timezone,
 		Preferences: preferences,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
 	}
 
 	prefsJSON, err := json.Marshal(preferences)
@@ -50,17 +56,18 @@ func (db *DB) CreateProfile(name, email string, preferences map[string]string) (
 	}
 
 	query := `
-		INSERT INTO profiles (id, name, email, preferences_json, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO profiles (id, name, email, timezone, preferences_json, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
 	`
 
 	_, err = db.Exec(query,
 		profile.ID,
 		profile.Name,
 		emailValue,
+		profile.Timezone,
 		string(prefsJSON),
-		profile.CreatedAt.Format(time.RFC3339),
-		profile.UpdatedAt.Format(time.RFC3339),
+		profile.CreatedAt.UTC().Format(time.RFC3339),
+		profile.UpdatedAt.UTC().Format(time.RFC3339),
 	)
 
 	if err != nil {
@@ -73,7 +80,7 @@ func (db *DB) CreateProfile(name, email string, preferences map[string]string) (
 // GetProfile retrieves a profile by ID
 func (db *DB) GetProfile(id string) (*models.Profile, error) {
 	query := `
-		SELECT id, name, COALESCE(email, '') as email, preferences_json, created_at, updated_at
+		SELECT id, name, COALESCE(email, '') as email, timezone, preferences_json, created_at, updated_at
 		FROM profiles
 		WHERE id = ?
 	`
@@ -86,6 +93,7 @@ func (db *DB) GetProfile(id string) (*models.Profile, error) {
 		&profile.ID,
 		&profile.Name,
 		&profile.Email,
+		&profile.Timezone,
 		&prefsJSON,
 		&createdAt,
 		&updatedAt,
@@ -119,7 +127,7 @@ func (db *DB) GetProfile(id string) (*models.Profile, error) {
 // GetProfileByEmail retrieves a profile by email
 func (db *DB) GetProfileByEmail(email string) (*models.Profile, error) {
 	query := `
-		SELECT id, name, COALESCE(email, '') as email, preferences_json, created_at, updated_at
+		SELECT id, name, COALESCE(email, '') as email, timezone, preferences_json, created_at, updated_at
 		FROM profiles
 		WHERE email = ?
 	`
@@ -132,6 +140,7 @@ func (db *DB) GetProfileByEmail(email string) (*models.Profile, error) {
 		&profile.ID,
 		&profile.Name,
 		&profile.Email,
+		&profile.Timezone,
 		&prefsJSON,
 		&createdAt,
 		&updatedAt,
@@ -165,7 +174,7 @@ func (db *DB) GetProfileByEmail(email string) (*models.Profile, error) {
 // ListProfiles lists all profiles
 func (db *DB) ListProfiles() ([]*models.Profile, error) {
 	query := `
-		SELECT id, name, COALESCE(email, '') as email, preferences_json, created_at, updated_at
+		SELECT id, name, COALESCE(email, '') as email, timezone, preferences_json, created_at, updated_at
 		FROM profiles
 		ORDER BY created_at DESC
 	`
@@ -186,6 +195,7 @@ func (db *DB) ListProfiles() ([]*models.Profile, error) {
 			&profile.ID,
 			&profile.Name,
 			&profile.Email,
+			&profile.Timezone,
 			&prefsJSON,
 			&createdAt,
 			&updatedAt,
@@ -216,7 +226,7 @@ func (db *DB) ListProfiles() ([]*models.Profile, error) {
 }
 
 // UpdateProfile updates an existing profile
-func (db *DB) UpdateProfile(id, name, email string, preferences map[string]string) (*models.Profile, error) {
+func (db *DB) UpdateProfile(id, name, email, timezone string, preferences map[string]string) (*models.Profile, error) {
 	// Validate and sanitize inputs
 	sanitizedName, err := validation.ValidateAndSanitizeName("name", name)
 	if err != nil {
@@ -229,6 +239,11 @@ func (db *DB) UpdateProfile(id, name, email string, preferences map[string]strin
 
 	if err := validation.ValidateJSONMap("preferences", preferences); err != nil {
 		return nil, err
+	}
+
+	// Default to UTC if timezone is empty
+	if timezone == "" {
+		timezone = "UTC"
 	}
 
 	prefsJSON, err := json.Marshal(preferences)
@@ -244,17 +259,18 @@ func (db *DB) UpdateProfile(id, name, email string, preferences map[string]strin
 		emailValue = email
 	}
 
-	updatedAt := time.Now()
+	updatedAt := time.Now().UTC()
 
 	query := `
 		UPDATE profiles
-		SET name = ?, email = ?, preferences_json = ?, updated_at = ?
+		SET name = ?, email = ?, timezone = ?, preferences_json = ?, updated_at = ?
 		WHERE id = ?
 	`
 
 	result, err := db.Exec(query,
 		sanitizedName,
 		emailValue,
+		timezone,
 		string(prefsJSON),
 		updatedAt.Format(time.RFC3339),
 		id,

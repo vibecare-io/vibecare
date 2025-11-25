@@ -284,6 +284,9 @@ public struct VCProfile: Sendable {
 
   public var email: String = String()
 
+  /// IANA timezone identifier (e.g., "America/Los_Angeles")
+  public var timezone: String = String()
+
   /// JSON preferences
   public var preferences: Dictionary<String,String> = [:]
 
@@ -538,6 +541,12 @@ public struct VCSchedule: @unchecked Sendable {
   /// Clears the value of `nextExecution`. Subsequent reads from it will return its default value.
   public mutating func clearNextExecution() {_uniqueStorage()._nextExecution = nil}
 
+  /// IANA timezone for RRule calculations
+  public var scheduleTimezone: String {
+    get {return _storage._scheduleTimezone}
+    set {_uniqueStorage()._scheduleTimezone = newValue}
+  }
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -644,6 +653,9 @@ public struct VCCreateProfileRequest: Sendable {
 
   public var email: String = String()
 
+  /// IANA timezone identifier (auto-detected from client)
+  public var timezone: String = String()
+
   public var preferences: Dictionary<String,String> = [:]
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
@@ -694,6 +706,9 @@ public struct VCUpdateProfileRequest: Sendable {
   public var name: String = String()
 
   public var email: String = String()
+
+  /// IANA timezone identifier
+  public var timezone: String = String()
 
   public var preferences: Dictionary<String,String> = [:]
 
@@ -1063,6 +1078,9 @@ public struct VCCreateScheduleRequest: Sendable {
   /// Optional: Client-provided ID for local-first architecture
   public var id: String = String()
 
+  /// IANA timezone for RRule calculations (defaults to profile.timezone)
+  public var scheduleTimezone: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -1098,6 +1116,9 @@ public struct VCUpdateScheduleRequest: Sendable {
   public var notes: String = String()
 
   public var enabled: Bool = false
+
+  /// IANA timezone for RRule calculations
+  public var scheduleTimezone: String = String()
 
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
@@ -1997,7 +2018,7 @@ extension VCTemplateCategory: SwiftProtobuf._ProtoNameProviding {
 
 extension VCProfile: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Profile"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}email\0\u{1}preferences\0\u{1}devices\0\u{3}created_at\0\u{3}updated_at\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}email\0\u{1}timezone\0\u{1}preferences\0\u{1}devices\0\u{3}created_at\0\u{3}updated_at\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2008,10 +2029,11 @@ extension VCProfile: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
       case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.email) }()
-      case 4: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.preferences) }()
-      case 5: try { try decoder.decodeRepeatedMessageField(value: &self.devices) }()
-      case 6: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
-      case 7: try { try decoder.decodeSingularMessageField(value: &self._updatedAt) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.timezone) }()
+      case 5: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.preferences) }()
+      case 6: try { try decoder.decodeRepeatedMessageField(value: &self.devices) }()
+      case 7: try { try decoder.decodeSingularMessageField(value: &self._createdAt) }()
+      case 8: try { try decoder.decodeSingularMessageField(value: &self._updatedAt) }()
       default: break
       }
     }
@@ -2031,17 +2053,20 @@ extension VCProfile: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     if !self.email.isEmpty {
       try visitor.visitSingularStringField(value: self.email, fieldNumber: 3)
     }
+    if !self.timezone.isEmpty {
+      try visitor.visitSingularStringField(value: self.timezone, fieldNumber: 4)
+    }
     if !self.preferences.isEmpty {
-      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.preferences, fieldNumber: 4)
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.preferences, fieldNumber: 5)
     }
     if !self.devices.isEmpty {
-      try visitor.visitRepeatedMessageField(value: self.devices, fieldNumber: 5)
+      try visitor.visitRepeatedMessageField(value: self.devices, fieldNumber: 6)
     }
     try { if let v = self._createdAt {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 6)
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
     } }()
     try { if let v = self._updatedAt {
-      try visitor.visitSingularMessageField(value: v, fieldNumber: 7)
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 8)
     } }()
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2050,6 +2075,7 @@ extension VCProfile: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
     if lhs.id != rhs.id {return false}
     if lhs.name != rhs.name {return false}
     if lhs.email != rhs.email {return false}
+    if lhs.timezone != rhs.timezone {return false}
     if lhs.preferences != rhs.preferences {return false}
     if lhs.devices != rhs.devices {return false}
     if lhs._createdAt != rhs._createdAt {return false}
@@ -2263,7 +2289,7 @@ extension VCRoutine: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
 
 extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".Schedule"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}profile_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0\u{3}schedule_type\0\u{3}next_execution\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{3}profile_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{3}last_execution\0\u{1}notes\0\u{1}enabled\0\u{3}created_at\0\u{3}updated_at\0\u{3}schedule_type\0\u{3}next_execution\0\u{3}schedule_timezone\0")
 
   fileprivate class _StorageClass {
     var _scheduleID: String = String()
@@ -2280,6 +2306,7 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
     var _updatedAt: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
     var _scheduleType: VCScheduleType = .unspecified
     var _nextExecution: SwiftProtobuf.Google_Protobuf_Timestamp? = nil
+    var _scheduleTimezone: String = String()
 
       // This property is used as the initial default value for new instances of the type.
       // The type itself is protecting the reference to its storage via CoW semantics.
@@ -2304,6 +2331,7 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       _updatedAt = source._updatedAt
       _scheduleType = source._scheduleType
       _nextExecution = source._nextExecution
+      _scheduleTimezone = source._scheduleTimezone
     }
   }
 
@@ -2336,6 +2364,7 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
         case 12: try { try decoder.decodeSingularMessageField(value: &_storage._updatedAt) }()
         case 13: try { try decoder.decodeSingularEnumField(value: &_storage._scheduleType) }()
         case 14: try { try decoder.decodeSingularMessageField(value: &_storage._nextExecution) }()
+        case 15: try { try decoder.decodeSingularStringField(value: &_storage._scheduleTimezone) }()
         default: break
         }
       }
@@ -2390,6 +2419,9 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
       try { if let v = _storage._nextExecution {
         try visitor.visitSingularMessageField(value: v, fieldNumber: 14)
       } }()
+      if !_storage._scheduleTimezone.isEmpty {
+        try visitor.visitSingularStringField(value: _storage._scheduleTimezone, fieldNumber: 15)
+      }
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2413,6 +2445,7 @@ extension VCSchedule: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementatio
         if _storage._updatedAt != rhs_storage._updatedAt {return false}
         if _storage._scheduleType != rhs_storage._scheduleType {return false}
         if _storage._nextExecution != rhs_storage._nextExecution {return false}
+        if _storage._scheduleTimezone != rhs_storage._scheduleTimezone {return false}
         return true
       }
       if !storagesAreEqual {return false}
@@ -2572,7 +2605,7 @@ extension VCExecutionLog: SwiftProtobuf.Message, SwiftProtobuf._MessageImplement
 
 extension VCCreateProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CreateProfileRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}email\0\u{1}preferences\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}name\0\u{1}email\0\u{1}timezone\0\u{1}preferences\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2582,7 +2615,8 @@ extension VCCreateProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       switch fieldNumber {
       case 1: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.email) }()
-      case 3: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.preferences) }()
+      case 3: try { try decoder.decodeSingularStringField(value: &self.timezone) }()
+      case 4: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.preferences) }()
       default: break
       }
     }
@@ -2595,8 +2629,11 @@ extension VCCreateProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     if !self.email.isEmpty {
       try visitor.visitSingularStringField(value: self.email, fieldNumber: 2)
     }
+    if !self.timezone.isEmpty {
+      try visitor.visitSingularStringField(value: self.timezone, fieldNumber: 3)
+    }
     if !self.preferences.isEmpty {
-      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.preferences, fieldNumber: 3)
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.preferences, fieldNumber: 4)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2604,6 +2641,7 @@ extension VCCreateProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
   public static func ==(lhs: VCCreateProfileRequest, rhs: VCCreateProfileRequest) -> Bool {
     if lhs.name != rhs.name {return false}
     if lhs.email != rhs.email {return false}
+    if lhs.timezone != rhs.timezone {return false}
     if lhs.preferences != rhs.preferences {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
@@ -2676,7 +2714,7 @@ extension VCGetProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImpl
 
 extension VCUpdateProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateProfileRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}email\0\u{1}preferences\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}name\0\u{1}email\0\u{1}timezone\0\u{1}preferences\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -2687,7 +2725,8 @@ extension VCUpdateProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
       case 1: try { try decoder.decodeSingularStringField(value: &self.id) }()
       case 2: try { try decoder.decodeSingularStringField(value: &self.name) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.email) }()
-      case 4: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.preferences) }()
+      case 4: try { try decoder.decodeSingularStringField(value: &self.timezone) }()
+      case 5: try { try decoder.decodeMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: &self.preferences) }()
       default: break
       }
     }
@@ -2703,8 +2742,11 @@ extension VCUpdateProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     if !self.email.isEmpty {
       try visitor.visitSingularStringField(value: self.email, fieldNumber: 3)
     }
+    if !self.timezone.isEmpty {
+      try visitor.visitSingularStringField(value: self.timezone, fieldNumber: 4)
+    }
     if !self.preferences.isEmpty {
-      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.preferences, fieldNumber: 4)
+      try visitor.visitMapField(fieldType: SwiftProtobuf._ProtobufMap<SwiftProtobuf.ProtobufString,SwiftProtobuf.ProtobufString>.self, value: self.preferences, fieldNumber: 5)
     }
     try unknownFields.traverse(visitor: &visitor)
   }
@@ -2713,6 +2755,7 @@ extension VCUpdateProfileRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageI
     if lhs.id != rhs.id {return false}
     if lhs.name != rhs.name {return false}
     if lhs.email != rhs.email {return false}
+    if lhs.timezone != rhs.timezone {return false}
     if lhs.preferences != rhs.preferences {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
@@ -3468,7 +3511,7 @@ extension VCGetExecutionLogsResponse: SwiftProtobuf.Message, SwiftProtobuf._Mess
 
 extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".CreateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{1}id\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}profile_id\0\u{3}routine_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{1}id\0\u{3}schedule_timezone\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3485,6 +3528,7 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       case 7: try { try decoder.decodeSingularStringField(value: &self.notes) }()
       case 8: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       case 9: try { try decoder.decodeSingularStringField(value: &self.id) }()
+      case 10: try { try decoder.decodeSingularStringField(value: &self.scheduleTimezone) }()
       default: break
       }
     }
@@ -3518,6 +3562,9 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if !self.id.isEmpty {
       try visitor.visitSingularStringField(value: self.id, fieldNumber: 9)
     }
+    if !self.scheduleTimezone.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleTimezone, fieldNumber: 10)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3531,6 +3578,7 @@ extension VCCreateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if lhs.notes != rhs.notes {return false}
     if lhs.enabled != rhs.enabled {return false}
     if lhs.id != rhs.id {return false}
+    if lhs.scheduleTimezone != rhs.scheduleTimezone {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -3568,7 +3616,7 @@ extension VCGetScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
 
 extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{3}schedule_timezone\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3583,6 +3631,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       case 5: try { try decoder.decodeRepeatedStringField(value: &self.exdates) }()
       case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
       case 7: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
+      case 8: try { try decoder.decodeSingularStringField(value: &self.scheduleTimezone) }()
       default: break
       }
     }
@@ -3610,6 +3659,9 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if self.enabled != false {
       try visitor.visitSingularBoolField(value: self.enabled, fieldNumber: 7)
     }
+    if !self.scheduleTimezone.isEmpty {
+      try visitor.visitSingularStringField(value: self.scheduleTimezone, fieldNumber: 8)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3621,6 +3673,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if lhs.exdates != rhs.exdates {return false}
     if lhs.notes != rhs.notes {return false}
     if lhs.enabled != rhs.enabled {return false}
+    if lhs.scheduleTimezone != rhs.scheduleTimezone {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

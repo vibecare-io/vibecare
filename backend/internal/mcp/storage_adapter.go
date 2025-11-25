@@ -47,8 +47,8 @@ func (a *DBStorageAdapter) GetSchedule(scheduleID string) (*models.Schedule, err
 	return a.db.GetSchedule(scheduleID)
 }
 
-func (a *DBStorageAdapter) CreateSchedule(scheduleID, profileID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
-	return a.db.CreateSchedule(scheduleID, profileID, routineID, name, rrule, dtstart, exdates, notes, enabled)
+func (a *DBStorageAdapter) CreateSchedule(scheduleID, profileID, routineID, name, rrule, scheduleTimezone string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
+	return a.db.CreateSchedule(scheduleID, profileID, routineID, name, rrule, scheduleTimezone, dtstart, exdates, notes, enabled)
 }
 
 func (a *DBStorageAdapter) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error) {

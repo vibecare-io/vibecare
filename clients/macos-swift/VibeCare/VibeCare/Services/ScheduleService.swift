@@ -17,6 +17,7 @@ class ScheduleService: @unchecked Sendable {
         routineId: String,
         name: String,
         rrule: String,
+        scheduleTimezone: String? = nil,
         dtstart: String,
         exdates: [String] = [],
         notes: String = "",
@@ -30,6 +31,7 @@ class ScheduleService: @unchecked Sendable {
             req.routineID = routineId
             req.name = name
             req.rrule = rrule
+            req.scheduleTimezone = scheduleTimezone ?? TimeZone.current.identifier  // Default to system timezone
             req.dtstart = dtstart
             req.exdates = exdates
             req.notes = notes
@@ -48,9 +50,11 @@ class ScheduleService: @unchecked Sendable {
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
+            scheduleTimezone: response.scheduleTimezone,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
+            nextExecution: response.hasNextExecution ? response.nextExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
             // actionIDs removed - managed via schedule_actions join table
@@ -77,9 +81,11 @@ class ScheduleService: @unchecked Sendable {
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
+            scheduleTimezone: response.scheduleTimezone,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
+            nextExecution: response.hasNextExecution ? response.nextExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
             // actionIDs removed - managed via schedule_actions join table
@@ -95,6 +101,7 @@ class ScheduleService: @unchecked Sendable {
             req.scheduleID = schedule.id
             req.name = schedule.name
             req.rrule = schedule.rrule
+            req.scheduleTimezone = schedule.scheduleTimezone
             req.dtstart = ISO8601DateFormatter().string(from: schedule.dtstart)
             req.exdates = schedule.exdates
             req.notes = schedule.notes
@@ -114,9 +121,11 @@ class ScheduleService: @unchecked Sendable {
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
+            scheduleTimezone: response.scheduleTimezone,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
+            nextExecution: response.hasNextExecution ? response.nextExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
             // actionIDs removed - managed via schedule_actions join table
@@ -161,9 +170,11 @@ class ScheduleService: @unchecked Sendable {
                 routineId: schedule.routineID,
                 name: schedule.name,
                 rrule: schedule.rrule,
+                scheduleTimezone: schedule.scheduleTimezone,
                 dtstart: schedule.dtstart.date,
                 exdates: schedule.exdates,
                 lastExecution: schedule.hasLastExecution ? schedule.lastExecution.date : nil,
+                nextExecution: schedule.hasNextExecution ? schedule.nextExecution.date : nil,
                 notes: schedule.notes,
                 enabled: schedule.enabled,
                 // actionIDs removed - managed via schedule_actions join table
@@ -229,9 +240,11 @@ class ScheduleService: @unchecked Sendable {
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
+            scheduleTimezone: response.scheduleTimezone,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
+            nextExecution: response.hasNextExecution ? response.nextExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
             // actionIDs removed - managed via schedule_actions join table
@@ -259,9 +272,11 @@ class ScheduleService: @unchecked Sendable {
             routineId: response.routineID,
             name: response.name,
             rrule: response.rrule,
+            scheduleTimezone: response.scheduleTimezone,
             dtstart: response.dtstart.date,
             exdates: response.exdates,
             lastExecution: response.hasLastExecution ? response.lastExecution.date : nil,
+            nextExecution: response.hasNextExecution ? response.nextExecution.date : nil,
             notes: response.notes,
             enabled: response.enabled,
             // actionIDs removed - managed via schedule_actions join table

@@ -70,8 +70,8 @@ func (db *DB) CreateRoutine(id, profileID, name, description string, enabled boo
 		Description: sanitizedDescription,
 		Enabled:     enabled,
 		Metadata:    metadata,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
 	}
 
 	// Store metadata as JSON
@@ -92,8 +92,8 @@ func (db *DB) CreateRoutine(id, profileID, name, description string, enabled boo
 		routine.Description,
 		string(metadataJSON),
 		routine.Enabled,
-		routine.CreatedAt.Format(time.RFC3339),
-		routine.UpdatedAt.Format(time.RFC3339),
+		routine.CreatedAt.UTC().Format(time.RFC3339),
+		routine.UpdatedAt.UTC().Format(time.RFC3339),
 	)
 
 	if err != nil {
@@ -246,7 +246,7 @@ func (db *DB) UpdateRoutineEnabled(id string, enabled bool) error {
 		WHERE id = ?
 	`
 
-	_, err := db.Exec(query, enabled, time.Now().Format(time.RFC3339), id)
+	_, err := db.Exec(query, enabled, time.Now().UTC().Format(time.RFC3339), id)
 	return err
 }
 
@@ -269,7 +269,7 @@ func (db *DB) UpdateRoutine(routine *models.Routine) (*models.Routine, error) {
 		return nil, err
 	}
 
-	routine.UpdatedAt = time.Now()
+	routine.UpdatedAt = time.Now().UTC()
 
 	metadataJSON, err := json.Marshal(routine.Metadata)
 	if err != nil {
@@ -287,7 +287,7 @@ func (db *DB) UpdateRoutine(routine *models.Routine) (*models.Routine, error) {
 		routine.Description,
 		string(metadataJSON),
 		routine.Enabled,
-		routine.UpdatedAt.Format(time.RFC3339),
+		routine.UpdatedAt.UTC().Format(time.RFC3339),
 		routine.ID,
 	)
 
@@ -313,7 +313,7 @@ func (db *DB) UpdateRoutineLastExecuted(id string) error {
 		WHERE id = ?
 	`
 
-	now := time.Now()
+	now := time.Now().UTC()
 	_, err := db.Exec(query, now.Format(time.RFC3339), now.Format(time.RFC3339), id)
 	return err
 }

@@ -71,11 +71,12 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 
 	// Create the schedule (passing client ID which may be empty)
 	schedule, err := s.db.CreateSchedule(
-		req.Id,        // Client-provided ID (optional)
-		req.ProfileId, // Profile ID for direct access
+		req.Id,               // Client-provided ID (optional)
+		req.ProfileId,        // Profile ID for direct access
 		req.RoutineId,
 		req.Name,
 		req.Rrule,
+		req.ScheduleTimezone, // IANA timezone for RRule calculations
 		dtstart,
 		req.Exdates,
 		req.Notes,
@@ -162,6 +163,9 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.UpdateScheduleReque
 	// Update fields
 	schedule.Name = req.Name
 	schedule.RRule = req.Rrule
+	if req.ScheduleTimezone != "" {
+		schedule.ScheduleTimezone = req.ScheduleTimezone
+	}
 	schedule.DTStart = dtstart
 	schedule.ExDates = req.Exdates
 	schedule.Notes = req.Notes
@@ -338,17 +342,18 @@ func convertToProtoSchedule(schedule *models.Schedule) *pb.Schedule {
 	}
 
 	pbSchedule := &pb.Schedule{
-		ScheduleId:   schedule.ScheduleID,
-		ProfileId:    schedule.ProfileID,
-		RoutineId:    schedule.RoutineID,
-		ScheduleType: scheduleType,
-		Name:         schedule.Name,
-		Rrule:        schedule.RRule,
-		Exdates:      schedule.ExDates,
-		Notes:        schedule.Notes,
-		Enabled:      schedule.Enabled,
-		CreatedAt:    timestamppb.New(schedule.CreatedAt),
-		UpdatedAt:    timestamppb.New(schedule.UpdatedAt),
+		ScheduleId:       schedule.ScheduleID,
+		ProfileId:        schedule.ProfileID,
+		RoutineId:        schedule.RoutineID,
+		ScheduleType:     scheduleType,
+		Name:             schedule.Name,
+		Rrule:            schedule.RRule,
+		ScheduleTimezone: schedule.ScheduleTimezone,
+		Exdates:          schedule.ExDates,
+		Notes:            schedule.Notes,
+		Enabled:          schedule.Enabled,
+		CreatedAt:        timestamppb.New(schedule.CreatedAt),
+		UpdatedAt:        timestamppb.New(schedule.UpdatedAt),
 	}
 
 	if schedule.DTStart != nil {

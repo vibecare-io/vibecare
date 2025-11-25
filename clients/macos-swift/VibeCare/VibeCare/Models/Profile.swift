@@ -4,6 +4,7 @@ public struct Profile: Identifiable, Codable, Equatable, Hashable, Sendable {
     public let id: String
     public var name: String
     public var email: String?  // Email is now optional
+    public var timezone: String  // IANA timezone identifier (e.g., "America/Los_Angeles")
     public var preferences: [String: String]
     public var devices: [Device]
     public let createdAt: Date
@@ -13,6 +14,7 @@ public struct Profile: Identifiable, Codable, Equatable, Hashable, Sendable {
         id: String = UUID().uuidString,
         name: String,
         email: String? = nil,  // Default to nil
+        timezone: String = TimeZone.current.identifier,  // Auto-detect system timezone
         preferences: [String: String] = [:],
         devices: [Device] = [],
         createdAt: Date = Date(),
@@ -21,10 +23,21 @@ public struct Profile: Identifiable, Codable, Equatable, Hashable, Sendable {
         self.id = id
         self.name = name
         self.email = email
+        self.timezone = timezone
         self.preferences = preferences
         self.devices = devices
         self.createdAt = createdAt
         self.updatedAt = updatedAt
+    }
+
+    /// Returns the TimeZone object for this profile's timezone identifier
+    public var timeZone: TimeZone? {
+        TimeZone(identifier: timezone)
+    }
+
+    /// Returns a human-readable name for the timezone (e.g., "Pacific Standard Time")
+    public var timeZoneDisplayName: String {
+        timeZone?.localizedName(for: .standard, locale: .current) ?? timezone
     }
 }
 

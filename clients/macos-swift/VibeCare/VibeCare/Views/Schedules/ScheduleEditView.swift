@@ -313,6 +313,10 @@ struct ScheduleEditView: View {
   @State private var actionSaveErrors: [String: String] = [:]
   @State private var actionSaveSuccess: Set<String> = []
 
+  // Timezone
+  @State private var scheduleTimezone: String = TimeZone.current.identifier
+  @State private var showTimezonePicker: Bool = false
+
   // Service
   private let actionService = ActionService()
 
@@ -367,6 +371,7 @@ struct ScheduleEditView: View {
       self._startDate = State(initialValue: schedule.dtstart)
       self._notes = State(initialValue: schedule.notes)
       self._enabled = State(initialValue: schedule.enabled)
+      self._scheduleTimezone = State(initialValue: schedule.scheduleTimezone)
       self._selectedTemplate = State(initialValue: nil)
 
       // UI fields will be populated by syncRRuleStringToUI() in onAppear
@@ -519,6 +524,41 @@ struct ScheduleEditView: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .background(Color(NSColor.controlBackgroundColor))
         .cornerRadius(8)
+      }
+
+      // Timezone Picker Row
+      HStack(spacing: 8) {
+        Image(systemName: "globe")
+          .foregroundColor(.secondary)
+          .font(.body)
+
+        Button(action: {
+          showTimezonePicker = true
+        }) {
+          HStack {
+            Text(TimeZone(identifier: scheduleTimezone)?.localizedName(for: .standard, locale: .current) ?? scheduleTimezone)
+              .foregroundColor(.primary)
+            Spacer()
+            Image(systemName: "chevron.right")
+              .foregroundColor(.secondary)
+              .font(.caption)
+          }
+        }
+        .buttonStyle(.plain)
+      }
+      .padding(.horizontal, 14)
+      .padding(.vertical, 10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Color(NSColor.controlBackgroundColor))
+      .cornerRadius(8)
+      .sheet(isPresented: $showTimezonePicker) {
+        TimezonePickerView(
+          selectedTimezone: scheduleTimezone,
+          onSelect: { newTimezone in
+            scheduleTimezone = newTimezone
+            showTimezonePicker = false
+          }
+        )
       }
     }
   }
@@ -1519,6 +1559,7 @@ struct ScheduleEditView: View {
             profileId: profileId,
           name: trimmedName,
           rrule: customRRule,
+          scheduleTimezone: scheduleTimezone,
           dtstart: startDate,
           notes: trimmedNotes,
           enabled: enabled,
@@ -1529,6 +1570,7 @@ struct ScheduleEditView: View {
         var updatedSchedule = schedule
         updatedSchedule.name = trimmedName
         updatedSchedule.rrule = customRRule
+        updatedSchedule.scheduleTimezone = scheduleTimezone
         updatedSchedule.dtstart = startDate
         updatedSchedule.notes = trimmedNotes
         updatedSchedule.enabled = enabled

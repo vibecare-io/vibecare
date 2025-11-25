@@ -41,7 +41,7 @@ func (s *Server) CreateProfile(ctx context.Context, req *pb.CreateProfileRequest
 	}
 
 	// Create the profile
-	profile, err := s.db.CreateProfile(req.Name, req.Email, req.Preferences)
+	profile, err := s.db.CreateProfile(req.Name, req.Email, req.Timezone, req.Preferences)
 	if err != nil {
 		s.logger.Error("Failed to create profile", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to create profile: %v", err)
@@ -52,6 +52,7 @@ func (s *Server) CreateProfile(ctx context.Context, req *pb.CreateProfileRequest
 			Id:          profile.ID,
 			Name:        profile.Name,
 			Email:       profile.Email,
+			Timezone:    profile.Timezone,
 			Preferences: req.Preferences,
 			CreatedAt:   timestamppb.New(profile.CreatedAt),
 			UpdatedAt:   timestamppb.New(profile.UpdatedAt),
@@ -75,6 +76,7 @@ func (s *Server) GetProfile(ctx context.Context, req *pb.GetProfileRequest) (*pb
 		Id:          profile.ID,
 		Name:        profile.Name,
 		Email:       profile.Email,
+		Timezone:    profile.Timezone,
 		Preferences: profile.Preferences,
 		CreatedAt:   timestamppb.New(profile.CreatedAt),
 		UpdatedAt:   timestamppb.New(profile.UpdatedAt),
@@ -103,6 +105,9 @@ func (s *Server) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest
 	if req.Email != "" {
 		profile.Email = req.Email
 	}
+	if req.Timezone != "" {
+		profile.Timezone = req.Timezone
+	}
 	if len(req.Preferences) > 0 {
 		profile.Preferences = req.Preferences
 	}
@@ -121,7 +126,7 @@ func (s *Server) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest
 	}
 
 	// Save updates to database
-	updatedProfile, err := s.db.UpdateProfile(req.Id, profile.Name, profile.Email, profile.Preferences)
+	updatedProfile, err := s.db.UpdateProfile(req.Id, profile.Name, profile.Email, profile.Timezone, profile.Preferences)
 	if err != nil {
 		s.logger.Error("Failed to update profile", zap.Error(err))
 		return nil, status.Errorf(codes.Internal, "failed to update profile: %v", err)
@@ -131,6 +136,7 @@ func (s *Server) UpdateProfile(ctx context.Context, req *pb.UpdateProfileRequest
 		Id:          updatedProfile.ID,
 		Name:        updatedProfile.Name,
 		Email:       updatedProfile.Email,
+		Timezone:    updatedProfile.Timezone,
 		Preferences: updatedProfile.Preferences,
 		CreatedAt:   timestamppb.New(updatedProfile.CreatedAt),
 		UpdatedAt:   timestamppb.New(updatedProfile.UpdatedAt),

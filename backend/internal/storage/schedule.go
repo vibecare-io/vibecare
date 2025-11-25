@@ -40,7 +40,7 @@ func calculateNextFromRRule(rruleStr string, dtstart, after time.Time) (time.Tim
 }
 
 // CreateSchedule creates a new schedule
-func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
+func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule, scheduleTimezone string, dtstart *time.Time, exdates []string, notes string, enabled bool) (*models.Schedule, error) {
 	// Validate and sanitize inputs
 	if err := validation.ValidateUUID("schedule_id", scheduleID); err != nil {
 		return nil, err
@@ -71,6 +71,11 @@ func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule strin
 	sanitizedNotes, err := validation.ValidateAndSanitizeNotes(notes)
 	if err != nil {
 		return nil, err
+	}
+
+	// Default to UTC if timezone is empty
+	if scheduleTimezone == "" {
+		scheduleTimezone = "UTC"
 	}
 
 	// Generate UUID if not provided (client-authoritative ID pattern)
@@ -125,24 +130,25 @@ func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule strin
 	}
 
 	schedule := &models.Schedule{
-		ScheduleID:    scheduleID,
-		ProfileID:     profileID,
-		RoutineID:     routineID,
-		ScheduleType:  scheduleType,
-		Name:          sanitizedName,
-		RRule:         rrule,
-		DTStart:       dtstart,
-		ExDates:       exdates,
-		NextExecution: nextExecution,
-		Notes:         sanitizedNotes,
-		Enabled:       enabled,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		ScheduleID:       scheduleID,
+		ProfileID:        profileID,
+		RoutineID:        routineID,
+		ScheduleType:     scheduleType,
+		Name:             sanitizedName,
+		RRule:            rrule,
+		ScheduleTimezone: scheduleTimezone,
+		DTStart:          dtstart,
+		ExDates:          exdates,
+		NextExecution:    nextExecution,
+		Notes:            sanitizedNotes,
+		Enabled:          enabled,
+		CreatedAt:        time.Now().UTC(),
+		UpdatedAt:        time.Now().UTC(),
 	}
 
 	query := `
-		INSERT INTO schedules (schedule_id, profile_id, routine_id, schedule_type, name, rrule, dtstart, exdates, next_execution, notes, enabled, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		INSERT INTO schedules (schedule_id, profile_id, routine_id, schedule_type, name, rrule, schedule_timezone, dtstart, exdates, next_execution, notes, enabled, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`
 
 	var dtStartStr sql.NullString
@@ -170,13 +176,14 @@ func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule strin
 		string(schedule.ScheduleType),
 		schedule.Name,
 		schedule.RRule,
+		schedule.ScheduleTimezone,
 		dtStartStr,
 		exdatesStr,
 		nextExecStr,
 		schedule.Notes,
 		schedule.Enabled,
-		schedule.CreatedAt.Format(time.RFC3339),
-		schedule.UpdatedAt.Format(time.RFC3339),
+		schedule.CreatedAt.UTC().Format(time.RFC3339),
+		schedule.UpdatedAt.UTC().Format(time.RFC3339),
 	)
 
 	if err != nil {
@@ -189,7 +196,7 @@ func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule strin
 // GetSchedule retrieves a schedule by ID
 func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 	query := `
-		SELECT schedule_id, profile_id, routine_id, schedule_type, name, rrule, dtstart, exdates,
+		SELECT schedule_id, profile_id, routine_id, schedule_type, name, rrule, schedule_timezone, dtstart, exdates,
 		       last_execution, next_execution, notes, enabled, created_at, updated_at
 		FROM schedules
 		WHERE schedule_id = ?
@@ -207,6 +214,7 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 		&scheduleType,
 		&schedule.Name,
 		&schedule.RRule,
+		&schedule.ScheduleTimezone,
 		&dtstart,
 		&exdatesStr,
 		&lastExecution,
@@ -271,7 +279,7 @@ func (db *DB) GetSchedule(id string) (*models.Schedule, error) {
 // ListSchedulesByRoutine lists all schedules for a routine
 func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, error) {
 	query := `
-		SELECT schedule_id, profile_id, routine_id, schedule_type, name, rrule, dtstart, exdates,
+		SELECT schedule_id, profile_id, routine_id, schedule_type, name, rrule, schedule_timezone, dtstart, exdates,
 		       last_execution, next_execution, notes, enabled, created_at, updated_at
 		FROM schedules
 		WHERE routine_id = ?
@@ -298,6 +306,7 @@ func (db *DB) ListSchedulesByRoutine(routineID string) ([]*models.Schedule, erro
 			&scheduleType,
 			&schedule.Name,
 			&schedule.RRule,
+			&schedule.ScheduleTimezone,
 			&dtstart,
 			&exdatesStr,
 			&lastExecution,
@@ -382,7 +391,12 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 	}
 	schedule.Notes = sanitizedNotes
 
-	schedule.UpdatedAt = time.Now()
+	// Default to UTC if timezone is empty
+	if schedule.ScheduleTimezone == "" {
+		schedule.ScheduleTimezone = "UTC"
+	}
+
+	schedule.UpdatedAt = time.Now().UTC()
 
 	// Recalculate schedule_type based on rrule
 	scheduleType := models.ScheduleTypeRecurring
@@ -415,7 +429,7 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 
 	query := `
 		UPDATE schedules
-		SET name = ?, rrule = ?, dtstart = ?, exdates = ?, schedule_type = ?, next_execution = ?, notes = ?, enabled = ?, updated_at = ?
+		SET name = ?, rrule = ?, schedule_timezone = ?, dtstart = ?, exdates = ?, schedule_type = ?, next_execution = ?, notes = ?, enabled = ?, updated_at = ?
 		WHERE schedule_id = ?
 	`
 
@@ -440,13 +454,14 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 	_, err = db.Exec(query,
 		schedule.Name,
 		schedule.RRule,
+		schedule.ScheduleTimezone,
 		dtStartStr,
 		exdatesStr,
 		string(scheduleType),
 		nextExecStr,
 		schedule.Notes,
 		schedule.Enabled,
-		schedule.UpdatedAt.Format(time.RFC3339),
+		schedule.UpdatedAt.UTC().Format(time.RFC3339),
 		schedule.ScheduleID,
 	)
 
@@ -472,7 +487,7 @@ func (db *DB) EnableSchedule(scheduleID string, enabled bool) error {
 		SET enabled = ?, updated_at = ?
 		WHERE schedule_id = ?
 	`
-	_, err := db.Exec(query, enabled, time.Now().Format(time.RFC3339), scheduleID)
+	_, err := db.Exec(query, enabled, time.Now().UTC().Format(time.RFC3339), scheduleID)
 	return err
 }
 
@@ -486,8 +501,8 @@ func (db *DB) UpdateLastExecution(scheduleID string, executionTime time.Time) er
 	`
 
 	_, err := db.Exec(query,
-		executionTime.Format(time.RFC3339),
-		time.Now().Format(time.RFC3339),
+		executionTime.UTC().Format(time.RFC3339),
+		time.Now().UTC().Format(time.RFC3339),
 		scheduleID,
 	)
 	return err
@@ -526,9 +541,9 @@ func (db *DB) UpdateScheduleExecution(scheduleID string, scheduleType models.Sch
 	`
 
 	_, err = tx.Exec(query,
-		now.Format(time.RFC3339),
+		now.UTC().Format(time.RFC3339),
 		nextExecStr,
-		now.Format(time.RFC3339),
+		now.UTC().Format(time.RFC3339),
 		scheduleID,
 	)
 	if err != nil {

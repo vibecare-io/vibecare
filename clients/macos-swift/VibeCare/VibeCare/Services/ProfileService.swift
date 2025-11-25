@@ -54,7 +54,7 @@ public final class ProfileService: @unchecked Sendable {
         }
     }
 
-    func createProfile(name: String, email: String?, preferences: [String: String]) async throws -> Profile {
+    func createProfile(name: String, email: String?, timezone: String? = nil, preferences: [String: String]) async throws -> Profile {
         logger.info("Creating profile: \(name)")
 
         do {
@@ -62,6 +62,7 @@ public final class ProfileService: @unchecked Sendable {
                 var request = VCCreateProfileRequest()
                 request.name = name
                 request.email = email ?? ""  // Send empty string if email is nil
+                request.timezone = timezone ?? TimeZone.current.identifier  // Auto-detect if not provided
                 request.preferences = preferences
 
                 let clientRequest = ClientRequest(message: request)
@@ -121,6 +122,7 @@ public final class ProfileService: @unchecked Sendable {
                 request.id = profile.id
                 request.name = profile.name
                 request.email = profile.email ?? ""  // Convert nil to empty string for protobuf
+                request.timezone = profile.timezone
 
                 let clientRequest = ClientRequest(message: request)
                 let updatedVCProfile = try await client.updateProfile(
@@ -273,6 +275,7 @@ public final class ProfileService: @unchecked Sendable {
             id: vcProfile.id,
             name: vcProfile.name,
             email: vcProfile.email.isEmpty ? nil : vcProfile.email,  // Convert empty string to nil
+            timezone: vcProfile.timezone.isEmpty ? TimeZone.current.identifier : vcProfile.timezone,  // Default to system timezone if empty
             preferences: vcProfile.preferences,
             devices: devices,
             createdAt: vcProfile.hasCreatedAt ? vcProfile.createdAt.date : Date(),
@@ -285,6 +288,7 @@ public final class ProfileService: @unchecked Sendable {
         vcProfile.id = profile.id
         vcProfile.name = profile.name
         vcProfile.email = profile.email ?? ""  // Convert nil to empty string for protobuf
+        vcProfile.timezone = profile.timezone
         vcProfile.preferences = profile.preferences
         vcProfile.devices = profile.devices.map { device in
             convertToVCDevice(device)

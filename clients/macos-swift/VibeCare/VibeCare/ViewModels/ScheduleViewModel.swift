@@ -98,6 +98,7 @@ class ScheduleViewModel: ObservableObject {
         profileId: String,
         name: String,
         rrule: String,
+        scheduleTimezone: String = TimeZone.current.identifier,
         dtstart: Date = Date(),
         notes: String = "",
         enabled: Bool = true,
@@ -109,6 +110,7 @@ class ScheduleViewModel: ObservableObject {
                 routineId: routineId,
                 name: name,
                 rrule: rrule,
+                scheduleTimezone: scheduleTimezone,
                 dtstart: dtstart,
                 notes: notes,
                 enabled: enabled
@@ -120,6 +122,7 @@ class ScheduleViewModel: ObservableObject {
                 routineId: newSchedule.routineId,
                 name: newSchedule.name,
                 rrule: newSchedule.rrule,
+                scheduleTimezone: scheduleTimezone,
                 dtstart: ISO8601DateFormatter().string(from: newSchedule.dtstart),
                 exdates: newSchedule.exdates,
                 notes: newSchedule.notes,

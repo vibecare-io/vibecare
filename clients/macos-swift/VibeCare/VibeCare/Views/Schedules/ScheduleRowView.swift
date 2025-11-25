@@ -78,6 +78,21 @@ struct ScheduleRowView: View {
                             .font(.caption)
                             .foregroundColor(.secondary)
                             .lineLimit(1)
+
+                        // Timezone indicator - only show if schedule timezone differs from system
+                        if schedule.scheduleTimezone != TimeZone.current.identifier {
+                            HStack(spacing: 2) {
+                                Image(systemName: "globe")
+                                    .font(.caption2)
+                                Text(TimeZone(identifier: schedule.scheduleTimezone)?.abbreviation() ?? schedule.scheduleTimezone)
+                                    .font(.caption2)
+                            }
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundColor(.blue)
+                            .clipShape(Capsule())
+                        }
                     }
                 }
 
@@ -286,6 +301,21 @@ struct ScheduleRowSimpleView: View {
                             .font(.caption2)
                         Text(rruleDescription)
                             .font(.caption)
+
+                        // Timezone indicator - only show if schedule timezone differs from system
+                        if schedule.scheduleTimezone != TimeZone.current.identifier {
+                            HStack(spacing: 2) {
+                                Image(systemName: "globe")
+                                    .font(.caption2)
+                                Text(TimeZone(identifier: schedule.scheduleTimezone)?.abbreviation() ?? schedule.scheduleTimezone)
+                                    .font(.caption2)
+                            }
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.blue.opacity(0.1))
+                            .foregroundColor(.blue)
+                            .clipShape(Capsule())
+                        }
                     }
                     .foregroundColor(.secondary)
                 }

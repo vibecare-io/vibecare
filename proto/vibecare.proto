@@ -17,10 +17,11 @@ message Profile {
   string id = 1;
   string name = 2;
   string email = 3;
-  map<string, string> preferences = 4;  // JSON preferences
-  repeated Device devices = 5;
-  google.protobuf.Timestamp created_at = 6;
-  google.protobuf.Timestamp updated_at = 7;
+  string timezone = 4;  // IANA timezone identifier (e.g., "America/Los_Angeles")
+  map<string, string> preferences = 5;  // JSON preferences
+  repeated Device devices = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
 }
 
 // Device information for multi-device support
@@ -102,6 +103,7 @@ message Schedule {
   google.protobuf.Timestamp updated_at = 12;
   ScheduleType schedule_type = 13;                   // Type of schedule
   google.protobuf.Timestamp next_execution = 14;     // Pre-calculated next run time
+  string schedule_timezone = 15;                     // IANA timezone for RRule calculations
 }
 
 // RRule structure for JSON encoding/decoding
@@ -215,7 +217,8 @@ service ActionService {
 message CreateProfileRequest {
   string name = 1;
   string email = 2;
-  map<string, string> preferences = 3;
+  string timezone = 3;  // IANA timezone identifier (auto-detected from client)
+  map<string, string> preferences = 4;
 }
 
 message CreateProfileResponse {
@@ -230,7 +233,8 @@ message UpdateProfileRequest {
   string id = 1;
   string name = 2;
   string email = 3;
-  map<string, string> preferences = 4;
+  string timezone = 4;  // IANA timezone identifier
+  map<string, string> preferences = 5;
 }
 
 message DeleteProfileRequest {
@@ -352,6 +356,7 @@ message CreateScheduleRequest {
   string notes = 7;
   bool enabled = 8;
   string id = 9;  // Optional: Client-provided ID for local-first architecture
+  string schedule_timezone = 10;  // IANA timezone for RRule calculations (defaults to profile.timezone)
 }
 
 message GetScheduleRequest {
@@ -366,6 +371,7 @@ message UpdateScheduleRequest {
   repeated string exdates = 5;
   string notes = 6;
   bool enabled = 7;
+  string schedule_timezone = 8;  // IANA timezone for RRule calculations
 }
 
 message DeleteScheduleRequest {
