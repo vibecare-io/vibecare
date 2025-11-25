@@ -30,7 +30,7 @@ func NewScheduler(db *storage.DB, eventHub *EventHub, logger *zap.Logger) *Sched
 		db:            db,
 		eventHub:      eventHub,
 		logger:        logger,
-		checkInterval: 1 * time.Minute, // Check every minute
+		checkInterval: 10 * time.Second, // Check every 10 seconds for better precision
 		ctx:           ctx,
 		cancel:        cancel,
 	}
