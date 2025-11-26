@@ -170,6 +170,9 @@ func (s *Server) UpdateSchedule(ctx context.Context, req *pb.UpdateScheduleReque
 	schedule.ExDates = req.Exdates
 	schedule.Notes = req.Notes
 	schedule.Enabled = req.Enabled
+	if req.RoutineId != "" {
+		schedule.RoutineID = req.RoutineId
+	}
 
 	// Save updates
 	updatedSchedule, err := s.db.UpdateSchedule(schedule)

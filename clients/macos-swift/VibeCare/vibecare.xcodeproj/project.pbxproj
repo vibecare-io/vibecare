@@ -54,9 +54,23 @@
 		A0E35D2B2E824FC90028D792 /* vibecareUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = vibecareUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		A073E0FA2ED7943B00C3D9D0 /* Exceptions for "vibecare" folder in "vibecare" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Tests/GRPCTest.swift,
+				Tests/TestRunner.swift,
+			);
+			target = A0E35D122E824FC80028D792 /* vibecare */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
+
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		A0E35D152E824FC80028D792 /* vibecare */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				A073E0FA2ED7943B00C3D9D0 /* Exceptions for "vibecare" folder in "vibecare" target */,
+			);
 			path = vibecare;
 			sourceTree = "<group>";
 		};

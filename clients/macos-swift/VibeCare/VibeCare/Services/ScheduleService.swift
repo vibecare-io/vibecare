@@ -106,6 +106,7 @@ class ScheduleService: @unchecked Sendable {
             req.exdates = schedule.exdates
             req.notes = schedule.notes
             req.enabled = schedule.enabled
+            req.routineID = schedule.routineId
             // actionIds removed - managed via schedule_actions join table
         }
 

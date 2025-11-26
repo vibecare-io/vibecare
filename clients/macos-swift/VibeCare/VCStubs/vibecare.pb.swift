@@ -1120,6 +1120,9 @@ public struct VCUpdateScheduleRequest: Sendable {
   /// IANA timezone for RRule calculations
   public var scheduleTimezone: String = String()
 
+  /// Allow updating the routine association
+  public var routineID: String = String()
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -3570,7 +3573,7 @@ extension VCGetScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImp
 
 extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".UpdateScheduleRequest"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{3}schedule_timezone\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{3}schedule_id\0\u{1}name\0\u{1}rrule\0\u{1}dtstart\0\u{1}exdates\0\u{1}notes\0\u{1}enabled\0\u{3}schedule_timezone\0\u{3}routine_id\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -3586,6 +3589,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
       case 6: try { try decoder.decodeSingularStringField(value: &self.notes) }()
       case 7: try { try decoder.decodeSingularBoolField(value: &self.enabled) }()
       case 8: try { try decoder.decodeSingularStringField(value: &self.scheduleTimezone) }()
+      case 9: try { try decoder.decodeSingularStringField(value: &self.routineID) }()
       default: break
       }
     }
@@ -3616,6 +3620,9 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if !self.scheduleTimezone.isEmpty {
       try visitor.visitSingularStringField(value: self.scheduleTimezone, fieldNumber: 8)
     }
+    if !self.routineID.isEmpty {
+      try visitor.visitSingularStringField(value: self.routineID, fieldNumber: 9)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -3628,6 +3635,7 @@ extension VCUpdateScheduleRequest: SwiftProtobuf.Message, SwiftProtobuf._Message
     if lhs.notes != rhs.notes {return false}
     if lhs.enabled != rhs.enabled {return false}
     if lhs.scheduleTimezone != rhs.scheduleTimezone {return false}
+    if lhs.routineID != rhs.routineID {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -155,7 +155,7 @@ func (s *Server) GetTools() []Tool {
 		},
 		{
 			Name:        "update_schedule",
-			Description: "Update an existing schedule's properties. Use this to modify RRule, enabled status, name, notes, or associated actions.",
+			Description: "Update an existing schedule's properties. Use this to modify RRule, enabled status, name, notes, routine association, or attached actions.",
 			InputSchema: InputSchema{
 				Type: "object",
 				Properties: map[string]interface{}{
@@ -170,6 +170,10 @@ func (s *Server) GetTools() []Tool {
 					"new_name": map[string]interface{}{
 						"type":        "string",
 						"description": "Optional: New name for the schedule",
+					},
+					"new_routine_name": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional: Name of a different routine to associate this schedule with",
 					},
 					"rrule": map[string]interface{}{
 						"type":        "string",
@@ -944,6 +948,26 @@ func (s *Server) toolUpdateSchedule(ctx context.Context, args map[string]interfa
 	if notes, ok := args["notes"].(string); ok {
 		schedule.Notes = notes
 		updates = append(updates, "notes")
+	}
+
+	// Update routine association if provided
+	if newRoutineName, ok := args["new_routine_name"].(string); ok && newRoutineName != "" {
+		// Find the new routine by name
+		var newRoutineID string
+		for _, r := range routines {
+			if r.Name == newRoutineName {
+				newRoutineID = r.ID
+				break
+			}
+		}
+		if newRoutineID == "" {
+			return CallToolResult{
+				Content: []Content{TextContent(fmt.Sprintf("Target routine '%s' not found", newRoutineName))},
+				IsError: true,
+			}, nil
+		}
+		schedule.RoutineID = newRoutineID
+		updates = append(updates, fmt.Sprintf("routine to '%s'", newRoutineName))
 	}
 
 	// Update dtstart if provided

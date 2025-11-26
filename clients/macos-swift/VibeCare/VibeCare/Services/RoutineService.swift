@@ -247,81 +247,6 @@ final class RoutineService: @unchecked Sendable {
         }
     }
 
-    func executeRoutine(id: String, force: Bool = false, notes: String = "") async throws -> ExecutionLog {
-        logger.info("Executing routine: \(id)")
-
-        do {
-            let executionLog = try await GRPCClientManager.shared.withRoutineServiceClient { client in
-                var request = VCExecuteRoutineRequest()
-                request.routineID = id
-                request.force = force
-                request.notes = notes
-
-                let clientRequest = ClientRequest(message: request)
-                let vcExecutionLog = try await client.executeRoutine(
-                    request: clientRequest,
-                    serializer: ProtobufSerializer<VCExecuteRoutineRequest>(),
-                    deserializer: ProtobufDeserializer<VCExecutionLog>()
-                )
-
-                let executionLog = convertToExecutionLog(vcExecutionLog)
-                logger.info("Routine executed successfully")
-                return executionLog
-            }
-
-            return executionLog
-
-        } catch {
-            logger.error("Failed to execute routine: \(error)")
-            throw RoutineServiceError.serverError(error.localizedDescription)
-        }
-    }
-
-    // MARK: - Execution History
-
-    func getExecutionLogs(
-        for routineId: String,
-        startTime: Date? = nil,
-        endTime: Date? = nil,
-        limit: Int = 50
-    ) async throws -> [ExecutionLog] {
-        logger.info("Getting execution logs for routine: \(routineId)")
-
-        do {
-            let logs = try await GRPCClientManager.shared.withRoutineServiceClient { client in
-                var request = VCGetExecutionLogsRequest()
-                request.routineID = routineId
-                if let startTime = startTime {
-                    request.startTime = Google_Protobuf_Timestamp(date: startTime)
-                }
-                if let endTime = endTime {
-                    request.endTime = Google_Protobuf_Timestamp(date: endTime)
-                }
-                request.limit = Int32(limit)
-
-                let clientRequest = ClientRequest(message: request)
-                let response = try await client.getExecutionLogs(
-                    request: clientRequest,
-                    serializer: ProtobufSerializer<VCGetExecutionLogsRequest>(),
-                    deserializer: ProtobufDeserializer<VCGetExecutionLogsResponse>()
-                )
-
-                let logs = response.logs.map { vcLog in
-                    convertToExecutionLog(vcLog)
-                }
-
-                logger.info("Successfully fetched \(logs.count) execution logs")
-                return logs
-            }
-
-            return logs
-
-        } catch {
-            logger.error("Failed to get execution logs: \(error)")
-            throw RoutineServiceError.serverError(error.localizedDescription)
-        }
-    }
-
     // MARK: - Private Helper Methods
 
     private func convertToRoutine(_ vcRoutine: VCRoutine) -> Routine {
@@ -355,17 +280,4 @@ final class RoutineService: @unchecked Sendable {
         }
         return vcRoutine
     }
-
-    private func convertToExecutionLog(_ vcLog: VCExecutionLog) -> ExecutionLog {
-        return ExecutionLog(
-            logId: vcLog.logID,
-            routineId: vcLog.routineID,
-            timestamp: vcLog.hasTimestamp ? vcLog.timestamp.date : Date(),
-            completed: vcLog.completed,
-            notes: vcLog.notes,
-            actionResults: vcLog.actionResults
-        )
-    }
 }
-
-// ExecutionLog model is defined in Models/ExecutionLog.swift

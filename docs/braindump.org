@@ -1,0 +1,36 @@
+* Persona 
+** Me
+  - Daily routine:
+    - wakeups and checks/adjust the agend for today   
+      - plan 2-3 items for the day
+    - sit infront of computer all day long 
+    - consume lots of youtube videos and instagram reels
+    - distracted by reels
+    - 
+    - 
+** Budi: ( many many hr)
+  - wakeups
+  - check: d12 (learning platform)
+  - email check 
+  - dsa problems practices 
+  - research (1-2hrs)
+  - job markets(1hr) 
+  - project: astra
+  - assignments (2-3hrs) / reading
+  - aws cloud certification reading up to 12
+*** screen time issue:
+    - eye strain(less blinking when focused mode) + headache
+    - hair pull
+  - multi tasking (sometimes burnout/cant focus) 
+*** feature request
+  - add to vibecare calender
+   
+** Bishal
+  - A form that takes your inputs 
+  - Form that pops up at certain duration
+  - It captures data and creats a csv 
+   
+** Uzzal
+  - a minimal todo manager 
+  - eod ask how much you did of what you set for the day
+    

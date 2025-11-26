@@ -135,33 +135,44 @@ struct ScheduleListView: View {
 
   private var headerView: some View {
     VStack(alignment: .leading, spacing: 12) {
-      // Top row: Count and action buttons
+      // Top row: Filter pills and action buttons
       HStack {
-        VStack(alignment: .leading, spacing: 2) {
-          let totalCount = displayedSchedules.count
+        // Filter buttons (moved up from below)
+        HStack(spacing: 8) {
+          FilterButton(
+            title: "All",
+            count: filteredSchedules.count,
+            isSelected: filterMode == .all
+          ) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+              filterMode = .all
+            }
+          }
 
-          Text("\(totalCount) schedule\(totalCount != 1 ? "s" : "")")
-            .font(.subheadline)
-            .fontWeight(.medium)
-            .foregroundColor(.primary)
+          FilterButton(
+            title: "Active",
+            count: activeSchedules.count,
+            isSelected: filterMode == .active,
+            statusColor: .green
+          ) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+              filterMode = .active
+            }
+          }
+
+          FilterButton(
+            title: "Paused",
+            count: pausedSchedules.count,
+            isSelected: filterMode == .paused,
+            statusColor: .orange
+          ) {
+            withAnimation(.easeInOut(duration: 0.2)) {
+              filterMode = .paused
+            }
+          }
         }
 
         Spacer()
-
-        // Status indicators
-        HStack(spacing: 12) {
-          StatusIndicator(
-            count: activeSchedules.count,
-            label: "Active",
-            color: .green
-          )
-
-          StatusIndicator(
-            count: pausedSchedules.count,
-            label: "Paused",
-            color: .orange
-          )
-        }
 
         // Group by routine toggle
         Button {
@@ -196,41 +207,6 @@ struct ScheduleListView: View {
         FloatingActionButtonSmall(systemImage: "plus") {
           createNewSchedule()
         }
-      }
-
-      // Filter buttons
-      HStack(spacing: 8) {
-        FilterButton(
-          title: "All",
-          count: filteredSchedules.count,
-          isSelected: filterMode == .all
-        ) {
-          withAnimation(.easeInOut(duration: 0.2)) {
-            filterMode = .all
-          }
-        }
-
-        FilterButton(
-          title: "Active",
-          count: activeSchedules.count,
-          isSelected: filterMode == .active
-        ) {
-          withAnimation(.easeInOut(duration: 0.2)) {
-            filterMode = .active
-          }
-        }
-
-        FilterButton(
-          title: "Paused",
-          count: pausedSchedules.count,
-          isSelected: filterMode == .paused
-        ) {
-          withAnimation(.easeInOut(duration: 0.2)) {
-            filterMode = .paused
-          }
-        }
-
-        Spacer()
       }
 
       // Search bar
@@ -834,13 +810,29 @@ struct FilterButton: View {
   let title: String
   let count: Int
   let isSelected: Bool
+  let statusColor: Color?
   let action: () -> Void
 
   @State private var isHovered = false
 
+  init(title: String, count: Int, isSelected: Bool, statusColor: Color? = nil, action: @escaping () -> Void) {
+    self.title = title
+    self.count = count
+    self.isSelected = isSelected
+    self.statusColor = statusColor
+    self.action = action
+  }
+
   var body: some View {
     Button(action: action) {
       HStack(spacing: 6) {
+        // Status color dot (if provided)
+        if let color = statusColor {
+          Circle()
+            .fill(color)
+            .frame(width: 8, height: 8)
+        }
+
         Text(title)
           .font(.subheadline)
           .fontWeight(isSelected ? .semibold : .regular)
@@ -873,6 +865,7 @@ struct FilterButton: View {
             lineWidth: 1
           )
       )
+      .contentShape(Rectangle())
     }
     .buttonStyle(.plain)
     .onHover { hovering in

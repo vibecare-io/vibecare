@@ -3,7 +3,7 @@ import Foundation
 struct Schedule: Identifiable, Codable, Equatable, Hashable {
     let id: String  // Client-authoritative ID for local-first architecture
     let profileId: String  // Direct profile reference for easier querying
-    let routineId: String
+    var routineId: String
     var name: String
     var rrule: String  // RFC 5545 RRule string
     var scheduleTimezone: String  // IANA timezone for RRule calculations (e.g., "America/Los_Angeles")

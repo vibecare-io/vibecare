@@ -6,8 +6,6 @@ final class DashboardState: ObservableObject {
     @Published var selectedRoutineId: String?
     @Published var selectedScheduleId: String?
     @Published var selectedActionId: String?
-    @Published var selectedLogId: Int64?
-    @Published var selectedTestResult: TestResult?
     @Published var selectedSettingCategory: SettingCategory?
 
     // MARK: - UI State
@@ -26,16 +24,8 @@ final class DashboardState: ObservableObject {
             return selectedScheduleId != nil
         case .actions:
             return selectedActionId != nil
-        case .logs:
-            return selectedLogId != nil
-        case .testing:
-            return selectedTestResult != nil
         case .settings:
             return selectedSettingCategory != nil
-        #if DEBUG
-        case .debugStorage:
-            return false // Debug storage doesn't have sub-selections
-        #endif
         case .none:
             return false
         }
@@ -46,8 +36,6 @@ final class DashboardState: ObservableObject {
         selectedRoutineId = nil
         selectedScheduleId = nil
         selectedActionId = nil
-        selectedLogId = nil
-        selectedTestResult = nil
         selectedSettingCategory = nil
     }
 
@@ -73,16 +61,6 @@ final class DashboardState: ObservableObject {
 
     func selectAction(_ id: String?) {
         selectedActionId = id
-        updateColumnVisibility()
-    }
-
-    func selectLog(_ id: Int64?) {
-        selectedLogId = id
-        updateColumnVisibility()
-    }
-
-    func selectTestResult(_ result: TestResult?) {
-        selectedTestResult = result
         updateColumnVisibility()
     }
 

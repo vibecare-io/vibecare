@@ -28,6 +28,7 @@ struct ScheduleDetailView: View {
     @State private var scheduleStartDate: Date = Date()
     @State private var scheduleRRule: String = ""
     @State private var scheduleExdates: [String] = []
+    @State private var scheduleRoutineId: String = ""
     @State private var isSaving = false
     @State private var scheduleIdTracker: String = ""
     @State private var hasCreatedSchedule = false
@@ -61,6 +62,7 @@ struct ScheduleDetailView: View {
             self._scheduleStartDate = State(initialValue: schedule.dtstart)
             self._scheduleRRule = State(initialValue: schedule.rrule)
             self._scheduleExdates = State(initialValue: schedule.exdates)
+            self._scheduleRoutineId = State(initialValue: schedule.routineId)
         } else {
             self._scheduleName = State(initialValue: "New Schedule")
             self._scheduleNotes = State(initialValue: "")
@@ -68,6 +70,7 @@ struct ScheduleDetailView: View {
             self._scheduleStartDate = State(initialValue: Date())
             self._scheduleRRule = State(initialValue: "FREQ=DAILY")
             self._scheduleExdates = State(initialValue: [])
+            self._scheduleRoutineId = State(initialValue: "")
         }
     }
 
@@ -133,11 +136,11 @@ struct ScheduleDetailView: View {
         ZStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
-                    // Editable Title Section
-                    editableTitleSection
+                    // Title row with enabled toggle
+                    titleAndEnabledRow
 
-                    // Status & Controls Section
-                    statusAndControlsSection
+                    // Routine selector
+                    routineSelectorRow
 
                     Divider()
 
@@ -171,6 +174,7 @@ struct ScheduleDetailView: View {
             }
         }
         .withTracing(viewName: "ScheduleDetailView")
+        .navigationTitle("")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 scheduleToolbarButtons(schedule)
@@ -192,6 +196,7 @@ struct ScheduleDetailView: View {
             scheduleStartDate = schedule.dtstart
             scheduleRRule = schedule.rrule
             scheduleExdates = schedule.exdates
+            scheduleRoutineId = schedule.routineId
             loadActions()
         } else if isCreating {
             scheduleName = "New Schedule"
@@ -200,6 +205,7 @@ struct ScheduleDetailView: View {
             scheduleStartDate = Date()
             scheduleRRule = "FREQ=DAILY"
             scheduleExdates = []
+            scheduleRoutineId = ""
         }
     }
 
@@ -215,6 +221,7 @@ struct ScheduleDetailView: View {
             scheduleStartDate = Date()
             scheduleRRule = "FREQ=DAILY"
             scheduleExdates = []
+            scheduleRoutineId = ""
         } else if let schedule = schedule {
             scheduleName = schedule.name
             scheduleNotes = schedule.notes
@@ -222,6 +229,7 @@ struct ScheduleDetailView: View {
             scheduleStartDate = schedule.dtstart
             scheduleRRule = schedule.rrule
             scheduleExdates = schedule.exdates
+            scheduleRoutineId = schedule.routineId
         }
     }
 
@@ -230,68 +238,81 @@ struct ScheduleDetailView: View {
         loadActions()
     }
 
-    // MARK: - Editable Title Section
+    // MARK: - Title and Enabled Row
 
-    private var editableTitleSection: some View {
-        EditableTitle(
-            text: $scheduleName,
-            placeholder: "Schedule name",
-            autoFocus: isCreating,
-            autoSelectText: "New Schedule"
-        ) { newName in
-            if isCreating {
-                if newName != "New Schedule" &&
-                   !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-                   !hasCreatedSchedule {
+    private var titleAndEnabledRow: some View {
+        HStack(alignment: .center, spacing: 16) {
+            // Editable title on the left
+            EditableTitle(
+                text: $scheduleName,
+                placeholder: "Schedule name",
+                autoFocus: isCreating,
+                autoSelectText: "New Schedule"
+            ) { newName in
+                if isCreating {
+                    if newName != "New Schedule" &&
+                       !newName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
+                       !hasCreatedSchedule {
+                        Task {
+                            await autoSaveNewSchedule()
+                        }
+                    }
+                    scheduleName = newName
+                } else if let schedule = schedule {
                     Task {
-                        await autoSaveNewSchedule()
+                        await updateScheduleName(schedule, newName: newName)
                     }
                 }
-                scheduleName = newName
-            } else if let schedule = schedule {
-                Task {
-                    await updateScheduleName(schedule, newName: newName)
-                }
             }
+            .id(schedule?.id ?? "new")
+
+            Spacer()
+
+            // Enabled toggle on the right (green when enabled)
+            Toggle("Enabled", isOn: Binding(
+                get: { currentEnabled },
+                set: { newValue in
+                    scheduleEnabled = newValue
+                    if let schedule = schedule {
+                        Task {
+                            await updateScheduleEnabled(schedule, enabled: newValue)
+                        }
+                    }
+                }
+            ))
+            .toggleStyle(.switch)
+            .tint(.green)
+            .labelsHidden()
         }
-        .padding(.top, isCreating ? 0 : 8)
-        .id(schedule?.id ?? "new")
     }
 
-    // MARK: - Status & Controls Section
+    // MARK: - Routine Selector Row
 
-    private var statusAndControlsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            HStack(spacing: 16) {
-                // Status indicator with inline toggle
-                HStack(spacing: 12) {
-                    Circle()
-                        .fill(currentEnabled ? .green : .orange)
-                        .frame(width: 12, height: 12)
+    private var routineSelectorRow: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "rectangle.stack")
+                .foregroundColor(.secondary)
+                .font(.subheadline)
 
-                    Toggle("Enabled", isOn: Binding(
-                        get: { currentEnabled },
-                        set: { newValue in
-                            scheduleEnabled = newValue
-                            if let schedule = schedule {
-                                Task {
-                                    await updateScheduleEnabled(schedule, enabled: newValue)
-                                }
-                            }
-                        }
-                    ))
-                    .toggleStyle(.switch)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                }
+            Text("Routine:")
+                .font(.subheadline)
+                .foregroundColor(.secondary)
 
-                Spacer()
-            }
-
-            // Routine link
             if let schedule = schedule {
-                RoutineLinkRow(routineId: schedule.routineId)
+                RoutinePicker(
+                    selectedRoutineId: scheduleRoutineId,
+                    onSelect: { newRoutineId in
+                        // Update local state immediately for responsive UI
+                        scheduleRoutineId = newRoutineId
+                        // Persist to backend
+                        Task {
+                            await updateScheduleRoutine(schedule, routineId: newRoutineId)
+                        }
+                    }
+                )
             }
+
+            Spacer()
         }
     }
 
@@ -739,6 +760,13 @@ struct ScheduleDetailView: View {
         await viewModel.updateSchedule(updatedSchedule)
     }
 
+    private func updateScheduleRoutine(_ schedule: Schedule, routineId: String) async {
+        var updatedSchedule = schedule
+        updatedSchedule.routineId = routineId
+        await viewModel.updateSchedule(updatedSchedule)
+        StatusBarManager.shared.showSuccess("Routine updated")
+    }
+
     // MARK: - Actions Management
 
     private func loadActions() {
@@ -885,58 +913,60 @@ struct ScheduleDetailView: View {
 
 // MARK: - Supporting Views
 
-struct RoutineLinkRow: View {
-    let routineId: String
+struct RoutinePicker: View {
+    let selectedRoutineId: String
+    let onSelect: (String) -> Void
+
     @StateObject private var routineViewModel = RoutineViewModel()
-    @State private var routineName: String?
+
+    private var selectedRoutineName: String {
+        routineViewModel.routines.first { $0.id == selectedRoutineId }?.name ?? "Select Routine"
+    }
 
     var body: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "rectangle.stack")
-                .foregroundColor(.secondary)
+        HStack(spacing: 4) {
+            // Display routine name as text
+            Text(selectedRoutineName)
                 .font(.subheadline)
+                .fontWeight(.medium)
+                .foregroundColor(.primary)
 
-            Text("Routine:")
-                .font(.subheadline)
-                .foregroundColor(.secondary)
-
-            if let name = routineName {
-                Text(name)
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-                    .foregroundColor(.accentColor)
-            } else {
-                Text(String(routineId.prefix(8)) + "...")
-                    .font(.system(.caption, design: .monospaced))
-                    .foregroundColor(.secondary)
+            // Dropdown menu for selecting routines
+            if !routineViewModel.routines.isEmpty {
+                Menu {
+                    ForEach(routineViewModel.routines) { routine in
+                        Button {
+                            onSelect(routine.id)
+                        } label: {
+                            HStack {
+                                Text(routine.name)
+                                if routine.id == selectedRoutineId {
+                                    Spacer()
+                                    Image(systemName: "checkmark")
+                                }
+                            }
+                        }
+                    }
+                } label: {
+                    Image(systemName: "chevron.down")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .help("Choose from existing routines")
             }
-
-            Spacer()
-
-            Button("View") {
-                // TODO: Navigate to routine detail
-            }
-            .buttonStyle(.plain)
-            .foregroundColor(.accentColor)
-            .font(.caption)
         }
-        .padding(12)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
-        .cornerRadius(8)
         .onAppear {
-            loadRoutineName()
+            loadRoutines()
         }
     }
 
-    private func loadRoutineName() {
+    private func loadRoutines() {
         guard let profileId = AppState.shared.currentProfile?.id else { return }
         Task {
             await routineViewModel.loadRoutines(for: profileId)
-            if let routine = routineViewModel.routines.first(where: { $0.id == routineId }) {
-                await MainActor.run {
-                    routineName = routine.name
-                }
-            }
         }
     }
 }

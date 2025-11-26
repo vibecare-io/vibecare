@@ -91,16 +91,8 @@ public struct Dashboard: View {
       scheduleContentView
     case .actions:
       actionContentView
-    case .logs:
-      logContentView
-    case .testing:
-      testingContentView
     case .settings:
       settingsContentView
-    #if DEBUG
-      case .debugStorage:
-        debugStorageContentView
-    #endif
     case .none:
       emptyContentView
     }
@@ -131,37 +123,9 @@ public struct Dashboard: View {
     )
   }
 
-  private var logContentView: some View {
-    ExecutionLogView(
-      searchText: dashboardState.searchText,
-      selectedId: $dashboardState.selectedLogId
-    )
-  }
-
-  @ViewBuilder
-  private var testingContentView: some View {
-    if #available(macOS 15.0, *) {
-      GRPCTestView(selectedResult: $dashboardState.selectedTestResult)
-    } else {
-      Text("gRPC Testing requires macOS 15.0 or later")
-        .foregroundColor(.secondary)
-    }
-  }
-
   private var settingsContentView: some View {
     SettingsContentView(selectedCategory: $dashboardState.selectedSettingCategory)
   }
-
-  #if DEBUG
-    private var debugStorageContentView: some View {
-      // TODO: Implement DebugStorageView
-      EmptyStateView(
-        title: "Debug Storage",
-        subtitle: "Storage debugging view coming soon",
-        systemImage: "internaldrive"
-      )
-    }
-  #endif
 
   private var emptyContentView: some View {
     EmptyStateView(
@@ -205,16 +169,8 @@ public struct Dashboard: View {
       scheduleDetailView
     case .actions:
       actionDetailView
-    case .logs:
-      logDetailView
-    case .testing:
-      testingDetailView
     case .settings:
       settingsDetailView
-    #if DEBUG
-      case .debugStorage:
-        emptyDetailView  // Debug storage view doesn't need a separate detail view
-    #endif
     case .none:
       emptyDetailView
     }
@@ -288,36 +244,6 @@ public struct Dashboard: View {
         title: "No Action Selected",
         subtitle: "Select an action to view details",
         systemImage: "bolt.circle"
-      )
-    }
-  }
-
-  @ViewBuilder
-  private var logDetailView: some View {
-    if let logId = dashboardState.selectedLogId {
-      EmptyStateView(
-        title: "Log Details",
-        subtitle: "Log ID: \(logId)",
-        systemImage: "doc.circle"
-      )
-    } else {
-      EmptyStateView(
-        title: "No Log Selected",
-        subtitle: "Select an execution log to view details",
-        systemImage: "doc.circle"
-      )
-    }
-  }
-
-  @ViewBuilder
-  private var testingDetailView: some View {
-    if let testResult = dashboardState.selectedTestResult {
-      TestingDetailView(testResult: testResult)
-    } else {
-      EmptyStateView(
-        title: "No Test Selected",
-        subtitle: "Run a test to see detailed results here",
-        systemImage: "network.circle"
       )
     }
   }

@@ -372,6 +372,7 @@ message UpdateScheduleRequest {
   string notes = 6;
   bool enabled = 7;
   string schedule_timezone = 8;  // IANA timezone for RRule calculations
+  string routine_id = 9;  // Allow updating the routine association
 }
 
 message DeleteScheduleRequest {
