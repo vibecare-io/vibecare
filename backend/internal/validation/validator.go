@@ -240,6 +240,7 @@ func ValidateAndSanitizeNotes(notes string) (string, error) {
 // ValidateRRule validates an RRule string according to RFC 5545 format
 // Empty rrule is allowed (represents one-time events)
 // Non-empty rrule must be valid RFC 5545 recurrence rule format
+// Also rejects problematic patterns that cause excessive CPU usage
 func ValidateRRule(rruleStr string) error {
 	// Trim whitespace
 	rruleStr = strings.TrimSpace(rruleStr)
@@ -255,10 +256,60 @@ func ValidateRRule(rruleStr string) error {
 	fullRRule := "DTSTART:" + testDtstart + "\nRRULE:" + rruleStr
 
 	// Attempt to parse the RRule
-	if _, err := rrule.StrToRRule(fullRRule); err != nil {
+	rule, err := rrule.StrToRRule(fullRRule)
+	if err != nil {
 		return &ValidationError{
 			Field:   "rrule",
 			Message: fmt.Sprintf("invalid RFC 5545 format: %v", err),
+		}
+	}
+
+	// Check for problematic patterns that cause CPU spikes
+	if err := validateRRulePerformance(rule); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// validateRRulePerformance checks for RRule patterns that cause excessive CPU usage.
+// High-frequency rules (MINUTELY, SECONDLY, HOURLY) combined with BYHOUR/BYMINUTE
+// constraints force the rrule library to iterate through many non-matching occurrences.
+func validateRRulePerformance(rule *rrule.RRule) error {
+	freq := rule.Options.Freq
+	opts := rule.Options
+
+	hasByHour := len(opts.Byhour) > 0
+	hasByMinute := len(opts.Byminute) > 0
+
+	var problematic bool
+	var reason string
+
+	switch freq {
+	case rrule.SECONDLY:
+		// SECONDLY with any hour/minute constraint is problematic
+		if hasByHour || hasByMinute {
+			problematic = true
+			reason = "SECONDLY frequency cannot be combined with BYHOUR or BYMINUTE constraints"
+		}
+	case rrule.MINUTELY:
+		// MINUTELY with hour constraint is problematic (has to skip many minutes to find matching hour)
+		if hasByHour {
+			problematic = true
+			reason = "MINUTELY frequency cannot be combined with BYHOUR constraint; use DAILY or HOURLY frequency instead"
+		}
+	case rrule.HOURLY:
+		// HOURLY with specific hour constraint is problematic
+		if hasByHour {
+			problematic = true
+			reason = "HOURLY frequency cannot be combined with BYHOUR constraint; use DAILY frequency instead"
+		}
+	}
+
+	if problematic {
+		return &ValidationError{
+			Field:   "rrule",
+			Message: fmt.Sprintf("invalid recurrence pattern: %s", reason),
 		}
 	}
 

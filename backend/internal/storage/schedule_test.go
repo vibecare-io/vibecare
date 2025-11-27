@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/teambition/rrule-go"
 	"github.com/vibecare-io/vibecare/backend/internal/models"
 )
 
@@ -663,5 +664,342 @@ func TestScheduleTimezoneWithOneTimeEvents(t *testing.T) {
 		t.Error("NextExecution should be set for future one-time event")
 	} else if !schedule.NextExecution.Equal(dtstart) {
 		t.Errorf("NextExecution should equal dtstart for one-time event")
+	}
+}
+
+// ========== RRule Performance Fix Tests ==========
+
+// TestIsProblematicRRule tests detection of RRule patterns that cause CPU spikes.
+// High-frequency rules (SECONDLY, MINUTELY, HOURLY) combined with BYHOUR/BYMINUTE
+// constraints force the rrule library to iterate through many non-matching occurrences.
+func TestIsProblematicRRule(t *testing.T) {
+	tests := []struct {
+		name        string
+		freq        rrule.Frequency
+		byhour      []int
+		byminute    []int
+		problematic bool
+	}{
+		// SECONDLY frequency cases
+		{
+			name:        "SECONDLY with BYHOUR is problematic",
+			freq:        rrule.SECONDLY,
+			byhour:      []int{9},
+			byminute:    nil,
+			problematic: true,
+		},
+		{
+			name:        "SECONDLY with BYMINUTE is problematic",
+			freq:        rrule.SECONDLY,
+			byhour:      nil,
+			byminute:    []int{30},
+			problematic: true,
+		},
+		{
+			name:        "SECONDLY with both BYHOUR and BYMINUTE is problematic",
+			freq:        rrule.SECONDLY,
+			byhour:      []int{9},
+			byminute:    []int{30},
+			problematic: true,
+		},
+		{
+			name:        "SECONDLY without constraints is safe",
+			freq:        rrule.SECONDLY,
+			byhour:      nil,
+			byminute:    nil,
+			problematic: false,
+		},
+		// MINUTELY frequency cases
+		{
+			name:        "MINUTELY with BYHOUR is problematic",
+			freq:        rrule.MINUTELY,
+			byhour:      []int{9},
+			byminute:    nil,
+			problematic: true,
+		},
+		{
+			name:        "MINUTELY with multiple BYHOUR is problematic",
+			freq:        rrule.MINUTELY,
+			byhour:      []int{9, 12, 18},
+			byminute:    nil,
+			problematic: true,
+		},
+		{
+			name:        "MINUTELY with only BYMINUTE is safe",
+			freq:        rrule.MINUTELY,
+			byhour:      nil,
+			byminute:    []int{0, 30},
+			problematic: false,
+		},
+		{
+			name:        "MINUTELY without constraints is safe",
+			freq:        rrule.MINUTELY,
+			byhour:      nil,
+			byminute:    nil,
+			problematic: false,
+		},
+		// HOURLY frequency cases
+		{
+			name:        "HOURLY with BYHOUR is problematic",
+			freq:        rrule.HOURLY,
+			byhour:      []int{9},
+			byminute:    nil,
+			problematic: true,
+		},
+		{
+			name:        "HOURLY with BYMINUTE is safe",
+			freq:        rrule.HOURLY,
+			byhour:      nil,
+			byminute:    []int{0},
+			problematic: false,
+		},
+		{
+			name:        "HOURLY without constraints is safe",
+			freq:        rrule.HOURLY,
+			byhour:      nil,
+			byminute:    nil,
+			problematic: false,
+		},
+		// Lower frequency rules - always safe
+		{
+			name:        "DAILY with BYHOUR is safe",
+			freq:        rrule.DAILY,
+			byhour:      []int{9},
+			byminute:    []int{0},
+			problematic: false,
+		},
+		{
+			name:        "WEEKLY with BYHOUR is safe",
+			freq:        rrule.WEEKLY,
+			byhour:      []int{9},
+			byminute:    []int{0},
+			problematic: false,
+		},
+		{
+			name:        "MONTHLY with BYHOUR is safe",
+			freq:        rrule.MONTHLY,
+			byhour:      []int{9},
+			byminute:    nil,
+			problematic: false,
+		},
+		{
+			name:        "YEARLY with BYHOUR is safe",
+			freq:        rrule.YEARLY,
+			byhour:      []int{0},
+			byminute:    []int{0},
+			problematic: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			opts := rrule.ROption{
+				Freq:     tt.freq,
+				Byhour:   tt.byhour,
+				Byminute: tt.byminute,
+			}
+			result := isProblematicRRule(tt.freq, opts)
+			if result != tt.problematic {
+				t.Errorf("isProblematicRRule(freq=%v, byhour=%v, byminute=%v) = %v, want %v",
+					tt.freq, tt.byhour, tt.byminute, result, tt.problematic)
+			}
+		})
+	}
+}
+
+// TestOptimizeDtstartForFrequency tests that dtstart is moved closer to 'after'
+// for high-frequency rules to reduce iteration count.
+func TestOptimizeDtstartForFrequency(t *testing.T) {
+	// Fixed reference times for predictable testing
+	now := time.Date(2025, 6, 15, 14, 30, 0, 0, time.UTC)
+	oldDtstart := time.Date(2020, 1, 1, 9, 0, 0, 0, time.UTC) // 5+ years ago
+
+	tests := []struct {
+		name                 string
+		freq                 rrule.Frequency
+		dtstart              time.Time
+		after                time.Time
+		expectOptimized      bool
+		expectTimePreserved  bool // time-of-day should be preserved
+	}{
+		{
+			name:                "SECONDLY moves dtstart close to after",
+			freq:                rrule.SECONDLY,
+			dtstart:             oldDtstart,
+			after:               now,
+			expectOptimized:     true,
+			expectTimePreserved: true,
+		},
+		{
+			name:                "MINUTELY moves dtstart close to after",
+			freq:                rrule.MINUTELY,
+			dtstart:             oldDtstart,
+			after:               now,
+			expectOptimized:     true,
+			expectTimePreserved: true,
+		},
+		{
+			name:                "HOURLY moves dtstart close to after",
+			freq:                rrule.HOURLY,
+			dtstart:             oldDtstart,
+			after:               now,
+			expectOptimized:     true,
+			expectTimePreserved: true,
+		},
+		{
+			name:                "DAILY moves dtstart close to after",
+			freq:                rrule.DAILY,
+			dtstart:             oldDtstart,
+			after:               now,
+			expectOptimized:     true,
+			expectTimePreserved: true,
+		},
+		{
+			name:                "WEEKLY moves dtstart close to after",
+			freq:                rrule.WEEKLY,
+			dtstart:             oldDtstart,
+			after:               now,
+			expectOptimized:     true,
+			expectTimePreserved: true,
+		},
+		{
+			name:                "MONTHLY moves dtstart close to after",
+			freq:                rrule.MONTHLY,
+			dtstart:             oldDtstart,
+			after:               now,
+			expectOptimized:     true,
+			expectTimePreserved: true,
+		},
+		{
+			name:                "YEARLY moves dtstart close to after",
+			freq:                rrule.YEARLY,
+			dtstart:             oldDtstart,
+			after:               now,
+			expectOptimized:     true,
+			expectTimePreserved: true,
+		},
+		{
+			name:            "dtstart after 'after' is not changed",
+			freq:            rrule.MINUTELY,
+			dtstart:         now.Add(1 * time.Hour), // dtstart is in the future
+			after:           now,
+			expectOptimized: false,
+		},
+		{
+			name:            "recent dtstart is not changed (within lookback)",
+			freq:            rrule.MINUTELY,
+			dtstart:         now.Add(-30 * time.Minute), // only 30 min ago, lookback is 1 hour
+			after:           now,
+			expectOptimized: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := optimizeDtstartForFrequency(tt.freq, tt.dtstart, tt.after)
+
+			if tt.expectOptimized {
+				// Result should be different from original
+				if result.Equal(tt.dtstart) {
+					t.Errorf("expected dtstart to be optimized, but got original: %v", result)
+				}
+				// Result should be after original dtstart
+				if !result.After(tt.dtstart) {
+					t.Errorf("optimized dtstart %v should be after original %v", result, tt.dtstart)
+				}
+				// Result should be closer to 'after' than original
+				originalDiff := tt.after.Sub(tt.dtstart)
+				optimizedDiff := tt.after.Sub(result)
+				if optimizedDiff >= originalDiff {
+					t.Errorf("optimized dtstart should be closer to 'after': original diff=%v, optimized diff=%v",
+						originalDiff, optimizedDiff)
+				}
+			} else {
+				// Result should equal original
+				if !result.Equal(tt.dtstart) {
+					t.Errorf("expected dtstart unchanged, got %v (original: %v)", result, tt.dtstart)
+				}
+			}
+
+			// Check time-of-day preservation
+			if tt.expectTimePreserved && tt.expectOptimized {
+				if result.Hour() != tt.dtstart.Hour() ||
+					result.Minute() != tt.dtstart.Minute() ||
+					result.Second() != tt.dtstart.Second() {
+					t.Errorf("time-of-day not preserved: original %02d:%02d:%02d, result %02d:%02d:%02d",
+						tt.dtstart.Hour(), tt.dtstart.Minute(), tt.dtstart.Second(),
+						result.Hour(), result.Minute(), result.Second())
+				}
+			}
+		})
+	}
+}
+
+// TestFreqToString tests the frequency to string conversion for telemetry.
+func TestFreqToString(t *testing.T) {
+	tests := []struct {
+		freq     rrule.Frequency
+		expected string
+	}{
+		{rrule.YEARLY, "YEARLY"},
+		{rrule.MONTHLY, "MONTHLY"},
+		{rrule.WEEKLY, "WEEKLY"},
+		{rrule.DAILY, "DAILY"},
+		{rrule.HOURLY, "HOURLY"},
+		{rrule.MINUTELY, "MINUTELY"},
+		{rrule.SECONDLY, "SECONDLY"},
+		{rrule.Frequency(99), "UNKNOWN(99)"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expected, func(t *testing.T) {
+			result := freqToString(tt.freq)
+			if result != tt.expected {
+				t.Errorf("freqToString(%v) = %q, want %q", tt.freq, result, tt.expected)
+			}
+		})
+	}
+}
+
+// TestCalculateNextFromRRule_ProblematicPattern tests that problematic RRules
+// return dtstart as fallback instead of timing out.
+func TestCalculateNextFromRRule_ProblematicPattern(t *testing.T) {
+	dtstart := time.Date(2025, 1, 1, 9, 0, 0, 0, time.UTC)
+	after := time.Date(2025, 6, 15, 14, 0, 0, 0, time.UTC)
+
+	// This pattern would normally cause massive iteration:
+	// MINUTELY with BYHOUR constraint forces skipping 59 minutes per hour
+	problematicRRule := "FREQ=MINUTELY;BYHOUR=9;BYMINUTE=0"
+
+	result, err := calculateNextFromRRule(problematicRRule, dtstart, after)
+
+	// Should succeed (not timeout) and return dtstart as fallback
+	if err != nil {
+		t.Fatalf("expected no error for problematic rrule (should fallback to dtstart), got: %v", err)
+	}
+
+	// Result should be dtstart (the fallback behavior)
+	if !result.Equal(dtstart) {
+		t.Errorf("expected fallback to dtstart %v, got %v", dtstart, result)
+	}
+}
+
+// TestCalculateNextFromRRule_SafePattern tests that safe high-frequency patterns work correctly.
+func TestCalculateNextFromRRule_SafePattern(t *testing.T) {
+	dtstart := time.Date(2025, 1, 1, 9, 0, 0, 0, time.UTC)
+	after := time.Date(2025, 1, 1, 10, 0, 0, 0, time.UTC)
+
+	// MINUTELY without BYHOUR constraint is safe
+	safeRRule := "FREQ=MINUTELY;INTERVAL=20"
+
+	result, err := calculateNextFromRRule(safeRRule, dtstart, after)
+
+	if err != nil {
+		t.Fatalf("unexpected error for safe rrule: %v", err)
+	}
+
+	// Result should be after 'after'
+	if !result.After(after) {
+		t.Errorf("next execution %v should be after %v", result, after)
 	}
 }

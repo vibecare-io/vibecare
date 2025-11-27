@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"context"
 	"database/sql"
 	"fmt"
 	"strings"
@@ -10,33 +11,233 @@ import (
 	"github.com/teambition/rrule-go"
 	"github.com/vibecare-io/vibecare/backend/internal/models"
 	"github.com/vibecare-io/vibecare/backend/internal/validation"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+const (
+	// rruleCalculationTimeout prevents runaway iterations for high-frequency rules
+	rruleCalculationTimeout = 2 * time.Second
+	// rruleSlowThreshold logs calculations slower than this
+	rruleSlowThreshold = 100 * time.Millisecond
+)
+
+var rruleTracer = otel.Tracer("vibecare/storage/rrule")
 
 // calculateNextFromRRule calculates the next execution time based on an RRule string.
 // Returns zero time if the rrule is empty, invalid, or has no future occurrences.
 func calculateNextFromRRule(rruleStr string, dtstart, after time.Time) (time.Time, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), rruleCalculationTimeout)
+	defer cancel()
+	return calculateNextFromRRuleWithContext(ctx, rruleStr, dtstart, after)
+}
+
+// calculateNextFromRRuleWithContext calculates next execution with timeout and telemetry.
+func calculateNextFromRRuleWithContext(ctx context.Context, rruleStr string, dtstart, after time.Time) (time.Time, error) {
 	// Empty rrule means one-time event (no next execution)
 	if strings.TrimSpace(rruleStr) == "" {
 		return time.Time{}, fmt.Errorf("empty rrule")
 	}
 
-	// Build complete RRule string with DTSTART
-	fullRRule := "DTSTART:" + dtstart.Format("20060102T150405Z") + "\nRRULE:" + rruleStr
+	// Start telemetry span
+	ctx, span := rruleTracer.Start(ctx, "calculateNextFromRRule",
+		trace.WithAttributes(
+			attribute.String("rrule.input", rruleStr),
+			attribute.String("rrule.dtstart", dtstart.Format(time.RFC3339)),
+			attribute.String("rrule.after", after.Format(time.RFC3339)),
+		),
+	)
+	defer span.End()
 
-	// Parse the RRule using rrule-go library
+	startTime := time.Now()
+
+	// Parse the RRule first to extract frequency
+	fullRRule := "DTSTART:" + dtstart.Format("20060102T150405Z") + "\nRRULE:" + rruleStr
 	rule, err := rrule.StrToRRule(fullRRule)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "parse failed")
 		return time.Time{}, fmt.Errorf("failed to parse rrule: %w", err)
+	}
+
+	// Check for problematic high-frequency rules with time constraints
+	// These cause massive iteration counts and should be rejected
+	freq := rule.Options.Freq
+	opts := rule.Options
+	if isProblematicRRule(freq, opts) {
+		err := fmt.Errorf("problematic rrule: high-frequency (%s) with BYHOUR/BYMINUTE constraints causes excessive iteration", freqToString(freq))
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "problematic rrule rejected")
+		span.SetAttributes(attribute.Bool("rrule.rejected", true))
+		fmt.Printf("[RRULE_REJECTED] rrule=%q freq=%s reason=high_freq_with_time_constraints\n", rruleStr, freqToString(freq))
+		// Return dtstart as a fallback next execution
+		return dtstart, nil
+	}
+
+	// Optimize dtstart for high-frequency rules to reduce iterations
+	effectiveDtstart := optimizeDtstartForFrequency(freq, dtstart, after)
+
+	span.SetAttributes(
+		attribute.String("rrule.frequency", freqToString(freq)),
+		attribute.String("rrule.effective_dtstart", effectiveDtstart.Format(time.RFC3339)),
+		attribute.Bool("rrule.dtstart_optimized", !effectiveDtstart.Equal(dtstart)),
+	)
+
+	// Rebuild with optimized dtstart if changed
+	if !effectiveDtstart.Equal(dtstart) {
+		fullRRule = "DTSTART:" + effectiveDtstart.Format("20060102T150405Z") + "\nRRULE:" + rruleStr
+		rule, err = rrule.StrToRRule(fullRRule)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, "parse failed after optimization")
+			return time.Time{}, fmt.Errorf("failed to parse optimized rrule: %w", err)
+		}
 	}
 
 	// Create RSet and add the rule
 	rset := &rrule.Set{}
 	rset.RRule(rule)
 
-	// Get the next occurrence after the given time
-	next := rset.After(after, false)
+	// Run After() in goroutine to support timeout
+	type result struct {
+		next time.Time
+	}
+	resultCh := make(chan result, 1)
 
-	return next, nil
+	go func() {
+		next := rset.After(after, false)
+		resultCh <- result{next: next}
+	}()
+
+	// Wait for result or timeout
+	select {
+	case <-ctx.Done():
+		elapsed := time.Since(startTime)
+		span.SetAttributes(
+			attribute.Float64("rrule.duration_ms", float64(elapsed.Milliseconds())),
+			attribute.Bool("rrule.timed_out", true),
+		)
+		span.RecordError(ctx.Err())
+		span.SetStatus(codes.Error, "calculation timed out")
+
+		// Log for investigation
+		fmt.Printf("[RRULE_TIMEOUT] duration=%v rrule=%q freq=%s dtstart=%s effective_dtstart=%s after=%s\n",
+			elapsed, rruleStr, freqToString(freq), dtstart.Format(time.RFC3339),
+			effectiveDtstart.Format(time.RFC3339), after.Format(time.RFC3339))
+
+		return time.Time{}, fmt.Errorf("rrule calculation timed out after %v", elapsed)
+
+	case res := <-resultCh:
+		elapsed := time.Since(startTime)
+		span.SetAttributes(
+			attribute.Float64("rrule.duration_ms", float64(elapsed.Milliseconds())),
+			attribute.Bool("rrule.timed_out", false),
+			attribute.String("rrule.next_execution", res.next.Format(time.RFC3339)),
+		)
+
+		// Log slow calculations
+		if elapsed > rruleSlowThreshold {
+			span.SetAttributes(attribute.Bool("rrule.slow", true))
+			fmt.Printf("[RRULE_SLOW] duration=%v rrule=%q freq=%s dtstart=%s effective_dtstart=%s after=%s next=%s\n",
+				elapsed, rruleStr, freqToString(freq), dtstart.Format(time.RFC3339),
+				effectiveDtstart.Format(time.RFC3339), after.Format(time.RFC3339), res.next.Format(time.RFC3339))
+		}
+
+		span.SetStatus(codes.Ok, "")
+		return res.next, nil
+	}
+}
+
+// isProblematicRRule detects RRule patterns that cause excessive CPU usage.
+// High-frequency rules (MINUTELY, SECONDLY, HOURLY) with BYHOUR/BYMINUTE constraints
+// force the library to iterate through many non-matching occurrences.
+func isProblematicRRule(freq rrule.Frequency, opts rrule.ROption) bool {
+	hasByHour := len(opts.Byhour) > 0
+	hasByMinute := len(opts.Byminute) > 0
+
+	switch freq {
+	case rrule.SECONDLY:
+		// SECONDLY with any hour/minute constraint is problematic
+		return hasByHour || hasByMinute
+	case rrule.MINUTELY:
+		// MINUTELY with hour constraint is problematic (has to skip many minutes)
+		return hasByHour
+	case rrule.HOURLY:
+		// HOURLY with specific hour constraint is problematic
+		return hasByHour
+	}
+	return false
+}
+
+// optimizeDtstartForFrequency moves dtstart closer to 'after' for high-frequency rules.
+// This dramatically reduces the number of iterations needed by rrule-go's After() method.
+func optimizeDtstartForFrequency(freq rrule.Frequency, dtstart, after time.Time) time.Time {
+	// Only optimize if dtstart is before 'after'
+	if !dtstart.Before(after) {
+		return dtstart
+	}
+
+	// Calculate safe lookback based on frequency
+	// We go back enough to ensure we don't miss the pattern alignment
+	var lookback time.Duration
+	switch freq {
+	case rrule.SECONDLY:
+		lookback = 1 * time.Minute
+	case rrule.MINUTELY:
+		lookback = 1 * time.Hour
+	case rrule.HOURLY:
+		lookback = 24 * time.Hour
+	case rrule.DAILY:
+		lookback = 7 * 24 * time.Hour
+	case rrule.WEEKLY:
+		lookback = 4 * 7 * 24 * time.Hour
+	case rrule.MONTHLY:
+		lookback = 60 * 24 * time.Hour // ~2 months
+	case rrule.YEARLY:
+		lookback = 400 * 24 * time.Hour // ~13 months
+	default:
+		return dtstart
+	}
+
+	// Calculate candidate: go back from 'after' by lookback amount
+	candidate := after.Add(-lookback)
+
+	// Preserve time-of-day from original dtstart (important for patterns like "every day at 9am")
+	candidate = time.Date(
+		candidate.Year(), candidate.Month(), candidate.Day(),
+		dtstart.Hour(), dtstart.Minute(), dtstart.Second(), dtstart.Nanosecond(),
+		dtstart.Location(),
+	)
+
+	// Only use candidate if it's after original dtstart (don't go backwards)
+	if candidate.After(dtstart) {
+		return candidate
+	}
+	return dtstart
+}
+
+// freqToString converts rrule.Frequency to string for logging/telemetry
+func freqToString(freq rrule.Frequency) string {
+	switch freq {
+	case rrule.YEARLY:
+		return "YEARLY"
+	case rrule.MONTHLY:
+		return "MONTHLY"
+	case rrule.WEEKLY:
+		return "WEEKLY"
+	case rrule.DAILY:
+		return "DAILY"
+	case rrule.HOURLY:
+		return "HOURLY"
+	case rrule.MINUTELY:
+		return "MINUTELY"
+	case rrule.SECONDLY:
+		return "SECONDLY"
+	default:
+		return fmt.Sprintf("UNKNOWN(%d)", freq)
+	}
 }
 
 // CreateSchedule creates a new schedule
