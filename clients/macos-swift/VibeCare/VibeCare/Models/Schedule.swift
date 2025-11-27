@@ -121,6 +121,18 @@ struct RRule: Codable, Equatable, Hashable {
             case .minutely: return "Every Minute"
             }
         }
+
+        /// Returns true if this frequency supports BYHOUR/BYMINUTE constraints.
+        /// High-frequency rules (minutely, hourly) should NOT use time constraints
+        /// as they cause CPU spikes in RRule calculation.
+        var supportsTimePicker: Bool {
+            switch self {
+            case .daily, .weekly, .monthly, .yearly:
+                return true
+            case .minutely, .hourly:
+                return false
+            }
+        }
     }
 
     // Convert RRule struct to RFC 5545 string format
@@ -190,62 +202,136 @@ struct RRule: Codable, Equatable, Hashable {
         return parts.joined(separator: ";")
     }
 
-    // Parse RFC 5545 RRule string into RRule struct
+    // Parse RFC 5545 RRule string into RRule struct with strict validation
     static func fromRRuleString(_ rruleString: String) throws -> RRule {
         var rrule = RRule()
+        var hasFreq = false
+
+        let validKeys = Set(["FREQ", "INTERVAL", "BYHOUR", "BYMINUTE", "BYDAY",
+                             "BYMONTHDAY", "BYMONTH", "UNTIL", "COUNT", "BYWEEKNO",
+                             "BYYEARDAY", "WKST"])
 
         let components = rruleString.split(separator: ";")
         for component in components {
             let parts = component.split(separator: "=", maxSplits: 1)
-            guard parts.count == 2 else { continue }
+            guard parts.count == 2 else {
+                throw RRuleError.invalidRRuleString
+            }
 
             let key = String(parts[0]).uppercased()
             let value = String(parts[1])
 
+            // Reject unknown keys
+            guard validKeys.contains(key) else {
+                throw RRuleError.unknownKey(key)
+            }
+
             switch key {
             case "FREQ":
-                guard let frequency = Frequency(rawValue: value) else {
+                guard let frequency = Frequency(rawValue: value.uppercased()) else {
                     throw RRuleError.invalidFrequency
                 }
                 rrule.freq = frequency
+                hasFreq = true
 
             case "INTERVAL":
-                rrule.interval = Int(value) ?? 1
+                guard let interval = Int(value), interval > 0 else {
+                    throw RRuleError.invalidValue(key: "INTERVAL", value: value)
+                }
+                rrule.interval = interval
 
             case "BYHOUR":
-                rrule.byhour = value.split(separator: ",").compactMap { Int($0) }
+                let hours = try value.split(separator: ",").map { h -> Int in
+                    guard let hour = Int(h), hour >= 0 && hour <= 23 else {
+                        throw RRuleError.invalidValue(key: "BYHOUR", value: String(h))
+                    }
+                    return hour
+                }
+                rrule.byhour = hours
 
             case "BYMINUTE":
-                rrule.byminute = value.split(separator: ",").compactMap { Int($0) }
+                let mins = try value.split(separator: ",").map { m -> Int in
+                    guard let min = Int(m), min >= 0 && min <= 59 else {
+                        throw RRuleError.invalidValue(key: "BYMINUTE", value: String(m))
+                    }
+                    return min
+                }
+                rrule.byminute = mins
 
             case "BYDAY":
-                rrule.byday = value.split(separator: ",").map { String($0) }
+                let validDays = Set(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])
+                let days = try value.split(separator: ",").map { d -> String in
+                    let day = String(d).uppercased()
+                    // Strip ordinal prefix (e.g., "1MO" -> "MO", "-1FR" -> "FR")
+                    let dayCode = day.trimmingCharacters(in: CharacterSet(charactersIn: "-0123456789"))
+                    guard validDays.contains(dayCode) else {
+                        throw RRuleError.invalidValue(key: "BYDAY", value: String(d))
+                    }
+                    return day
+                }
+                rrule.byday = days
 
             case "BYMONTHDAY":
-                rrule.bymonthday = value.split(separator: ",").compactMap { Int($0) }
+                let days = try value.split(separator: ",").map { d -> Int in
+                    guard let day = Int(d), (day >= 1 && day <= 31) || (day >= -31 && day <= -1) else {
+                        throw RRuleError.invalidValue(key: "BYMONTHDAY", value: String(d))
+                    }
+                    return day
+                }
+                rrule.bymonthday = days
 
             case "BYMONTH":
-                rrule.bymonth = value.split(separator: ",").compactMap { Int($0) }
+                let months = try value.split(separator: ",").map { m -> Int in
+                    guard let month = Int(m), month >= 1 && month <= 12 else {
+                        throw RRuleError.invalidValue(key: "BYMONTH", value: String(m))
+                    }
+                    return month
+                }
+                rrule.bymonth = months
 
             case "UNTIL":
                 let formatter = ISO8601DateFormatter()
                 rrule.until = formatter.date(from: value)
+                // Note: Don't throw on invalid date, just leave nil (lenient for UNTIL)
 
             case "COUNT":
-                rrule.count = Int(value)
+                guard let count = Int(value), count > 0 else {
+                    throw RRuleError.invalidValue(key: "COUNT", value: value)
+                }
+                rrule.count = count
 
             case "BYWEEKNO":
-                rrule.byweekno = value.split(separator: ",").compactMap { Int($0) }
+                let weeks = try value.split(separator: ",").map { w -> Int in
+                    guard let week = Int(w), (week >= 1 && week <= 53) || (week >= -53 && week <= -1) else {
+                        throw RRuleError.invalidValue(key: "BYWEEKNO", value: String(w))
+                    }
+                    return week
+                }
+                rrule.byweekno = weeks
 
             case "BYYEARDAY":
-                rrule.byyearday = value.split(separator: ",").compactMap { Int($0) }
+                let days = try value.split(separator: ",").map { d -> Int in
+                    guard let day = Int(d), (day >= 1 && day <= 366) || (day >= -366 && day <= -1) else {
+                        throw RRuleError.invalidValue(key: "BYYEARDAY", value: String(d))
+                    }
+                    return day
+                }
+                rrule.byyearday = days
 
             case "WKST":
-                rrule.wkst = value
+                let validDays = Set(["MO", "TU", "WE", "TH", "FR", "SA", "SU"])
+                guard validDays.contains(value.uppercased()) else {
+                    throw RRuleError.invalidValue(key: "WKST", value: value)
+                }
+                rrule.wkst = value.uppercased()
 
             default:
                 break
             }
+        }
+
+        guard hasFreq else {
+            throw RRuleError.missingFrequency
         }
 
         return rrule
@@ -255,13 +341,22 @@ struct RRule: Codable, Equatable, Hashable {
 enum RRuleError: LocalizedError {
     case invalidRRuleString
     case invalidFrequency
+    case missingFrequency
+    case invalidValue(key: String, value: String)
+    case unknownKey(String)
 
     var errorDescription: String? {
         switch self {
         case .invalidRRuleString:
-            return "Invalid RRule format (expected RFC 5545 format)"
+            return "Invalid RRule format"
         case .invalidFrequency:
             return "Invalid frequency value"
+        case .missingFrequency:
+            return "RRule must contain FREQ"
+        case .invalidValue(let key, let value):
+            return "Invalid \(key) value: \(value)"
+        case .unknownKey(let key):
+            return "Unknown RRule key: \(key)"
         }
     }
 }

@@ -147,7 +147,8 @@ class ScheduleViewModel: ObservableObject {
         } catch {
             logger.error("Failed to create schedule: \(error)")
             errorMessage = "Failed to create schedule: \(error.localizedDescription)"
-            StatusBarManager.shared.showError("Failed to create schedule")
+            let errorMsg = extractErrorMessage(from: error, fallback: "Failed to create schedule")
+            StatusBarManager.shared.showError(errorMsg)
         }
     }
 
@@ -196,7 +197,8 @@ class ScheduleViewModel: ObservableObject {
         } catch {
             logger.error("Failed to update schedule: \(error)")
             errorMessage = "Failed to update schedule: \(error.localizedDescription)"
-            StatusBarManager.shared.showError("Failed to update schedule")
+            let errorMsg = extractErrorMessage(from: error, fallback: "Failed to update schedule")
+            StatusBarManager.shared.showError(errorMsg)
         }
     }
 
@@ -212,7 +214,8 @@ class ScheduleViewModel: ObservableObject {
         } catch {
             logger.error("Failed to delete schedule: \(error)")
             errorMessage = "Failed to delete schedule: \(error.localizedDescription)"
-            StatusBarManager.shared.showError("Failed to delete schedule")
+            let errorMsg = extractErrorMessage(from: error, fallback: "Failed to delete schedule")
+            StatusBarManager.shared.showError(errorMsg)
         }
     }
 
@@ -362,6 +365,27 @@ class ScheduleViewModel: ObservableObject {
         }
 
         return .valid
+    }
+
+    // MARK: - Error Handling
+
+    /// Extract a user-friendly error message from gRPC errors
+    /// gRPC errors have format: "rpc error: code = X desc = actual message"
+    private func extractErrorMessage(from error: Error, fallback: String) -> String {
+        let desc = error.localizedDescription
+
+        // Try to extract the "desc = " portion from gRPC error
+        if let range = desc.range(of: "desc = ") {
+            let message = String(desc[range.upperBound...])
+            // Clean up: truncate if too long, capitalize first letter
+            let cleaned = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !cleaned.isEmpty {
+                let truncated = String(cleaned.prefix(120))
+                return truncated.prefix(1).uppercased() + truncated.dropFirst()
+            }
+        }
+
+        return fallback
     }
 
     // MARK: - Statistics

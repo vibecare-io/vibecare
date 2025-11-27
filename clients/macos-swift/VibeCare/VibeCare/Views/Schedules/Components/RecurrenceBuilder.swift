@@ -32,12 +32,15 @@ struct RecurrenceBuilder: View {
   @State private var useCount: Bool = false
   @State private var countValue: Int = 10
   @State private var useUntil: Bool = false
-  @State private var untilDate: Date = Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
+  @State private var untilDate: Date =
+    Calendar.current.date(byAdding: .month, value: 1, to: Date()) ?? Date()
   @State private var showAdvanced: Bool = false
   @State private var showMoreOptions: Bool = false  // For Ends + Advanced section
   @State private var editingRRule: String = ""
   @State private var hasInitialized: Bool = false
   @State private var isExpanded: Bool = false  // Collapsed by default, showing summary only
+  @State private var debounceTask: Task<Void, Never>?  // For debouncing TextEditor changes
+  @State private var rruleValidationError: String?  // Client-side validation error message
 
   var body: some View {
     VStack(alignment: .leading, spacing: 16) {
@@ -47,10 +50,11 @@ struct RecurrenceBuilder: View {
       // Animated recurrence options (when repeating)
       if isRepeating {
         recurrenceOptionsSection
-          .transition(.asymmetric(
-            insertion: .opacity.combined(with: .move(edge: .top)),
-            removal: .opacity.combined(with: .move(edge: .top))
-          ))
+          .transition(
+            .asymmetric(
+              insertion: .opacity.combined(with: .move(edge: .top)),
+              removal: .opacity.combined(with: .move(edge: .top))
+            ))
       }
     }
     .onAppear {
@@ -90,20 +94,22 @@ struct RecurrenceBuilder: View {
         .font(.subheadline)
         .fontWeight(.medium)
 
-      Toggle(isOn: Binding(
-        get: { isRepeating },
-        set: { newValue in
-          withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            isRepeating = newValue
-            if newValue {
-              syncUIToRRule()
-            } else {
-              rruleString = ""
-              onRRuleChange?("")
+      Toggle(
+        isOn: Binding(
+          get: { isRepeating },
+          set: { newValue in
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+              isRepeating = newValue
+              if newValue {
+                syncUIToRRule()
+              } else {
+                rruleString = ""
+                onRRuleChange?("")
+              }
             }
           }
-        }
-      )) {
+        )
+      ) {
         EmptyView()
       }
       .toggleStyle(.switch)
@@ -282,14 +288,17 @@ struct RecurrenceBuilder: View {
       }
       .transition(.opacity)
 
-      // Time picker (for all frequencies)
-      HStack(spacing: 8) {
-        Text("At times")
-          .font(.caption)
-          .foregroundColor(.secondary)
+      // Time picker (only for daily and below frequencies)
+      // High-frequency rules (minutely, hourly) don't support BYHOUR/BYMINUTE
+      if frequency.supportsTimePicker {
+        HStack(spacing: 8) {
+          Text("At times")
+            .font(.caption)
+            .foregroundColor(.secondary)
 
-        TimePickerList(times: $atTimes)
-          .onChange(of: atTimes) { _, _ in syncUIToRRule() }
+          TimePickerList(times: $atTimes)
+            .onChange(of: atTimes) { _, _ in syncUIToRRule() }
+        }
       }
     }
   }
@@ -297,7 +306,7 @@ struct RecurrenceBuilder: View {
   // MARK: - Frequency-Specific Controls
 
   private var dailyControls: some View {
-    EmptyView() // Daily only needs time picker
+    EmptyView()  // Daily only needs time picker
   }
 
   private var weeklyControls: some View {
@@ -438,21 +447,48 @@ struct RecurrenceBuilder: View {
         .font(.caption)
         .foregroundColor(.secondary)
 
-      TextEditor(text: Binding(
-        get: { rruleString },
-        set: { newValue in
-          rruleString = newValue
-          onRRuleChange?(newValue)
-        }
-      ))
-        .font(.system(.body, design: .monospaced))
-        .padding(12)
-        .background(Color(NSColor.textBackgroundColor))
-        .frame(minHeight: 80, maxHeight: 120)
-        .overlay(
-          RoundedRectangle(cornerRadius: 8)
-            .stroke(Color.accentColor, lineWidth: 1)
+      TextEditor(
+        text: Binding(
+          get: { rruleString },
+          set: { newValue in
+            rruleString = newValue
+            // Validate immediately for UI feedback
+            validateRRule(newValue)
+            // Debounce: wait 500ms before firing callback to avoid hammering backend
+            debounceTask?.cancel()
+            debounceTask = Task {
+              try? await Task.sleep(nanoseconds: 700_000_000)  // 700ms
+              if !Task.isCancelled {
+                await MainActor.run {
+                  // Only fire callback if validation passes
+                  if rruleValidationError == nil {
+                    onRRuleChange?(newValue)
+                  }
+                }
+              }
+            }
+          }
         )
+      )
+      .font(.system(.body, design: .monospaced))
+      .padding(12)
+      .background(Color(NSColor.textBackgroundColor))
+      .frame(minHeight: 80, maxHeight: 120)
+      .overlay(
+        RoundedRectangle(cornerRadius: 8)
+          .stroke(rruleValidationError != nil ? Color.red : Color.accentColor, lineWidth: 1)
+      )
+
+      // Show validation error if present
+      if let error = rruleValidationError {
+        HStack(spacing: 4) {
+          Image(systemName: "exclamationmark.triangle.fill")
+            .foregroundColor(.red)
+          Text(error)
+            .foregroundColor(.red)
+        }
+        .font(.caption)
+      }
 
       Button("Parse & Apply") {
         withAnimation {
@@ -461,6 +497,7 @@ struct RecurrenceBuilder: View {
       }
       .buttonStyle(.borderedProminent)
       .controlSize(.small)
+      .disabled(rruleValidationError != nil)
     }
   }
 
@@ -550,10 +587,14 @@ struct RecurrenceBuilder: View {
 
     var rrule = RRule(freq: frequency, interval: interval)
 
-    // Extract hours and minutes from times
-    let calendar = Calendar.current
-    rrule.byhour = atTimes.map { calendar.component(.hour, from: $0) }
-    rrule.byminute = Array(Set(atTimes.map { calendar.component(.minute, from: $0) }))
+    // Extract hours and minutes from times (only for frequencies that support it)
+    // High-frequency rules (minutely, hourly) should NOT have BYHOUR/BYMINUTE
+    // as this causes CPU spikes in RRule calculation
+    if frequency.supportsTimePicker {
+      let calendar = Calendar.current
+      rrule.byhour = atTimes.map { calendar.component(.hour, from: $0) }
+      rrule.byminute = Array(Set(atTimes.map { calendar.component(.minute, from: $0) }))
+    }
 
     // Frequency-specific
     switch frequency {
@@ -653,6 +694,34 @@ struct RecurrenceBuilder: View {
 
     } catch {
       print("Failed to parse RRule: \(error)")
+    }
+  }
+
+  // MARK: - RRule Validation
+
+  /// Validates an RRule string and sets rruleValidationError if invalid.
+  /// Uses the strict parser and checks for problematic patterns.
+  private func validateRRule(_ rruleString: String) {
+    guard !rruleString.isEmpty else {
+      rruleValidationError = nil
+      return
+    }
+
+    do {
+      let rrule = try RRule.fromRRuleString(rruleString)
+
+      // Check for problematic patterns: high-frequency + time constraints
+      // These cause CPU spikes in RRule calculation on the backend
+      if (rrule.freq == .minutely || rrule.freq == .hourly)
+        && (!rrule.byhour.isEmpty || !rrule.byminute.isEmpty)
+      {
+        rruleValidationError = "High-frequency rules cannot use BYHOUR/BYMINUTE"
+        return
+      }
+
+      rruleValidationError = nil
+    } catch {
+      rruleValidationError = error.localizedDescription
     }
   }
 }
