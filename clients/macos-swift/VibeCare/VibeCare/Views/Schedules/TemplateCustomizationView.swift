@@ -10,6 +10,8 @@ struct TemplateCustomizationView: View {
   @Binding var times: [Date]
   @Binding var actions: [ActionTemplate]
   @Binding var selectedRoutineId: String?  // Track if user selected existing routine
+  @Binding var rruleString: String
+  @Binding var startDate: Date
 
   @ObservedObject var routineViewModel: RoutineViewModel
 
@@ -43,8 +45,8 @@ struct TemplateCustomizationView: View {
 
           Divider()
 
-          // Schedule times section
-          scheduleTimesSection
+          // Schedule configuration section (RecurrenceBuilder)
+          scheduleConfigurationSection
 
           Divider()
 
@@ -187,72 +189,22 @@ struct TemplateCustomizationView: View {
     .padding(.top, 8)
   }
 
-  // MARK: - Schedule Times Section
+  // MARK: - Schedule Configuration Section
 
-  private var scheduleTimesSection: some View {
+  private var scheduleConfigurationSection: some View {
     VStack(alignment: .leading, spacing: 16) {
       sectionHeader(
-        title: "Schedule Times",
+        title: "Schedule",
         icon: "clock",
-        sectionId: "times"
+        sectionId: "schedule"
       )
 
-      timePickersList
-    }
-  }
-
-  private var timePickersList: some View {
-    VStack(alignment: .leading, spacing: 12) {
-      ForEach(Array(times.enumerated()), id: \.offset) { index, time in
-        timePickerRow(index: index, time: time)
-      }
-
-      // Add time button
-      Button {
-        withAnimation {
-          times.append(Date())
-        }
-      } label: {
-        HStack {
-          Image(systemName: "plus.circle.fill")
-          Text("Add Another Time")
-            .font(.subheadline)
-        }
-      }
-      .buttonStyle(.plain)
-      .foregroundColor(.accentColor)
-    }
-  }
-
-  private func timePickerRow(index: Int, time: Date) -> some View {
-    HStack {
-      DatePicker(
-        "Time \(index + 1)",
-        selection: Binding(
-          get: { times[index] },
-          set: { times[index] = $0 }
-        ),
-        displayedComponents: .hourAndMinute
+      RecurrenceBuilder(
+        rruleString: $rruleString,
+        startDate: $startDate,
+        onRRuleChange: nil
       )
-      .labelsHidden()
-
-      Spacer()
-
-      // Remove time button
-      if times.count > 1 {
-        Button {
-          withAnimation {
-            _ = times.remove(at: index)
-          }
-        } label: {
-          Image(systemName: "minus.circle.fill")
-            .foregroundColor(.red)
-        }
-        .buttonStyle(.plain)
-        .help("Remove this time")
-      }
     }
-    .padding(.vertical, 4)
   }
 
   // MARK: - Actions Section
@@ -678,6 +630,8 @@ struct TemplateCustomizationView: View {
     times: .constant(template.defaultTimes.map { $0.toDate() }),
     actions: .constant(template.suggestedActions),
     selectedRoutineId: .constant(nil),
+    rruleString: .constant(template.rruleString),
+    startDate: .constant(Date()),
     routineViewModel: RoutineViewModel(),
     onBack: {},
     onNext: {}

@@ -21,6 +21,8 @@ struct ScheduleWizardView: View {
     @State private var times: [Date] = []
     @State private var actions: [ActionTemplate] = []
     @State private var selectedRoutineId: String? = nil  // Track if user selected existing routine
+    @State private var rruleString: String = ""
+    @State private var startDate: Date = Date()
 
     @GestureState private var dragOffset: CGFloat = 0
     @State private var contentOffset: CGFloat = 0
@@ -93,6 +95,8 @@ struct ScheduleWizardView: View {
                     times: $times,
                     actions: $actions,
                     selectedRoutineId: $selectedRoutineId,
+                    rruleString: $rruleString,
+                    startDate: $startDate,
                     routineViewModel: routineViewModel,
                     onBack: {
                         withAnimation {
@@ -242,6 +246,8 @@ struct ScheduleWizardView: View {
         times = template.defaultTimes.map { $0.toDate() }
         actions = template.suggestedActions
         selectedRoutineId = nil  // Reset when template changes
+        rruleString = template.rruleString
+        startDate = Date()  // Default to today
     }
 
     // MARK: - Create Routine and Schedule
@@ -310,19 +316,22 @@ struct ScheduleWizardView: View {
             // Step 3: Create schedule with RRule
             logger.info("Creating schedule: \(scheduleName)")
 
-            // Build RRule with times
-            let rruleWithTimes = buildRRuleWithTimes(
-                baseRRule: selectedTemplate?.rruleString ?? "FREQ=DAILY",
-                times: times
-            )
+            // Use the customized rruleString from RecurrenceBuilder, or build from template if empty
+            let finalRRule: String
+            if rruleString.isEmpty {
+                // One-time event or fallback to template
+                finalRRule = ""
+            } else {
+                finalRRule = rruleString
+            }
 
-            let dtstart = times.first ?? Date()
+            let dtstart = startDate
 
             let schedule = Schedule(
                 profileId: profile.id,
                 routineId: routineId,
                 name: scheduleName,
-                rrule: rruleWithTimes,
+                rrule: finalRRule,
                 dtstart: dtstart,
                 notes: scheduleDescription,
                 enabled: true

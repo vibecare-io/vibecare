@@ -33,10 +33,6 @@ struct ScheduleDetailView: View {
     @State private var scheduleIdTracker: String = ""
     @State private var hasCreatedSchedule = false
 
-    // RRule editing
-    @State private var showRRuleEditor = false
-    @State private var editingRRule: String = ""
-
     // Actions state
     @State private var actions: [Action] = []
     @State private var actionEditContext: ActionEditContext?
@@ -324,179 +320,36 @@ struct ScheduleDetailView: View {
                 .font(.headline)
                 .fontWeight(.semibold)
 
-            // RRule Display
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Recurrence Rule")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-
-                    Spacer()
-
-                    Button(action: {
-                        withAnimation {
-                            showRRuleEditor.toggle()
-                        }
-                        if showRRuleEditor {
-                            editingRRule = scheduleRRule
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Image(systemName: showRRuleEditor ? "chevron.up" : "chevron.down")
-                                .font(.caption)
-                            Text(showRRuleEditor ? "Collapse" : "Edit")
-                                .font(.caption)
-                        }
-                        .foregroundColor(.accentColor)
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // RRule summary view
-                RRuleSummaryView(rruleString: scheduleRRule, mode: .expanded)
-
-                // Expandable RRule editor
-                if showRRuleEditor {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("RFC 5545 RRule Format")
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-
-                        TextEditor(text: $editingRRule)
-                            .font(.system(.body, design: .monospaced))
-                            .padding(12)
-                            .background(Color(NSColor.textBackgroundColor))
-                            .frame(minHeight: 100, maxHeight: 150)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.accentColor, lineWidth: 1)
-                            )
-
-                        HStack {
-                            Spacer()
-
-                            Button("Cancel") {
-                                withAnimation {
-                                    showRRuleEditor = false
-                                }
-                                editingRRule = scheduleRRule
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundColor(.secondary)
-
-                            Button("Save") {
-                                withAnimation {
-                                    showRRuleEditor = false
-                                }
-                                scheduleRRule = editingRRule
-                                if let schedule = schedule {
-                                    Task {
-                                        await updateScheduleRRule(schedule, rrule: editingRRule)
-                                    }
-                                }
-                            }
-                            .buttonStyle(.borderedProminent)
-                        }
-                    }
-                    .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
-                    .cornerRadius(8)
-                    .transition(.opacity.combined(with: .move(edge: .top)))
-                }
-            }
-
-            // Start Date/Time
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Start Date & Time")
-                    .font(.subheadline)
-                    .fontWeight(.medium)
-
-                HStack(spacing: 12) {
-                    DatePicker(
-                        "",
-                        selection: Binding(
-                            get: { currentStartDate },
-                            set: { newValue in
-                                scheduleStartDate = newValue
-                                if let schedule = schedule {
-                                    Task {
-                                        await updateScheduleStartDate(schedule, startDate: newValue)
-                                    }
-                                }
-                            }
-                        ),
-                        displayedComponents: [.date, .hourAndMinute]
-                    )
-                    .datePickerStyle(.compact)
-
-                    Spacer()
-                }
-                .padding(12)
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                .cornerRadius(8)
-            }
-
-            // Excluded Dates
-            VStack(alignment: .leading, spacing: 8) {
-                HStack {
-                    Text("Excluded Dates")
-                        .font(.subheadline)
-                        .fontWeight(.medium)
-
-                    Spacer()
-
-                    Button(action: {
-                        // Add excluded date
-                        let formatter = ISO8601DateFormatter()
-                        let dateString = formatter.string(from: Date())
-                        scheduleExdates.append(dateString)
+            // Recurrence Builder with Progressive Disclosure
+            RecurrenceBuilder(
+                rruleString: $scheduleRRule,
+                startDate: Binding(
+                    get: { currentStartDate },
+                    set: { newValue in
+                        scheduleStartDate = newValue
                         if let schedule = schedule {
                             Task {
-                                await updateScheduleExdates(schedule, exdates: scheduleExdates)
+                                await updateScheduleStartDate(schedule, startDate: newValue)
                             }
                         }
-                    }) {
-                        Image(systemName: "plus.circle")
-                            .font(.subheadline)
-                            .foregroundColor(.accentColor)
                     }
-                    .buttonStyle(.plain)
-                }
-
-                if scheduleExdates.isEmpty {
-                    Text("No excluded dates")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .padding(.vertical, 4)
-                } else {
-                    ForEach(scheduleExdates, id: \.self) { exdate in
-                        HStack {
-                            Text(formatExdate(exdate))
-                                .font(.caption)
-
-                            Spacer()
-
-                            Button(action: {
-                                scheduleExdates.removeAll { $0 == exdate }
-                                if let schedule = schedule {
-                                    Task {
-                                        await updateScheduleExdates(schedule, exdates: scheduleExdates)
-                                    }
-                                }
-                            }) {
-                                Image(systemName: "xmark.circle.fill")
-                                    .font(.caption)
-                                    .foregroundColor(.red)
-                            }
-                            .buttonStyle(.plain)
+                ),
+                onRRuleChange: { newRRule in
+                    if let schedule = schedule {
+                        Task {
+                            await updateScheduleRRule(schedule, rrule: newRRule)
                         }
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 4)
-                        .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
-                        .cornerRadius(6)
+                    }
+                },
+                excludedDates: $scheduleExdates,
+                onExdatesChange: { newExdates in
+                    if let schedule = schedule {
+                        Task {
+                            await updateScheduleExdates(schedule, exdates: newExdates)
+                        }
                     }
                 }
-            }
+            )
         }
     }
 
