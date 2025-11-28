@@ -18,11 +18,6 @@ struct TemplateReviewView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header
-            headerView
-
-            Divider()
-
             if creationSuccess {
                 successView
             } else {
@@ -57,26 +52,6 @@ struct TemplateReviewView: View {
             }
         }
         .frame(minWidth: 700, minHeight: 600)
-    }
-
-    // MARK: - Header
-
-    private var headerView: some View {
-        HStack {
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Review & Create")
-                    .font(.title2)
-                    .fontWeight(.semibold)
-
-                Text("Confirm everything looks good before creating")
-                    .font(.subheadline)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 16)
     }
 
     // MARK: - Summary Card

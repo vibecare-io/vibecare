@@ -26,20 +26,45 @@ const (
 
 var rruleTracer = otel.Tracer("vibecare/storage/rrule")
 
+// applyTimezoneToRRule fixes the timezone on a parsed RRule.
+// rrule.StrToRRule() always defaults to UTC - this function sets the correct
+// timezone Location on DTStart and recreates the rule so it respects the timezone.
+func applyTimezoneToRRule(rule *rrule.RRule, dtstartWithTimezone time.Time) (*rrule.RRule, error) {
+	rule.Options.Dtstart = dtstartWithTimezone
+	return rrule.NewRRule(rule.Options)
+}
+
 // calculateNextFromRRule calculates the next execution time based on an RRule string.
 // Returns zero time if the rrule is empty, invalid, or has no future occurrences.
-func calculateNextFromRRule(rruleStr string, dtstart, after time.Time) (time.Time, error) {
+// The scheduleTimezone parameter specifies the IANA timezone (e.g., "America/Chicago")
+// in which the schedule was created - this ensures "9am CDT" triggers at 9am Central time.
+func calculateNextFromRRule(rruleStr string, dtstart, after time.Time, scheduleTimezone string) (time.Time, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), rruleCalculationTimeout)
 	defer cancel()
-	return calculateNextFromRRuleWithContext(ctx, rruleStr, dtstart, after)
+	return calculateNextFromRRuleWithContext(ctx, rruleStr, dtstart, after, scheduleTimezone)
 }
 
 // calculateNextFromRRuleWithContext calculates next execution with timeout and telemetry.
-func calculateNextFromRRuleWithContext(ctx context.Context, rruleStr string, dtstart, after time.Time) (time.Time, error) {
+// The scheduleTimezone parameter specifies the IANA timezone for the schedule.
+func calculateNextFromRRuleWithContext(ctx context.Context, rruleStr string, dtstart, after time.Time, scheduleTimezone string) (time.Time, error) {
 	// Empty rrule means one-time event (no next execution)
 	if strings.TrimSpace(rruleStr) == "" {
 		return time.Time{}, fmt.Errorf("empty rrule")
 	}
+
+	// Load the schedule's timezone location
+	// Default to UTC if timezone is empty or invalid
+	loc := time.UTC
+	if scheduleTimezone != "" {
+		if loadedLoc, err := time.LoadLocation(scheduleTimezone); err == nil {
+			loc = loadedLoc
+		}
+	}
+
+	// Convert dtstart and after to the schedule's timezone
+	// This ensures RRule calculations happen in the user's intended timezone
+	dtstartInTZ := dtstart.In(loc)
+	afterInTZ := after.In(loc)
 
 	// Start telemetry span
 	ctx, span := rruleTracer.Start(ctx, "calculateNextFromRRule",
@@ -47,14 +72,16 @@ func calculateNextFromRRuleWithContext(ctx context.Context, rruleStr string, dts
 			attribute.String("rrule.input", rruleStr),
 			attribute.String("rrule.dtstart", dtstart.Format(time.RFC3339)),
 			attribute.String("rrule.after", after.Format(time.RFC3339)),
+			attribute.String("rrule.timezone", scheduleTimezone),
 		),
 	)
 	defer span.End()
 
 	startTime := time.Now()
 
-	// Parse the RRule first to extract frequency
-	fullRRule := "DTSTART:" + dtstart.Format("20060102T150405Z") + "\nRRULE:" + rruleStr
+	// Parse the RRule first to extract frequency and other options
+	// Note: StrToRRule always defaults to UTC, so we'll fix the timezone after
+	fullRRule := "DTSTART:" + dtstartInTZ.Format("20060102T150405Z") + "\nRRULE:" + rruleStr
 	rule, err := rrule.StrToRRule(fullRRule)
 	if err != nil {
 		span.RecordError(err)
@@ -77,23 +104,22 @@ func calculateNextFromRRuleWithContext(ctx context.Context, rruleStr string, dts
 	}
 
 	// Optimize dtstart for high-frequency rules to reduce iterations
-	effectiveDtstart := optimizeDtstartForFrequency(freq, dtstart, after)
+	// Use timezone-aware values for optimization
+	effectiveDtstart := optimizeDtstartForFrequency(freq, dtstartInTZ, afterInTZ, loc)
 
 	span.SetAttributes(
 		attribute.String("rrule.frequency", freqToString(freq)),
 		attribute.String("rrule.effective_dtstart", effectiveDtstart.Format(time.RFC3339)),
-		attribute.Bool("rrule.dtstart_optimized", !effectiveDtstart.Equal(dtstart)),
+		attribute.Bool("rrule.dtstart_optimized", !effectiveDtstart.Equal(dtstartInTZ)),
 	)
 
-	// Rebuild with optimized dtstart if changed
-	if !effectiveDtstart.Equal(dtstart) {
-		fullRRule = "DTSTART:" + effectiveDtstart.Format("20060102T150405Z") + "\nRRULE:" + rruleStr
-		rule, err = rrule.StrToRRule(fullRRule)
-		if err != nil {
-			span.RecordError(err)
-			span.SetStatus(codes.Error, "parse failed after optimization")
-			return time.Time{}, fmt.Errorf("failed to parse optimized rrule: %w", err)
-		}
+	// Apply the correct timezone to the rule
+	// effectiveDtstart already has the correct Location (e.g., America/Chicago)
+	rule, err = applyTimezoneToRRule(rule, effectiveDtstart)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to apply timezone to rule")
+		return time.Time{}, fmt.Errorf("failed to apply timezone to rrule: %w", err)
 	}
 
 	// Create RSet and add the rule
@@ -107,7 +133,8 @@ func calculateNextFromRRuleWithContext(ctx context.Context, rruleStr string, dts
 	resultCh := make(chan result, 1)
 
 	go func() {
-		next := rset.After(after, false)
+		// Use timezone-aware 'after' for the comparison
+		next := rset.After(afterInTZ, false)
 		resultCh <- result{next: next}
 	}()
 
@@ -146,7 +173,7 @@ func calculateNextFromRRuleWithContext(ctx context.Context, rruleStr string, dts
 		}
 
 		span.SetStatus(codes.Ok, "")
-		return res.next, nil
+		return res.next.UTC(), nil
 	}
 }
 
@@ -173,7 +200,8 @@ func isProblematicRRule(freq rrule.Frequency, opts rrule.ROption) bool {
 
 // optimizeDtstartForFrequency moves dtstart closer to 'after' for high-frequency rules.
 // This dramatically reduces the number of iterations needed by rrule-go's After() method.
-func optimizeDtstartForFrequency(freq rrule.Frequency, dtstart, after time.Time) time.Time {
+// The loc parameter specifies the timezone to use for the optimized time.
+func optimizeDtstartForFrequency(freq rrule.Frequency, dtstart, after time.Time, loc *time.Location) time.Time {
 	// Only optimize if dtstart is before 'after'
 	if !dtstart.Before(after) {
 		return dtstart
@@ -205,10 +233,11 @@ func optimizeDtstartForFrequency(freq rrule.Frequency, dtstart, after time.Time)
 	candidate := after.Add(-lookback)
 
 	// Preserve time-of-day from original dtstart (important for patterns like "every day at 9am")
+	// Use the provided timezone location for consistency
 	candidate = time.Date(
 		candidate.Year(), candidate.Month(), candidate.Day(),
 		dtstart.Hour(), dtstart.Minute(), dtstart.Second(), dtstart.Nanosecond(),
-		dtstart.Location(),
+		loc,
 	)
 
 	// Only use candidate if it's after original dtstart (don't go backwards)
@@ -321,9 +350,9 @@ func (db *DB) CreateSchedule(scheduleID, profileID, routineID, name, rrule, sche
 			nextExecution = dtstart
 		}
 	} else {
-		// For recurring events, calculate from rrule
+		// For recurring events, calculate from rrule using the schedule's timezone
 		if dtstart != nil {
-			nextTime, err := calculateNextFromRRule(rrule, *dtstart, time.Now())
+			nextTime, err := calculateNextFromRRule(rrule, *dtstart, time.Now(), scheduleTimezone)
 			if err == nil && !nextTime.IsZero() {
 				nextExecution = &nextTime
 			}
@@ -620,7 +649,7 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 			if schedule.LastExecution != nil {
 				now = *schedule.LastExecution
 			}
-			nextTime, err := calculateNextFromRRule(schedule.RRule, *schedule.DTStart, now)
+			nextTime, err := calculateNextFromRRule(schedule.RRule, *schedule.DTStart, now, schedule.ScheduleTimezone)
 			if err == nil && !nextTime.IsZero() {
 				nextExecution = &nextTime
 			}
@@ -711,7 +740,8 @@ func (db *DB) UpdateLastExecution(scheduleID string, executionTime time.Time) er
 
 // UpdateScheduleExecution atomically updates last_execution and calculates/stores next_execution.
 // This prevents race conditions by updating both fields in a single transaction.
-func (db *DB) UpdateScheduleExecution(scheduleID string, scheduleType models.ScheduleType, rrule string, dtstart time.Time) error {
+// The scheduleTimezone parameter specifies the IANA timezone for RRule calculations.
+func (db *DB) UpdateScheduleExecution(scheduleID string, scheduleType models.ScheduleType, rrule string, dtstart time.Time, scheduleTimezone string) error {
 	// Begin transaction for atomic update
 	tx, err := db.Begin()
 	if err != nil {
@@ -722,9 +752,9 @@ func (db *DB) UpdateScheduleExecution(scheduleID string, scheduleType models.Sch
 	now := time.Now()
 	var nextExecStr sql.NullString
 
-	// Calculate next execution based on schedule type
+	// Calculate next execution based on schedule type, using the schedule's timezone
 	if scheduleType == models.ScheduleTypeRecurring {
-		nextTime, err := calculateNextFromRRule(rrule, dtstart, now)
+		nextTime, err := calculateNextFromRRule(rrule, dtstart, now, scheduleTimezone)
 		if err == nil && !nextTime.IsZero() {
 			nextExecStr.Valid = true
 			nextExecStr.String = nextTime.Format(time.RFC3339)

@@ -8,6 +8,7 @@ struct TemplateSelectionView: View {
 
   @State private var searchText = ""
   @State private var hoveredTemplateId: String?
+  @FocusState private var isSearchFieldFocused: Bool
 
   private var filteredTemplates: [RoutineScheduleTemplate] {
     let templates = templateService.templates
@@ -28,11 +29,6 @@ struct TemplateSelectionView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      // Header
-      headerView
-
-      Divider()
-
       // Loading or content
       if templateService.isLoading {
         Spacer()
@@ -70,6 +66,10 @@ struct TemplateSelectionView: View {
         searchBar
           .padding(.horizontal, 20)
           .padding(.vertical, 12)
+          .onAppear {
+            // Autofocus search field when templates are loaded
+            isSearchFieldFocused = true
+          }
 
         Divider()
 
@@ -99,39 +99,6 @@ struct TemplateSelectionView: View {
     }
   }
 
-  // MARK: - Header
-
-  private var headerView: some View {
-    VStack(spacing: 8) {
-      HStack {
-        VStack(alignment: .leading, spacing: 4) {
-          Text("Choose a Template")
-            .font(.title2)
-            .fontWeight(.semibold)
-
-          Text("Start with a pre-configured routine and schedule")
-            .font(.subheadline)
-            .foregroundColor(.secondary)
-        }
-
-        Spacer()
-
-        Button {
-          onCancel()
-        } label: {
-          Image(systemName: "xmark.circle.fill")
-            .font(.title3)
-            .foregroundColor(.secondary)
-        }
-        .buttonStyle(.plain)
-        .help("Cancel")
-      }
-      .padding(.horizontal, 20)
-      .padding(.top, 20)
-      .padding(.bottom, 12)
-    }
-  }
-
   // MARK: - Search Bar
 
   private var searchBar: some View {
@@ -141,6 +108,7 @@ struct TemplateSelectionView: View {
 
       TextField("Search templates...", text: $searchText)
         .textFieldStyle(.plain)
+        .focused($isSearchFieldFocused)
 
       if !searchText.isEmpty {
         Button {

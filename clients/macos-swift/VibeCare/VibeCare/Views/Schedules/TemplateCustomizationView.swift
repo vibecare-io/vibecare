@@ -32,11 +32,6 @@ struct TemplateCustomizationView: View {
 
   var body: some View {
     VStack(spacing: 0) {
-      // Header
-      headerView
-
-      Divider()
-
       // Content
       ScrollView {
         VStack(alignment: .leading, spacing: 20) {
@@ -62,26 +57,6 @@ struct TemplateCustomizationView: View {
       footerView
     }
     .frame(minWidth: 700, minHeight: 600)
-  }
-
-  // MARK: - Header
-
-  private var headerView: some View {
-    HStack {
-      VStack(alignment: .leading, spacing: 4) {
-        Text("Customize Your Routine")
-          .font(.title2)
-          .fontWeight(.semibold)
-
-        Text("Adjust the details to match your needs")
-          .font(.subheadline)
-          .foregroundColor(.secondary)
-      }
-
-      Spacer()
-    }
-    .padding(.horizontal, 20)
-    .padding(.vertical, 16)
   }
 
   // MARK: - Template Preview Card

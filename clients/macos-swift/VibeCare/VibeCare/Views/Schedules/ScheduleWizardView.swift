@@ -24,9 +24,6 @@ struct ScheduleWizardView: View {
     @State private var rruleString: String = ""
     @State private var startDate: Date = Date()
 
-    @GestureState private var dragOffset: CGFloat = 0
-    @State private var contentOffset: CGFloat = 0
-
     // Template service for loading from backend
     @StateObject private var templateService = ScheduleTemplateService()
 
@@ -41,21 +38,8 @@ struct ScheduleWizardView: View {
 
             Divider()
 
-            // Main content with gesture
+            // Main content
             content
-                .offset(x: contentOffset + dragOffset)
-                .gesture(
-                    DragGesture(minimumDistance: 20)
-                        .updating($dragOffset) { value, state, _ in
-                            // Only allow left swipe (negative values)
-                            if value.translation.width < 0 {
-                                state = value.translation.width
-                            }
-                        }
-                        .onEnded { value in
-                            handleSwipe(translation: value.translation.width)
-                        }
-                )
         }
         .onChange(of: selectedTemplate) { _, newTemplate in
             initializeCustomizationState(from: newTemplate)
@@ -146,36 +130,53 @@ struct ScheduleWizardView: View {
     private var progressIndicator: some View {
         HStack(spacing: 16) {
             ForEach(WizardStep.allCases, id: \.self) { step in
-                HStack(spacing: 8) {
-                    // Step circle
-                    ZStack {
-                        Circle()
-                            .fill(stepColor(step))
-                            .frame(width: 28, height: 28)
+                Button {
+                    navigateToStep(step)
+                } label: {
+                    HStack(spacing: 8) {
+                        // Step circle
+                        ZStack {
+                            Circle()
+                                .fill(stepColor(step))
+                                .frame(width: 28, height: 28)
 
-                        if step.rawValue < currentStep.rawValue {
-                            Image(systemName: "checkmark")
-                                .font(.caption.bold())
-                                .foregroundColor(.white)
-                        } else {
-                            Text("\(step.rawValue + 1)")
-                                .font(.caption.bold())
-                                .foregroundColor(step == currentStep ? .white : .secondary)
+                            if step.rawValue < currentStep.rawValue {
+                                Image(systemName: "checkmark")
+                                    .font(.caption.bold())
+                                    .foregroundColor(.white)
+                            } else {
+                                Text("\(step.rawValue + 1)")
+                                    .font(.caption.bold())
+                                    .foregroundColor(step == currentStep ? .white : .secondary)
+                            }
                         }
-                    }
 
-                    // Step label
-                    Text(step.title)
-                        .font(.subheadline)
-                        .fontWeight(step == currentStep ? .semibold : .regular)
-                        .foregroundColor(step == currentStep ? .primary : .secondary)
+                        // Step label
+                        Text(step.title)
+                            .font(.subheadline)
+                            .fontWeight(step == currentStep ? .semibold : .regular)
+                            .foregroundColor(step == currentStep ? .primary : .secondary)
+                    }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 20)
+                            .fill(
+                                step == currentStep
+                                    ? Color.accentColor.opacity(0.1)
+                                    : (canNavigateToStep(step) ? Color.secondary.opacity(0.05) : Color.clear)
+                            )
+                    )
                 }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .background(
-                    RoundedRectangle(cornerRadius: 20)
-                        .fill(step == currentStep ? Color.accentColor.opacity(0.1) : Color.clear)
-                )
+                .buttonStyle(.plain)
+                .disabled(!canNavigateToStep(step))
+                .onHover { hovering in
+                    if canNavigateToStep(step) && hovering {
+                        NSCursor.pointingHand.set()
+                    } else {
+                        NSCursor.arrow.set()
+                    }
+                }
 
                 // Connector line
                 if step != WizardStep.allCases.last {
@@ -194,24 +195,6 @@ struct ScheduleWizardView: View {
         )
     }
 
-    // MARK: - Gesture Handling
-
-    private func handleSwipe(translation: CGFloat) {
-        let swipeThreshold: CGFloat = -100
-
-        // Swipe left to go back
-        if translation < swipeThreshold && currentStep != .selection {
-            withAnimation(.easeInOut(duration: 0.3)) {
-                goToPreviousStep()
-            }
-        }
-
-        // Reset offset with animation
-        withAnimation(.easeOut(duration: 0.2)) {
-            contentOffset = 0
-        }
-    }
-
     private func goToPreviousStep() {
         switch currentStep {
         case .selection:
@@ -220,6 +203,50 @@ struct ScheduleWizardView: View {
             currentStep = .selection
         case .review:
             currentStep = .customization
+        }
+    }
+
+    private func goToNextStep() {
+        switch currentStep {
+        case .selection:
+            if canNavigateToStep(.customization) {
+                currentStep = .customization
+            }
+        case .customization:
+            if canNavigateToStep(.review) {
+                currentStep = .review
+            }
+        case .review:
+            break // Can't go forward from last step
+        }
+    }
+
+    private func navigateToStep(_ targetStep: WizardStep) {
+        guard canNavigateToStep(targetStep) else { return }
+
+        withAnimation(.easeInOut(duration: 0.3)) {
+            currentStep = targetStep
+        }
+    }
+
+    private func canNavigateToStep(_ targetStep: WizardStep) -> Bool {
+        // Can't navigate to current step
+        if targetStep == currentStep {
+            return false
+        }
+
+        switch targetStep {
+        case .selection:
+            // Always allow going back to selection
+            return true
+
+        case .customization:
+            // Only allow if template is selected
+            return selectedTemplate != nil
+
+        case .review:
+            // Only allow from customization or if already past it
+            return currentStep == .customization || currentStep == .review
         }
     }
 

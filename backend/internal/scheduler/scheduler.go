@@ -149,7 +149,7 @@ func (s *Scheduler) dispatchScheduleEvent(schedule *models.Schedule) {
 		dtstart = *schedule.DTStart
 	}
 
-	if err := s.db.UpdateScheduleExecution(schedule.ScheduleID, schedule.ScheduleType, schedule.RRule, dtstart); err != nil {
+	if err := s.db.UpdateScheduleExecution(schedule.ScheduleID, schedule.ScheduleType, schedule.RRule, dtstart, schedule.ScheduleTimezone); err != nil {
 		s.logger.Error("Failed to update schedule execution atomically",
 			zap.String("schedule_id", schedule.ScheduleID),
 			zap.Error(err))

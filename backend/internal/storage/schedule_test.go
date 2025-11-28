@@ -53,7 +53,8 @@ func TestCalculateNextFromRRule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			next, err := calculateNextFromRRule(tt.rrule, tt.dtstart, tt.after)
+			// Use UTC timezone for basic tests
+			next, err := calculateNextFromRRule(tt.rrule, tt.dtstart, tt.after, "UTC")
 			if tt.wantError {
 				if err == nil {
 					t.Errorf("expected error but got none")
@@ -132,7 +133,7 @@ func TestScheduleTypeDetection(t *testing.T) {
 					nextExecution = &dtstart
 				}
 			} else {
-				next, err := calculateNextFromRRule(tt.rrule, dtstart, time.Now())
+				next, err := calculateNextFromRRule(tt.rrule, dtstart, time.Now(), "UTC")
 				if err == nil && !next.IsZero() {
 					nextExecution = &next
 				}
@@ -352,6 +353,297 @@ func TestUpdateScheduleTimezone(t *testing.T) {
 
 	if retrieved.ScheduleTimezone != "Asia/Tokyo" {
 		t.Errorf("Retrieved schedule_timezone should be Asia/Tokyo, got %s", retrieved.ScheduleTimezone)
+	}
+}
+
+// TestCalculateNextFromRRule_TimezoneRespected verifies that next_execution is calculated
+// correctly in the schedule's timezone, not UTC.
+// Example: A schedule for 12:00 Chicago time should have next_execution at 18:00 UTC (CST = UTC-6)
+func TestCalculateNextFromRRule_TimezoneRespected(t *testing.T) {
+	// Use a fixed "now" in January (CST, UTC-6) to avoid DST complications
+	// dtstart: Jan 15, 2025 at 09:00 Chicago time (15:00 UTC)
+	chicago, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		t.Fatalf("Failed to load Chicago timezone: %v", err)
+	}
+
+	// Create dtstart as 09:00 Chicago time, stored as UTC
+	dtstartChicago := time.Date(2025, 1, 15, 9, 0, 0, 0, chicago)
+	dtstartUTC := dtstartChicago.UTC() // This is what gets stored in DB
+
+	// "after" is Jan 15, 2025 at 10:00 Chicago time (we've passed 9:00, so next is tomorrow)
+	afterChicago := time.Date(2025, 1, 15, 10, 0, 0, 0, chicago)
+	afterUTC := afterChicago.UTC()
+
+	// RRule: Daily at 09:00 and 30 minutes
+	rruleStr := "FREQ=DAILY;BYHOUR=9;BYMINUTE=30"
+
+	// Calculate next execution WITH Chicago timezone
+	nextWithTZ, err := calculateNextFromRRule(rruleStr, dtstartUTC, afterUTC, "America/Chicago")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule with timezone failed: %v", err)
+	}
+
+	// Calculate next execution WITH UTC (to compare)
+	nextWithUTC, err := calculateNextFromRRule(rruleStr, dtstartUTC, afterUTC, "UTC")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule with UTC failed: %v", err)
+	}
+
+	// Verify: next execution with Chicago timezone should be 09:30 Chicago time
+	// which is 15:30 UTC (Chicago is UTC-6 in January)
+	nextInChicago := nextWithTZ.In(chicago)
+	if nextInChicago.Hour() != 9 || nextInChicago.Minute() != 30 {
+		t.Errorf("Expected next execution at 09:30 Chicago time, got %02d:%02d",
+			nextInChicago.Hour(), nextInChicago.Minute())
+	}
+
+	// The UTC hour should be 15 (9 + 6 = 15)
+	if nextWithTZ.UTC().Hour() != 15 {
+		t.Errorf("Expected next execution at 15:30 UTC (09:30 Chicago), got %02d:%02d UTC",
+			nextWithTZ.UTC().Hour(), nextWithTZ.UTC().Minute())
+	}
+
+	// Verify that UTC timezone gives a DIFFERENT result (09:30 UTC, not 15:30 UTC)
+	if nextWithUTC.UTC().Hour() != 9 {
+		t.Errorf("Expected UTC calculation at 09:30 UTC, got %02d:%02d UTC",
+			nextWithUTC.UTC().Hour(), nextWithUTC.UTC().Minute())
+	}
+
+	// The key assertion: Chicago and UTC results should be 6 hours apart
+	diff := nextWithTZ.Sub(nextWithUTC)
+	expectedDiff := 6 * time.Hour
+	if diff != expectedDiff {
+		t.Errorf("Expected 6 hour difference between Chicago and UTC calculations, got %v", diff)
+	}
+
+	t.Logf("✓ Chicago timezone: next at %v (09:30 Chicago = 15:30 UTC)", nextWithTZ.UTC())
+	t.Logf("✓ UTC timezone: next at %v (09:30 UTC)", nextWithUTC.UTC())
+	t.Logf("✓ Difference: %v (expected 6h for CST)", diff)
+}
+
+// TestCalculateNextFromRRule_InvalidTimezone verifies fallback to UTC for invalid timezone
+func TestCalculateNextFromRRule_InvalidTimezone(t *testing.T) {
+	dtstart := time.Date(2025, 1, 15, 9, 0, 0, 0, time.UTC)
+	after := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	rruleStr := "FREQ=DAILY;BYHOUR=12;BYMINUTE=0"
+
+	// Invalid timezone should fallback to UTC
+	nextInvalid, err := calculateNextFromRRule(rruleStr, dtstart, after, "Invalid/Timezone")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule with invalid timezone failed: %v", err)
+	}
+
+	// Should behave same as UTC
+	nextUTC, err := calculateNextFromRRule(rruleStr, dtstart, after, "UTC")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule with UTC failed: %v", err)
+	}
+
+	if !nextInvalid.Equal(nextUTC) {
+		t.Errorf("Invalid timezone should fallback to UTC. Got %v, expected %v", nextInvalid, nextUTC)
+	}
+
+	t.Logf("✓ Invalid timezone falls back to UTC: %v", nextInvalid.UTC())
+}
+
+// TestCalculateNextFromRRule_EmptyTimezone verifies fallback to UTC for empty timezone
+func TestCalculateNextFromRRule_EmptyTimezone(t *testing.T) {
+	dtstart := time.Date(2025, 1, 15, 9, 0, 0, 0, time.UTC)
+	after := time.Date(2025, 1, 15, 10, 0, 0, 0, time.UTC)
+	rruleStr := "FREQ=DAILY;BYHOUR=12;BYMINUTE=0"
+
+	// Empty timezone should fallback to UTC
+	nextEmpty, err := calculateNextFromRRule(rruleStr, dtstart, after, "")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule with empty timezone failed: %v", err)
+	}
+
+	// Should behave same as UTC
+	nextUTC, err := calculateNextFromRRule(rruleStr, dtstart, after, "UTC")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule with UTC failed: %v", err)
+	}
+
+	if !nextEmpty.Equal(nextUTC) {
+		t.Errorf("Empty timezone should fallback to UTC. Got %v, expected %v", nextEmpty, nextUTC)
+	}
+
+	t.Logf("✓ Empty timezone falls back to UTC: %v", nextEmpty.UTC())
+}
+
+// TestCalculateNextFromRRule_PositiveOffsetTimezone tests timezone with positive UTC offset (e.g., Asia/Tokyo UTC+9)
+func TestCalculateNextFromRRule_PositiveOffsetTimezone(t *testing.T) {
+	tokyo, err := time.LoadLocation("Asia/Tokyo")
+	if err != nil {
+		t.Fatalf("Failed to load Tokyo timezone: %v", err)
+	}
+
+	// Create dtstart as 09:00 Tokyo time
+	dtstartTokyo := time.Date(2025, 1, 15, 9, 0, 0, 0, tokyo)
+	dtstartUTC := dtstartTokyo.UTC() // 00:00 UTC (Tokyo is UTC+9)
+
+	// "after" is 10:00 Tokyo time
+	afterTokyo := time.Date(2025, 1, 15, 10, 0, 0, 0, tokyo)
+	afterUTC := afterTokyo.UTC()
+
+	// RRule: Daily at 14:00
+	rruleStr := "FREQ=DAILY;BYHOUR=14;BYMINUTE=0"
+
+	// Calculate with Tokyo timezone
+	nextWithTZ, err := calculateNextFromRRule(rruleStr, dtstartUTC, afterUTC, "Asia/Tokyo")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule with Tokyo timezone failed: %v", err)
+	}
+
+	// Verify: 14:00 Tokyo = 05:00 UTC (14 - 9 = 5)
+	nextInTokyo := nextWithTZ.In(tokyo)
+	if nextInTokyo.Hour() != 14 || nextInTokyo.Minute() != 0 {
+		t.Errorf("Expected next execution at 14:00 Tokyo time, got %02d:%02d",
+			nextInTokyo.Hour(), nextInTokyo.Minute())
+	}
+
+	if nextWithTZ.UTC().Hour() != 5 {
+		t.Errorf("Expected next execution at 05:00 UTC (14:00 Tokyo), got %02d:%02d UTC",
+			nextWithTZ.UTC().Hour(), nextWithTZ.UTC().Minute())
+	}
+
+	t.Logf("✓ Tokyo timezone (UTC+9): 14:00 Tokyo = %v UTC", nextWithTZ.UTC())
+}
+
+// TestCalculateNextFromRRule_DayBoundaryCrossing tests schedule that crosses day boundary when converted to UTC
+func TestCalculateNextFromRRule_DayBoundaryCrossing(t *testing.T) {
+	// Los Angeles is UTC-8 in winter
+	la, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Fatalf("Failed to load LA timezone: %v", err)
+	}
+
+	// Schedule for 23:00 LA time = 07:00 UTC next day
+	dtstartLA := time.Date(2025, 1, 15, 20, 0, 0, 0, la)
+	dtstartUTC := dtstartLA.UTC()
+
+	// "after" is 21:00 LA time on Jan 15
+	afterLA := time.Date(2025, 1, 15, 21, 0, 0, 0, la)
+	afterUTC := afterLA.UTC()
+
+	// RRule: Daily at 23:00
+	rruleStr := "FREQ=DAILY;BYHOUR=23;BYMINUTE=0"
+
+	// Calculate with LA timezone
+	nextWithTZ, err := calculateNextFromRRule(rruleStr, dtstartUTC, afterUTC, "America/Los_Angeles")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule with LA timezone failed: %v", err)
+	}
+
+	// Verify: 23:00 LA = 07:00 UTC next day (23 + 8 = 31 = 07:00 next day)
+	nextInLA := nextWithTZ.In(la)
+	if nextInLA.Hour() != 23 || nextInLA.Minute() != 0 {
+		t.Errorf("Expected next execution at 23:00 LA time, got %02d:%02d",
+			nextInLA.Hour(), nextInLA.Minute())
+	}
+
+	// Should be Jan 15 23:00 LA = Jan 16 07:00 UTC
+	if nextWithTZ.UTC().Hour() != 7 {
+		t.Errorf("Expected next execution at 07:00 UTC (23:00 LA), got %02d:%02d UTC",
+			nextWithTZ.UTC().Hour(), nextWithTZ.UTC().Minute())
+	}
+
+	// The LA date should be Jan 15, but UTC date should be Jan 16
+	if nextInLA.Day() != 15 {
+		t.Errorf("Expected LA date to be Jan 15, got Jan %d", nextInLA.Day())
+	}
+	if nextWithTZ.UTC().Day() != 16 {
+		t.Errorf("Expected UTC date to be Jan 16 (next day), got Jan %d", nextWithTZ.UTC().Day())
+	}
+
+	t.Logf("✓ Day boundary crossing: 23:00 LA (Jan 15) = 07:00 UTC (Jan 16)")
+}
+
+// TestCalculateNextFromRRule_DSTTransition tests schedule behavior during DST transition
+// Note: This tests the "spring forward" case where 2am doesn't exist
+func TestCalculateNextFromRRule_DSTTransition(t *testing.T) {
+	chicago, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		t.Fatalf("Failed to load Chicago timezone: %v", err)
+	}
+
+	// DST starts March 9, 2025 at 2am in Chicago (clocks jump to 3am)
+	// Schedule a task for 2:30am which doesn't exist on that day
+
+	// dtstart before DST
+	dtstartChicago := time.Date(2025, 3, 8, 2, 0, 0, 0, chicago)
+	dtstartUTC := dtstartChicago.UTC()
+
+	// "after" is March 9, 2025 at 1:00am Chicago (before the DST jump)
+	afterChicago := time.Date(2025, 3, 9, 1, 0, 0, 0, chicago)
+	afterUTC := afterChicago.UTC()
+
+	// RRule: Daily at 2:30am
+	rruleStr := "FREQ=DAILY;BYHOUR=2;BYMINUTE=30"
+
+	// Calculate with Chicago timezone
+	nextWithTZ, err := calculateNextFromRRule(rruleStr, dtstartUTC, afterUTC, "America/Chicago")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule during DST transition failed: %v", err)
+	}
+
+	// The library should handle DST - either skip to next valid time or next day
+	// We just verify it doesn't crash and returns a reasonable result
+	nextInChicago := nextWithTZ.In(chicago)
+
+	t.Logf("✓ DST transition handled: next execution at %v Chicago (%v UTC)",
+		nextInChicago.Format("2006-01-02 15:04:05 MST"), nextWithTZ.UTC())
+
+	// Verify the result is after our "after" time
+	if !nextWithTZ.After(afterUTC) {
+		t.Errorf("Next execution should be after %v, got %v", afterUTC, nextWithTZ)
+	}
+}
+
+// TestCalculateNextFromRRule_MultipleTimezones tests various timezones produce correct UTC hours
+func TestCalculateNextFromRRule_MultipleTimezones(t *testing.T) {
+	tests := []struct {
+		name            string
+		timezone        string
+		expectedUTCHour int // expected UTC hour for 12:00 local time
+	}{
+		{"New York (EST)", "America/New_York", 17},  // 12:00 EST = 17:00 UTC
+		{"London (GMT)", "Europe/London", 12},       // 12:00 GMT = 12:00 UTC
+		{"Berlin (CET)", "Europe/Berlin", 11},       // 12:00 CET = 11:00 UTC
+		{"Sydney (AEDT)", "Australia/Sydney", 1},    // 12:00 AEDT = 01:00 UTC
+		{"Tokyo (JST)", "Asia/Tokyo", 3},            // 12:00 JST = 03:00 UTC
+	}
+
+	// Use January date to have consistent offsets (avoid DST complexity for this test)
+	// Start early in the day so all timezones can find 12:00 local on the same day
+	dtstart := time.Date(2025, 1, 15, 0, 0, 0, 0, time.UTC)
+	after := time.Date(2025, 1, 15, 0, 30, 0, 0, time.UTC)
+	rruleStr := "FREQ=DAILY;BYHOUR=12;BYMINUTE=0"
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextWithTZ, err := calculateNextFromRRule(rruleStr, dtstart, after, tt.timezone)
+			if err != nil {
+				t.Fatalf("calculateNextFromRRule with %s failed: %v", tt.timezone, err)
+			}
+
+			loc, _ := time.LoadLocation(tt.timezone)
+			nextInTZ := nextWithTZ.In(loc)
+
+			// Verify local time is 12:00
+			if nextInTZ.Hour() != 12 {
+				t.Errorf("Expected 12:00 local time, got %02d:00", nextInTZ.Hour())
+			}
+
+			// Verify UTC hour matches expected
+			if nextWithTZ.UTC().Hour() != tt.expectedUTCHour {
+				t.Errorf("Expected %02d:00 UTC for 12:00 %s, got %02d:00 UTC",
+					tt.expectedUTCHour, tt.timezone, nextWithTZ.UTC().Hour())
+			}
+
+			t.Logf("✓ %s: 12:00 local = %02d:00 UTC", tt.timezone, nextWithTZ.UTC().Hour())
+		})
 	}
 }
 
@@ -896,7 +1188,7 @@ func TestOptimizeDtstartForFrequency(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := optimizeDtstartForFrequency(tt.freq, tt.dtstart, tt.after)
+			result := optimizeDtstartForFrequency(tt.freq, tt.dtstart, tt.after, time.UTC)
 
 			if tt.expectOptimized {
 				// Result should be different from original
@@ -971,7 +1263,7 @@ func TestCalculateNextFromRRule_ProblematicPattern(t *testing.T) {
 	// MINUTELY with BYHOUR constraint forces skipping 59 minutes per hour
 	problematicRRule := "FREQ=MINUTELY;BYHOUR=9;BYMINUTE=0"
 
-	result, err := calculateNextFromRRule(problematicRRule, dtstart, after)
+	result, err := calculateNextFromRRule(problematicRRule, dtstart, after, "UTC")
 
 	// Should succeed (not timeout) and return dtstart as fallback
 	if err != nil {
@@ -992,7 +1284,7 @@ func TestCalculateNextFromRRule_SafePattern(t *testing.T) {
 	// MINUTELY without BYHOUR constraint is safe
 	safeRRule := "FREQ=MINUTELY;INTERVAL=20"
 
-	result, err := calculateNextFromRRule(safeRRule, dtstart, after)
+	result, err := calculateNextFromRRule(safeRRule, dtstart, after, "UTC")
 
 	if err != nil {
 		t.Fatalf("unexpected error for safe rrule: %v", err)
