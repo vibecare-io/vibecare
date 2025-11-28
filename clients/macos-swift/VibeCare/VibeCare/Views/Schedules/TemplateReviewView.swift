@@ -385,7 +385,10 @@ struct TemplateReviewView: View {
     }
 
     private func humanReadableRRule(_ rrule: String) -> String {
-        if rrule.contains("FREQ=DAILY") {
+        // Check for one-shot templates (empty rrule)
+        if rrule.isEmpty {
+            return "One-time event"
+        } else if rrule.contains("FREQ=DAILY") {
             return "Every day"
         } else if rrule.contains("FREQ=WEEKLY") {
             if rrule.contains("BYDAY=MO,TU,WE,TH,FR") {

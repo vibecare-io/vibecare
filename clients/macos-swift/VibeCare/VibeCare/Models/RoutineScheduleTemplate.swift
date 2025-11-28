@@ -44,6 +44,13 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
     let defaultTimes: [TimeComponents] // Store as hour/minute components
     let suggestedActions: [ActionTemplate]
     let notificationIconId: String? // Backend SVG icon ID for template preview
+    let countdownOptions: CountdownOptions? // For one-shot templates
+
+    /// Computed property: Is this a one-shot timer/reminder template?
+    /// One-shot templates have empty rrule strings
+    var isOneShot: Bool {
+        return rruleString.isEmpty
+    }
 
     init(
         id: String,
@@ -57,7 +64,8 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
         rruleString: String,
         defaultTimes: [TimeComponents] = [TimeComponents(hour: 9, minute: 0)],
         suggestedActions: [ActionTemplate] = [],
-        notificationIconId: String? = nil
+        notificationIconId: String? = nil,
+        countdownOptions: CountdownOptions? = nil
     ) {
         self.id = id
         self.category = category
@@ -71,6 +79,7 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
         self.defaultTimes = defaultTimes
         self.suggestedActions = suggestedActions
         self.notificationIconId = notificationIconId
+        self.countdownOptions = countdownOptions
     }
 
     /// Initialize from protobuf message
@@ -126,6 +135,16 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
 
         self.suggestedActions = actions
         self.notificationIconId = iconId
+
+        // Parse countdown options (optional field for one-shot templates)
+        if proto.hasCountdownOptions && !proto.countdownOptions.durations.isEmpty {
+            self.countdownOptions = CountdownOptions(
+                durations: proto.countdownOptions.durations.map { Int($0) },
+                defaultMinutes: Int(proto.countdownOptions.defaultMinutes)
+            )
+        } else {
+            self.countdownOptions = nil
+        }
     }
 
     // Hashable conformance

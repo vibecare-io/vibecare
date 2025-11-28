@@ -95,14 +95,20 @@ type templateConfigItem struct {
 	ScheduleName        string               `json:"schedule_name"`
 	ScheduleDescription string               `json:"schedule_description,omitempty"`
 	RRule               string               `json:"rrule"`
-	DefaultTimes        []string             `json:"default_times"`
-	Actions             []templateActionItem `json:"actions,omitempty"`
+	DefaultTimes        []string                `json:"default_times"`
+	Actions             []templateActionItem    `json:"actions,omitempty"`
+	CountdownOptions    *countdownOptionsConfig `json:"countdown_options,omitempty"`
 }
 
 type templateActionItem struct {
 	Type       string            `json:"type"`
 	Name       string            `json:"name,omitempty"`
 	Parameters map[string]string `json:"parameters"`
+}
+
+type countdownOptionsConfig struct {
+	Durations      []int32 `json:"durations"`
+	DefaultMinutes int32   `json:"default_minutes"`
 }
 
 // convertToProto converts JSON config to protobuf message
@@ -130,6 +136,14 @@ func convertToProto(item templateConfigItem) *pb.ScheduleTemplate {
 				Parameters: action.Parameters,
 			}
 			template.Actions = append(template.Actions, pbAction)
+		}
+	}
+
+	// Convert countdown options (for one-shot templates)
+	if item.CountdownOptions != nil {
+		template.CountdownOptions = &pb.ScheduleTemplate_CountdownOptions{
+			Durations:      item.CountdownOptions.Durations,
+			DefaultMinutes: item.CountdownOptions.DefaultMinutes,
 		}
 	}
 

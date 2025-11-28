@@ -166,7 +166,7 @@
     {
       "id": "check-mailbox",
       "category": "weekly",
-      "routine_name": "Check Mailbox",
+      "routine_name": "Home Chores",
       "routine_description": "Regular mail collection",
       "routine_icon": "envelope.fill",
       "routine_color": "blue",
@@ -193,7 +193,7 @@
     {
       "id": "take-out-trash",
       "category": "weekly",
-      "routine_name": "Take Out Trash",
+      "routine_name": "Home Chores",
       "routine_description": "Weekly garbage collection",
       "routine_icon": "trash.fill",
       "routine_color": "gray",
@@ -272,14 +272,14 @@
       ]
     },
     {
-      "id": "bathroom-cleanup",
+      "id": "restroom-cleanup",
       "category": "weekly",
-      "routine_name": "Bathroom Cleanup",
+      "routine_name": "Home Chores",
       "routine_description": "Weekly bathroom deep clean",
       "routine_icon": "sparkles",
       "routine_color": "cyan",
-      "schedule_name": "Bathroom Cleanup",
-      "schedule_description": "Deep clean bathroom @ Every Saturday Morning",
+      "schedule_name": "Restroom Cleanup",
+      "schedule_description": "Deep clean Restroom @ Every Saturday Morning",
       "rrule": "FREQ=WEEKLY;BYDAY=SA",
       "default_times": ["09:00"],
       "actions": [
@@ -287,8 +287,8 @@
           "type": "notification",
           "name": "Cleaning Reminder",
           "parameters": {
-            "title": "Bathroom Cleaning",
-            "body": "Time for weekly bathroom cleanup",
+            "title": "Restroom Cleaning",
+            "body": "Time for weekly restroom cleanup",
             "icon_id": "bathtub",
             "position": "center",
             "auto_dismiss": "20",
@@ -409,7 +409,7 @@
     {
       "id": "declutter-clothes",
       "category": "monthly_yearly",
-      "routine_name": "Declutter Clothes",
+      "routine_name": "Home Chores",
       "routine_description": "Seasonal wardrobe refresh",
       "routine_icon": "tshirt.fill",
       "routine_color": "purple",
@@ -511,14 +511,18 @@
     {
       "id": "laundry-reminder",
       "category": "oneshot",
-      "routine_name": "Laundry Reminder",
+      "routine_name": "Reminders",
       "routine_description": "Remember to move laundry",
       "routine_icon": "washer.fill",
       "routine_color": "blue",
       "schedule_name": "Laundry Timer",
       "schedule_description": "Reminder when laundry cycle is done",
-      "rrule": "FREQ=DAILY;COUNT=1",
+      "rrule": "",
       "default_times": ["09:45"],
+      "countdown_options": {
+        "durations": [30, 45, 60, 90],
+        "default_minutes": 53 
+      },
       "actions": [
         {
           "type": "notification",
@@ -538,14 +542,18 @@
     {
       "id": "timer-generic",
       "category": "oneshot",
-      "routine_name": "Custom Timer",
+      "routine_name": "Reminders",
       "routine_description": "Generic countdown reminder",
       "routine_icon": "timer",
       "routine_color": "orange",
-      "schedule_name": "Timer",
+      "schedule_name": "Countdown",
       "schedule_description": "Set a custom reminder",
-      "rrule": "FREQ=DAILY;COUNT=1",
+      "rrule": "",
       "default_times": ["10:00"],
+      "countdown_options": {
+        "durations": [5, 10, 30, 60, 120, 240],
+        "default_minutes": 30
+      },
       "actions": [
         {
           "type": "notification",
@@ -565,14 +573,18 @@
     {
       "id": "meeting-prep",
       "category": "oneshot",
-      "routine_name": "Meeting Preparation",
+      "routine_name": "Reminders",
       "routine_description": "Prepare for upcoming meeting",
       "routine_icon": "person.3.fill",
       "routine_color": "blue",
       "schedule_name": "Pre-Meeting Prep",
       "schedule_description": "Get ready before your meeting starts",
-      "rrule": "FREQ=DAILY;COUNT=1",
+      "rrule": "",
       "default_times": ["09:45"],
+      "countdown_options": {
+        "durations": [5, 10, 15, 30],
+        "default_minutes": 15
+      },
       "actions": [
         {
           "type": "notification",
@@ -592,14 +604,18 @@
     {
       "id": "take-medication",
       "category": "oneshot",
-      "routine_name": "Take Medication",
+      "routine_name": "Reminders",
       "routine_description": "One-time medication reminder",
       "routine_icon": "pill.fill",
       "routine_color": "green",
-      "schedule_name": "Medication Reminder",
+      "schedule_name": "Take Medication Reminder",
       "schedule_description": "Remember to take your medication",
-      "rrule": "FREQ=DAILY;COUNT=1",
+      "rrule": "",
       "default_times": ["09:00"],
+      "countdown_options": {
+        "durations": [30, 60, 120, 240],
+        "default_minutes": 60
+      },
       "actions": [
         {
           "type": "notification",
@@ -619,14 +635,18 @@
     {
       "id": "call-reminder",
       "category": "oneshot",
-      "routine_name": "Call Reminder",
+      "routine_name": "Reminders",
       "routine_description": "Reminder to make a call",
       "routine_icon": "phone.fill",
       "routine_color": "green",
       "schedule_name": "Call Friends",
       "schedule_description": "Remember to call someone",
-      "rrule": "FREQ=DAILY;COUNT=1",
+      "rrule": "",
       "default_times": ["10:00"],
+      "countdown_options": {
+        "durations": [15, 30, 60, 120],
+        "default_minutes": 30
+      },
       "actions": [
         {
           "type": "notification",
@@ -646,14 +666,18 @@
     {
       "id": "food-ready",
       "category": "oneshot",
-      "routine_name": "Food Timer",
+      "routine_name": "Reminders",
       "routine_description": "Cooking or baking timer",
       "routine_icon": "flame.fill",
       "routine_color": "orange",
       "schedule_name": "Cooking Timer",
       "schedule_description": "Food is ready to check",
-      "rrule": "FREQ=DAILY;COUNT=1",
+      "rrule": "",
       "default_times": ["12:30"],
+      "countdown_options": {
+        "durations": [5, 10, 15, 30, 45, 60],
+        "default_minutes": 30
+      },
       "actions": [
         {
           "type": "notification",
@@ -673,14 +697,18 @@
     {
       "id": "break-reminder",
       "category": "oneshot",
-      "routine_name": "Take a Break",
+      "routine_name": "Reminders",
       "routine_description": "Step away from work",
       "routine_icon": "cup.and.saucer.fill",
       "routine_color": "brown",
-      "schedule_name": "Break Time",
+      "schedule_name": "Take a Break",
       "schedule_description": "Time for a quick break",
-      "rrule": "FREQ=DAILY;COUNT=1",
+      "rrule": "",
       "default_times": ["15:00"],
+      "countdown_options": {
+        "durations": [15, 25, 30, 45],
+        "default_minutes": 25
+      },
       "actions": [
         {
           "type": "notification",
@@ -700,14 +728,18 @@
     {
       "id": "pickup-delivery",
       "category": "oneshot",
-      "routine_name": "Pickup Delivery",
+      "routine_name": "Reminders",
       "routine_description": "Package or delivery pickup",
       "routine_icon": "shippingbox.fill",
       "routine_color": "brown",
       "schedule_name": "Delivery Pickup",
       "schedule_description": "Reminder to pick up your delivery",
-      "rrule": "FREQ=DAILY;COUNT=1",
+      "rrule": "",
       "default_times": ["14:00"],
+      "countdown_options": {
+      "durations": [20, 30, 60, 90, 120],
+      "default_minutes": 30 
+      },
       "actions": [
         {
           "type": "notification",
@@ -727,14 +759,18 @@
     {
       "id": "event-reminder",
       "category": "oneshot",
-      "routine_name": "Event Reminder",
+      "routine_name": "Reminders",
       "routine_description": "Upcoming event or meetup",
       "routine_icon": "calendar.badge.clock",
       "routine_color": "purple",
       "schedule_name": "Event Starting",
       "schedule_description": "Your event is coming up",
-      "rrule": "FREQ=DAILY;COUNT=1",
+      "rrule": "",
       "default_times": ["18:00"],
+      "countdown_options": {
+        "durations": [10, 15, 30, 60],
+        "default_minutes": 30
+      },
       "actions": [
         {
           "type": "notification",

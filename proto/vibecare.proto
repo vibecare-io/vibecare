@@ -635,6 +635,15 @@ message ScheduleTemplate {
 
   // Actions to execute when this template is used
   repeated TemplateAction actions = 11;
+
+  // Countdown options for one-shot templates (simplified format)
+  message CountdownOptions {
+    repeated int32 durations = 1;  // Available durations in minutes [5, 10, 30, 60]
+    int32 default_minutes = 2;     // Default duration in minutes (e.g., 60)
+  }
+
+  // Countdown configuration for one-shot templates (optional)
+  CountdownOptions countdown_options = 12;
 }
 
 // Request/Response messages for template service

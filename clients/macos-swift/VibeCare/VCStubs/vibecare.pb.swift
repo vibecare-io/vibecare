@@ -1806,6 +1806,16 @@ public struct VCScheduleTemplate: Sendable {
   /// Actions to execute when this template is used
   public var actions: [VCScheduleTemplate.TemplateAction] = []
 
+  /// Countdown configuration for one-shot templates (optional)
+  public var countdownOptions: VCScheduleTemplate.CountdownOptions {
+    get {return _countdownOptions ?? VCScheduleTemplate.CountdownOptions()}
+    set {_countdownOptions = newValue}
+  }
+  /// Returns true if `countdownOptions` has been explicitly set.
+  public var hasCountdownOptions: Bool {return self._countdownOptions != nil}
+  /// Clears the value of `countdownOptions`. Subsequent reads from it will return its default value.
+  public mutating func clearCountdownOptions() {self._countdownOptions = nil}
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   /// Generic template action - supports any ActionType
@@ -1825,7 +1835,26 @@ public struct VCScheduleTemplate: Sendable {
     public init() {}
   }
 
+  /// Countdown options for one-shot templates (simplified format)
+  public struct CountdownOptions: Sendable {
+    // SwiftProtobuf.Message conformance is added in an extension below. See the
+    // `Message` and `Message+*Additions` files in the SwiftProtobuf library for
+    // methods supported on all messages.
+
+    /// Available durations in minutes [5, 10, 30, 60]
+    public var durations: [Int32] = []
+
+    /// Default duration in minutes (e.g., 60)
+    public var defaultMinutes: Int32 = 0
+
+    public var unknownFields = SwiftProtobuf.UnknownStorage()
+
+    public init() {}
+  }
+
   public init() {}
+
+  fileprivate var _countdownOptions: VCScheduleTemplate.CountdownOptions? = nil
 }
 
 /// Request/Response messages for template service
@@ -5039,7 +5068,7 @@ extension VCSubscribeEventsRequest: SwiftProtobuf.Message, SwiftProtobuf._Messag
 
 extension VCScheduleTemplate: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".ScheduleTemplate"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}category\0\u{3}routine_name\0\u{3}routine_description\0\u{3}routine_icon\0\u{3}routine_color\0\u{3}schedule_name\0\u{3}schedule_description\0\u{1}rrule\0\u{3}default_times\0\u{1}actions\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}id\0\u{1}category\0\u{3}routine_name\0\u{3}routine_description\0\u{3}routine_icon\0\u{3}routine_color\0\u{3}schedule_name\0\u{3}schedule_description\0\u{1}rrule\0\u{3}default_times\0\u{1}actions\0\u{3}countdown_options\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -5058,12 +5087,17 @@ extension VCScheduleTemplate: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
       case 9: try { try decoder.decodeSingularStringField(value: &self.rrule) }()
       case 10: try { try decoder.decodeRepeatedStringField(value: &self.defaultTimes) }()
       case 11: try { try decoder.decodeRepeatedMessageField(value: &self.actions) }()
+      case 12: try { try decoder.decodeSingularMessageField(value: &self._countdownOptions) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if !self.id.isEmpty {
       try visitor.visitSingularStringField(value: self.id, fieldNumber: 1)
     }
@@ -5097,6 +5131,9 @@ extension VCScheduleTemplate: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
     if !self.actions.isEmpty {
       try visitor.visitRepeatedMessageField(value: self.actions, fieldNumber: 11)
     }
+    try { if let v = self._countdownOptions {
+      try visitor.visitSingularMessageField(value: v, fieldNumber: 12)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -5112,6 +5149,7 @@ extension VCScheduleTemplate: SwiftProtobuf.Message, SwiftProtobuf._MessageImple
     if lhs.rrule != rhs.rrule {return false}
     if lhs.defaultTimes != rhs.defaultTimes {return false}
     if lhs.actions != rhs.actions {return false}
+    if lhs._countdownOptions != rhs._countdownOptions {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
@@ -5152,6 +5190,41 @@ extension VCScheduleTemplate.TemplateAction: SwiftProtobuf.Message, SwiftProtobu
     if lhs.type != rhs.type {return false}
     if lhs.name != rhs.name {return false}
     if lhs.parameters != rhs.parameters {return false}
+    if lhs.unknownFields != rhs.unknownFields {return false}
+    return true
+  }
+}
+
+extension VCScheduleTemplate.CountdownOptions: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
+  public static let protoMessageName: String = VCScheduleTemplate.protoMessageName + ".CountdownOptions"
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}durations\0\u{3}default_minutes\0")
+
+  public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
+    while let fieldNumber = try decoder.nextFieldNumber() {
+      // The use of inline closures is to circumvent an issue where the compiler
+      // allocates stack space for every case branch when no optimizations are
+      // enabled. https://github.com/apple/swift-protobuf/issues/1034
+      switch fieldNumber {
+      case 1: try { try decoder.decodeRepeatedInt32Field(value: &self.durations) }()
+      case 2: try { try decoder.decodeSingularInt32Field(value: &self.defaultMinutes) }()
+      default: break
+      }
+    }
+  }
+
+  public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    if !self.durations.isEmpty {
+      try visitor.visitPackedInt32Field(value: self.durations, fieldNumber: 1)
+    }
+    if self.defaultMinutes != 0 {
+      try visitor.visitSingularInt32Field(value: self.defaultMinutes, fieldNumber: 2)
+    }
+    try unknownFields.traverse(visitor: &visitor)
+  }
+
+  public static func ==(lhs: VCScheduleTemplate.CountdownOptions, rhs: VCScheduleTemplate.CountdownOptions) -> Bool {
+    if lhs.durations != rhs.durations {return false}
+    if lhs.defaultMinutes != rhs.defaultMinutes {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

@@ -174,11 +174,19 @@ struct TemplateCustomizationView: View {
         sectionId: "schedule"
       )
 
-      RecurrenceBuilder(
-        rruleString: $rruleString,
-        startDate: $startDate,
-        onRRuleChange: nil
-      )
+      // Conditional UI based on template type
+      if template.isOneShot {
+        CountdownTimerPicker(
+          startDate: $startDate,
+          countdownOptions: template.countdownOptions
+        )
+      } else {
+        RecurrenceBuilder(
+          rruleString: $rruleString,
+          startDate: $startDate,
+          onRRuleChange: nil
+        )
+      }
     }
   }
 

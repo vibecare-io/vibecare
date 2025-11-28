@@ -285,7 +285,10 @@ struct TemplateSelectionView: View {
   // MARK: - Helpers
 
   private func frequencyLabel(_ rruleString: String) -> String {
-    if rruleString.contains("FREQ=DAILY") {
+    // Check for one-shot templates (empty rrule)
+    if rruleString.isEmpty {
+      return "One-time"
+    } else if rruleString.contains("FREQ=DAILY") {
       return "Daily"
     } else if rruleString.contains("FREQ=WEEKLY") {
       if rruleString.contains("BYDAY=MO,TU,WE,TH,FR") {
