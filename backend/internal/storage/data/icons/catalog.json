@@ -644,13 +644,6 @@
       "keywords": ["eye", "vision", "look", "see", "blink"]
     },
     {
-      "id": "flag-nepal",
-      "name": "Flag Nepal",
-      "category": "lifestyle",
-      "filename": "flag-for-flag-nepal-svgrepo-com.svg",
-      "keywords": ["flag", "nepal", "country", "nation"]
-    },
-    {
       "id": "gmail-alt",
       "name": "Gmail Alt",
       "category": "communication",
@@ -756,17 +749,10 @@
       "keywords": ["spinner", "loading", "wait", "progress", "pulse", "rings"]
     },
     {
-      "id": "flag-usa",
-      "name": "Flag USA",
-      "category": "lifestyle",
-      "filename": "usa-svgrepo-com.svg",
-      "keywords": ["flag", "usa", "america", "country", "nation"]
-    },
-    {
       "id": "eye-2",
       "name": "Eye 2",
       "category": "health",
-      "filename": "eye 2.svg",
+      "filename": "eye-2.svg",
       "keywords": ["eye", "vision", "look", "see", "blink"]
     },
     {

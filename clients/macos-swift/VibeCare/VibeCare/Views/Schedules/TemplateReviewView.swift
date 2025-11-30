@@ -51,7 +51,7 @@ struct TemplateReviewView: View {
                 footerView
             }
         }
-        .frame(minWidth: 700, minHeight: 600)
+        .frame(minWidth: 1000, minHeight: 600)
     }
 
     // MARK: - Summary Card

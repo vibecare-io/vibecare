@@ -56,7 +56,7 @@ struct TemplateCustomizationView: View {
       // Footer
       footerView
     }
-    .frame(minWidth: 700, minHeight: 600)
+    .frame(minWidth: 1000, minHeight: 600)
   }
 
   // MARK: - Template Preview Card

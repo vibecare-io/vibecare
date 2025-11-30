@@ -91,7 +91,7 @@ struct TemplateSelectionView: View {
       // Footer with actions
       footerView
     }
-    .frame(minWidth: 700, minHeight: 600)
+    .frame(minWidth: 1000, minHeight: 600)
     .task {
       if templateService.templates.isEmpty {
         try? await templateService.loadTemplates()
