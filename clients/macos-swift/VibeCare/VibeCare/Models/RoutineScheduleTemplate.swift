@@ -118,6 +118,8 @@ struct RoutineScheduleTemplate: Identifiable, Hashable {
                 if let iconIdParam = parameters["icon_id"], !iconIdParam.isEmpty {
                     iconId = iconIdParam
                     parameters["svg_path"] = NetworkConfiguration.buildIconURL(iconId: iconIdParam)
+                    parameters["svg_width"] = "350"
+                    parameters["svg_height"] = "320"
                 }
                 // Map parameter names to what the action expects
                 if let autoDismiss = parameters["auto_dismiss"] {

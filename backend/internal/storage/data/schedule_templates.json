@@ -4,7 +4,7 @@
     {
       "id": "walk-pets",
       "category": "daily",
-      "routine_name": "Walk the Pets",
+      "routine_name": "Home Chores",
       "routine_description": "Daily dog walking routine",
       "routine_icon": "pawprint.fill",
       "routine_color": "brown",
@@ -37,7 +37,7 @@
       "routine_color": "red",
       "schedule_name": "Pushups 3x/day",
         "schedule_description": "3 sets(morning, noon, eventing) of pushups daily",
-      "rrule": "FREQ=DAILY;INTERVAL=1",
+      "rrule": "FREQ=DAILY;BYHOUR=7,13,20;BYMINUTE=0",
       "default_times": ["08:00", "13:00", "19:00"],
       "actions": [
         {
@@ -85,13 +85,13 @@
     {
       "id": "pick-up-kids",
       "category": "daily",
-      "routine_name": "Pick Up Kids",
+      "routine_name": "Family",
       "routine_description": "School pickup routine",
       "routine_icon": "figure.2.and.child.holdinghands",
       "routine_color": "orange",
       "schedule_name": "Pick Up Kids",
       "schedule_description": "Daily school pickup reminder",
-      "rrule": "FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR",
+      "rrule": "FREQ=WEEKLY;BYHOUR=16;BYMINUTE=0;BYDAY=MO,TU,WE,FR,TH",
       "default_times": ["15:00"],
       "actions": [
         {
@@ -143,7 +143,7 @@
       "routine_description": "Stay hydrated throughout the day",
       "routine_icon": "drop.fill",
       "routine_color": "blue",
-      "schedule_name": "Hydration Mastery",
+      "schedule_name": "Drink Water",
       "schedule_description": "Drink water regularly",
       "rrule": "FREQ=HOURLY;INTERVAL=2",
       "default_times": ["09:00", "11:00", "13:00", "15:00", "17:00"],

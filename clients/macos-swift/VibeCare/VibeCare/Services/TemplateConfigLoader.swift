@@ -85,6 +85,8 @@ class TemplateConfigLoader {
 
             if let iconId = notif.icon_id, !iconId.isEmpty {
                 parameters["svg_path"] = NetworkConfiguration.buildIconURL(iconId: iconId)
+                parameters["svg_width"] = "350"
+                parameters["svg_height"] = "320"
             }
 
             let actionTemplate = ActionTemplate(
