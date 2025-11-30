@@ -53,27 +53,56 @@ struct RRuleSummaryView: View {
     private func formatCompact(_ rrule: RRule) -> String {
         var parts: [String] = []
 
-        // Frequency with special handling for common patterns
-        if rrule.freq == .weekly && !rrule.byday.isEmpty {
-            if rrule.byday.sorted() == ["FR", "MO", "TH", "TU", "WE"] {
-                parts.append("Weekdays")
-            } else if rrule.byday.sorted() == ["SA", "SU"] {
-                parts.append("Weekends")
-            } else if rrule.byday.count == 1 {
-                parts.append(formatShortDay(rrule.byday[0]))
+        // Frequency with interval support
+        if rrule.freq == .minutely || rrule.freq == .hourly {
+            // High-frequency schedules: "Every 20 minutes" or "Every 2 hours"
+            if rrule.interval == 1 {
+                parts.append("Every \(rrule.freq == .minutely ? "minute" : "hour")")
             } else {
-                parts.append(rrule.byday.map { formatShortDay($0) }.joined(separator: ", "))
+                parts.append("Every \(rrule.interval) \(pluralizeFrequency(rrule.freq))")
+            }
+        } else if rrule.freq == .weekly && !rrule.byday.isEmpty {
+            // Weekly schedules: "Every week on Friday, Tuesday"
+            let prefix = rrule.interval == 1 ? "Every week" : "Every \(rrule.interval) weeks"
+            if rrule.byday.sorted() == ["FR", "MO", "TH", "TU", "WE"] {
+                parts.append("\(prefix) on Weekdays")
+            } else if rrule.byday.sorted() == ["SA", "SU"] {
+                parts.append("\(prefix) on Weekends")
+            } else {
+                let days = rrule.byday.map { formatLongDay($0) }.joined(separator: ", ")
+                parts.append("\(prefix) on \(days)")
             }
         } else if rrule.freq == .daily {
-            parts.append("Daily")
-        } else if rrule.freq == .monthly {
-            if let day = rrule.bymonthday.first {
-                parts.append("Monthly on \(day)")
+            if rrule.interval == 1 {
+                parts.append("Daily")
             } else {
-                parts.append("Monthly")
+                parts.append("Every \(rrule.interval) days")
+            }
+        } else if rrule.freq == .monthly {
+            // Monthly schedules: "Every month on the 15th" or "Every 2 months on the 1st"
+            let prefix = rrule.interval == 1 ? "Every month" : "Every \(rrule.interval) months"
+            if let day = rrule.bymonthday.first {
+                parts.append("\(prefix) on the \(ordinal(day))")
+            } else if !rrule.byday.isEmpty {
+                // e.g., "Every month on the first Monday"
+                let day = formatLongDay(rrule.byday.first ?? "MO")
+                parts.append("\(prefix) on \(day)")
+            } else {
+                parts.append(prefix)
             }
         } else if rrule.freq == .yearly {
-            parts.append("Yearly")
+            // Yearly schedules: "Every year on January 1st" or "Every 2 years in March"
+            let prefix = rrule.interval == 1 ? "Every year" : "Every \(rrule.interval) years"
+            if !rrule.bymonth.isEmpty {
+                let month = monthName(rrule.bymonth.first ?? 1) ?? "January"
+                if let day = rrule.bymonthday.first {
+                    parts.append("\(prefix) on \(month) \(ordinal(day))")
+                } else {
+                    parts.append("\(prefix) in \(month)")
+                }
+            } else {
+                parts.append(prefix)
+            }
         } else {
             parts.append(rrule.freq.displayName)
         }

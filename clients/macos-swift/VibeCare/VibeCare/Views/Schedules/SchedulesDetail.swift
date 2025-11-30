@@ -341,6 +341,7 @@ struct ScheduleDetailView: View {
                         }
                     }
                 },
+                nextExecution: schedule?.nextExecution,
                 excludedDates: $scheduleExdates,
                 onExdatesChange: { newExdates in
                     if let schedule = schedule {

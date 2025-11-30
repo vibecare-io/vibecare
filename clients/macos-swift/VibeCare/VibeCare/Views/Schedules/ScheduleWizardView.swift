@@ -293,9 +293,15 @@ struct ScheduleWizardView: View {
                 // User selected an existing routine - reuse it
                 logger.info("Using existing routine: \(existingId)")
                 routineId = existingId
+            } else if let existingRoutine = routineViewModel.routines.first(where: {
+                $0.name.lowercased() == routineName.lowercased()
+            }) {
+                // Found an existing routine with the same name - reuse it
+                logger.info("Reusing existing routine with matching name: \(existingRoutine.id)")
+                routineId = existingRoutine.id
             } else {
-                // Create a new routine
-                logger.info("Creating routine: \(routineName)")
+                // Create a new routine only if no matching routine exists
+                logger.info("Creating new routine: \(routineName)")
 
                 try await routineViewModel.createRoutine(
                     name: routineName,

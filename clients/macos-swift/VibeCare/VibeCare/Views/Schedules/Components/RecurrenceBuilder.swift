@@ -13,6 +13,9 @@ struct RecurrenceBuilder: View {
   @Binding var startDate: Date
   var onRRuleChange: ((String) -> Void)?
 
+  // Optional: Next execution time for countdown display
+  var nextExecution: Date?
+
   // Optional: Excluded dates (for "More options" section)
   var excludedDates: Binding<[String]>?
   var onExdatesChange: (([String]) -> Void)?
@@ -43,19 +46,9 @@ struct RecurrenceBuilder: View {
   @State private var rruleValidationError: String?  // Client-side validation error message
 
   var body: some View {
-    VStack(alignment: .leading, spacing: 16) {
-      // Date & Repeat toggle in horizontal layout
-      dateAndRepeatSection
-
-      // Animated recurrence options (when repeating)
-      if isRepeating {
-        recurrenceOptionsSection
-          .transition(
-            .asymmetric(
-              insertion: .opacity.combined(with: .move(edge: .top)),
-              removal: .opacity.combined(with: .move(edge: .top))
-            ))
-      }
+    VStack(alignment: .leading, spacing: 0) {
+      // Single unified card
+      unifiedScheduleCard
     }
     .onAppear {
       if !hasInitialized {
@@ -70,29 +63,100 @@ struct RecurrenceBuilder: View {
     }
   }
 
-  // MARK: - Date & Repeat Section (Single Row Layout)
+  // MARK: - Unified Schedule Card (Single Row Header + Expandable Content)
 
-  private var dateAndRepeatSection: some View {
-    HStack(spacing: 16) {
-      // Start Date label + picker
-      Text(isRepeating ? "Start Date" : "Date & Time")
+  private var unifiedScheduleCard: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      // Single row header: chevron + summary + Edit/Done + Repeats toggle
+      unifiedHeader
+        .padding(12)
+
+      // Expanded content (only when isExpanded)
+      if isExpanded {
+        Divider()
+          .padding(.horizontal, 12)
+
+        if isRepeating {
+          expandedRecurrenceContent
+        } else {
+          expandedOneShotContent
+        }
+      }
+    }
+    .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
+    .cornerRadius(8)
+    .overlay(
+      RoundedRectangle(cornerRadius: 8)
+        .stroke(isExpanded ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+    )
+  }
+
+  // MARK: - Unified Header (Single Row)
+
+  private var unifiedHeader: some View {
+    HStack(spacing: 12) {
+      // Chevron indicator
+      Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+        .font(.caption)
+        .foregroundColor(.secondary)
+        .frame(width: 12)
+
+      // Summary text with countdown (always visible)
+      HStack(spacing: 6) {
+        if isRepeating {
+          RRuleSummaryView(rruleString: rruleString, mode: .compact)
+            .font(.subheadline)
+            .fontWeight(.medium)
+
+          // Always show countdown for recurring schedules
+          if let countdown = countdownText {
+            Text("•")
+              .foregroundColor(.secondary)
+            Text(countdown)
+              .font(.subheadline)
+              .foregroundColor(.green)
+          }
+        } else {
+          // One-shot: "Will run at Nov 30, 3:00 PM • in 2 hours" or "Completed at Nov 28, 3:00 PM • 2 days ago"
+          if let status = oneShotStatusText {
+            Text(status.prefix)
+              .font(.subheadline)
+              .fontWeight(.medium)
+            Text(formatOneShotDate(startDate))
+              .font(.subheadline)
+              .foregroundColor(.secondary)
+            Text("•")
+              .foregroundColor(.secondary)
+            Text(status.text)
+              .font(.subheadline)
+              .foregroundColor(status.color)
+          }
+        }
+      }
+      .frame(maxWidth: .infinity, alignment: .leading)
+
+      // Edit/Done button
+      Button(action: {
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+          isExpanded.toggle()
+        }
+      }) {
+        Text(isExpanded ? "Done" : "Edit")
+          .font(.subheadline)
+          .fontWeight(.medium)
+      }
+      .buttonStyle(.borderedProminent)
+      .controlSize(.small)
+
+      // Divider
+      Divider()
+        .frame(height: 20)
+
+      // Repeats label + toggle
+      Text("Repeats")
         .font(.subheadline)
         .fontWeight(.medium)
-
-      DatePicker(
-        "",
-        selection: $startDate,
-        displayedComponents: isRepeating ? [.date] : [.date, .hourAndMinute]
-      )
-      .datePickerStyle(.compact)
-      .labelsHidden()
-
-      Spacer()
-
-      // Repeat label + toggle
-      Text("Repeat")
-        .font(.subheadline)
-        .fontWeight(.medium)
+        .foregroundColor(.secondary)
 
       Toggle(
         isOn: Binding(
@@ -115,106 +179,174 @@ struct RecurrenceBuilder: View {
       .toggleStyle(.switch)
       .labelsHidden()
     }
-    .padding(12)
-    .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
-    .cornerRadius(8)
-  }
-
-  // MARK: - Recurrence Options (Collapsible)
-
-  private var recurrenceOptionsSection: some View {
-    VStack(alignment: .leading, spacing: 0) {
-      // Collapsible header with summary
-      collapsibleHeader
-        .padding(16)
-
-      // Expanded editing controls
-      if isExpanded {
-        Divider()
-          .padding(.horizontal, 16)
-
-        // 1. Repeat Pattern
-        repeatPatternSection
-          .padding(16)
-
-        // 2. Pattern Specifics
-        patternSpecificsSection
-          .padding(.horizontal, 16)
-
-        // More options toggle
-        moreOptionsToggle
-          .padding(.horizontal, 16)
-          .padding(.bottom, 16)
-
-        // Ends + Excluded Dates + Advanced (hidden by default)
-        if showMoreOptions {
-          Divider()
-            .padding(.horizontal, 16)
-
-          // 3. Ends
-          endsSection
-            .padding(16)
-            .transition(.opacity.combined(with: .move(edge: .top)))
-
-          // 4. Excluded Dates (if binding provided)
-          if excludedDates != nil {
-            Divider()
-              .padding(.horizontal, 16)
-
-            excludedDatesSection
-              .padding(16)
-              .transition(.opacity.combined(with: .move(edge: .top)))
-          }
-
-          Divider()
-            .padding(.horizontal, 16)
-
-          // Advanced RRule editor
-          advancedEditorSection
-            .padding(16)
-            .transition(.opacity.combined(with: .move(edge: .top)))
-        }
-      }
-    }
-    .background(Color(NSColor.controlBackgroundColor).opacity(0.3))
-    .cornerRadius(12)
-    .overlay(
-      RoundedRectangle(cornerRadius: 12)
-        .stroke(Color.accentColor.opacity(0.3), lineWidth: 1)
-    )
-  }
-
-  // MARK: - Collapsible Header
-
-  private var collapsibleHeader: some View {
-    HStack(spacing: 12) {
-      // Chevron indicator
-      Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-        .font(.caption)
-        .foregroundColor(.secondary)
-        .frame(width: 12)
-
-      // Human-readable summary
-      RRuleSummaryView(rruleString: rruleString, mode: .expanded)
-        .frame(maxWidth: .infinity, alignment: .leading)
-
-      // Edit/Done button
-      Button(action: {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-          isExpanded.toggle()
-        }
-      }) {
-        Text(isExpanded ? "Done" : "Edit")
-          .font(.subheadline)
-          .fontWeight(.medium)
-      }
-      .buttonStyle(.borderedProminent)
-      .controlSize(.small)
-    }
     .contentShape(Rectangle())
     .onTapGesture {
       withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
         isExpanded.toggle()
+      }
+    }
+  }
+
+  // MARK: - Expanded One-Shot Content
+
+  private var expandedOneShotContent: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      HStack(spacing: 12) {
+        Text("Date & Time")
+          .font(.subheadline)
+          .fontWeight(.medium)
+
+        DatePicker(
+          "",
+          selection: $startDate,
+          displayedComponents: [.date, .hourAndMinute]
+        )
+        .datePickerStyle(.compact)
+        .labelsHidden()
+
+        Spacer()
+      }
+    }
+    .padding(12)
+  }
+
+  // MARK: - Expanded Recurrence Content
+
+  private var expandedRecurrenceContent: some View {
+    VStack(alignment: .leading, spacing: 0) {
+      // Repeat Pattern
+      repeatPatternSection
+        .padding(12)
+
+      // Pattern Specifics
+      patternSpecificsSection
+        .padding(.horizontal, 12)
+
+      // More options toggle
+      moreOptionsToggle
+        .padding(.horizontal, 12)
+        .padding(.bottom, 12)
+
+      // Start Date + Ends + Excluded Dates + Advanced (hidden by default)
+      if showMoreOptions {
+        Divider()
+          .padding(.horizontal, 12)
+
+        // Start Date (implementation detail, hidden in More options)
+        startDateSection
+          .padding(12)
+          .transition(.opacity.combined(with: .move(edge: .top)))
+
+        Divider()
+          .padding(.horizontal, 12)
+
+        // Ends
+        endsSection
+          .padding(12)
+          .transition(.opacity.combined(with: .move(edge: .top)))
+
+        // Excluded Dates (if binding provided)
+        if excludedDates != nil {
+          Divider()
+            .padding(.horizontal, 12)
+
+          excludedDatesSection
+            .padding(12)
+            .transition(.opacity.combined(with: .move(edge: .top)))
+        }
+
+        Divider()
+          .padding(.horizontal, 12)
+
+        // Advanced RRule editor
+        advancedEditorSection
+          .padding(12)
+          .transition(.opacity.combined(with: .move(edge: .top)))
+      }
+    }
+  }
+
+  // MARK: - Countdown Helper
+
+  private var countdownText: String? {
+    guard let next = nextExecution else { return nil }
+    let now = Date()
+
+    // If next is in the past, show "overdue"
+    if next < now {
+      return "overdue"
+    }
+
+    let interval = next.timeIntervalSince(now)
+
+    // Format countdown
+    if interval < 60 {
+      return "in \(Int(interval))s"
+    } else if interval < 3600 {
+      let minutes = Int(interval / 60)
+      return "in \(minutes) min"
+    } else if interval < 86400 {
+      let hours = Int(interval / 3600)
+      let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
+      if minutes > 0 {
+        return "in \(hours)h \(minutes)m"
+      }
+      return "in \(hours)h"
+    } else {
+      let days = Int(interval / 86400)
+      return "in \(days) day\(days == 1 ? "" : "s")"
+    }
+  }
+
+  private func formatOneShotDate(_ date: Date) -> String {
+    let formatter = DateFormatter()
+    formatter.dateStyle = .medium
+    formatter.timeStyle = .short
+    return formatter.string(from: date)
+  }
+
+  // MARK: - One-Shot Status Helper
+
+  private var oneShotStatusText: (prefix: String, text: String, color: Color)? {
+    let now = Date()
+
+    // If startDate is in the future, show "Will run at ... • in X"
+    if startDate > now {
+      let interval = startDate.timeIntervalSince(now)
+      let prefix = "Will run at"
+
+      if interval < 60 {
+        return (prefix, "in \(Int(interval))s", .green)
+      } else if interval < 3600 {
+        let minutes = Int(interval / 60)
+        return (prefix, "in \(minutes) min", .green)
+      } else if interval < 86400 {
+        let hours = Int(interval / 3600)
+        let minutes = Int((interval.truncatingRemainder(dividingBy: 3600)) / 60)
+        if minutes > 0 {
+          return (prefix, "in \(hours)h \(minutes)m", .green)
+        }
+        return (prefix, "in \(hours)h", .green)
+      } else {
+        let days = Int(interval / 86400)
+        return (prefix, "in \(days) day\(days == 1 ? "" : "s")", .green)
+      }
+    } else {
+      // startDate is in the past - show "Completed at ... • X ago"
+      let interval = now.timeIntervalSince(startDate)
+      let prefix = "Completed at"
+
+      if interval < 60 {
+        return (prefix, "\(Int(interval))s ago", .secondary)
+      } else if interval < 3600 {
+        let minutes = Int(interval / 60)
+        return (prefix, "\(minutes) min ago", .secondary)
+      } else if interval < 86400 {
+        let hours = Int(interval / 3600)
+        return (prefix, "\(hours)h ago", .secondary)
+      } else {
+        let days = Int(interval / 86400)
+        return (prefix, "\(days) day\(days == 1 ? "" : "s") ago", .secondary)
       }
     }
   }
@@ -236,6 +368,33 @@ struct RecurrenceBuilder: View {
       .foregroundColor(.accentColor)
     }
     .buttonStyle(.plain)
+  }
+
+  // MARK: - Start Date Section (in More options)
+
+  private var startDateSection: some View {
+    VStack(alignment: .leading, spacing: 12) {
+      Text("Start Date")
+        .font(.subheadline)
+        .fontWeight(.medium)
+        .foregroundColor(.secondary)
+
+      HStack(spacing: 12) {
+        DatePicker(
+          "",
+          selection: $startDate,
+          displayedComponents: [.date]
+        )
+        .datePickerStyle(.compact)
+        .labelsHidden()
+
+        Spacer()
+      }
+
+      Text("The anchor point for calculating recurring occurrences")
+        .font(.caption)
+        .foregroundColor(.secondary)
+    }
   }
 
   // MARK: - Repeat Pattern Section
@@ -751,7 +910,8 @@ private struct RadioButton: View {
 #Preview("One-time Event") {
   RecurrenceBuilder(
     rruleString: .constant(""),
-    startDate: .constant(Date())
+    startDate: .constant(Date()),
+    nextExecution: Date().addingTimeInterval(3600) // 1 hour from now
   )
   .padding()
   .frame(width: 500)
@@ -760,7 +920,8 @@ private struct RadioButton: View {
 #Preview("Repeating Event") {
   RecurrenceBuilder(
     rruleString: .constant("FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,WE,FR;BYHOUR=9;BYMINUTE=0"),
-    startDate: .constant(Date())
+    startDate: .constant(Date()),
+    nextExecution: Date().addingTimeInterval(1320) // 22 minutes from now
   )
   .padding()
   .frame(width: 500)
