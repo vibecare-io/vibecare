@@ -81,7 +81,7 @@ func calculateNextFromRRuleWithContext(ctx context.Context, rruleStr string, dts
 
 	// Parse the RRule first to extract frequency and other options
 	// Note: StrToRRule always defaults to UTC, so we'll fix the timezone after
-	fullRRule := "DTSTART:" + dtstartInTZ.Format("20060102T150405Z") + "\nRRULE:" + rruleStr
+	fullRRule := "DTSTART:" + dtstartInTZ.Format("20060102T150405") + "\nRRULE:" + rruleStr
 	rule, err := rrule.StrToRRule(fullRRule)
 	if err != nil {
 		span.RecordError(err)
@@ -626,6 +626,26 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 		schedule.ScheduleTimezone = "UTC"
 	}
 
+	// Fetch existing schedule to detect RRule changes
+	existingSchedule, err := db.GetSchedule(schedule.ScheduleID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get existing schedule: %w", err)
+	}
+	if existingSchedule == nil {
+		return nil, fmt.Errorf("schedule not found: %s", schedule.ScheduleID)
+	}
+
+	// Detect if RRule has changed - if so, we'll reset dtstart to now
+	// This gives intuitive UX: "30 min interval" = next execution in 30 min from now
+	rruleChanged := existingSchedule.RRule != schedule.RRule
+
+	// When RRule changes, update dtstart to now so the new interval starts fresh
+	// This ensures "change to 30 min interval" means "next in 30 min", not "next RRule occurrence from original dtstart"
+	if rruleChanged {
+		now := time.Now().UTC()
+		schedule.DTStart = &now
+	}
+
 	schedule.UpdatedAt = time.Now().UTC()
 
 	// Recalculate schedule_type based on rrule
@@ -645,11 +665,14 @@ func (db *DB) UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error
 	} else {
 		// Recurring event: calculate from rrule
 		if schedule.DTStart != nil {
-			now := time.Now()
-			if schedule.LastExecution != nil {
-				now = *schedule.LastExecution
+			// Determine "after" time for RRule calculation
+			// If RRule changed, use time.Now() so next execution is relative to now
+			// If RRule unchanged, preserve existing cadence using last_execution
+			after := time.Now()
+			if !rruleChanged && schedule.LastExecution != nil {
+				after = *schedule.LastExecution
 			}
-			nextTime, err := calculateNextFromRRule(schedule.RRule, *schedule.DTStart, now, schedule.ScheduleTimezone)
+			nextTime, err := calculateNextFromRRule(schedule.RRule, *schedule.DTStart, after, schedule.ScheduleTimezone)
 			if err == nil && !nextTime.IsZero() {
 				nextExecution = &nextTime
 			}

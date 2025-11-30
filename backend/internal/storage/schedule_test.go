@@ -1295,3 +1295,209 @@ func TestCalculateNextFromRRule_SafePattern(t *testing.T) {
 		t.Errorf("next execution %v should be after %v", result, after)
 	}
 }
+
+// TestCalculateNextFromRRule_MinutelyWithTimezone tests that MINUTELY schedules
+// with non-UTC timezones calculate correct next_execution times.
+// This catches the bug where the Z suffix in DTSTART caused timezone misinterpretation.
+func TestCalculateNextFromRRule_MinutelyWithTimezone(t *testing.T) {
+	chicago, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		t.Fatalf("Failed to load Chicago timezone: %v", err)
+	}
+
+	// dtstart: 9:00 AM Chicago time on Jan 15, 2025
+	dtstartChicago := time.Date(2025, 1, 15, 9, 0, 0, 0, chicago)
+	dtstartUTC := dtstartChicago.UTC() // This is stored in DB as UTC
+
+	// "after": 9:30 AM Chicago time - we want next execution after this
+	afterChicago := time.Date(2025, 1, 15, 9, 30, 0, 0, chicago)
+	afterUTC := afterChicago.UTC()
+
+	// MINUTELY;INTERVAL=20 - should trigger every 20 minutes
+	rruleStr := "FREQ=MINUTELY;INTERVAL=20"
+
+	// Calculate next execution with Chicago timezone
+	next, err := calculateNextFromRRule(rruleStr, dtstartUTC, afterUTC, "America/Chicago")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule failed: %v", err)
+	}
+
+	// Expected: 9:40 AM Chicago time (20 min after 9:20, which is the occurrence before 9:30)
+	// From dtstart 9:00: 9:00 -> 9:20 -> 9:40 -> 10:00 ...
+	// After 9:30, next should be 9:40
+	expectedChicago := time.Date(2025, 1, 15, 9, 40, 0, 0, chicago)
+	expectedUTC := expectedChicago.UTC()
+
+	// Allow small tolerance for any sub-second differences
+	diff := next.Sub(expectedUTC)
+	if diff < -time.Second || diff > time.Second {
+		t.Errorf("Expected next execution at %v (9:40 Chicago), got %v (diff: %v)",
+			expectedUTC.Format(time.RFC3339), next.Format(time.RFC3339), diff)
+	}
+
+	// Critical check: next should be within reasonable range of 'after'
+	// With 20-minute interval, next should be at most ~20 minutes after 'after'
+	maxExpectedDiff := 20 * time.Minute
+	actualDiff := next.Sub(afterUTC)
+	if actualDiff > maxExpectedDiff {
+		t.Errorf("TIMEZONE BUG: next_execution is %v after 'after' time, expected at most %v. "+
+			"This indicates the Z suffix bug in DTSTART formatting.",
+			actualDiff, maxExpectedDiff)
+	}
+
+	t.Logf("✓ MINUTELY;INTERVAL=20 with Chicago timezone: after=%v next=%v (diff=%v)",
+		afterUTC.Format(time.RFC3339), next.Format(time.RFC3339), actualDiff)
+}
+
+// TestUpdateSchedule_RRuleChangeUpdatesDtstartAndNextExecution tests that changing the RRule
+// updates dtstart to now and calculates next_execution based on the new dtstart.
+// This gives intuitive UX: "30 min interval" = next execution in 30 min from now.
+func TestUpdateSchedule_RRuleChangeRecalculatesFromNow(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	// Create test profile and routine
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+
+	routine, err := db.CreateRoutine("", profile.ID, "Test Routine", "Test Description", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	// Create schedule with FREQ=MINUTELY;INTERVAL=20, started an hour ago
+	scheduleID := uuid.New().String()
+	originalDtstart := time.Now().Add(-1 * time.Hour)
+	schedule, err := db.CreateSchedule(
+		scheduleID,
+		profile.ID,
+		routine.ID,
+		"Test Schedule",
+		"FREQ=MINUTELY;INTERVAL=20",
+		"UTC",
+		&originalDtstart,
+		nil,
+		"",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("CreateSchedule failed: %v", err)
+	}
+
+	// Simulate that the schedule ran 5 minutes ago
+	fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
+	schedule.LastExecution = &fiveMinutesAgo
+
+	// Record time before update
+	beforeUpdate := time.Now()
+
+	// Update the schedule with a new RRule (INTERVAL=10 instead of 20)
+	schedule.RRule = "FREQ=MINUTELY;INTERVAL=10"
+	updated, err := db.UpdateSchedule(schedule)
+	if err != nil {
+		t.Fatalf("UpdateSchedule failed: %v", err)
+	}
+
+	// Verify dtstart was updated to ~now (within 1 second tolerance)
+	if updated.DTStart == nil {
+		t.Fatal("DTStart should not be nil")
+	}
+	dtstartDiff := updated.DTStart.Sub(beforeUpdate)
+	if dtstartDiff < 0 || dtstartDiff > 2*time.Second {
+		t.Errorf("DTStart should be updated to ~now when RRule changes. Original: %v, Updated: %v, Expected: ~%v",
+			originalDtstart.Format(time.RFC3339), updated.DTStart.Format(time.RFC3339), beforeUpdate.Format(time.RFC3339))
+	}
+
+	// Verify next_execution is ~10 minutes from the new dtstart
+	if updated.NextExecution == nil {
+		t.Fatal("NextExecution should not be nil")
+	}
+
+	timeUntilNext := updated.NextExecution.Sub(time.Now())
+
+	// Should be around 10 minutes (the new interval)
+	if timeUntilNext < 9*time.Minute || timeUntilNext > 11*time.Minute {
+		t.Errorf("RRule change should set next_execution to interval from now. Expected ~10 min, got %v", timeUntilNext)
+	}
+
+	t.Logf("✓ RRule change updates dtstart to now and next_execution in %v", timeUntilNext)
+}
+
+// TestUpdateSchedule_NonRRuleChangePreservesDtstartAndCadence tests that changing other fields
+// (like name) preserves the existing dtstart and cadence.
+func TestUpdateSchedule_NonRRuleChangePreservesCadence(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	// Create test profile and routine
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+
+	routine, err := db.CreateRoutine("", profile.ID, "Test Routine", "Test Description", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	// Create schedule with FREQ=MINUTELY;INTERVAL=20, started an hour ago
+	scheduleID := uuid.New().String()
+	originalDtstart := time.Now().Add(-1 * time.Hour)
+	schedule, err := db.CreateSchedule(
+		scheduleID,
+		profile.ID,
+		routine.ID,
+		"Test Schedule",
+		"FREQ=MINUTELY;INTERVAL=20",
+		"UTC",
+		&originalDtstart,
+		nil,
+		"",
+		true,
+	)
+	if err != nil {
+		t.Fatalf("CreateSchedule failed: %v", err)
+	}
+
+	// Simulate that the schedule ran 5 minutes ago
+	fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
+	schedule.LastExecution = &fiveMinutesAgo
+
+	// Change the name without changing RRule
+	schedule.Name = "Renamed Schedule"
+	updated, err := db.UpdateSchedule(schedule)
+	if err != nil {
+		t.Fatalf("UpdateSchedule failed: %v", err)
+	}
+
+	// Verify dtstart was NOT changed (should still be the original)
+	if updated.DTStart == nil {
+		t.Fatal("DTStart should not be nil")
+	}
+	dtstartDiff := updated.DTStart.Sub(originalDtstart)
+	if dtstartDiff < -time.Second || dtstartDiff > time.Second {
+		t.Errorf("DTStart should be preserved when RRule doesn't change. Original: %v, Updated: %v",
+			originalDtstart.Format(time.RFC3339), updated.DTStart.Format(time.RFC3339))
+	}
+
+	// The next_execution should be ~15 minutes from now (20 min interval - 5 min since last)
+	// because we preserved the cadence
+	if updated.NextExecution == nil {
+		t.Fatal("NextExecution should not be nil")
+	}
+
+	timeUntilNext := updated.NextExecution.Sub(time.Now())
+
+	// Should be around 15 minutes (20 - 5 = 15, with tolerance)
+	// If it were recalculated from now with new dtstart, it would be ~20 minutes
+	if timeUntilNext > 17*time.Minute {
+		t.Errorf("Non-RRule change should preserve cadence. Expected next_execution ~15 min from now, got %v",
+			timeUntilNext)
+	}
+
+	t.Logf("✓ Non-RRule change preserves cadence: next_execution in %v", timeUntilNext)
+}
