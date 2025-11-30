@@ -30,6 +30,30 @@ enum NotificationPosition: String, Codable, CaseIterable {
     }
 }
 
+// MARK: - Blur Intensity
+/// Matches VibeNotify 0.0.5 ScreenBlurIntensity enum
+enum BlurIntensity: String, Codable, CaseIterable {
+    case light   // radius: 10
+    case medium  // radius: 25
+    case heavy   // radius: 50
+
+    var displayName: String {
+        switch self {
+        case .light: return "Light"
+        case .medium: return "Medium"
+        case .heavy: return "Heavy"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .light: return "circle.dotted"
+        case .medium: return "circle.dashed"
+        case .heavy: return "circle.fill"
+        }
+    }
+}
+
 // MARK: - Notification Preferences
 @Observable
 final class NotificationPreferences: Codable, Equatable, Hashable {
@@ -45,6 +69,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
     var moveable: Bool
     var autoDismissAfter: TimeInterval? // Duration in seconds before auto-dismiss
     var screenBlurEnabled: Bool // Enable/disable screen blur background
+    var screenBlurIntensity: BlurIntensity // Blur intensity level (VibeNotify 0.0.5+)
 
     init(
         bundledIconId: String? = nil,
@@ -58,7 +83,8 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         height: CGFloat? = nil,
         moveable: Bool = true,
         autoDismissAfter: TimeInterval? = 20.0,
-        screenBlurEnabled: Bool = false
+        screenBlurEnabled: Bool = false,
+        screenBlurIntensity: BlurIntensity = .medium
     ) {
         self.bundledIconId = bundledIconId
         self.svgPath = svgPath
@@ -72,6 +98,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         self.moveable = moveable
         self.autoDismissAfter = autoDismissAfter
         self.screenBlurEnabled = screenBlurEnabled
+        self.screenBlurIntensity = screenBlurIntensity
     }
 
     // MARK: - Default Presets
@@ -82,7 +109,8 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         height: 220,
         moveable: true,
         autoDismissAfter: 20.0,
-        screenBlurEnabled: false
+        screenBlurEnabled: false,
+        screenBlurIntensity: .medium
     )
 
     nonisolated(unsafe) static let minimal = NotificationPreferences(
@@ -91,7 +119,8 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         height: 150,
         moveable: false,
         autoDismissAfter: 15.0,
-        screenBlurEnabled: false
+        screenBlurEnabled: false,
+        screenBlurIntensity: .light
     )
 
     nonisolated(unsafe) static let prominent = NotificationPreferences(
@@ -100,7 +129,8 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         height: 300,
         moveable: true,
         autoDismissAfter: 30.0,
-        screenBlurEnabled: true
+        screenBlurEnabled: true,
+        screenBlurIntensity: .heavy
     )
 
     // MARK: - Computed Properties
@@ -202,7 +232,8 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
             lhs.height == rhs.height &&
             lhs.moveable == rhs.moveable &&
             lhs.autoDismissAfter == rhs.autoDismissAfter &&
-            lhs.screenBlurEnabled == rhs.screenBlurEnabled
+            lhs.screenBlurEnabled == rhs.screenBlurEnabled &&
+            lhs.screenBlurIntensity == rhs.screenBlurIntensity
     }
 
     // MARK: - Hashable
@@ -219,6 +250,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         hasher.combine(moveable)
         hasher.combine(autoDismissAfter)
         hasher.combine(screenBlurEnabled)
+        hasher.combine(screenBlurIntensity)
     }
 }
 

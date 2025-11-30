@@ -497,7 +497,7 @@
     {
       "id": "check-gmail",
       "category": "daily",
-      "routine_name": "Work Chroes",
+      "routine_name": "Work Chores",
       "routine_description": "Morning email check routine",
       "routine_icon": "envelope.badge.fill",
       "routine_color": "red",

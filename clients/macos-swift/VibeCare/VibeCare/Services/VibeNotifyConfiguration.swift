@@ -3,6 +3,18 @@ import SwiftUI
 import VibeNotify
 import Logging
 
+// MARK: - BlurIntensity to VibeNotify Conversion
+extension BlurIntensity {
+    /// Convert VibeCare BlurIntensity to VibeNotify ScreenBlurIntensity
+    var vibeNotifyIntensity: ScreenBlurIntensity {
+        switch self {
+        case .light: return .light
+        case .medium: return .medium
+        case .heavy: return .heavy
+        }
+    }
+}
+
 /// Centralized configuration for VibeNotify notifications
 /// Provides consistent styling and helper methods for VibeCare notifications
 enum VibeNotifyConfig {
@@ -100,9 +112,9 @@ enum VibeNotifyConfig {
       .dismissOnScreenTap(true)
       .autoDismiss(after: prefs.autoDismissAfter ?? quickDismissDelay)
 
-    // Apply screen blur if enabled
+    // Apply screen blur if enabled with intensity
     if prefs.screenBlurEnabled {
-      builder = builder.screenBlur(true)
+      builder = builder.screenBlur(true, intensity: prefs.screenBlurIntensity.vibeNotifyIntensity)
     }
 
     // Set position based on preference

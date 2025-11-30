@@ -183,6 +183,7 @@ struct ScheduleActionCard: Identifiable, Equatable {
             result["auto_dismiss_after"] = String(autoDismiss)
         }
         result["screen_blur_enabled"] = String(prefs.screenBlurEnabled)
+        result["screen_blur_intensity"] = prefs.screenBlurIntensity.rawValue
 
         return result
     }
@@ -201,6 +202,7 @@ struct ScheduleActionCard: Identifiable, Equatable {
         let moveable = params["moveable"].flatMap { Bool($0) } ?? true
         let autoDismissAfter = params["auto_dismiss_after"].flatMap { Double($0) }
         let screenBlurEnabled = params["screen_blur_enabled"].flatMap { Bool($0) } ?? false
+        let screenBlurIntensity = params["screen_blur_intensity"].flatMap { BlurIntensity(rawValue: $0) } ?? .medium
 
         return NotificationPreferences(
             bundledIconId: nil, // Always nil now - IDs converted to URLs
@@ -214,7 +216,8 @@ struct ScheduleActionCard: Identifiable, Equatable {
             height: height,
             moveable: moveable,
             autoDismissAfter: autoDismissAfter,
-            screenBlurEnabled: screenBlurEnabled
+            screenBlurEnabled: screenBlurEnabled,
+            screenBlurIntensity: screenBlurIntensity
         )
     }
 }
@@ -389,9 +392,6 @@ struct NotificationActionParametersView: View {
 
             // Behavior Options
             behaviorSection
-
-            // Preview Button
-            previewSection
         }
     }
 
@@ -738,6 +738,44 @@ struct NotificationActionParametersView: View {
             Toggle("Enable screen blur", isOn: $vm.preferences.screenBlurEnabled)
                 .toggleStyle(.switch)
                 .font(.caption)
+
+            // Blur intensity picker (shown when blur is enabled)
+            if vm.preferences.screenBlurEnabled {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Blur Intensity")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    HStack(spacing: 8) {
+                        ForEach(BlurIntensity.allCases, id: \.self) { intensity in
+                            Button(action: {
+                                vm.preferences.screenBlurIntensity = intensity
+                            }) {
+                                VStack(spacing: 2) {
+                                    Image(systemName: intensity.iconName)
+                                        .font(.caption)
+                                    Text(intensity.displayName)
+                                        .font(.system(size: 9))
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                                .background(
+                                    vm.preferences.screenBlurIntensity == intensity
+                                        ? Color.accentColor
+                                        : Color(NSColor.controlBackgroundColor).opacity(0.5)
+                                )
+                                .foregroundColor(
+                                    vm.preferences.screenBlurIntensity == intensity
+                                        ? .white
+                                        : .primary
+                                )
+                                .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
 
             VStack(alignment: .leading, spacing: 4) {
                 Text("Auto-dismiss: \(Int(vm.preferences.autoDismissAfter ?? 20))s")

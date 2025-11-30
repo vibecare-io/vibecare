@@ -684,7 +684,7 @@
 			repositoryURL = "https://github.com/vibecare-io/vibe-notify-macos.git";
 			requirement = {
 				kind = upToNextMinorVersion;
-				minimumVersion = 0.0.4;
+				minimumVersion = 0.0.5;
 			};
 		};
 		A069562E2E8613C7007838E7 /* XCRemoteSwiftPackageReference "grpc-swift-2" */ = {

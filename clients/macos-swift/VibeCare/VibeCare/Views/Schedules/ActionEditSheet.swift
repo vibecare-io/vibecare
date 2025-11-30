@@ -14,6 +14,7 @@ struct ActionEditSheet: View {
     @State private var actionType: ActionType
     @State private var isSaving = false
     @State private var errorMessage: String?
+    @State private var showingPreview = false
 
     init(
         profileId: String,
@@ -110,22 +111,45 @@ struct ActionEditSheet: View {
             }
             .padding(.vertical)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") {
-                        onCancel()
-                        dismiss()
-                    }
-                    .disabled(isSaving)
-                }
+                ToolbarItem(placement: .automatic) {
+                    HStack {
+                        // Preview button (only for notification actions)
+                        if actionType == .notification {
+                            Button(action: {
+                                showPreviewNotification()
+                            }) {
+                                Label("Preview", systemImage: "eye")
+                            }
+                            .disabled(isSaving)
 
-                ToolbarItem(placement: .confirmationAction) {
-                    Button(isCreating ? "Add" : "Save") {
-                        Task {
-                            await saveAction()
+                            if showingPreview {
+                                Text("Preview sent!")
+                                    .font(.caption)
+                                    .foregroundColor(.green)
+                                    .onAppear {
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                            showingPreview = false
+                                        }
+                                    }
+                            }
                         }
+
+                        Spacer()
+
+                        Button("Cancel") {
+                            onCancel()
+                            dismiss()
+                        }
+                        .disabled(isSaving)
+
+                        Button(isCreating ? "Add" : "Save") {
+                            Task {
+                                await saveAction()
+                            }
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(isSaving || !isValid)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(isSaving || !isValid)
                 }
             }
         }
@@ -203,6 +227,17 @@ struct ActionEditSheet: View {
                 isSaving = false
             }
         }
+    }
+
+    private func showPreviewNotification() {
+        _ = VibeNotifyConfig.showScheduleNotification(
+            scheduleName: schedule.name,
+            routineName: "Preview Action",
+            scheduledTime: Date(),
+            notes: nil,
+            preferences: viewModel.preferences
+        )
+        showingPreview = true
     }
 }
 

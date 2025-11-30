@@ -446,6 +446,44 @@ struct NotificationCustomizationView: View {
       Toggle("Enable screen blur", isOn: $preferences.screenBlurEnabled)
         .toggleStyle(.switch)
 
+      // Blur intensity picker (shown when blur is enabled)
+      if preferences.screenBlurEnabled {
+        VStack(alignment: .leading, spacing: 4) {
+          Text("Blur Intensity")
+            .font(.caption)
+            .foregroundColor(.secondary)
+
+          HStack(spacing: 12) {
+            ForEach(BlurIntensity.allCases, id: \.self) { intensity in
+              Button(action: {
+                preferences.screenBlurIntensity = intensity
+              }) {
+                VStack(spacing: 4) {
+                  Image(systemName: intensity.iconName)
+                    .font(.title3)
+                  Text(intensity.displayName)
+                    .font(.caption)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .background(
+                  preferences.screenBlurIntensity == intensity
+                    ? Color.accentColor
+                    : Color(NSColor.controlBackgroundColor)
+                )
+                .foregroundColor(
+                  preferences.screenBlurIntensity == intensity
+                    ? .white
+                    : .primary
+                )
+                .cornerRadius(8)
+              }
+              .buttonStyle(.plain)
+            }
+          }
+        }
+      }
+
       // Auto-dismiss duration
       VStack(alignment: .leading, spacing: 4) {
         Text("Auto-dismiss after (seconds)")
@@ -557,7 +595,11 @@ struct NotificationCustomizationView: View {
     }
 
     optionsInfo += "• Moveable: \(preferences.moveable ? "Yes" : "No")\n"
-    optionsInfo += "• Screen Blur: \(preferences.screenBlurEnabled ? "Enabled" : "Disabled")\n"
+    if preferences.screenBlurEnabled {
+      optionsInfo += "• Screen Blur: \(preferences.screenBlurIntensity.displayName)\n"
+    } else {
+      optionsInfo += "• Screen Blur: Disabled\n"
+    }
 
     if let dismissAfter = preferences.autoDismissAfter {
       optionsInfo += "• Auto-dismiss: \(Int(dismissAfter))s\n"

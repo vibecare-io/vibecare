@@ -152,10 +152,11 @@ class NotificationManager: NSObject, ObservableObject {
         let moveable = params["moveable"].flatMap { Bool($0) } ?? true
         let autoDismissAfter = params["auto_dismiss_after"].flatMap { Double($0) }
         let screenBlurEnabled = params["screen_blur_enabled"].flatMap { Bool($0) } ?? false
+        let screenBlurIntensity = params["screen_blur_intensity"].flatMap { BlurIntensity(rawValue: $0) } ?? .medium
 
         // Only return preferences if at least some customization exists
         // Otherwise return nil to use default notification appearance
-        if svgPath != nil || width != nil || height != nil || position != .center {
+        if svgPath != nil || width != nil || height != nil || position != .center || screenBlurEnabled {
             return NotificationPreferences(
                 bundledIconId: nil, // Always nil now - IDs converted to URLs
                 svgPath: svgPath,
@@ -168,7 +169,8 @@ class NotificationManager: NSObject, ObservableObject {
                 height: height,
                 moveable: moveable,
                 autoDismissAfter: autoDismissAfter,
-                screenBlurEnabled: screenBlurEnabled
+                screenBlurEnabled: screenBlurEnabled,
+                screenBlurIntensity: screenBlurIntensity
             )
         }
 
