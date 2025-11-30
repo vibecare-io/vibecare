@@ -31,7 +31,7 @@
     {
       "id": "pushups",
       "category": "daily",
-      "routine_name": "Pushups 3x/day",
+      "routine_name": "Self Care",
       "routine_description": "Quick exercise breaks throughout the day",
       "routine_icon": "figure.strengthtraining.traditional",
       "routine_color": "red",
@@ -58,7 +58,7 @@
     {
       "id": "eye-20-20-20",
       "category": "daily",
-      "routine_name": "20-20-20 Eye Rule",
+      "routine_name": "Self Care",
       "routine_description": "Protect your eyes from screen strain",
       "routine_icon": "eye",
       "routine_color": "teal",
@@ -139,7 +139,7 @@
     {
       "id": "hydration-reminder",
       "category": "daily",
-      "routine_name": "Hydration Mastery",
+      "routine_name": "Self Care",
       "routine_description": "Stay hydrated throughout the day",
       "routine_icon": "drop.fill",
       "routine_color": "blue",
@@ -172,7 +172,7 @@
       "routine_color": "blue",
       "schedule_name": "Check MailBox",
       "schedule_description": "Check mail every day",
-      "rrule": "FREQ=DAILY;INTERVAL=1",
+      "rrule": "FREQ=WEEKLY;BYHOUR=18;BYMINUTE=0;BYDAY=FR,TU",
       "default_times": ["16:00"],
       "actions": [
         {
@@ -199,7 +199,7 @@
       "routine_color": "gray",
       "schedule_name": "Take Out Trash",
       "schedule_description": "Prepare trash for Monday pickup",
-      "rrule": "FREQ=WEEKLY;BYDAY=SU",
+      "rrule": "FREQ=WEEKLY;BYHOUR=20;BYMINUTE=20;BYDAY=TH",
       "default_times": ["19:00"],
       "actions": [
         {
@@ -301,7 +301,7 @@
     {
       "id": "weekly-review",
       "category": "weekly",
-      "routine_name": "Weekly Review",
+      "routine_name": "Review",
       "routine_description": "Reflect on the week",
       "routine_icon": "list.bullet.clipboard.fill",
       "routine_color": "purple",
@@ -322,6 +322,13 @@
             "width": "450",
             "height": "220"
           }
+        },
+        {
+            "type": "open_link",
+            "name": "Open Self Review Form",
+            "parameters": {
+                "url": "https://forms.gle/yqRNLiFaeTgB3RX28"
+            }
         }
       ]
     },
@@ -355,7 +362,7 @@
     {
       "id": "birthday-reminder",
       "category": "monthly_yearly",
-      "routine_name": "Special Days Reminders",
+      "routine_name": "Special Days",
       "routine_description": "Never miss a birthday",
       "routine_icon": "birthday.cake.fill",
       "routine_color": "pink",
@@ -382,8 +389,8 @@
     {
       "id": "anniversary",
       "category": "monthly_yearly",
-      "routine_name": "Anniversary",
-        "routine_description": "Special date next week, reminder",
+      "routine_name": "Special Days",
+      "routine_description": "Special date next week, reminder",
       "routine_icon": "heart.fill",
       "routine_color": "red",
       "schedule_name": "Annual Anniversary",
@@ -463,7 +470,7 @@
     {
       "id": "meditation",
       "category": "daily",
-      "routine_name": "Daily Meditation",
+      "routine_name": "Self Care",
       "routine_description": "Mindfulness and relaxation",
       "routine_icon": "brain.head.profile",
       "routine_color": "purple",
@@ -592,7 +599,7 @@
           "parameters": {
             "title": "Meeting in 15 Minutes",
             "body": "Time to prepare for your upcoming meeting",
-            "icon_id": "meeting",
+            "icon_id": "calendar-events",
             "position": "center",
             "auto_dismiss": "30",
             "width": "450",
@@ -748,6 +755,33 @@
             "title": "Pickup Your Delivery",
             "body": "Your package is ready for pickup",
             "icon_id": "shopping-cart",
+            "position": "center",
+            "auto_dismiss": "30",
+            "width": "450",
+            "height": "220"
+          }
+        }
+      ]
+    },
+    {
+      "id": "event-reminder",
+      "category": "weekly",
+      "routine_name": "Reminders",
+      "routine_description": "Check for new events",
+      "routine_icon": "calendar.badge.clock",
+      "routine_color": "purple",
+      "schedule_name": "Check for New Meetups",
+      "schedule_description": "Check for new meetups",
+      "rrule": "FREQ=WEEKLY;BYDAY=FR,TU",
+      "default_times": ["18:00"],
+      "actions": [
+        {
+          "type": "notification",
+          "name": "Event Alert",
+          "parameters": {
+            "title": "Check for new meetups",
+            "body": "ssh meetups.thapakazi.com",
+            "icon_id": "meeting",
             "position": "center",
             "auto_dismiss": "30",
             "width": "450",
