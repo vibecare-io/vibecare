@@ -3,98 +3,107 @@
 //  vibecare
 //
 
-import SwiftUI
 import SVGView
+import SwiftUI
 
 /// Displays an SVG icon from the backend for template cards
 struct TemplateIconView: View {
-    let iconId: String?
-    let backgroundColor: Color
-    let size: CGFloat
+  let iconId: String?
+  let backgroundColor: Color
+  let size: CGFloat
 
-    @State private var svgData: Data?
-    @State private var isLoading: Bool = false
-    @State private var loadError: Error?
+  @Environment(\.colorScheme) private var colorScheme
 
-    init(iconId: String?, backgroundColor: Color = Color.blue.opacity(0.15), size: CGFloat = 48) {
-        self.iconId = iconId
-        self.backgroundColor = backgroundColor
-        self.size = size
+  /// Determines if light text should be used based on system theme
+  private var useLightText: Bool {
+    // Follow system theme: dark mode = light text, light mode = dark text
+    colorScheme == .dark
+  }
+
+  @State private var svgData: Data?
+  @State private var isLoading: Bool = false
+  @State private var loadError: Error?
+
+  init(iconId: String?, backgroundColor: Color = Color.blue.opacity(0.15), size: CGFloat = 48) {
+    self.iconId = iconId
+    self.backgroundColor = backgroundColor
+    self.size = size
+  }
+
+  var body: some View {
+    ZStack {
+      Circle()
+        .fill(backgroundColor)
+        .frame(width: size, height: size)
+
+      iconContent
+        .frame(width: size * 0.6, height: size * 0.6)
+    }
+    .task {
+      await loadSVGData()
+    }
+  }
+
+  @ViewBuilder
+  private var iconContent: some View {
+    if let data = svgData {
+      SVGView(data: data).shadow(
+        color: useLightText ? .white.opacity(0.8) : .black.opacity(0.5), radius: 10)
+    } else if isLoading {
+      ProgressView()
+        .scaleEffect(0.5)
+    } else if loadError != nil || iconId == nil {
+      Image(systemName: "photo")
+        .font(.system(size: size * 0.4))
+        .foregroundColor(.gray)
+    } else {
+      Image(systemName: "photo")
+        .font(.system(size: size * 0.4))
+        .foregroundColor(.gray)
+    }
+  }
+
+  private func loadSVGData() async {
+    guard let iconId = iconId, !iconId.isEmpty else { return }
+    guard svgData == nil, !isLoading else { return }
+
+    let urlString = NetworkConfiguration.buildIconURL(iconId: iconId)
+    guard let iconURL = URL(string: urlString) else {
+      return
     }
 
-    var body: some View {
-        ZStack {
-            Circle()
-                .fill(backgroundColor)
-                .frame(width: size, height: size)
+    isLoading = true
+    loadError = nil
 
-            iconContent
-                .frame(width: size * 0.6, height: size * 0.6)
-        }
-        .task {
-            await loadSVGData()
-        }
+    do {
+      let (data, _) = try await URLSession.shared.data(from: iconURL)
+      await MainActor.run {
+        self.svgData = data
+        self.isLoading = false
+      }
+    } catch {
+      await MainActor.run {
+        self.loadError = error
+        self.isLoading = false
+      }
     }
-
-    @ViewBuilder
-    private var iconContent: some View {
-        if let data = svgData {
-            SVGView(data: data)
-        } else if isLoading {
-            ProgressView()
-                .scaleEffect(0.5)
-        } else if loadError != nil || iconId == nil {
-            Image(systemName: "photo")
-                .font(.system(size: size * 0.4))
-                .foregroundColor(.gray)
-        } else {
-            Image(systemName: "photo")
-                .font(.system(size: size * 0.4))
-                .foregroundColor(.gray)
-        }
-    }
-
-    private func loadSVGData() async {
-        guard let iconId = iconId, !iconId.isEmpty else { return }
-        guard svgData == nil, !isLoading else { return }
-
-        let urlString = NetworkConfiguration.buildIconURL(iconId: iconId)
-        guard let iconURL = URL(string: urlString) else {
-            return
-        }
-
-        isLoading = true
-        loadError = nil
-
-        do {
-            let (data, _) = try await URLSession.shared.data(from: iconURL)
-            await MainActor.run {
-                self.svgData = data
-                self.isLoading = false
-            }
-        } catch {
-            await MainActor.run {
-                self.loadError = error
-                self.isLoading = false
-            }
-        }
-    }
+  }
 }
 
 #Preview("With Icon") {
-    TemplateIconView(
-        iconId: "water-bottle",
-        backgroundColor: Color.blue.opacity(0.15),
-        size: 48
-    )
-    .padding()
+  TemplateIconView(
+    iconId: "water-bottle",
+    backgroundColor: Color.blue.opacity(0.15),
+    size: 48
+  )
+  .padding()
 }
 
 #Preview("No Icon") {
-    TemplateIconView(
-        iconId: nil,
-        backgroundColor: Color.gray.opacity(0.15),
-        size: 48
-    )
-    .padding()
+  TemplateIconView(
+    iconId: nil,
+    backgroundColor: Color.gray.opacity(0.15),
+    size: 48
+  )
+  .padding()
 }
