@@ -9,6 +9,9 @@ A modern wellness and routine management app with native macOS/iOS clients and a
 - **Clients**: Native Swift for macOS/iOS, Kotlin for Android, GTK for Linux
 - **Database**: SQLite with Goose migrations
 
+> Experimental: App wiki is available via
+https://deepwiki.com/vibecare-io/vibecare
+
 ## Project Structure
 
 ```
