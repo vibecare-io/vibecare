@@ -357,6 +357,54 @@
         "width": 450,
         "height": 220
       }
+    },
+    {
+      "id": "wind-down-rest",
+      "category": "daily",
+      "routine_name": "Wind Down",
+      "routine_description": "Evening routine to rest, wrap up, and sleep",
+      "routine_icon": "moon.fill",
+      "routine_color": "indigo",
+      "schedule_name": "Take a Rest",
+      "schedule_description": "Nudge to step away and rest",
+      "rrule": "FREQ=DAILY;BYHOUR=22;BYMINUTE=30",
+      "default_times": ["22:30"],
+      "notification": {
+        "title": "Time to wind down",
+        "body": "Take a rest — the day is wrapping up.",
+        "position": "center",
+        "auto_dismiss": 20
+      }
+    },
+    {
+      "id": "wind-down-wrap-up",
+      "category": "daily",
+      "routine_name": "Wind Down",
+      "routine_description": "Evening routine to rest, wrap up, and sleep",
+      "routine_icon": "moon.fill",
+      "routine_color": "indigo",
+      "schedule_name": "Wrap Up",
+      "schedule_description": "15-minute warning before sleep",
+      "rrule": "FREQ=DAILY;BYHOUR=22;BYMINUTE=45",
+      "default_times": ["22:45"],
+      "notification": {
+        "title": "Wrap things up",
+        "body": "Sleep in 15 minutes. Save your work.",
+        "position": "center",
+        "auto_dismiss": 20
+      }
+    },
+    {
+      "id": "wind-down-sleep",
+      "category": "daily",
+      "routine_name": "Wind Down",
+      "routine_description": "Evening routine to rest, wrap up, and sleep",
+      "routine_icon": "moon.fill",
+      "routine_color": "indigo",
+      "schedule_name": "Sleep & Lock",
+      "schedule_description": "Sleep the Mac after a 30s cancelable countdown",
+      "rrule": "FREQ=DAILY;BYHOUR=22;BYMINUTE=59",
+      "default_times": ["22:59"]
     }
   ]
 }
