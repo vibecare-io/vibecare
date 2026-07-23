@@ -134,3 +134,26 @@ private let cgSession = "/System/Library/CoreServices/Menu Extras/User.menu/Cont
     c.cancel()
     #expect(canceled == 0)
 }
+
+@MainActor @Test func countdownZeroRunsImmediatelyNoOverlay() {
+    let runner = MockCommandRunner()
+    var presented = false
+    let handler = SystemCommandHandler(runner: runner,
+        presentCountdown: { _, _, _, _ in presented = true })
+    handler.executeAction(Action(profileId: "p", type: .systemCommand, name: "S",
+        parameters: ["command": "sleep", "countdown_seconds": "0"]))
+    #expect(presented == false)
+    #expect(runner.calls.count == 2)   // ran immediately
+}
+
+@MainActor @Test func countdownPositivePresentsOverlayAndDefersRun() {
+    let runner = MockCommandRunner()
+    var captured: (() -> Void)?
+    let handler = SystemCommandHandler(runner: runner,
+        presentCountdown: { _, _, _, onComplete in captured = onComplete })
+    handler.executeAction(Action(profileId: "p", type: .systemCommand, name: "S",
+        parameters: ["command": "sleep", "countdown_seconds": "30"]))
+    #expect(runner.calls.isEmpty)      // deferred until countdown completes
+    captured?()                        // simulate countdown finishing
+    #expect(runner.calls.map { $0.arguments } == [["-suspend"], ["sleepnow"]])
+}

@@ -43,11 +43,19 @@ final class SystemCommandHandler {
         "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession"
     private static let pmset = "/usr/bin/pmset"
 
+    typealias CountdownPresenter =
+        @MainActor (_ seconds: Int, _ cancelable: Bool, _ message: String?, _ onComplete: @escaping () -> Void) -> Void
+
     private let runner: CommandRunner
+    private let presentCountdown: CountdownPresenter
     private let logger = Logger(label: "com.vibecare.system-command")
 
-    init(runner: CommandRunner = ProcessCommandRunner()) {
+    init(runner: CommandRunner = ProcessCommandRunner(),
+         presentCountdown: @escaping CountdownPresenter = { s, c, m, done in
+             SleepCountdownOverlay.shared.present(seconds: s, cancelable: c, message: m, onComplete: done)
+         }) {
         self.runner = runner
+        self.presentCountdown = presentCountdown
     }
 
     /// The ordered native invocations for a command type on macOS.
@@ -67,8 +75,8 @@ final class SystemCommandHandler {
     }
 
     /// Entry point called by EventService for `.systemCommand` actions.
-    /// M0: only immediate (countdown == 0) execution. Countdown handling is
-    /// wired in M1.
+    /// When `countdownSeconds > 0`, presents the cancelable overlay and defers
+    /// execution until it completes; `0` runs immediately (unchanged M0 path).
     func executeAction(_ action: Action) {
         guard action.type == .systemCommand else {
             logger.error("Invalid action type for SystemCommandHandler: \(action.type)")
@@ -78,8 +86,13 @@ final class SystemCommandHandler {
             logger.error("Unrecognized system command in action \(action.id): \(action.parameters)")
             return
         }
-        // M1 replaces this branch with the countdown overlay when > 0.
-        runInvocations(for: request.type)
+        if request.countdownSeconds > 0 {
+            presentCountdown(request.countdownSeconds, request.cancelable, request.message) {
+                [weak self] in self?.runInvocations(for: request.type)
+            }
+        } else {
+            runInvocations(for: request.type)
+        }
     }
 
     /// Run the ordered invocations for a command type, stopping on the first error.
