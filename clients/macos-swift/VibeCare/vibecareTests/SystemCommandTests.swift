@@ -40,3 +40,28 @@ final class MockCommandRunner: CommandRunner {
 @Test func parseReturnsNilForUnknownCommand() {
     #expect(SystemCommandRequest.parse(from: ["command": "frobnicate"]) == nil)
 }
+
+private let cgSession = "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession"
+
+@MainActor @Test func lockInvocationIsCGSessionSuspend() {
+    let inv = SystemCommandHandler.invocations(for: .lock)
+    #expect(inv.count == 1)
+    #expect(inv[0].executable == cgSession)
+    #expect(inv[0].arguments == ["-suspend"])
+}
+
+@MainActor @Test func sleepLocksThenSleeps() {
+    let inv = SystemCommandHandler.invocations(for: .sleep)
+    #expect(inv.count == 2)
+    #expect(inv[0].executable == cgSession)          // lock first
+    #expect(inv[0].arguments == ["-suspend"])
+    #expect(inv[1].executable == "/usr/bin/pmset")   // then sleep
+    #expect(inv[1].arguments == ["sleepnow"])
+}
+
+@MainActor @Test func unimplementedCommandsHaveNoInvocations() {
+    #expect(SystemCommandHandler.invocations(for: .shutdown).isEmpty)
+    #expect(SystemCommandHandler.invocations(for: .restart).isEmpty)
+    #expect(SystemCommandHandler.invocations(for: .logout).isEmpty)
+    #expect(SystemCommandHandler.invocations(for: .displaySleep).isEmpty)
+}

@@ -34,3 +34,35 @@ struct SystemCommandRequest: Equatable {
                                     message: message)
     }
 }
+
+@MainActor
+final class SystemCommandHandler {
+    static let shared = SystemCommandHandler()
+
+    private static let cgSession =
+        "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession"
+    private static let pmset = "/usr/bin/pmset"
+
+    private let runner: CommandRunner
+    private let logger = Logger(label: "com.vibecare.system-command")
+
+    init(runner: CommandRunner = ProcessCommandRunner()) {
+        self.runner = runner
+    }
+
+    /// The ordered native invocations for a command type on macOS.
+    /// Unimplemented commands return [] (logged + no-op by the caller).
+    static func invocations(
+        for type: SystemCommandType
+    ) -> [(executable: String, arguments: [String])] {
+        let lock = (executable: cgSession, arguments: ["-suspend"])
+        switch type {
+        case .lock:
+            return [lock]
+        case .sleep:
+            return [lock, (executable: pmset, arguments: ["sleepnow"])]
+        case .displaySleep, .logout, .shutdown, .restart:
+            return []   // not implemented in this milestone
+        }
+    }
+}
