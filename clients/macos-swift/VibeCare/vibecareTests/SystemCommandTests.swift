@@ -92,3 +92,13 @@ private let cgSession = "/System/Library/CoreServices/Menu Extras/User.menu/Cont
     handler.executeAction(action)
     #expect(runner.calls.isEmpty)
 }
+
+@MainActor @Test func runInvocationsStopsOnFirstError() {
+    let runner = MockCommandRunner()
+    runner.errorToThrow = CommandError.launchFailed("boom")
+    let handler = SystemCommandHandler(runner: runner)
+    handler.runInvocations(for: .sleep)
+    // sleep = [lock, pmset]; the lock invocation throws, so pmset is never attempted
+    #expect(runner.calls.count == 1)
+    #expect(runner.calls.first?.arguments == ["-suspend"])
+}
