@@ -65,3 +65,30 @@ private let cgSession = "/System/Library/CoreServices/Menu Extras/User.menu/Cont
     #expect(SystemCommandHandler.invocations(for: .logout).isEmpty)
     #expect(SystemCommandHandler.invocations(for: .displaySleep).isEmpty)
 }
+
+@MainActor @Test func executeSleepImmediatelyRunsLockThenSleep() {
+    let runner = MockCommandRunner()
+    let handler = SystemCommandHandler(runner: runner)
+    let action = Action(profileId: "p", type: .systemCommand, name: "Sleep",
+                        parameters: ["command": "sleep", "countdown_seconds": "0"])
+    handler.executeAction(action)
+    #expect(runner.calls.map { $0.arguments } == [["-suspend"], ["sleepnow"]])
+}
+
+@MainActor @Test func executeUnknownCommandRunsNothing() {
+    let runner = MockCommandRunner()
+    let handler = SystemCommandHandler(runner: runner)
+    let action = Action(profileId: "p", type: .systemCommand, name: "Bad",
+                        parameters: ["command": "frobnicate"])
+    handler.executeAction(action)
+    #expect(runner.calls.isEmpty)
+}
+
+@MainActor @Test func executeWrongActionTypeRunsNothing() {
+    let runner = MockCommandRunner()
+    let handler = SystemCommandHandler(runner: runner)
+    let action = Action(profileId: "p", type: .notification, name: "N",
+                        parameters: ["command": "sleep"])
+    handler.executeAction(action)
+    #expect(runner.calls.isEmpty)
+}

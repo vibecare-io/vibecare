@@ -65,4 +65,38 @@ final class SystemCommandHandler {
             return []   // not implemented in this milestone
         }
     }
+
+    /// Entry point called by EventService for `.systemCommand` actions.
+    /// M0: only immediate (countdown == 0) execution. Countdown handling is
+    /// wired in M1.
+    func executeAction(_ action: Action) {
+        guard action.type == .systemCommand else {
+            logger.error("Invalid action type for SystemCommandHandler: \(action.type)")
+            return
+        }
+        guard let request = SystemCommandRequest.parse(from: action.parameters) else {
+            logger.error("Unrecognized system command in action \(action.id): \(action.parameters)")
+            return
+        }
+        // M1 replaces this branch with the countdown overlay when > 0.
+        runInvocations(for: request.type)
+    }
+
+    /// Run the ordered invocations for a command type, stopping on the first error.
+    func runInvocations(for type: SystemCommandType) {
+        let invocations = Self.invocations(for: type)
+        if invocations.isEmpty {
+            logger.warning("System command '\(type.rawValue)' not implemented on macOS yet")
+            return
+        }
+        for inv in invocations {
+            do {
+                try runner.run(executable: inv.executable, arguments: inv.arguments)
+                logger.info("Ran system command: \(inv.executable) \(inv.arguments.joined(separator: " "))")
+            } catch {
+                logger.error("System command failed: \(inv.executable) — \(error)")
+                return   // stop the sequence; surfaced to the user in M0.5/M1
+            }
+        }
+    }
 }
