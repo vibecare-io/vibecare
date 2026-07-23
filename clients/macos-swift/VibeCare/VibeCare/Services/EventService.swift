@@ -247,8 +247,7 @@ class EventService: ObservableObject {
             // TODO: Implement email sending
 
         case .systemCommand:
-            logger.warning("system_command action not yet implemented")
-            // TODO: Implement system commands
+            SystemCommandHandler.shared.executeAction(action)
 
         case .apiCall:
             logger.warning("api_call action not yet implemented")
