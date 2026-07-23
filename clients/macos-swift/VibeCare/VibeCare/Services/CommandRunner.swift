@@ -24,6 +24,10 @@ struct ProcessCommandRunner: CommandRunner {
         } catch {
             throw CommandError.launchFailed(error.localizedDescription)
         }
+        // FIXME: stderr is read only after waitUntilExit(); a child that floods >~64KB to
+        // stderr before exiting could deadlock on a full pipe. Safe for pmset/CGSession
+        // (near-silent), but harden (read pipe on a background queue) before reusing this
+        // runner for run_script or other chatty commands.
         process.waitUntilExit()
         if process.terminationStatus != 0 {
             let data = stderrPipe.fileHandleForReading.readDataToEndOfFile()

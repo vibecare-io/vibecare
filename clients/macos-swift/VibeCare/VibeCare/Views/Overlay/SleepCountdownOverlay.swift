@@ -24,7 +24,11 @@ final class SleepCountdownOverlay {
             onCancel:   { [weak self] in self?.dismiss() })
         self.controller = controller
 
-        let screenFrame = NSScreen.main?.frame ?? .zero
+        guard let screenFrame = (NSScreen.main ?? NSScreen.screens.first)?.frame else {
+            logger.warning("No display available; running system command immediately without countdown overlay")
+            onComplete()
+            return
+        }
         let window = NSWindow(contentRect: screenFrame, styleMask: [.borderless],
                               backing: .buffered, defer: false)
         window.level = .screenSaver
