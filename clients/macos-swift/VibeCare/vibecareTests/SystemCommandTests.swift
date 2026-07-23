@@ -102,3 +102,35 @@ private let cgSession = "/System/Library/CoreServices/Menu Extras/User.menu/Cont
     #expect(runner.calls.count == 1)
     #expect(runner.calls.first?.arguments == ["-suspend"])
 }
+
+@MainActor @Test func countdownCompletesAfterTicks() {
+    var completed = 0, canceled = 0
+    let c = SleepCountdownController(seconds: 2, cancelable: true,
+                                    onComplete: { completed += 1 },
+                                    onCancel: { canceled += 1 })
+    #expect(c.remaining == 2)
+    c.tick(); #expect(c.remaining == 1)
+    c.tick(); #expect(c.remaining == 0)
+    #expect(completed == 1 && canceled == 0)
+    c.tick()   // extra ticks must not re-fire
+    #expect(completed == 1)
+}
+
+@MainActor @Test func countdownCancelFiresOnceAndBlocksCompletion() {
+    var completed = 0, canceled = 0
+    let c = SleepCountdownController(seconds: 3, cancelable: true,
+                                    onComplete: { completed += 1 },
+                                    onCancel: { canceled += 1 })
+    c.cancel(); c.cancel()
+    #expect(canceled == 1 && completed == 0)
+    c.tick(); c.tick(); c.tick()
+    #expect(completed == 0)   // canceled: no completion
+}
+
+@MainActor @Test func nonCancelableIgnoresCancel() {
+    var canceled = 0
+    let c = SleepCountdownController(seconds: 2, cancelable: false,
+                                    onComplete: {}, onCancel: { canceled += 1 })
+    c.cancel()
+    #expect(canceled == 0)
+}
