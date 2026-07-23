@@ -28,6 +28,7 @@ final class SleepCountdownOverlay {
         let window = NSWindow(contentRect: screenFrame, styleMask: [.borderless],
                               backing: .buffered, defer: false)
         window.level = .screenSaver
+        window.isReleasedWhenClosed = false
         window.isOpaque = false
         window.backgroundColor = .clear
         window.ignoresMouseEvents = false
@@ -46,7 +47,9 @@ final class SleepCountdownOverlay {
 
     private func dismiss() {
         timer?.invalidate(); timer = nil
-        window?.orderOut(nil); window = nil
+        window?.contentView = nil   // drop the SwiftUI hierarchy / hosting view promptly
+        window?.close()             // remove from AppKit's window list (orderOut only hides)
+        window = nil
         controller = nil
     }
 }
