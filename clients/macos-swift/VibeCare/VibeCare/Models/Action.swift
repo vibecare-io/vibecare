@@ -135,7 +135,15 @@ enum ActionType: String, Codable, CaseIterable {
             ]
         case .systemCommand:
             return [
-                ActionParameter(name: "command", type: .string, required: true, description: "System command to execute")
+                ActionParameter(name: "command", type: .string, required: true,
+                                description: "Command", defaultValue: "sleep",
+                                allowedValues: ["lock", "sleep"]),
+                ActionParameter(name: "countdown_seconds", type: .number, required: false,
+                                description: "Countdown (seconds)", defaultValue: "30"),
+                ActionParameter(name: "cancelable", type: .boolean, required: false,
+                                description: "Allow Esc to cancel", defaultValue: "true"),
+                ActionParameter(name: "message", type: .string, required: false,
+                                description: "Overlay heading (optional)")
             ]
         case .apiCall:
             return [
@@ -175,6 +183,33 @@ struct ActionParameter {
         self.description = description
         self.defaultValue = defaultValue
         self.allowedValues = allowedValues
+    }
+}
+
+extension ActionParameter {
+    /// Human-readable label for a raw allowedValues term:
+    /// "lock" -> "Lock", "display_sleep" -> "Display Sleep".
+    static func displayLabel(for rawValue: String) -> String {
+        rawValue
+            .split(separator: "_")
+            .map { $0.prefix(1).uppercased() + $0.dropFirst() }
+            .joined(separator: " ")
+    }
+}
+
+extension ActionType {
+    /// Return `parameters` with any missing values filled from each parameter's
+    /// `defaultValue`. Existing (non-empty) values are preserved. Ensures pickers
+    /// and toggles start on a valid selection and required params are satisfied.
+    func seedingDefaults(into parameters: [String: String]) -> [String: String] {
+        var result = parameters
+        for param in requiredParameters {
+            guard let def = param.defaultValue else { continue }
+            if result[param.name]?.isEmpty ?? true {
+                result[param.name] = def
+            }
+        }
+        return result
     }
 }
 
