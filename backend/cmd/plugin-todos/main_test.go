@@ -138,6 +138,50 @@ func containsText(nodes []*pb.Node, want string) bool {
 	return false
 }
 
+// findRow searches the view tree recursively for a "row" node that has a
+// "text" child equal to want (i.e. one todo's rendered row: Toggle, Text,
+// Button — see plugin-todos/main.go's OnRender), and returns that row node,
+// or nil if no such row exists. Used to pull the row's id (carried in the
+// Toggle's/Button's Params["id"]) back out of a rendered view, exactly as a
+// real client would have to in order to act on a specific todo.
+func findRow(nodes []*pb.Node, want string) *pb.Node {
+	for _, n := range nodes {
+		if n.GetKind() == "row" {
+			for _, c := range n.GetChildren() {
+				if c.GetKind() == "text" && c.GetText() == want {
+					return n
+				}
+			}
+		}
+		if r := findRow(n.GetChildren(), want); r != nil {
+			return r
+		}
+	}
+	return nil
+}
+
+// rowID returns the id carried in any child of row that has one set in its
+// Params (the Toggle and the Button both carry the same row id).
+func rowID(row *pb.Node) string {
+	for _, c := range row.GetChildren() {
+		if id := c.GetParams()["id"]; id != "" {
+			return id
+		}
+	}
+	return ""
+}
+
+// rowDone returns the row's Toggle child's BoolValue (the "done" state), and
+// whether a toggle child was found at all.
+func rowDone(row *pb.Node) (done, ok bool) {
+	for _, c := range row.GetChildren() {
+		if c.GetKind() == "toggle" {
+			return c.GetBoolValue(), true
+		}
+	}
+	return false, false
+}
+
 // TestTodosPluginEndToEnd is the acceptance test for the whole plugin spine:
 // it builds the real todos binary, boots a real HostService, launches the
 // binary as a REAL OS subprocess through Registry's production execLauncher
@@ -204,7 +248,87 @@ func TestTodosPluginEndToEnd(t *testing.T) {
 		t.Fatalf("rendered view does not contain \"buy milk\": %+v", view)
 	}
 
-	// --- Persistence across a full registry restart ---
+	// --- complete_todo / delete_todo: prove the row id actually routes
+	// Button/Toggle -> InvokeAction -> handler -> Host.{Store,Delete}. Uses a
+	// second todo ("walk the dog") so this doesn't disturb "buy milk", which
+	// the restart-persistence assertion below still depends on.
+	if _, err := svc.InvokePluginAction(ctx, &pb.InvokePluginActionRequest{
+		PluginId: pluginID,
+		ViewId:   "main",
+		Action:   "add_todo",
+		Params:   map[string]string{"text": "walk the dog"},
+	}); err != nil {
+		t.Fatalf("InvokePluginAction(add_todo) failed: %v", err)
+	}
+
+	view, err = svc.RenderPluginView(ctx, &pb.RenderPluginViewRequest{PluginId: pluginID, ViewId: "main"})
+	if err != nil {
+		t.Fatalf("RenderPluginView failed: %v", err)
+	}
+	row := findRow(view.GetNodes(), "walk the dog")
+	if row == nil {
+		t.Fatalf("rendered view has no row for \"walk the dog\": %+v", view)
+	}
+	dogID := rowID(row)
+	if dogID == "" {
+		t.Fatalf("row for \"walk the dog\" carries no id in its Toggle/Button Params: %+v", row)
+	}
+	if done, ok := rowDone(row); !ok || done {
+		t.Fatalf("new todo should start not-done; rowDone = (%v, %v)", done, ok)
+	}
+
+	// complete_todo: the Toggle's InvokeAction only carries id in params (no
+	// text — see main.go's todoText helper), so this also exercises that
+	// complete_todo looks the existing text up rather than trusting a
+	// (nonexistent) in["text"].
+	if _, err := svc.InvokePluginAction(ctx, &pb.InvokePluginActionRequest{
+		PluginId: pluginID,
+		ViewId:   "main",
+		Action:   "complete_todo",
+		Params:   map[string]string{"id": dogID},
+	}); err != nil {
+		t.Fatalf("InvokePluginAction(complete_todo) failed: %v", err)
+	}
+
+	view, err = svc.RenderPluginView(ctx, &pb.RenderPluginViewRequest{PluginId: pluginID, ViewId: "main"})
+	if err != nil {
+		t.Fatalf("RenderPluginView failed: %v", err)
+	}
+	row = findRow(view.GetNodes(), "walk the dog")
+	if row == nil {
+		t.Fatalf("\"walk the dog\" text vanished after complete_todo (text should be preserved): %+v", view)
+	}
+	if done, ok := rowDone(row); !ok || !done {
+		t.Fatalf("expected done=true after complete_todo; rowDone = (%v, %v)", done, ok)
+	}
+
+	// delete_todo: the id-routing loop this task's Button(label, action, id)
+	// change exists for.
+	if _, err := svc.InvokePluginAction(ctx, &pb.InvokePluginActionRequest{
+		PluginId: pluginID,
+		ViewId:   "main",
+		Action:   "delete_todo",
+		Params:   map[string]string{"id": dogID},
+	}); err != nil {
+		t.Fatalf("InvokePluginAction(delete_todo) failed: %v", err)
+	}
+
+	view, err = svc.RenderPluginView(ctx, &pb.RenderPluginViewRequest{PluginId: pluginID, ViewId: "main"})
+	if err != nil {
+		t.Fatalf("RenderPluginView failed: %v", err)
+	}
+	if containsText(view.GetNodes(), "walk the dog") {
+		t.Fatalf("\"walk the dog\" still present after delete_todo: %+v", view)
+	}
+	if !containsText(view.GetNodes(), "buy milk") {
+		t.Fatalf("deleting \"walk the dog\" should not affect \"buy milk\": %+v", view)
+	}
+
+	// --- Persistence across a full registry restart. This restarts the
+	// plugin *subprocess* (registry.Stop + a fresh Registry against the same
+	// plugin dir/DB) — the HostService/DB from startHostServer above keeps
+	// running throughout, standing in for "Core stays up, plugin process
+	// cycles", not a full Core process restart.
 	reg.Stop()
 
 	reg2 := startRegistry(t, pluginDirRoot, hostAddr)
