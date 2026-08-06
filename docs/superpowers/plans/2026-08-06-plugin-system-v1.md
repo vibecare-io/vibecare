@@ -41,7 +41,7 @@ service PluginService {
   rpc GetManifest(google.protobuf.Empty) returns (Manifest);
   rpc Initialize(InitRequest) returns (google.protobuf.Empty);
   rpc HandleEvent(HostEvent) returns (google.protobuf.Empty);
-  rpc ExecuteAction(ExecuteActionRequest) returns (ExecuteActionResponse);
+  rpc ExecuteAction(PluginExecuteActionRequest) returns (PluginExecuteActionResponse);
   rpc RenderView(RenderViewRequest) returns (ViewDescriptor);
   rpc InvokeAction(InvokeActionRequest) returns (InvokeActionResponse);
   rpc HealthCheck(google.protobuf.Empty) returns (Health);
@@ -63,8 +63,8 @@ message Manifest {
 }
 message InitRequest { string host_address = 1; string plugin_id = 2; }
 message HostEvent { string type = 1; map<string,string> payload = 2; }
-message ExecuteActionRequest { string action = 1; map<string,string> params = 2; }
-message ExecuteActionResponse { bool ok = 1; string message = 2; }
+message PluginExecuteActionRequest { string action = 1; map<string,string> params = 2; }
+message PluginExecuteActionResponse { bool ok = 1; string message = 2; }
 message RenderViewRequest { string view_id = 1; map<string,string> params = 2; }
 message InvokeActionRequest { string view_id = 1; string action = 2; map<string,string> params = 3; }
 message InvokeActionResponse { ViewDescriptor view = 1; } // re-render, no diffing in v1
