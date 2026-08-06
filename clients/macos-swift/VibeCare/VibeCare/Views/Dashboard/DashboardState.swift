@@ -6,6 +6,7 @@ final class DashboardState: ObservableObject {
     @Published var selectedRoutineId: String?
     @Published var selectedScheduleId: String?
     @Published var selectedActionId: String?
+    @Published var selectedPluginId: String?
     @Published var selectedSettingCategory: SettingCategory?
 
     // MARK: - UI State
@@ -24,6 +25,8 @@ final class DashboardState: ObservableObject {
             return selectedScheduleId != nil
         case .actions:
             return selectedActionId != nil
+        case .plugins:
+            return selectedPluginId != nil
         case .settings:
             return selectedSettingCategory != nil
         case .none:
@@ -36,6 +39,7 @@ final class DashboardState: ObservableObject {
         selectedRoutineId = nil
         selectedScheduleId = nil
         selectedActionId = nil
+        selectedPluginId = nil
         selectedSettingCategory = nil
     }
 
@@ -61,6 +65,11 @@ final class DashboardState: ObservableObject {
 
     func selectAction(_ id: String?) {
         selectedActionId = id
+        updateColumnVisibility()
+    }
+
+    func selectPlugin(_ id: String?) {
+        selectedPluginId = id
         updateColumnVisibility()
     }
 
