@@ -9641,3 +9641,707 @@ extension VCIconService.ClientProtocol {
         )
     }
 }
+
+// MARK: - vibecare.v1.PluginHostService
+
+/// Namespace containing generated types for the "vibecare.v1.PluginHostService" service.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+public enum VCPluginHostService {
+    /// Service descriptor for the "vibecare.v1.PluginHostService" service.
+    public static let descriptor = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.PluginHostService")
+    /// Namespace for method metadata.
+    public enum Method {
+        /// Namespace for "ListPlugins" metadata.
+        public enum ListPlugins {
+            /// Request type for "ListPlugins".
+            public typealias Input = SwiftProtobuf.Google_Protobuf_Empty
+            /// Response type for "ListPlugins".
+            public typealias Output = VCListPluginsResponse
+            /// Descriptor for "ListPlugins".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.PluginHostService"),
+                method: "ListPlugins"
+            )
+        }
+        /// Namespace for "RenderPluginView" metadata.
+        public enum RenderPluginView {
+            /// Request type for "RenderPluginView".
+            public typealias Input = VCRenderPluginViewRequest
+            /// Response type for "RenderPluginView".
+            public typealias Output = Vibecare_Plugin_V1_ViewDescriptor
+            /// Descriptor for "RenderPluginView".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.PluginHostService"),
+                method: "RenderPluginView"
+            )
+        }
+        /// Namespace for "InvokePluginAction" metadata.
+        public enum InvokePluginAction {
+            /// Request type for "InvokePluginAction".
+            public typealias Input = VCInvokePluginActionRequest
+            /// Response type for "InvokePluginAction".
+            public typealias Output = Vibecare_Plugin_V1_ViewDescriptor
+            /// Descriptor for "InvokePluginAction".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.PluginHostService"),
+                method: "InvokePluginAction"
+            )
+        }
+        /// Descriptors for all methods in the "vibecare.v1.PluginHostService" service.
+        public static let descriptors: [GRPCCore.MethodDescriptor] = [
+            ListPlugins.descriptor,
+            RenderPluginView.descriptor,
+            InvokePluginAction.descriptor
+        ]
+    }
+}
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension GRPCCore.ServiceDescriptor {
+    /// Service descriptor for the "vibecare.v1.PluginHostService" service.
+    public static let vcPluginHostService = GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.v1.PluginHostService")
+}
+
+// MARK: vibecare.v1.PluginHostService (server)
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCPluginHostService {
+    /// Streaming variant of the service protocol for the "vibecare.v1.PluginHostService" service.
+    ///
+    /// This protocol is the lowest-level of the service protocols generated for this service
+    /// giving you the most flexibility over the implementation of your service. This comes at
+    /// the cost of more verbose and less strict APIs. Each RPC requires you to implement it in
+    /// terms of a request stream and response stream. Where only a single request or response
+    /// message is expected, you are responsible for enforcing this invariant is maintained.
+    ///
+    /// Where possible, prefer using the stricter, less-verbose ``ServiceProtocol``
+    /// or ``SimpleServiceProtocol`` instead.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol StreamingServiceProtocol: GRPCCore.RegistrableRPCService {
+        /// Handle the "ListPlugins" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `VCListPluginsResponse` messages.
+        func listPlugins(
+            request: GRPCCore.StreamingServerRequest<SwiftProtobuf.Google_Protobuf_Empty>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<VCListPluginsResponse>
+
+        /// Handle the "RenderPluginView" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCRenderPluginViewRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Vibecare_Plugin_V1_ViewDescriptor` messages.
+        func renderPluginView(
+            request: GRPCCore.StreamingServerRequest<VCRenderPluginViewRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Vibecare_Plugin_V1_ViewDescriptor>
+
+        /// Handle the "InvokePluginAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `VCInvokePluginActionRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `Vibecare_Plugin_V1_ViewDescriptor` messages.
+        func invokePluginAction(
+            request: GRPCCore.StreamingServerRequest<VCInvokePluginActionRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<Vibecare_Plugin_V1_ViewDescriptor>
+    }
+
+    /// Service protocol for the "vibecare.v1.PluginHostService" service.
+    ///
+    /// This protocol is higher level than ``StreamingServiceProtocol`` but lower level than
+    /// the ``SimpleServiceProtocol``, it provides access to request and response metadata and
+    /// trailing response metadata. If you don't need these then consider using
+    /// the ``SimpleServiceProtocol``. If you need fine grained control over your RPCs then
+    /// use ``StreamingServiceProtocol``.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol ServiceProtocol: VCPluginHostService.StreamingServiceProtocol {
+        /// Handle the "ListPlugins" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `SwiftProtobuf.Google_Protobuf_Empty` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `VCListPluginsResponse` message.
+        func listPlugins(
+            request: GRPCCore.ServerRequest<SwiftProtobuf.Google_Protobuf_Empty>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<VCListPluginsResponse>
+
+        /// Handle the "RenderPluginView" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCRenderPluginViewRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Vibecare_Plugin_V1_ViewDescriptor` message.
+        func renderPluginView(
+            request: GRPCCore.ServerRequest<VCRenderPluginViewRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Vibecare_Plugin_V1_ViewDescriptor>
+
+        /// Handle the "InvokePluginAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCInvokePluginActionRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `Vibecare_Plugin_V1_ViewDescriptor` message.
+        func invokePluginAction(
+            request: GRPCCore.ServerRequest<VCInvokePluginActionRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<Vibecare_Plugin_V1_ViewDescriptor>
+    }
+
+    /// Simple service protocol for the "vibecare.v1.PluginHostService" service.
+    ///
+    /// This is the highest level protocol for the service. The API is the easiest to use but
+    /// doesn't provide access to request or response metadata. If you need access to these
+    /// then use ``ServiceProtocol`` instead.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol SimpleServiceProtocol: VCPluginHostService.ServiceProtocol {
+        /// Handle the "ListPlugins" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `SwiftProtobuf.Google_Protobuf_Empty` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `VCListPluginsResponse` to respond with.
+        func listPlugins(
+            request: SwiftProtobuf.Google_Protobuf_Empty,
+            context: GRPCCore.ServerContext
+        ) async throws -> VCListPluginsResponse
+
+        /// Handle the "RenderPluginView" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `VCRenderPluginViewRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Vibecare_Plugin_V1_ViewDescriptor` to respond with.
+        func renderPluginView(
+            request: VCRenderPluginViewRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Vibecare_Plugin_V1_ViewDescriptor
+
+        /// Handle the "InvokePluginAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `VCInvokePluginActionRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `Vibecare_Plugin_V1_ViewDescriptor` to respond with.
+        func invokePluginAction(
+            request: VCInvokePluginActionRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> Vibecare_Plugin_V1_ViewDescriptor
+    }
+}
+
+// Default implementation of 'registerMethods(with:)'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCPluginHostService.StreamingServiceProtocol {
+    public func registerMethods<Transport>(with router: inout GRPCCore.RPCRouter<Transport>) where Transport: GRPCCore.ServerTransport {
+        router.registerHandler(
+            forMethod: VCPluginHostService.Method.ListPlugins.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<VCListPluginsResponse>(),
+            handler: { request, context in
+                try await self.listPlugins(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: VCPluginHostService.Method.RenderPluginView.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCRenderPluginViewRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Vibecare_Plugin_V1_ViewDescriptor>(),
+            handler: { request, context in
+                try await self.renderPluginView(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: VCPluginHostService.Method.InvokePluginAction.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCInvokePluginActionRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<Vibecare_Plugin_V1_ViewDescriptor>(),
+            handler: { request, context in
+                try await self.invokePluginAction(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+    }
+}
+
+// Default implementation of streaming methods from 'StreamingServiceProtocol'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCPluginHostService.ServiceProtocol {
+    public func listPlugins(
+        request: GRPCCore.StreamingServerRequest<SwiftProtobuf.Google_Protobuf_Empty>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<VCListPluginsResponse> {
+        let response = try await self.listPlugins(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func renderPluginView(
+        request: GRPCCore.StreamingServerRequest<VCRenderPluginViewRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Vibecare_Plugin_V1_ViewDescriptor> {
+        let response = try await self.renderPluginView(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
+    public func invokePluginAction(
+        request: GRPCCore.StreamingServerRequest<VCInvokePluginActionRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<Vibecare_Plugin_V1_ViewDescriptor> {
+        let response = try await self.invokePluginAction(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+}
+
+// Default implementation of methods from 'ServiceProtocol'.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCPluginHostService.SimpleServiceProtocol {
+    public func listPlugins(
+        request: GRPCCore.ServerRequest<SwiftProtobuf.Google_Protobuf_Empty>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<VCListPluginsResponse> {
+        return GRPCCore.ServerResponse<VCListPluginsResponse>(
+            message: try await self.listPlugins(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func renderPluginView(
+        request: GRPCCore.ServerRequest<VCRenderPluginViewRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Vibecare_Plugin_V1_ViewDescriptor> {
+        return GRPCCore.ServerResponse<Vibecare_Plugin_V1_ViewDescriptor>(
+            message: try await self.renderPluginView(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func invokePluginAction(
+        request: GRPCCore.ServerRequest<VCInvokePluginActionRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<Vibecare_Plugin_V1_ViewDescriptor> {
+        return GRPCCore.ServerResponse<Vibecare_Plugin_V1_ViewDescriptor>(
+            message: try await self.invokePluginAction(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+}
+
+// MARK: vibecare.v1.PluginHostService (client)
+
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCPluginHostService {
+    /// Generated client protocol for the "vibecare.v1.PluginHostService" service.
+    ///
+    /// You don't need to implement this protocol directly, use the generated
+    /// implementation, ``Client``.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public protocol ClientProtocol: Sendable {
+        /// Call the "ListPlugins" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `SwiftProtobuf.Google_Protobuf_Empty` message.
+        ///   - serializer: A serializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - deserializer: A deserializer for `VCListPluginsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func listPlugins<Result>(
+            request: GRPCCore.ClientRequest<SwiftProtobuf.Google_Protobuf_Empty>,
+            serializer: some GRPCCore.MessageSerializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            deserializer: some GRPCCore.MessageDeserializer<VCListPluginsResponse>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListPluginsResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "RenderPluginView" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCRenderPluginViewRequest` message.
+        ///   - serializer: A serializer for `VCRenderPluginViewRequest` messages.
+        ///   - deserializer: A deserializer for `Vibecare_Plugin_V1_ViewDescriptor` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func renderPluginView<Result>(
+            request: GRPCCore.ClientRequest<VCRenderPluginViewRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCRenderPluginViewRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Vibecare_Plugin_V1_ViewDescriptor>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Vibecare_Plugin_V1_ViewDescriptor>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "InvokePluginAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCInvokePluginActionRequest` message.
+        ///   - serializer: A serializer for `VCInvokePluginActionRequest` messages.
+        ///   - deserializer: A deserializer for `Vibecare_Plugin_V1_ViewDescriptor` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func invokePluginAction<Result>(
+            request: GRPCCore.ClientRequest<VCInvokePluginActionRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCInvokePluginActionRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Vibecare_Plugin_V1_ViewDescriptor>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Vibecare_Plugin_V1_ViewDescriptor>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+    }
+
+    /// Generated client for the "vibecare.v1.PluginHostService" service.
+    ///
+    /// The ``Client`` provides an implementation of ``ClientProtocol`` which wraps
+    /// a `GRPCCore.GRPCCClient`. The underlying `GRPCClient` provides the long-lived
+    /// means of communication with the remote peer.
+    ///
+    /// > Source IDL Documentation:
+    /// >
+    /// > Service definition
+    public struct Client<Transport>: ClientProtocol where Transport: GRPCCore.ClientTransport {
+        private let client: GRPCCore.GRPCClient<Transport>
+
+        /// Creates a new client wrapping the provided `GRPCCore.GRPCClient`.
+        ///
+        /// - Parameters:
+        ///   - client: A `GRPCCore.GRPCClient` providing a communication channel to the service.
+        public init(wrapping client: GRPCCore.GRPCClient<Transport>) {
+            self.client = client
+        }
+
+        /// Call the "ListPlugins" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `SwiftProtobuf.Google_Protobuf_Empty` message.
+        ///   - serializer: A serializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - deserializer: A deserializer for `VCListPluginsResponse` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func listPlugins<Result>(
+            request: GRPCCore.ClientRequest<SwiftProtobuf.Google_Protobuf_Empty>,
+            serializer: some GRPCCore.MessageSerializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            deserializer: some GRPCCore.MessageDeserializer<VCListPluginsResponse>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListPluginsResponse>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCPluginHostService.Method.ListPlugins.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "RenderPluginView" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCRenderPluginViewRequest` message.
+        ///   - serializer: A serializer for `VCRenderPluginViewRequest` messages.
+        ///   - deserializer: A deserializer for `Vibecare_Plugin_V1_ViewDescriptor` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func renderPluginView<Result>(
+            request: GRPCCore.ClientRequest<VCRenderPluginViewRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCRenderPluginViewRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Vibecare_Plugin_V1_ViewDescriptor>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Vibecare_Plugin_V1_ViewDescriptor>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCPluginHostService.Method.RenderPluginView.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
+        /// Call the "InvokePluginAction" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `VCInvokePluginActionRequest` message.
+        ///   - serializer: A serializer for `VCInvokePluginActionRequest` messages.
+        ///   - deserializer: A deserializer for `Vibecare_Plugin_V1_ViewDescriptor` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func invokePluginAction<Result>(
+            request: GRPCCore.ClientRequest<VCInvokePluginActionRequest>,
+            serializer: some GRPCCore.MessageSerializer<VCInvokePluginActionRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<Vibecare_Plugin_V1_ViewDescriptor>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Vibecare_Plugin_V1_ViewDescriptor>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: VCPluginHostService.Method.InvokePluginAction.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+    }
+}
+
+// Helpers providing default arguments to 'ClientProtocol' methods.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCPluginHostService.ClientProtocol {
+    /// Call the "ListPlugins" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `SwiftProtobuf.Google_Protobuf_Empty` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func listPlugins<Result>(
+        request: GRPCCore.ClientRequest<SwiftProtobuf.Google_Protobuf_Empty>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListPluginsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.listPlugins(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<VCListPluginsResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RenderPluginView" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCRenderPluginViewRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func renderPluginView<Result>(
+        request: GRPCCore.ClientRequest<VCRenderPluginViewRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Vibecare_Plugin_V1_ViewDescriptor>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.renderPluginView(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCRenderPluginViewRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Vibecare_Plugin_V1_ViewDescriptor>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "InvokePluginAction" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `VCInvokePluginActionRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func invokePluginAction<Result>(
+        request: GRPCCore.ClientRequest<VCInvokePluginActionRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Vibecare_Plugin_V1_ViewDescriptor>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.invokePluginAction(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<VCInvokePluginActionRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Vibecare_Plugin_V1_ViewDescriptor>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+}
+
+// Helpers providing sugared APIs for 'ClientProtocol' methods.
+@available(macOS 15.0, iOS 18.0, watchOS 11.0, tvOS 18.0, visionOS 2.0, *)
+extension VCPluginHostService.ClientProtocol {
+    /// Call the "ListPlugins" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func listPlugins<Result>(
+        _ message: SwiftProtobuf.Google_Protobuf_Empty,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<VCListPluginsResponse>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<SwiftProtobuf.Google_Protobuf_Empty>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.listPlugins(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "RenderPluginView" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func renderPluginView<Result>(
+        _ message: VCRenderPluginViewRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Vibecare_Plugin_V1_ViewDescriptor>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCRenderPluginViewRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.renderPluginView(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "InvokePluginAction" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func invokePluginAction<Result>(
+        _ message: VCInvokePluginActionRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Vibecare_Plugin_V1_ViewDescriptor>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<VCInvokePluginActionRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.invokePluginAction(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+}
