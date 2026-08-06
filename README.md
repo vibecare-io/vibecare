@@ -12,6 +12,8 @@ A modern wellness and routine management app with native macOS/iOS clients and a
 > Experimental: App wiki is available via
 https://deepwiki.com/vibecare-io/vibecare
 
+> 📚 Browse all docs as a website: run `just docs-setup` once, then `just docs` (http://localhost:4321).
+
 ## Project Structure
 
 ```
