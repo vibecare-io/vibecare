@@ -84,6 +84,27 @@ build:
     cd {{backend_dir}} && go build -o ../bin/vibecare-server cmd/server/main.go
     @echo "{{GREEN}}✓ Server built: bin/vibecare-server{{NC}}"
 
+# Build the backend server (release mode with optimizations)
+[group('📦 Build & Run')]
+build-release:
+    @echo "{{GREEN}}Building VibeCare server (release)...{{NC}}"
+    cd {{backend_dir}} && go build -ldflags="-s -w" -o ../bin/vibecare-server cmd/server/main.go
+    @echo "{{GREEN}}✓ Server built: bin/vibecare-server{{NC}}"
+
+# Install built binaries to user-local paths (no sudo needed)
+[group('🔧 Setup & Installation')]
+install-binaries: build-release swift-build-release
+    @echo "{{GREEN}}Installing binaries...{{NC}}"
+    mkdir -p ~/.local/bin
+    sudo cp bin/vibecare-server /usr/local/bin/vibecare-server
+    mkdir -p ~/Applications/VibeCare.app/Contents/MacOS
+    cp clients/macos-swift/VibeCare/.build/release/VibeCare ~/Applications/VibeCare.app/Contents/MacOS/VibeCare
+    @echo "{{GREEN}}✓ Binaries installed:{{NC}}"
+    @echo "  /usr/local/bin/vibecare-server"
+    @echo "  ~/Applications/VibeCare.app"
+    @echo ""
+    @echo "{{YELLOW}}Note: Add ~/.local/bin to your PATH if not already{{NC}}"
+
 # Run the server in development mode
 [group('📦 Build & Run')]
 run: proto-gen
@@ -95,6 +116,124 @@ run: proto-gen
 run-port port="50051":
     @echo "{{GREEN}}Starting VibeCare server on port {{port}}...{{NC}}"
     cd {{backend_dir}} && go run cmd/server/main.go -port={{port}}
+
+# Reload the LaunchAgent safely (bootout, wait for it to clear, bootstrap, kickstart)
+[private]
+_reload-service label="io.vibecare.server":
+    #!/usr/bin/env bash
+    set -uo pipefail
+    uid=$(id -u)
+    label="{{label}}"
+    plist="$HOME/Library/LaunchAgents/${label}.plist"
+    launchctl bootout "gui/${uid}/${label}" 2>/dev/null || true
+    # bootout is async — wait until the service actually clears before bootstrapping
+    for _ in $(seq 1 25); do
+        launchctl list "$label" >/dev/null 2>&1 || break
+        sleep 0.2
+    done
+    launchctl bootstrap "gui/${uid}" "$plist"
+    # RunAtLoad is throttled (ThrottleInterval); kickstart forces an immediate start
+    launchctl kickstart "gui/${uid}/${label}" 2>/dev/null || true
+
+# Fast dev loop: free the ports, run go server, restore background service on exit
+[group('📦 Build & Run')]
+dev:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    uid=$(id -u)
+    label="io.vibecare.server"
+    was_loaded=0
+    launchctl list "$label" >/dev/null 2>&1 && was_loaded=1
+    restore() {
+        if [ "$was_loaded" = 1 ]; then
+            echo -e "\n${GREEN}Restoring background service...${NC}"
+            just _reload-service
+        fi
+    }
+    trap restore EXIT
+    if [ "$was_loaded" = 1 ]; then
+        echo -e "${YELLOW}Stopping background service to free ports...${NC}"
+        launchctl bootout "gui/${uid}/${label}" 2>/dev/null || true
+    fi
+    echo -e "${GREEN}Starting dev server (go run)...${NC}"
+    echo -e "${YELLOW}(run 'just proto-gen' first if you changed proto/vibecare.proto)${NC}"
+    cd {{backend_dir}} && go run cmd/server/main.go --enable-tracing --log-level debug
+
+# Deploy your local build into the always-on LaunchAgent (no sudo)
+[group('📦 Build & Run')]
+deploy-local:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    uid=$(id -u)
+    label="io.vibecare.server"
+    plist="$HOME/Library/LaunchAgents/${label}.plist"
+    target="$HOME/.local/bin/vibecare-server"
+    if [ ! -f "$plist" ]; then
+        echo -e "${RED}LaunchAgent not found at $plist — is VibeCare installed?${NC}"
+        exit 1
+    fi
+    echo -e "${GREEN}Building release binary...${NC}"
+    (cd {{backend_dir}} && go build -ldflags="-s -w" -o ../bin/vibecare-server cmd/server/main.go)
+    mkdir -p "$HOME/.local/bin"
+    cp bin/vibecare-server "$target"
+    echo -e "${GREEN}✓ Installed: ${target}${NC}"
+    if grep -q "<string>${target}</string>" "$plist"; then
+        echo -e "${GREEN}Restarting service with new binary...${NC}"
+        launchctl kickstart -k "gui/${uid}/${label}"
+    else
+        echo -e "${YELLOW}Repointing LaunchAgent to local build...${NC}"
+        sed -i '' "s|<string>/usr/local/bin/vibecare-server</string>|<string>${target}</string>|" "$plist"
+        just _reload-service
+    fi
+    echo -e "${GREEN}✓ Service now running your local build${NC}"
+
+# Show which backend is configured and running
+[group('📦 Build & Run')]
+service-status:
+    #!/usr/bin/env bash
+    set -uo pipefail
+    label="io.vibecare.server"
+    plist="$HOME/Library/LaunchAgents/${label}.plist"
+    if launchctl list "$label" >/dev/null 2>&1; then
+        echo -e "${GREEN}Service: loaded${NC}"
+    else
+        echo -e "${YELLOW}Service: not loaded${NC}"
+    fi
+    if [ -f "$plist" ]; then
+        binpath=$(grep -o '<string>[^<]*vibecare-server</string>' "$plist" | head -1 | sed 's|<string>||; s|</string>||')
+        echo -e "Binary in plist: ${binpath}"
+        case "$binpath" in
+            "$HOME/.local/bin/vibecare-server") echo -e "  ${GREEN}(local build)${NC}" ;;
+            "/usr/local/bin/vibecare-server")   echo -e "  ${YELLOW}(production / PKG build)${NC}" ;;
+        esac
+    else
+        echo -e "${YELLOW}No LaunchAgent plist found${NC}"
+    fi
+    pid=$(pgrep -f 'vibecare-server' | head -1 || true)
+    [ -n "$pid" ] && echo -e "Running PID: ${pid}" || echo -e "No vibecare-server process running"
+    echo -n "Port 50051: "; lsof -i :50051 -sTCP:LISTEN -t >/dev/null 2>&1 && echo "in use" || echo "free"
+    echo -n "Port 8080:  "; lsof -i :8080 -sTCP:LISTEN -t >/dev/null 2>&1 && echo "in use" || echo "free"
+
+# Stop the background LaunchAgent (frees ports)
+[group('📦 Build & Run')]
+service-stop:
+    @launchctl bootout "gui/$(id -u)/io.vibecare.server" 2>/dev/null && echo "{{GREEN}}✓ Service stopped{{NC}}" || echo "{{YELLOW}}Service was not running{{NC}}"
+
+# Start (or restart) the background LaunchAgent
+[group('📦 Build & Run')]
+service-start: _reload-service
+    @echo "{{GREEN}}✓ Service started{{NC}}"
+
+# Revert the LaunchAgent to the shipped /usr/local/bin production binary
+[group('📦 Build & Run')]
+service-restore-prod:
+    #!/usr/bin/env bash
+    set -euo pipefail
+    label="io.vibecare.server"
+    plist="$HOME/Library/LaunchAgents/${label}.plist"
+    sed -i '' "s|<string>$HOME/.local/bin/vibecare-server</string>|<string>/usr/local/bin/vibecare-server</string>|" "$plist"
+    just _reload-service
+    echo -e "${GREEN}✓ Service restored to production build (/usr/local/bin/vibecare-server)${NC}"
 
 # Run the server with MCP enabled
 [group('🤖 MCP Server')]
@@ -119,6 +258,133 @@ build-mcp-standalone:
     cd {{backend_dir}} && go build -o ../bin/vibecare-mcp-server cmd/mcp-server/main.go
     @echo "{{GREEN}}✓ Standalone MCP server built: bin/vibecare-mcp-server{{NC}}"
     @echo "{{YELLOW}}Usage: ./bin/vibecare-mcp-server --grpc-addr=localhost:50051 --profile-id=YOUR_PROFILE_ID{{NC}}"
+
+# Picks a profile, builds vibecare-mcp-server, bakes it into the io.vibecare.mcp service
+# Deploy your local MCP build into an always-on LaunchAgent (HTTP mode, no sudo)
+[group('🤖 MCP Server')]
+deploy-local-with-mcp profile_id="" port="8081":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    label="io.vibecare.mcp"
+    plist="$HOME/Library/LaunchAgents/${label}.plist"
+    target="$HOME/.local/bin/vibecare-mcp-server"
+    db="$HOME/.vibecare/vibecare.db"
+    port="{{port}}"
+
+    # 1. Guard: database must exist (profiles live here)
+    if [ ! -f "$db" ]; then
+        echo -e "${RED}Database not found at $db — run 'just migrate' first.${NC}"
+        exit 1
+    fi
+
+    # 2. Resolve profile ID (arg overrides the interactive picker)
+    profile_id="{{profile_id}}"
+    if [ -z "$profile_id" ]; then
+        profiles=$(sqlite3 "$db" "SELECT id || '|' || COALESCE(name,'') || '|' || COALESCE(email,'') FROM profiles;")
+        if [ -z "$profiles" ]; then
+            echo -e "${RED}No profiles found.${NC}"
+            echo -e "${YELLOW}Create one first: just grpc-create-profile 'Your Name' 'your@email.com'${NC}"
+            exit 1
+        fi
+        echo -e "${YELLOW}Available profiles:${NC}"
+        IFS=$'\n'
+        count=0
+        declare -a profile_ids
+        for p in $profiles; do
+            count=$((count + 1))
+            pid=$(echo "$p" | cut -d'|' -f1)
+            name=$(echo "$p" | cut -d'|' -f2)
+            email=$(echo "$p" | cut -d'|' -f3)
+            profile_ids[$count]="$pid"
+            echo "  $count) $name ($email)"
+        done
+        unset IFS
+        echo ""
+        echo -n "Select profile (1-$count): "
+        read selection
+        if ! [[ "$selection" =~ ^[0-9]+$ ]] || [ "$selection" -lt 1 ] || [ "$selection" -gt "$count" ]; then
+            echo -e "${RED}Invalid selection${NC}"
+            exit 1
+        fi
+        profile_id="${profile_ids[$selection]}"
+    fi
+    echo -e "${GREEN}Profile ID: ${profile_id}${NC}"
+
+    # 3. Warn if the gRPC backend isn't listening (the MCP server connects to it)
+    if ! lsof -i :50051 -sTCP:LISTEN -t >/dev/null 2>&1; then
+        echo -e "${YELLOW}⚠ gRPC backend not listening on :50051.${NC}"
+        echo -e "${YELLOW}  Start it with 'just deploy-local' or 'just service-start' — the MCP service keeps retrying until it's up.${NC}"
+    fi
+
+    # 4. Build the standalone MCP binary and install to ~/.local/bin
+    echo -e "${GREEN}Building standalone MCP server...${NC}"
+    (cd {{backend_dir}} && go build -ldflags="-s -w" -o ../bin/vibecare-mcp-server cmd/mcp-server/main.go)
+    mkdir -p "$HOME/.local/bin"
+    cp bin/vibecare-mcp-server "$target"
+    echo -e "${GREEN}✓ Installed: ${target}${NC}"
+
+    # 5. Generate the LaunchAgent plist (regenerated each run — profile/port may change)
+    mkdir -p "$HOME/Library/LaunchAgents" "$HOME/.vibecare/logs"
+    cat > "$plist" <<PLIST
+    <?xml version="1.0" encoding="UTF-8"?>
+    <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+    <plist version="1.0">
+    <dict>
+        <key>Label</key>
+        <string>${label}</string>
+        <key>ProgramArguments</key>
+        <array>
+            <string>${target}</string>
+            <string>--http</string>
+            <string>--profile-id=${profile_id}</string>
+            <string>--grpc-addr</string>
+            <string>localhost:50051</string>
+            <string>--port</string>
+            <string>${port}</string>
+        </array>
+        <key>RunAtLoad</key>
+        <true/>
+        <key>KeepAlive</key>
+        <dict>
+            <key>SuccessfulExit</key>
+            <false/>
+        </dict>
+        <key>StandardOutPath</key>
+        <string>${HOME}/.vibecare/logs/mcp.log</string>
+        <key>StandardErrorPath</key>
+        <string>${HOME}/.vibecare/logs/mcp-error.log</string>
+        <key>EnvironmentVariables</key>
+        <dict>
+            <key>PATH</key>
+            <string>/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string>
+        </dict>
+        <key>ProcessType</key>
+        <string>Background</string>
+        <key>ThrottleInterval</key>
+        <integer>30</integer>
+    </dict>
+    </plist>
+    PLIST
+    echo -e "${GREEN}✓ Wrote LaunchAgent: ${plist}${NC}"
+
+    # 6. (Re)load the always-on service with the new binary + profile
+    echo -e "${GREEN}Starting always-on MCP service...${NC}"
+    just _reload-service "$label"
+    echo -e "${GREEN}✓ MCP service running: http://localhost:${port}/mcp${NC}"
+
+    # 7. Print the Claude Desktop config for copy/paste
+    npx_path=$(command -v npx 2>/dev/null || echo "npx")
+    echo ""
+    echo -e "${YELLOW}Claude Desktop config (~/Library/Application Support/Claude/claude_desktop_config.json):${NC}"
+    echo "{"
+    echo "  \"mcpServers\": {"
+    echo "    \"vibecare\": {"
+    echo "      \"command\": \"${npx_path}\","
+    echo "      \"args\": [\"-y\", \"mcp-remote\", \"http://localhost:${port}/mcp\"]"
+    echo "    }"
+    echo "  }"
+    echo "}"
+    echo -e "${YELLOW}(requires 'npm install -g mcp-remote'; restart Claude Desktop after saving)${NC}"
 
 # Run standalone MCP server (requires running gRPC server)
 [group('🤖 MCP Server')]
@@ -227,7 +493,7 @@ mcp-configure:
     fi
 
     # Get profiles
-    profiles=$(sqlite3 {{data_dir}}/vibecare.db "SELECT id || '|' || name || '|' || email FROM profiles;")
+    profiles=$(sqlite3 {{data_dir}}/vibecare.db "SELECT id || '|' || COALESCE(name,'') || '|' || COALESCE(email,'') FROM profiles;")
     if [ -z "$profiles" ]; then
         printf "\033[0;31mNo profiles found.\033[0m\n"
         printf "\033[0;33mCreate a profile first: just grpc-create-profile 'Your Name' 'your@email.com'\033[0m\n"
@@ -526,6 +792,12 @@ docker-run:
 swift-build:
     @echo "{{GREEN}}Building Swift client...{{NC}}"
     cd clients/macos-swift/VibeCare && swift build
+
+[group('🍎 macOS / Swift')]
+swift-build-release:
+    @echo "{{GREEN}}Building Swift client (release)...{{NC}}"
+    cd clients/macos-swift/VibeCare && swift build -c release
+    @echo "{{GREEN}}✓ Swift client built: clients/macos-swift/VibeCare/.build/release/VibeCare{{NC}}"
 
 [group('🍎 macOS / Swift')]
 swift-run:
