@@ -867,3 +867,28 @@ release version ref="release":
     @echo "{{YELLOW}}Ref: {{ref}}{{NC}}"
     gh workflow run "Release 🎉" --ref {{ref}} --field version={{version}}
     @echo "{{GREEN}}✓ Workflow triggered. Check status at: https://github.com/$$(gh repo view --json nameWithOwner -q .nameWithOwner)/actions{{NC}}"
+
+# Install docs-site deps and ensure pandoc is available
+[group('📚 Documentation')]
+docs-setup:
+    @echo "{{GREEN}}Installing docs-site dependencies...{{NC}}"
+    cd docs-site && bun install
+    @command -v pandoc >/dev/null 2>&1 || (echo "{{YELLOW}}Installing pandoc via brew...{{NC}}" && brew install pandoc)
+    @echo "{{GREEN}}✓ Docs tooling ready{{NC}}"
+
+# Regenerate site content from docs/ (internal helper)
+[group('📚 Documentation')]
+docs-sync:
+    cd docs-site && bun run sync
+
+# Serve the docs site with live reload (http://localhost:4321)
+[group('📚 Documentation')]
+docs: docs-sync
+    @echo "{{GREEN}}Starting docs dev server...{{NC}}"
+    cd docs-site && bun run dev
+
+# Build the static docs site into docs-site/dist
+[group('📚 Documentation')]
+docs-build: docs-sync
+    @echo "{{GREEN}}Building static docs site...{{NC}}"
+    cd docs-site && bun run build
