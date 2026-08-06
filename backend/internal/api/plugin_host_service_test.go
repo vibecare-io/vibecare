@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/vibecare-io/vibecare/backend/internal/plugins"
@@ -200,6 +201,31 @@ func TestRenderPluginViewUnknownPluginReturnsGRPCError(t *testing.T) {
 	}
 }
 
+func TestRenderPluginViewClientErrorReturnsInternal(t *testing.T) {
+	sentinel := errors.New("boom: plugin unreachable")
+	fakeClient := &fakePluginServiceClient{renderViewErr: sentinel}
+	host := &fakePluginHost{
+		list:    []plugins.PluginInfo{{ID: "com.vibecare.foo", Status: "ready"}},
+		clients: map[string]pb.PluginServiceClient{"com.vibecare.foo": fakeClient},
+	}
+	svc := newTestPluginHostService(host)
+
+	_, err := svc.RenderPluginView(context.Background(), &pb.RenderPluginViewRequest{
+		PluginId: "com.vibecare.foo",
+		ViewId:   "main",
+	})
+	if err == nil {
+		t.Fatalf("expected an error when the plugin client's RenderView fails, got nil")
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("expected a gRPC status error, got %v (%T)", err, err)
+	}
+	if st.Code() != codes.Internal {
+		t.Errorf("expected codes.Internal, got %v", st.Code())
+	}
+}
+
 func TestInvokePluginActionUnknownPluginReturnsGRPCError(t *testing.T) {
 	host := &fakePluginHost{}
 	svc := newTestPluginHostService(host)
@@ -218,5 +244,31 @@ func TestInvokePluginActionUnknownPluginReturnsGRPCError(t *testing.T) {
 	}
 	if st.Code() != codes.NotFound {
 		t.Errorf("expected codes.NotFound, got %v", st.Code())
+	}
+}
+
+func TestInvokePluginActionClientErrorReturnsInternal(t *testing.T) {
+	sentinel := errors.New("boom: plugin unreachable")
+	fakeClient := &fakePluginServiceClient{invokeActionErr: sentinel}
+	host := &fakePluginHost{
+		list:    []plugins.PluginInfo{{ID: "com.vibecare.foo", Status: "ready"}},
+		clients: map[string]pb.PluginServiceClient{"com.vibecare.foo": fakeClient},
+	}
+	svc := newTestPluginHostService(host)
+
+	_, err := svc.InvokePluginAction(context.Background(), &pb.InvokePluginActionRequest{
+		PluginId: "com.vibecare.foo",
+		ViewId:   "main",
+		Action:   "noop",
+	})
+	if err == nil {
+		t.Fatalf("expected an error when the plugin client's InvokeAction fails, got nil")
+	}
+	st, ok := status.FromError(err)
+	if !ok {
+		t.Fatalf("expected a gRPC status error, got %v (%T)", err, err)
+	}
+	if st.Code() != codes.Internal {
+		t.Errorf("expected codes.Internal, got %v", st.Code())
 	}
 }
