@@ -111,7 +111,7 @@ generate_backend() {
         --go_opt=paths=source_relative \
         --go-grpc_out="$output_dir" \
         --go-grpc_opt=paths=source_relative \
-        "$PROTO_DIR/vibecare.proto"
+        "$PROTO_DIR"/*.proto
 
     echo -e "${GREEN}✓ Go backend protobuf code generated successfully${NC}"
 }
@@ -187,7 +187,7 @@ generate_macos() {
         --proto_path="$PROTO_DIR" \
         --swift_opt=Visibility=Public \
         --swift_out="$output_dir" \
-        "$PROTO_DIR/vibecare.proto"
+        "$PROTO_DIR"/*.proto
 
     # Generate gRPC service stubs
     echo -e "${GREEN}Generating Swift gRPC service stubs...${NC}"
@@ -196,7 +196,7 @@ generate_macos() {
         --plugin=protoc-gen-grpc-swift="$grpc_plugin" \
         --grpc-swift_opt=Visibility=Public \
         --grpc-swift_out="$output_dir" \
-        "$PROTO_DIR/vibecare.proto"
+        "$PROTO_DIR"/*.proto
 
     # List generated files
     echo -e "${GREEN}Generated files:${NC}"
