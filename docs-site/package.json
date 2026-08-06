@@ -1,0 +1,17 @@
+{
+  "name": "vibecare-docs",
+  "type": "module",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "sync": "node scripts/sync-docs.mjs",
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview"
+  },
+  "dependencies": {
+    "@astrojs/starlight": "^0.30.0",
+    "astro": "^5.1.0",
+    "sharp": "^0.33.5"
+  }
+}

@@ -1,0 +1,9 @@
+# build output
+dist/
+.astro/
+
+# generated docs content (synced from ../docs)
+src/content/docs/
+
+# deps
+node_modules/
