@@ -26,10 +26,17 @@ test('deriveTitle falls back to humanized filename', () => {
   assert.equal(deriveTitle('no heading here', 'MCP_SETUP.md'), 'MCP SETUP');
 });
 
-test('ensureTitle injects frontmatter when missing', () => {
+test('ensureTitle injects frontmatter and strips the duplicated H1', () => {
   const out = ensureTitle('# Hello\n\nbody', 'hello.md');
   assert.match(out, /^---\ntitle: "Hello"\n---\n/);
-  assert.match(out, /# Hello/);
+  assert.doesNotMatch(out, /# Hello/);
+  assert.match(out, /body/);
+});
+
+test('ensureTitle keeps body when title comes from filename fallback', () => {
+  const out = ensureTitle('no heading here', 'MCP_SETUP.md');
+  assert.match(out, /title: "MCP SETUP"/);
+  assert.match(out, /no heading here/);
 });
 
 test('ensureTitle leaves existing title frontmatter untouched', () => {

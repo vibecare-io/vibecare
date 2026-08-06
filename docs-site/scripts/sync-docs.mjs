@@ -46,10 +46,35 @@ function hasFrontmatterTitle(content) {
   return /\n\s*title\s*:/.test(fm);
 }
 
+// Remove the first `# H1` (outside code fences) when it equals the page title,
+// so Starlight's rendered frontmatter title isn't duplicated by an in-body H1.
+function stripFirstH1(content, title) {
+  const lines = content.split(/\r?\n/);
+  let inFence = false;
+  for (let i = 0; i < lines.length; i++) {
+    if (/^\s*(```|~~~)/.test(lines[i])) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const h = lines[i].match(/^\s*#\s+(.+?)\s*$/);
+    if (h) {
+      if (h[1].trim() === title) {
+        lines.splice(i, 1);
+        if (lines[i] !== undefined && lines[i].trim() === '') lines.splice(i, 1);
+      }
+      break; // only the first heading is a candidate
+    }
+  }
+  return lines.join('\n');
+}
+
 export function ensureTitle(content, filename) {
   if (hasFrontmatterTitle(content)) return content;
-  const title = deriveTitle(content, filename).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
-  return `---\ntitle: "${title}"\n---\n\n${content}`;
+  const title = deriveTitle(content, filename);
+  const esc = title.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  const body = stripFirstH1(content, title);
+  return `---\ntitle: "${esc}"\n---\n\n${body}`;
 }
 
 export function orgFilesExist(files) {
