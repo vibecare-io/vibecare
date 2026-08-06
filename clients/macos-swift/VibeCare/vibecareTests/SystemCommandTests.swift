@@ -12,6 +12,16 @@ final class MockCommandRunner: CommandRunner {
     }
 }
 
+// A recording lock mock so tests never actually lock the screen.
+final class MockScreenLocker: ScreenLocker {
+    private(set) var lockCount = 0
+    var errorToThrow: Error?
+    func lock() throws {
+        lockCount += 1
+        if let e = errorToThrow { throw e }
+    }
+}
+
 @Test func mockRunnerRecordsCalls() throws {
     let runner = MockCommandRunner()
     try runner.run(executable: "/usr/bin/pmset", arguments: ["sleepnow"])
@@ -41,66 +51,84 @@ final class MockCommandRunner: CommandRunner {
     #expect(SystemCommandRequest.parse(from: ["command": "frobnicate"]) == nil)
 }
 
-private let cgSession = "/System/Library/CoreServices/Menu Extras/User.menu/Contents/Resources/CGSession"
+@MainActor @Test func lockCommandUsesLockerNotSubprocess() {
+    let runner = MockCommandRunner()
+    let locker = MockScreenLocker()
+    SystemCommandHandler(runner: runner, screenLocker: locker).perform(.lock)
+    #expect(locker.lockCount == 1)
+    #expect(runner.calls.isEmpty)   // login.framework lock is in-process, no subprocess
+}
 
-@MainActor @Test func lockInvocationIsCGSessionSuspend() {
-    let inv = SystemCommandHandler.invocations(for: .lock)
-    #expect(inv.count == 1)
-    #expect(inv[0].executable == cgSession)
-    #expect(inv[0].arguments == ["-suspend"])
+@MainActor @Test func lockFallsBackToDisplaySleepWhenLockerUnavailable() {
+    let runner = MockCommandRunner()
+    let locker = MockScreenLocker()
+    locker.errorToThrow = LoginFrameworkLocker.LockError.symbolUnavailable
+    SystemCommandHandler(runner: runner, screenLocker: locker).perform(.lock)
+    #expect(locker.lockCount == 1)
+    #expect(runner.calls.map { $0.arguments } == [["displaysleepnow"]])
 }
 
 @MainActor @Test func sleepLocksThenSleeps() {
-    let inv = SystemCommandHandler.invocations(for: .sleep)
-    #expect(inv.count == 2)
-    #expect(inv[0].executable == cgSession)          // lock first
-    #expect(inv[0].arguments == ["-suspend"])
-    #expect(inv[1].executable == "/usr/bin/pmset")   // then sleep
-    #expect(inv[1].arguments == ["sleepnow"])
-}
-
-@MainActor @Test func unimplementedCommandsHaveNoInvocations() {
-    #expect(SystemCommandHandler.invocations(for: .shutdown).isEmpty)
-    #expect(SystemCommandHandler.invocations(for: .restart).isEmpty)
-    #expect(SystemCommandHandler.invocations(for: .logout).isEmpty)
-    #expect(SystemCommandHandler.invocations(for: .displaySleep).isEmpty)
-}
-
-@MainActor @Test func executeSleepImmediatelyRunsLockThenSleep() {
     let runner = MockCommandRunner()
-    let handler = SystemCommandHandler(runner: runner)
+    let locker = MockScreenLocker()
+    SystemCommandHandler(runner: runner, screenLocker: locker).perform(.sleep)
+    #expect(locker.lockCount == 1)                              // lock first...
+    #expect(runner.calls.map { $0.arguments } == [["sleepnow"]]) // ...then sleep
+}
+
+// Regression for the CGSession bug: a failed lock must NOT prevent the sleep.
+@MainActor @Test func sleepStillSleepsWhenEveryLockMechanismFails() {
+    let runner = MockCommandRunner()
+    runner.errorToThrow = CommandError.launchFailed("boom")   // displaysleepnow AND sleepnow throw
+    let locker = MockScreenLocker()
+    locker.errorToThrow = LoginFrameworkLocker.LockError.symbolUnavailable
+    SystemCommandHandler(runner: runner, screenLocker: locker).perform(.sleep)
+    // locker fails -> fallback displaysleepnow fails -> sleepnow is STILL attempted
+    #expect(locker.lockCount == 1)
+    #expect(runner.calls.map { $0.arguments } == [["displaysleepnow"], ["sleepnow"]])
+}
+
+@MainActor @Test func unimplementedCommandsRunNothing() {
+    for type in [SystemCommandType.shutdown, .restart, .logout, .displaySleep] {
+        let runner = MockCommandRunner()
+        let locker = MockScreenLocker()
+        SystemCommandHandler(runner: runner, screenLocker: locker).perform(type)
+        #expect(runner.calls.isEmpty)
+        #expect(locker.lockCount == 0)
+    }
+}
+
+@MainActor @Test func executeSleepImmediatelyLocksThenSleeps() {
+    let runner = MockCommandRunner()
+    let locker = MockScreenLocker()
+    let handler = SystemCommandHandler(runner: runner, screenLocker: locker)
     let action = Action(profileId: "p", type: .systemCommand, name: "Sleep",
                         parameters: ["command": "sleep", "countdown_seconds": "0"])
     handler.executeAction(action)
-    #expect(runner.calls.map { $0.arguments } == [["-suspend"], ["sleepnow"]])
+    #expect(locker.lockCount == 1)
+    #expect(runner.calls.map { $0.arguments } == [["sleepnow"]])
 }
 
 @MainActor @Test func executeUnknownCommandRunsNothing() {
     let runner = MockCommandRunner()
-    let handler = SystemCommandHandler(runner: runner)
+    let locker = MockScreenLocker()
+    let handler = SystemCommandHandler(runner: runner, screenLocker: locker)
     let action = Action(profileId: "p", type: .systemCommand, name: "Bad",
                         parameters: ["command": "frobnicate"])
     handler.executeAction(action)
     #expect(runner.calls.isEmpty)
+    #expect(locker.lockCount == 0)
 }
 
 @MainActor @Test func executeWrongActionTypeRunsNothing() {
     let runner = MockCommandRunner()
-    let handler = SystemCommandHandler(runner: runner)
+    let locker = MockScreenLocker()
+    let handler = SystemCommandHandler(runner: runner, screenLocker: locker)
     let action = Action(profileId: "p", type: .notification, name: "N",
                         parameters: ["command": "sleep"])
     handler.executeAction(action)
     #expect(runner.calls.isEmpty)
-}
-
-@MainActor @Test func runInvocationsStopsOnFirstError() {
-    let runner = MockCommandRunner()
-    runner.errorToThrow = CommandError.launchFailed("boom")
-    let handler = SystemCommandHandler(runner: runner)
-    handler.runInvocations(for: .sleep)
-    // sleep = [lock, pmset]; the lock invocation throws, so pmset is never attempted
-    #expect(runner.calls.count == 1)
-    #expect(runner.calls.first?.arguments == ["-suspend"])
+    #expect(locker.lockCount == 0)
 }
 
 @MainActor @Test func countdownCompletesAfterTicks() {
@@ -137,23 +165,27 @@ private let cgSession = "/System/Library/CoreServices/Menu Extras/User.menu/Cont
 
 @MainActor @Test func countdownZeroRunsImmediatelyNoOverlay() {
     let runner = MockCommandRunner()
+    let locker = MockScreenLocker()
     var presented = false
-    let handler = SystemCommandHandler(runner: runner,
+    let handler = SystemCommandHandler(runner: runner, screenLocker: locker,
         presentCountdown: { _, _, _, _ in presented = true })
     handler.executeAction(Action(profileId: "p", type: .systemCommand, name: "S",
         parameters: ["command": "sleep", "countdown_seconds": "0"]))
     #expect(presented == false)
-    #expect(runner.calls.count == 2)   // ran immediately
+    #expect(locker.lockCount == 1)              // ran immediately: lock...
+    #expect(runner.calls.map { $0.arguments } == [["sleepnow"]])  // ...then sleep
 }
 
 @MainActor @Test func countdownPositivePresentsOverlayAndDefersRun() {
     let runner = MockCommandRunner()
+    let locker = MockScreenLocker()
     var captured: (() -> Void)?
-    let handler = SystemCommandHandler(runner: runner,
+    let handler = SystemCommandHandler(runner: runner, screenLocker: locker,
         presentCountdown: { _, _, _, onComplete in captured = onComplete })
     handler.executeAction(Action(profileId: "p", type: .systemCommand, name: "S",
         parameters: ["command": "sleep", "countdown_seconds": "30"]))
-    #expect(runner.calls.isEmpty)      // deferred until countdown completes
-    captured?()                        // simulate countdown finishing
-    #expect(runner.calls.map { $0.arguments } == [["-suspend"], ["sleepnow"]])
+    #expect(runner.calls.isEmpty && locker.lockCount == 0)  // deferred until countdown completes
+    captured?()                                             // simulate countdown finishing
+    #expect(locker.lockCount == 1)
+    #expect(runner.calls.map { $0.arguments } == [["sleepnow"]])
 }

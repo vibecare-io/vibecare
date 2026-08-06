@@ -16,8 +16,8 @@ implements against.
 
 | command | macOS (implemented) | Linux (future) | Windows (future) |
 |---|---|---|---|
-| lock | `CGSession -suspend` | `loginctl lock-session` | `rundll32 user32.dll,LockWorkStation` |
-| sleep | lock, then `pmset sleepnow` | `systemctl suspend` | `SetSuspendState` |
+| lock | `SACLockScreenImmediate()` (login.framework), fallback `pmset displaysleepnow` | `loginctl lock-session` | `rundll32 user32.dll,LockWorkStation` |
+| sleep | best-effort lock, then `pmset sleepnow` | `systemctl suspend` | `SetSuspendState` |
 | display_sleep | `pmset displaysleepnow` | `xset dpms force off` | `SendMessage … SC_MONITORPOWER` |
 | logout | `osascript … log out` | `loginctl terminate-session` | `shutdown /l` |
 | shutdown | `osascript … shut down` | `systemctl poweroff` | `shutdown /s` |
