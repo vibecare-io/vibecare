@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -70,9 +71,19 @@ type fakeLauncher struct {
 	addrs map[string]string // plugin id -> addr
 	stops map[string]func() // plugin id -> stop func
 	fail  map[string]bool   // plugin id -> force launch failure
+
+	mu    sync.Mutex
+	calls map[string]int // plugin id -> number of times launch() was called
 }
 
 func (f *fakeLauncher) launch(_ context.Context, _ string, m FileManifest, _ string) (string, func(), error) {
+	f.mu.Lock()
+	if f.calls == nil {
+		f.calls = make(map[string]int)
+	}
+	f.calls[m.ID]++
+	f.mu.Unlock()
+
 	if f.fail[m.ID] {
 		return "", nil, fmt.Errorf("forced launch failure for %s", m.ID)
 	}
@@ -81,6 +92,14 @@ func (f *fakeLauncher) launch(_ context.Context, _ string, m FileManifest, _ str
 		return "", nil, fmt.Errorf("no stub registered for %s", m.ID)
 	}
 	return addr, f.stops[m.ID], nil
+}
+
+// callCount returns how many times launch() was invoked for a given plugin
+// id — used to assert a rejected duplicate was never launched.
+func (f *fakeLauncher) callCount(id string) int {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	return f.calls[id]
 }
 
 // writeManifest writes a manifest.yaml for a plugin under dir, creating dir
@@ -233,6 +252,52 @@ func TestRegistryStartSkipsPluginWhenLaunchFails(t *testing.T) {
 	list := reg.List()
 	if len(list) != 1 || list[0].ID != "com.vibecare.todos" {
 		t.Fatalf("expected only the good plugin loaded, got %+v", list)
+	}
+}
+
+// TestRegistryStartSkipsDuplicatePluginID verifies that when two manifests
+// (in different directories) declare the same plugin id, only the first one
+// discovered is loaded. The duplicate must be rejected BEFORE it is ever
+// launched — not launched-then-dropped — so nothing leaks a subprocess or
+// connection that Stop() would otherwise never find (since the second
+// loadOne would have overwritten the first in the id-keyed map).
+func TestRegistryStartSkipsDuplicatePluginID(t *testing.T) {
+	root := t.TempDir()
+
+	// os.ReadDir returns entries in sorted order, so "dup-a" is discovered
+	// (and loaded) before "dup-b".
+	dirA := filepath.Join(root, "dup-a")
+	writeManifest(t, dirA, "com.vibecare.dup", "Dup A", "./dup")
+
+	dirB := filepath.Join(root, "dup-b")
+	writeManifest(t, dirB, "com.vibecare.dup", "Dup B", "./dup")
+
+	addr, stop := startStubPlugin(t, "com.vibecare.dup")
+	t.Cleanup(stop)
+
+	fl := &fakeLauncher{
+		addrs: map[string]string{"com.vibecare.dup": addr},
+		stops: map[string]func(){"com.vibecare.dup": func() {}},
+	}
+
+	reg := newRegistryWithLauncher(root, nil, "127.0.0.1:50051", zap.NewNop(), fl)
+	t.Cleanup(reg.Stop)
+
+	if err := reg.Start(context.Background()); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	list := reg.List()
+	if len(list) != 1 {
+		t.Fatalf("List() = %+v, want exactly 1 plugin (duplicate id skipped)", list)
+	}
+	if list[0].Name != "Dup A" {
+		t.Errorf("expected the first-discovered manifest (Dup A) to win, got %+v", list[0])
+	}
+
+	if got := fl.callCount("com.vibecare.dup"); got != 1 {
+		t.Errorf("launcher.launch called %d times for duplicate id, want exactly 1 — "+
+			"the duplicate must be rejected before ever being launched", got)
 	}
 }
 
