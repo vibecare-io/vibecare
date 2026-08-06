@@ -45,7 +45,10 @@ struct ScheduleActionCard: Identifiable, Equatable {
                 print("DEBUG [ScheduleActionCard.init]: Final prefs: title=\(notificationPreferences.title ?? "nil"), position=\(notificationPreferences.position)")
             }
         } else {
-            self.parameters = parameters
+            // Seed missing values from each parameter's defaultValue (e.g. system
+            // command's "sleep") so dropdowns never render blank/undefined.
+            // Existing values (editing an existing action) are preserved.
+            self.parameters = type.seedingDefaults(into: parameters)
             // notificationPreferences already has .default value
         }
     }

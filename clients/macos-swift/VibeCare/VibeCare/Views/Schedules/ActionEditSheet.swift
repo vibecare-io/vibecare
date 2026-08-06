@@ -35,7 +35,7 @@ struct ActionEditSheet: View {
         self._actionType = State(initialValue: actionCard.type)
         self._viewModel = State(initialValue: NotificationActionViewModel(
             preferences: actionCard.notificationPreferences,
-            parameters: actionCard.parameters
+            parameters: actionCard.type.seedingDefaults(into: actionCard.parameters)
         ))
     }
 
@@ -70,10 +70,10 @@ struct ActionEditSheet: View {
                         }
                         .pickerStyle(.menu)
                         .onChange(of: actionType) { _, newType in
-                            // Reset ViewModel when type changes
+                            // Reset ViewModel and seed defaults for the new type
                             viewModel = NotificationActionViewModel(
                                 preferences: .default,
-                                parameters: [:]
+                                parameters: newType.seedingDefaults(into: [:])
                             )
                         }
                     }
