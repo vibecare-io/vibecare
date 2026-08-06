@@ -50,6 +50,13 @@ func (f *fakeHostServer) QueryData(_ context.Context, req *pb.QueryRequest) (*pb
 	return &pb.QueryResponse{Records: records}, nil
 }
 
+func (f *fakeHostServer) DeleteData(_ context.Context, req *pb.DeleteRequest) (*emptypb.Empty, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	delete(f.store[req.GetCollection()], req.GetKey())
+	return &emptypb.Empty{}, nil
+}
+
 func (f *fakeHostServer) get(collection, key string) (string, bool) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
@@ -187,6 +194,50 @@ func TestPluginServesManifestRenderAndAction(t *testing.T) {
 	}
 	if _, ok := host.get("items", "2"); !ok {
 		t.Fatal("expected ExecuteAction's OnAction call to reach the fake host under collection=items key=2")
+	}
+}
+
+// TestHostClientDeleteRemovesRecord verifies ctx.Host.Delete reaches the
+// host's DeleteData RPC and removes a previously stored record.
+func TestHostClientDeleteRemovesRecord(t *testing.T) {
+	hostAddr, host, stopHost := startFakeHost(t)
+	t.Cleanup(stopHost)
+
+	p := newPlugin(fileManifest{ID: "com.vibecare.todos"})
+	p.OnAction("add", func(ctx Ctx, params map[string]string) error {
+		return ctx.Host.Store("items", params["id"], map[string]string{"name": params["name"]})
+	})
+	p.OnAction("remove", func(ctx Ctx, params map[string]string) error {
+		return ctx.Host.Delete("items", params["id"])
+	})
+	p.OnRender("main", func(ctx Ctx) View { return List() })
+
+	addr, stop, err := p.start(hostAddr)
+	if err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	t.Cleanup(stop)
+
+	client := dialPlugin(t, addr)
+	ctx := context.Background()
+
+	if _, err := client.InvokeAction(ctx, &pb.InvokeActionRequest{
+		ViewId: "main", Action: "add", Params: map[string]string{"id": "1", "name": "milk"},
+	}); err != nil {
+		t.Fatalf("InvokeAction(add) failed: %v", err)
+	}
+	if _, ok := host.get("items", "1"); !ok {
+		t.Fatal("expected item to be stored before delete")
+	}
+
+	if _, err := client.InvokeAction(ctx, &pb.InvokeActionRequest{
+		ViewId: "main", Action: "remove", Params: map[string]string{"id": "1"},
+	}); err != nil {
+		t.Fatalf("InvokeAction(remove) failed: %v", err)
+	}
+
+	if _, ok := host.get("items", "1"); ok {
+		t.Fatal("expected ctx.Host.Delete to remove the item from the fake host")
 	}
 }
 

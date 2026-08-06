@@ -325,6 +325,16 @@ func (h *HostClient) Query(collection string) ([]Record, error) {
 	return records, nil
 }
 
+// Delete removes the value stored under (collection, key) in this plugin's
+// namespaced storage. Deleting a key that doesn't exist is a no-op.
+func (h *HostClient) Delete(collection, key string) error {
+	_, err := h.client.DeleteData(context.Background(), &pb.DeleteRequest{
+		Collection: collection,
+		Key:        key,
+	})
+	return err
+}
+
 // Notify surfaces a plugin-originated notification to the user.
 func (h *HostClient) Notify(title, message string) error {
 	_, err := h.client.Notify(context.Background(), &pb.NotifyRequest{Title: title, Message: message})
@@ -340,10 +350,6 @@ func (h *HostClient) Emit(eventType string, payload map[string]string) error {
 // Record is one stored value as returned by HostClient.Query: the raw
 // value_json alongside its key, so callers can pick their own unmarshal
 // target (see AsMap for a generic one).
-//
-// NOTE: a Delete method is intentionally NOT added here — it's added to
-// HostClient in Task 7 alongside the reference todos plugin, which is the
-// first consumer that needs it.
 type Record struct {
 	Key       string
 	ValueJSON string

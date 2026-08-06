@@ -18,6 +18,7 @@ service HostService {
   rpc Notify(NotifyRequest) returns (google.protobuf.Empty);
   rpc StoreData(StoreRequest) returns (google.protobuf.Empty);
   rpc QueryData(QueryRequest) returns (QueryResponse);
+  rpc DeleteData(DeleteRequest) returns (google.protobuf.Empty);
   rpc Log(LogRequest) returns (google.protobuf.Empty);
 }
 
@@ -40,6 +41,7 @@ message PluginEvent { string type = 1; map<string,string> payload = 2; }
 message NotifyRequest { string title = 1; string message = 2; }
 message StoreRequest { string collection = 1; string key = 2; string value_json = 3; }
 message QueryRequest { string collection = 1; }
+message DeleteRequest { string collection = 1; string key = 2; }
 message QueryResponse { repeated Record records = 1; }
 message Record { string key = 1; string value_json = 2; }
 message LogRequest { string level = 1; string message = 2; }

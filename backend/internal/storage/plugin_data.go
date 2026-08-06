@@ -53,3 +53,12 @@ func (db *DB) QueryPluginData(pluginID, collection string) ([]PluginRecord, erro
 
 	return records, nil
 }
+
+// DeletePluginData removes the record for the given plugin_id, collection,
+// and key. Deleting a key that doesn't exist (already deleted or never
+// stored) is a no-op, not an error.
+func (db *DB) DeletePluginData(pluginID, collection, key string) error {
+	query := `DELETE FROM plugin_data WHERE plugin_id = ? AND collection = ? AND key = ?`
+	_, err := db.Exec(query, pluginID, collection, key)
+	return err
+}
