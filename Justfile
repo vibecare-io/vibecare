@@ -876,6 +876,11 @@ docs-setup:
     @command -v pandoc >/dev/null 2>&1 || (echo "{{YELLOW}}Installing pandoc via brew...{{NC}}" && brew install pandoc)
     @echo "{{GREEN}}✓ Docs tooling ready{{NC}}"
 
+# Ensure docs-site deps are installed (internal guard; runs bun install once)
+[group('📚 Documentation')]
+_docs-deps:
+    @[ -d docs-site/node_modules ] || (echo "{{YELLOW}}Installing docs-site dependencies...{{NC}}" && cd docs-site && bun install)
+
 # Regenerate site content from docs/ (internal helper)
 [group('📚 Documentation')]
 docs-sync:
@@ -883,12 +888,12 @@ docs-sync:
 
 # Serve the docs site with live reload (http://localhost:4321)
 [group('📚 Documentation')]
-docs: docs-sync
+docs: _docs-deps docs-sync
     @echo "{{GREEN}}Starting docs dev server...{{NC}}"
     cd docs-site && bun run dev
 
 # Build the static docs site into docs-site/dist
 [group('📚 Documentation')]
-docs-build: docs-sync
+docs-build: _docs-deps docs-sync
     @echo "{{GREEN}}Building static docs site...{{NC}}"
     cd docs-site && bun run build

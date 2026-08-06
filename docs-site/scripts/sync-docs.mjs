@@ -22,9 +22,18 @@ export function convertOrg(absPath) {
   });
 }
 
+// First `# H1`, ignoring headings inside fenced code blocks; else humanized filename.
 export function deriveTitle(content, filename) {
-  const m = content.match(/^\s*#\s+(.+?)\s*$/m);
-  if (m) return m[1].trim();
+  let inFence = false;
+  for (const line of content.split(/\r?\n/)) {
+    if (/^\s*(```|~~~)/.test(line)) {
+      inFence = !inFence;
+      continue;
+    }
+    if (inFence) continue;
+    const h = line.match(/^\s*#\s+(.+?)\s*$/);
+    if (h) return h[1].trim();
+  }
   const base = path.basename(filename).replace(/\.(md|org)$/i, '');
   return base.replace(/[_-]+/g, ' ').trim();
 }
@@ -39,12 +48,39 @@ function hasFrontmatterTitle(content) {
 
 export function ensureTitle(content, filename) {
   if (hasFrontmatterTitle(content)) return content;
-  const title = deriveTitle(content, filename).replace(/"/g, '\\"');
+  const title = deriveTitle(content, filename).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
   return `---\ntitle: "${title}"\n---\n\n${content}`;
 }
 
 export function orgFilesExist(files) {
   return files.some((f) => f.toLowerCase().endsWith('.org'));
+}
+
+// Convert a docs-relative source path (POSIX) to its Starlight route.
+// README (root or nested) collapses to the directory index. Routes are lowercased.
+export function routeForDocsPath(docsRelPath) {
+  let p = docsRelPath.replace(/\\/g, '/').replace(/\.(md|org)$/i, '');
+  p = p.replace(/(^|\/)README$/i, '$1');
+  p = p.replace(/\/+$/, '').toLowerCase();
+  return p ? `/${p}/` : '/';
+}
+
+// Rewrite Markdown links that point at another in-docs .md/.org file to its
+// Starlight route. Links to files outside the docs set (or external URLs) are
+// left untouched. `docSet` holds POSIX docs-relative paths of every doc file.
+export function rewriteLinks(content, srcRelPath, docSet) {
+  const srcDir = path.posix.dirname(srcRelPath.replace(/\\/g, '/'));
+  return content.replace(/\]\(([^)\s]+)((?:\s+"[^"]*")?)\)/g, (match, target, title) => {
+    if (/^(https?:|\/\/|#|mailto:|tel:)/i.test(target)) return match;
+    const hashIdx = target.indexOf('#');
+    const rawPath = hashIdx === -1 ? target : target.slice(0, hashIdx);
+    const anchor = hashIdx === -1 ? '' : target.slice(hashIdx);
+    if (!/\.(md|org)$/i.test(rawPath)) return match;
+    const base = srcDir === '.' ? '' : srcDir;
+    const resolved = path.posix.normalize(path.posix.join(base, rawPath));
+    if (resolved.startsWith('..') || !docSet.has(resolved)) return match;
+    return `](${routeForDocsPath(resolved)}${anchor}${title})`;
+  });
 }
 
 function walk(dir) {
@@ -62,15 +98,41 @@ function cleanContentDir() {
   fs.mkdirSync(CONTENT_DIR, { recursive: true });
 }
 
-function outPathFor(relPath) {
-  // docs/README.md -> index.md (site homepage)
-  if (relPath.toLowerCase() === 'readme.md') return path.join(CONTENT_DIR, 'index.md');
-  return path.join(CONTENT_DIR, relPath);
-}
-
 function writeOut(outPath, content) {
   fs.mkdirSync(path.dirname(outPath), { recursive: true });
   fs.writeFileSync(outPath, content);
+}
+
+// A Starlight splash landing page so the site root isn't a raw README dump.
+function writeLandingPage() {
+  const page = `---
+title: VibeCare Docs
+description: Documentation for the VibeCare wellness & routine platform.
+template: splash
+hero:
+  tagline: Wellness & routine management — backend, macOS client, protocol, and design docs.
+  actions:
+    - text: Architecture
+      link: /architecture/
+      icon: right-arrow
+      variant: primary
+    - text: MCP Setup
+      link: /mcp_setup/
+      icon: external
+    - text: Docs Index
+      link: /readme/
+      icon: document
+---
+
+## Explore the docs
+
+- **Architecture** — [Overview](/architecture/) · [Deep Dive](/arch/)
+- **Guides** — [Local Build](/local_build/) · [Release Process](/release_process/) · [Signing Setup](/signing_setup/)
+- **MCP** — [Setup](/mcp_setup/) · [Implementation Status](/mcp_implementation_status/)
+- **Plugin System** — [Architecture Findings](/plugin-architecture-findings/) · [Decisions](/plugin-system-decisions/)
+- **Plans & Specs** — browse the **Plans** and **Specs** groups in the sidebar to review Claude's design docs.
+`;
+  writeOut(path.join(CONTENT_DIR, 'index.md'), page);
 }
 
 export function main() {
@@ -85,20 +147,28 @@ export function main() {
     process.exit(1);
   }
 
+  const docSet = new Set(
+    files
+      .map((f) => path.relative(DOCS_SRC, f).split(path.sep).join('/'))
+      .filter((f) => /\.(md|org)$/i.test(f))
+  );
+
   cleanContentDir();
   for (const abs of files) {
-    const rel = path.relative(DOCS_SRC, abs);
+    const rel = path.relative(DOCS_SRC, abs).split(path.sep).join('/');
     const ext = path.extname(abs).toLowerCase();
     if (ext === '.md') {
       const raw = fs.readFileSync(abs, 'utf8');
-      writeOut(outPathFor(rel), ensureTitle(raw, abs));
+      const body = rewriteLinks(raw, rel, docSet);
+      writeOut(path.join(CONTENT_DIR, rel), ensureTitle(body, abs));
     } else if (ext === '.org') {
-      const md = convertOrg(abs);
+      const md = rewriteLinks(convertOrg(abs), rel, docSet);
       const outRel = rel.replace(/\.org$/i, '.md');
-      writeOut(outPathFor(outRel), ensureTitle(md, abs));
+      writeOut(path.join(CONTENT_DIR, outRel), ensureTitle(md, abs));
     }
     // other files (e.g. org-roam.db) are skipped.
   }
+  writeLandingPage();
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
