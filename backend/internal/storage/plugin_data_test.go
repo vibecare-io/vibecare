@@ -90,3 +90,45 @@ func TestStorePluginDataUpsert(t *testing.T) {
 		t.Errorf("Expected updated value_json %q, got %q", `{"text":"b"}`, records[0].ValueJSON)
 	}
 }
+
+// TestDeletePluginData verifies a stored record is gone after DeletePluginData,
+// and that deleting only removes the (plugin_id, collection, key) row it targets.
+func TestDeletePluginData(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	if err := db.StorePluginData("p", "todos", "k1", `{"text":"a"}`); err != nil {
+		t.Fatalf("StorePluginData failed: %v", err)
+	}
+	if err := db.StorePluginData("p", "todos", "k2", `{"text":"b"}`); err != nil {
+		t.Fatalf("StorePluginData failed: %v", err)
+	}
+
+	if err := db.DeletePluginData("p", "todos", "k1"); err != nil {
+		t.Fatalf("DeletePluginData failed: %v", err)
+	}
+
+	records, err := db.QueryPluginData("p", "todos")
+	if err != nil {
+		t.Fatalf("QueryPluginData failed: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("Expected 1 record after delete, got %d", len(records))
+	}
+	if records[0].Key != "k2" {
+		t.Errorf("Expected remaining key 'k2', got %q", records[0].Key)
+	}
+}
+
+// TestDeletePluginDataNonexistentIsNoop verifies deleting a key that was never
+// stored (or already deleted) succeeds without error rather than failing.
+func TestDeletePluginDataNonexistentIsNoop(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	if err := db.DeletePluginData("p", "todos", "does-not-exist"); err != nil {
+		t.Fatalf("DeletePluginData on nonexistent key should be a no-op, got error: %v", err)
+	}
+}

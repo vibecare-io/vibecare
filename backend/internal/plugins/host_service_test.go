@@ -78,6 +78,66 @@ func TestQueryDataNamespacedByContextPluginID(t *testing.T) {
 	}
 }
 
+// TestDeleteDataRemovesRecord verifies StoreData followed by DeleteData, both
+// attributed to plugin "p" via context, leaves QueryData with no records.
+func TestDeleteDataRemovesRecord(t *testing.T) {
+	db := newTestDB(t)
+	hub := scheduler.NewEventHub(zap.NewNop())
+	svc := NewHostService(db, hub, zap.NewNop())
+
+	ctx := svc.WithPluginID(context.Background(), "p")
+
+	if _, err := svc.StoreData(ctx, &pb.StoreRequest{
+		Collection: "todos",
+		Key:        "k1",
+		ValueJson:  `{"text":"a"}`,
+	}); err != nil {
+		t.Fatalf("StoreData failed: %v", err)
+	}
+
+	if _, err := svc.DeleteData(ctx, &pb.DeleteRequest{Collection: "todos", Key: "k1"}); err != nil {
+		t.Fatalf("DeleteData failed: %v", err)
+	}
+
+	resp, err := svc.QueryData(ctx, &pb.QueryRequest{Collection: "todos"})
+	if err != nil {
+		t.Fatalf("QueryData failed: %v", err)
+	}
+	if len(resp.Records) != 0 {
+		t.Errorf("expected 0 records after DeleteData, got %d", len(resp.Records))
+	}
+}
+
+// TestDeleteDataNamespacedByContextPluginID verifies a different plugin id on
+// the context cannot delete another plugin's stored data.
+func TestDeleteDataNamespacedByContextPluginID(t *testing.T) {
+	db := newTestDB(t)
+	hub := scheduler.NewEventHub(zap.NewNop())
+	svc := NewHostService(db, hub, zap.NewNop())
+
+	ctxP := svc.WithPluginID(context.Background(), "p")
+	if _, err := svc.StoreData(ctxP, &pb.StoreRequest{
+		Collection: "todos",
+		Key:        "k1",
+		ValueJson:  `{"text":"a"}`,
+	}); err != nil {
+		t.Fatalf("StoreData failed: %v", err)
+	}
+
+	ctxOther := svc.WithPluginID(context.Background(), "other")
+	if _, err := svc.DeleteData(ctxOther, &pb.DeleteRequest{Collection: "todos", Key: "k1"}); err != nil {
+		t.Fatalf("DeleteData failed: %v", err)
+	}
+
+	resp, err := svc.QueryData(ctxP, &pb.QueryRequest{Collection: "todos"})
+	if err != nil {
+		t.Fatalf("QueryData failed: %v", err)
+	}
+	if len(resp.Records) != 1 {
+		t.Errorf("expected plugin p's record to survive another plugin's DeleteData, got %d records", len(resp.Records))
+	}
+}
+
 // TestEmitEventNotifyLogNoError verifies the remaining HostServiceServer methods
 // succeed without error for a well-formed request.
 func TestEmitEventNotifyLogNoError(t *testing.T) {

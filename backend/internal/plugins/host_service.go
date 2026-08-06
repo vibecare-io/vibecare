@@ -82,6 +82,17 @@ func (h *HostService) QueryData(ctx context.Context, req *pb.QueryRequest) (*pb.
 	return &pb.QueryResponse{Records: pbRecords}, nil
 }
 
+// DeleteData removes a value from the calling plugin's namespaced storage.
+// The plugin id comes from ctx, never from the request, so plugins can never
+// delete another plugin's data. Deleting a key that doesn't exist is a no-op.
+func (h *HostService) DeleteData(ctx context.Context, req *pb.DeleteRequest) (*emptypb.Empty, error) {
+	pluginID := pluginIDFromContext(ctx)
+	if err := h.db.DeletePluginData(pluginID, req.GetCollection(), req.GetKey()); err != nil {
+		return nil, err
+	}
+	return &emptypb.Empty{}, nil
+}
+
 // EmitEvent broadcasts a plugin-originated event to all connected clients.
 // v1: plugin events aren't profile-scoped yet, so this uses BroadcastToAll
 // rather than routing to a specific profile's subscribers.
