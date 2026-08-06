@@ -78,4 +78,21 @@ func TestTextFieldAndButtonKinds(t *testing.T) {
 	if btn.Action != "add_item" {
 		t.Errorf("Button action = %q, want %q", btn.Action, "add_item")
 	}
+	if btn.Params != nil {
+		t.Errorf("2-arg Button Params = %v, want nil (backward compatibility: no id given)", btn.Params)
+	}
+
+	// 3-arg form: an id (e.g. a row's record key) is carried in Params["id"],
+	// the same convention Toggle uses, so delete_todo-style handlers can
+	// identify which row a button click came from.
+	btnWithID := Button("✕", "delete_todo", "abc")
+	if btnWithID.Kind != "button" {
+		t.Errorf("Button(with id) kind = %q, want %q", btnWithID.Kind, "button")
+	}
+	if btnWithID.Action != "delete_todo" {
+		t.Errorf("Button(with id) action = %q, want %q", btnWithID.Action, "delete_todo")
+	}
+	if btnWithID.Params["id"] != "abc" {
+		t.Errorf("Button(with id) Params[id] = %q, want %q", btnWithID.Params["id"], "abc")
+	}
 }
