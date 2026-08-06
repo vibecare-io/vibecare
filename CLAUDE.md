@@ -21,6 +21,8 @@ just swift-test         # Swift tests
 just migrate            # Run DB migrations
 just new-migration NAME # Create new migration
 just inspect-db         # Open litecli for ~/.vibecare/vibecare.db
+just docs-setup         # One-time: install docs-site deps + pandoc
+just docs               # Serve docs/ as a Starlight site (http://localhost:4321)
 ```
 
 ## Mono-Repo Conventions
