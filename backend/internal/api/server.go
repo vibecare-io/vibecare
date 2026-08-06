@@ -31,7 +31,7 @@ func NewServer(db *storage.DB, eventHub *scheduler.EventHub, logger *zap.Logger)
 }
 
 // RegisterServices registers all gRPC services
-func RegisterServices(grpcServer *grpc.Server, db *storage.DB, eventHub *scheduler.EventHub, templateLoader *storage.TemplateLoader, iconLoader *storage.IconLoader, logger *zap.Logger) {
+func RegisterServices(grpcServer *grpc.Server, db *storage.DB, eventHub *scheduler.EventHub, templateLoader *storage.TemplateLoader, iconLoader *storage.IconLoader, pluginHost PluginHost, logger *zap.Logger) {
 	server := NewServer(db, eventHub, logger)
 
 	pb.RegisterProfileServiceServer(grpcServer, server)
@@ -47,4 +47,8 @@ func RegisterServices(grpcServer *grpc.Server, db *storage.DB, eventHub *schedul
 	// Register icon service
 	iconService := NewIconService(iconLoader, logger)
 	pb.RegisterIconServiceServer(grpcServer, iconService)
+
+	// Register plugin host service (app-facing proxy to the plugin registry)
+	pluginHostService := NewPluginHostService(pluginHost, logger)
+	pb.RegisterPluginHostServiceServer(grpcServer, pluginHostService)
 }

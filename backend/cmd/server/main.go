@@ -14,10 +14,12 @@ import (
 
 	"github.com/vibecare-io/vibecare/backend/internal/api"
 	"github.com/vibecare-io/vibecare/backend/internal/mcp"
+	"github.com/vibecare-io/vibecare/backend/internal/plugins"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
 	"github.com/vibecare-io/vibecare/backend/internal/telemetry"
 	"github.com/vibecare-io/vibecare/backend/internal/web"
+	pb "github.com/vibecare-io/vibecare/backend/pkg/proto"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -165,6 +167,25 @@ func main() {
 	sched := scheduler.NewScheduler(db, eventHub, logger)
 	go sched.Start()
 
+	// Determine plugins directory (~/.vibecare/plugins), using the same
+	// home-dir resolution as the default DB path, independent of whether
+	// --db was overridden.
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		logger.Fatal("Failed to get home directory", zap.Error(err))
+	}
+	pluginsDir := filepath.Join(homeDir, ".vibecare", "plugins")
+
+	// Initialize the plugin host service (the callback API plugins use to
+	// talk back into Core: storage/events/notify/log) and the plugin
+	// registry (discovers, launches, and supervises plugin subprocesses).
+	// hostAddr is the address plugins dial to reach Core's HostService —
+	// it's the same address Core's own gRPC server binds below, so it must
+	// only start accepting connections once the server is actually serving.
+	hostService := plugins.NewHostService(db, eventHub, logger)
+	hostAddr := fmt.Sprintf("localhost:%d", *port)
+	pluginRegistry := plugins.NewRegistry(pluginsDir, hostService, hostAddr, logger)
+
 	// Create HTTP tracer for web server instrumentation
 	httpTracer := telemetry.GetTracer("vibecare.http.server")
 
@@ -191,7 +212,11 @@ func main() {
 	grpcServer := grpc.NewServer(serverOpts...)
 
 	// Register services
-	api.RegisterServices(grpcServer, db, eventHub, templateLoader, iconLoader, logger)
+	api.RegisterServices(grpcServer, db, eventHub, templateLoader, iconLoader, pluginRegistry, logger)
+
+	// Register the plugin HostService — the callback API plugin subprocesses
+	// dial back into (at hostAddr, above) for storage/events/notify/log.
+	pb.RegisterHostServiceServer(grpcServer, hostService)
 
 	// Register reflection service for debugging
 	reflection.Register(grpcServer)
@@ -205,6 +230,11 @@ func main() {
 	// Setup graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
+
+	// shutdownComplete is closed once the shutdown goroutine below has
+	// finished tearing everything down; main() blocks on it at the very
+	// end now that grpcServer.Serve runs in its own goroutine (see below).
+	shutdownComplete := make(chan struct{})
 
 	go func() {
 		<-sigChan
@@ -226,6 +256,10 @@ func main() {
 		logger.Info("Stopping scheduler...")
 		sched.Stop()
 
+		// Stop plugin subprocesses and health polling
+		logger.Info("Stopping plugin registry...")
+		pluginRegistry.Stop()
+
 		// Shutdown web server
 		logger.Info("Stopping web server...")
 		if err := webServer.Shutdown(ctx); err != nil {
@@ -246,12 +280,29 @@ func main() {
 			logger.Warn("Graceful shutdown timeout, forcing stop")
 			grpcServer.Stop()
 		}
+
+		close(shutdownComplete)
 	}()
 
 	logger.Info("VibeCare servers starting",
 		zap.Int("grpc_port", *port),
 		zap.Int("web_port", *webPort))
-	if err := grpcServer.Serve(lis); err != nil {
-		logger.Fatal("Failed to serve", zap.Error(err))
+
+	// Serve in the background so plugins can dial back into Core's
+	// HostService (at hostAddr) as soon as the registry launches them below.
+	go func() {
+		if err := grpcServer.Serve(lis); err != nil {
+			logger.Fatal("Failed to serve", zap.Error(err))
+		}
+	}()
+
+	// Start the plugin registry only after the gRPC server has begun
+	// serving. A plugin failing to load must not crash Core, so a registry
+	// start error is logged and startup continues without it.
+	logger.Info("Starting plugin registry", zap.String("dir", pluginsDir), zap.String("host_addr", hostAddr))
+	if err := pluginRegistry.Start(context.Background()); err != nil {
+		logger.Warn("Failed to start plugin registry; continuing without plugins", zap.Error(err))
 	}
+
+	<-shutdownComplete
 }
