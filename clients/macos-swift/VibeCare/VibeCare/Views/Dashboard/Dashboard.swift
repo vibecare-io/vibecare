@@ -91,6 +91,8 @@ public struct Dashboard: View {
       scheduleContentView
     case .actions:
       actionContentView
+    case .plugins:
+      pluginContentView
     case .settings:
       settingsContentView
     case .none:
@@ -121,6 +123,10 @@ public struct Dashboard: View {
       searchText: dashboardState.searchText,
       selectedId: $dashboardState.selectedActionId
     )
+  }
+
+  private var pluginContentView: some View {
+    PluginListView(selectedId: $dashboardState.selectedPluginId)
   }
 
   private var settingsContentView: some View {
@@ -169,6 +175,8 @@ public struct Dashboard: View {
       scheduleDetailView
     case .actions:
       actionDetailView
+    case .plugins:
+      pluginDetailView
     case .settings:
       settingsDetailView
     case .none:
@@ -244,6 +252,19 @@ public struct Dashboard: View {
         title: "No Action Selected",
         subtitle: "Select an action to view details",
         systemImage: "bolt.circle"
+      )
+    }
+  }
+
+  @ViewBuilder
+  private var pluginDetailView: some View {
+    if let pluginId = dashboardState.selectedPluginId {
+      PluginScreen(pluginId: pluginId)
+    } else {
+      EmptyStateView(
+        title: "No Plugin Selected",
+        subtitle: "Select a plugin to view its details",
+        systemImage: "puzzlepiece.extension"
       )
     }
   }

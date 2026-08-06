@@ -5,6 +5,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case schedules = "Schedules"
     case routines = "Routines"
     case actions = "Actions"
+    case plugins = "Plugins"
     case settings = "Settings"
 
     var id: String { rawValue }
@@ -14,6 +15,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .routines: return "list.bullet"
         case .schedules: return "calendar.badge.clock"
         case .actions: return "bolt.circle"
+        case .plugins: return "puzzlepiece.extension"
         case .settings: return "gearshape.fill"
         }
     }
@@ -23,6 +25,7 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .routines: return .blue
         case .schedules: return .orange
         case .actions: return .purple
+        case .plugins: return .teal
         case .settings: return .gray
         }
     }
@@ -70,6 +73,8 @@ struct DashboardSidebar: View {
             return scheduleCount
         case .actions:
             return actionCount
+        case .plugins:
+            return nil
         case .settings:
             return nil
         }
