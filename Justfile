@@ -259,6 +259,17 @@ build-mcp-standalone:
     @echo "{{GREEN}}✓ Standalone MCP server built: bin/vibecare-mcp-server{{NC}}"
     @echo "{{YELLOW}}Usage: ./bin/vibecare-mcp-server --grpc-addr=localhost:50051 --profile-id=YOUR_PROFILE_ID{{NC}}"
 
+# Build the todos reference plugin and install it + its manifest into
+# ~/.vibecare/plugins/todos/, where Core's plugin registry discovers it.
+[group('🧩 Plugins')]
+build-todos-plugin:
+    @echo "{{GREEN}}Building todos reference plugin...{{NC}}"
+    cd {{backend_dir}} && go build -o ../bin/plugin-todos cmd/plugin-todos/main.go
+    @mkdir -p ~/.vibecare/plugins/todos
+    cp bin/plugin-todos ~/.vibecare/plugins/todos/plugin-todos
+    cp {{backend_dir}}/cmd/plugin-todos/manifest.yaml ~/.vibecare/plugins/todos/manifest.yaml
+    @echo "{{GREEN}}✓ Todos plugin installed: ~/.vibecare/plugins/todos/{{NC}}"
+
 # Picks a profile, builds vibecare-mcp-server, bakes it into the io.vibecare.mcp service
 # Deploy your local MCP build into an always-on LaunchAgent (HTTP mode, no sudo)
 [group('🤖 MCP Server')]

@@ -1,0 +1,16 @@
+id: com.vibecare.todos
+name: Todos
+version: 0.1.0
+icon: checklist
+exec: ./plugin-todos
+provides:
+  actions:
+    - add_todo
+    - complete_todo
+    - delete_todo
+  events: []
+  data:
+    - todos
+ui:
+  kind: shell-native
+  entry: main
