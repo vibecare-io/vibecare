@@ -26,7 +26,21 @@ struct PluginScreen: View {
 
     var body: some View {
         Group {
-            if let errorMessage {
+            // IMPORTANT: `descriptor` wins over `errorMessage` whenever we
+            // have one. A transient invoke failure (toggle/delete/add) must
+            // NOT blank out an already-loaded list - it should surface
+            // non-destructively (see `.alert` below) while the last-good
+            // content stays visible and interactive. The full-screen error
+            // branch below only applies when there's nothing to show yet
+            // (i.e. the initial load itself failed).
+            if let descriptor {
+                VStack(spacing: 0) {
+                    ForEach(Array(descriptor.nodes.enumerated()), id: \.offset) { _, node in
+                        PluginRenderer.render(node, invoke: invoke)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else if let errorMessage {
                 VStack(spacing: 12) {
                     Image(systemName: "exclamationmark.triangle")
                         .font(.system(size: 32))
@@ -35,16 +49,12 @@ struct PluginScreen: View {
                         .font(.callout)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding()
-            } else if let descriptor {
-                VStack(spacing: 0) {
-                    ForEach(Array(descriptor.nodes.enumerated()), id: \.offset) { _, node in
-                        PluginRenderer.render(node, invoke: invoke)
+                    Button("Retry") {
+                        Task { await load() }
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
             } else {
                 ProgressView("Loading…")
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -54,6 +64,26 @@ struct PluginScreen: View {
         .task {
             await load()
         }
+        // Non-destructive surface for an invoke() failure that happened
+        // AFTER we already have a descriptor on screen: a dismissible
+        // alert layered on top, not a takeover of the whole view. Only
+        // shown once we have content (the full-screen branch above already
+        // covers "no descriptor yet" failures).
+        .alert(
+            "Action Failed",
+            isPresented: Binding(
+                get: { descriptor != nil && errorMessage != nil },
+                set: { isPresented in
+                    if !isPresented { errorMessage = nil }
+                }
+            ),
+            actions: {
+                Button("OK") { errorMessage = nil }
+            },
+            message: {
+                Text(errorMessage ?? "")
+            }
+        )
     }
 
     private func load() async {
@@ -67,9 +97,13 @@ struct PluginScreen: View {
 
     /// Passed to `PluginRenderer` as the interaction callback. Invokes the
     /// action on Core and, on success, swaps in the freshly-returned
-    /// descriptor (whole-view refresh - no diffing in v1).
+    /// descriptor (whole-view refresh - no diffing in v1). On failure,
+    /// `descriptor` is left untouched (so the last-good content keeps
+    /// rendering) and `errorMessage` is surfaced via the non-destructive
+    /// `.alert` above.
     private func invoke(action: String, params: [String: String]) {
         Task {
+            errorMessage = nil
             do {
                 let updated = try await pluginService.invoke(
                     pluginId: pluginId,
