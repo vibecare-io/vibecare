@@ -311,8 +311,17 @@ struct ActionParametersView: View {
 
                     switch param.type {
                     case .string:
-                        if param.name == "body" || param.name == "script" || param.name == "message" {
-                            // Multi-line text for body/script/message fields
+                        if let allowed = param.allowedValues {
+                            // Fixed vocabulary -> dropdown; stores the raw term.
+                            Picker(param.description, selection: binding(for: param.name)) {
+                                ForEach(allowed, id: \.self) { raw in
+                                    Text(ActionParameter.displayLabel(for: raw)).tag(raw)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .labelsHidden()
+                        } else if isMultiline(param) {
+                            // Multi-line text for long free-text fields
                             TextField(param.description, text: binding(for: param.name), axis: .vertical)
                                 .textFieldStyle(.plain)
                                 .lineLimit(3...6)
@@ -346,6 +355,13 @@ struct ActionParametersView: View {
             get: { parameters[paramName] ?? "" },
             set: { parameters[paramName] = $0 }
         )
+    }
+
+    /// Long free-text fields render multi-line — except the system command's
+    /// short overlay `message`, which stays single-line.
+    private func isMultiline(_ param: ActionParameter) -> Bool {
+        if type == .systemCommand { return false }
+        return param.name == "body" || param.name == "script" || param.name == "message"
     }
 
     private func boolBinding(for paramName: String) -> Binding<Bool> {
