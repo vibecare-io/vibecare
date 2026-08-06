@@ -232,6 +232,13 @@ func (r *Registry) loadOne(ctx context.Context, dir, manifestPath string) error 
 		return fmt.Errorf("manifest missing required field: exec")
 	}
 
+	r.mu.RLock()
+	_, dup := r.plugins[m.ID]
+	r.mu.RUnlock()
+	if dup {
+		return fmt.Errorf("duplicate plugin id %s (already loaded from another directory); skipping %s", m.ID, dir)
+	}
+
 	launchCtx, cancel := context.WithTimeout(ctx, launchTimeout)
 	defer cancel()
 
