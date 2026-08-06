@@ -1,0 +1,56 @@
+syntax = "proto3";
+package vibecare.plugin.v1;
+option go_package = "github.com/vibecare-io/vibecare/backend/pkg/proto";
+import "google/protobuf/empty.proto";
+
+service PluginService {
+  rpc GetManifest(google.protobuf.Empty) returns (Manifest);
+  rpc Initialize(InitRequest) returns (google.protobuf.Empty);
+  rpc HandleEvent(HostEvent) returns (google.protobuf.Empty);
+  rpc ExecuteAction(PluginExecuteActionRequest) returns (PluginExecuteActionResponse);
+  rpc RenderView(RenderViewRequest) returns (ViewDescriptor);
+  rpc InvokeAction(InvokeActionRequest) returns (InvokeActionResponse);
+  rpc HealthCheck(google.protobuf.Empty) returns (Health);
+}
+
+service HostService {
+  rpc EmitEvent(PluginEvent) returns (google.protobuf.Empty);
+  rpc Notify(NotifyRequest) returns (google.protobuf.Empty);
+  rpc StoreData(StoreRequest) returns (google.protobuf.Empty);
+  rpc QueryData(QueryRequest) returns (QueryResponse);
+  rpc Log(LogRequest) returns (google.protobuf.Empty);
+}
+
+message Manifest {
+  string id = 1; string name = 2; string version = 3; string icon = 4;
+  repeated string actions = 5; repeated string events = 6; repeated string data = 7;
+  string ui_kind = 8;   // "shell-native" | "none" (reserved: "web","native")
+  string ui_entry = 9;  // view id for RenderView
+}
+message InitRequest { string host_address = 1; string plugin_id = 2; }
+message HostEvent { string type = 1; map<string,string> payload = 2; }
+message PluginExecuteActionRequest { string action = 1; map<string,string> params = 2; }
+message PluginExecuteActionResponse { bool ok = 1; string message = 2; }
+message RenderViewRequest { string view_id = 1; map<string,string> params = 2; }
+message InvokeActionRequest { string view_id = 1; string action = 2; map<string,string> params = 3; }
+message InvokeActionResponse { ViewDescriptor view = 1; } // re-render, no diffing in v1
+message Health { bool ok = 1; }
+
+message PluginEvent { string type = 1; map<string,string> payload = 2; }
+message NotifyRequest { string title = 1; string message = 2; }
+message StoreRequest { string collection = 1; string key = 2; string value_json = 3; }
+message QueryRequest { string collection = 1; }
+message QueryResponse { repeated Record records = 1; }
+message Record { string key = 1; string value_json = 2; }
+message LogRequest { string level = 1; string message = 2; }
+
+// Minimal declarative UI vocabulary (v1).
+message ViewDescriptor { repeated Node nodes = 1; }
+message Node {
+  string kind = 1;      // list|row|text|toggle|textField|button|spacer
+  string text = 2;
+  bool bool_value = 3;
+  string action = 4;    // action id sent back via InvokeAction
+  map<string,string> params = 5;
+  repeated Node children = 6;
+}
