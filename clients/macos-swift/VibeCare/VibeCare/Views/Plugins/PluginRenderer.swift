@@ -75,29 +75,40 @@ enum PluginRenderer {
 
 // MARK: - Stateful node views
 
-/// `toggle` nodes need to own a small piece of local `@State` so SwiftUI's
-/// `Toggle` binding has somewhere to write to; the change is immediately
-/// forwarded via `invoke` (whole-view refresh replaces `descriptor`
-/// wholesale afterwards, so this local state is short-lived).
+/// `toggle` nodes are bound DIRECTLY to `node.boolValue` via a computed
+/// `Binding` - deliberately no local `@State` here.
+///
+/// Why: SwiftUI only honors a `@State` property's *initial* value the
+/// first time a view's identity is created; on every subsequent re-render
+/// (e.g. `ForEach`'s index-identity reusing this view after `descriptor`
+/// changes), a freshly-computed `initialValue` passed into `init` is
+/// silently ignored and the persisted `@State` storage wins. A prior
+/// version of this view seeded `@State private var isOn` from
+/// `node.boolValue` in `init` and flipped it optimistically in
+/// `onChange` - but that meant a FAILED invoke (where `node.boolValue`
+/// never actually changes, since `PluginScreen` intentionally keeps the
+/// last-good `descriptor` on error) left `isOn` permanently stuck at the
+/// optimistic value with no way to resync it, since there's no "value
+/// changed" signal to hang a fix on.
+///
+/// Binding directly to `node.boolValue` sidesteps the whole problem: the
+/// switch always reflects the freshest server-confirmed state, with zero
+/// possibility of drift. The trade-off is no instant optimistic flip on
+/// tap - the switch visually updates once `PluginScreen` receives and
+/// assigns the new descriptor (fast on a local backend, but not
+/// synchronous with the tap gesture).
 private struct ToggleNodeView: View {
     let node: Vibecare_Plugin_V1_Node
     let invoke: PluginInvoke
 
-    @State private var isOn: Bool
-
-    init(node: Vibecare_Plugin_V1_Node, invoke: @escaping PluginInvoke) {
-        self.node = node
-        self.invoke = invoke
-        _isOn = State(initialValue: node.boolValue)
-    }
-
     var body: some View {
-        Toggle(node.text, isOn: $isOn)
-            .onChange(of: isOn) { _, newValue in
-                if newValue != node.boolValue {
-                    invoke(node.action, node.params)
-                }
-            }
+        Toggle(
+            node.text,
+            isOn: Binding(
+                get: { node.boolValue },
+                set: { _ in invoke(node.action, node.params) }
+            )
+        )
     }
 }
 
