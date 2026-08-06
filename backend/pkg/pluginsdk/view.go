@@ -56,9 +56,20 @@ func TextField(placeholder, action string) Node {
 	return Node{Kind: "textField", Text: placeholder, Action: action}
 }
 
-// Button renders a tappable button.
-func Button(label, action string) Node {
-	return Node{Kind: "button", Text: label, Action: action}
+// Button renders a tappable button. An optional id (e.g. a row's record key)
+// is carried in Params["id"], the same convention Toggle uses, so an action
+// handler receiving the resulting InvokeAction/ExecuteAction can identify
+// which item the button belongs to. id is variadic — and callers that pass
+// none get the original two-arg behavior — purely so existing callers built
+// against the pre-Task-7 signature keep compiling unchanged; a button that
+// isn't tied to a specific row (e.g. a lone "Add" button) has nothing to
+// pass.
+func Button(label, action string, id ...string) Node {
+	n := Node{Kind: "button", Text: label, Action: action}
+	if len(id) > 0 {
+		n.Params = map[string]string{"id": id[0]}
+	}
+	return n
 }
 
 // toProto converts a View to the wire representation sent to Core.
