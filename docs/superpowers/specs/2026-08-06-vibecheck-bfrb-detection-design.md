@@ -96,30 +96,49 @@ On a confirmed `BFRBEvent`: play a sound + flash a translucent overlay/toast,
 entirely client-side. Works offline, sub-frame latency. Sound/visual
 configurable.
 
-### VibeCare wiring (option D — both interrupt + backend)
+### VibeCare wiring (option D — both interrupt + plugin)
 
 Fired from `VibeCheckViewModel` on a confirmed event:
 
-- **(a) Action dispatch** — call the existing `ActionService.ExecuteAction`
-  with a user-chosen action ID per behavior (reuses the action inventory:
-  notification, play_sound, later an eye-exercise video). **No new backend.**
-- **(b) Analytics logging** — record each event so stats persist across
-  sessions. Requires a **new minimal backend surface** (see below). Client-side
-  session counts work before this lands, so analytics is the final phase.
+- **(a) Local action / interrupt** — behaviors trigger a client-side response
+  (sound + overlay; later a vibecare notification via `NotificationManager`).
+  **Correction:** there is *no* `ActionService.ExecuteAction` RPC — action
+  execution in this codebase is client-side, dispatched by type in
+  `EventService` (`NotificationManager`, `LinkHandler`, etc.). So the interrupt
+  path is entirely native/local, not a backend call.
+- **(b) Analytics via a plugin** — record each event so stats persist across
+  sessions. This is delegated to a **`plugin-vibecheck` plugin** (see below),
+  reached through the *existing* `PluginHostService.InvokePluginAction` RPC.
+  Client-side session counts work before the plugin lands, so analytics is the
+  final phase.
 
-### Backend surface (Phase 3 only)
+### `plugin-vibecheck` (Phase 3 — replaces the old "backend surface")
 
-Following mono-repo proto conventions (`just proto-gen` regenerates both sides):
+The detection *engine* must be native (camera/Vision/live-preview are
+native-shell capabilities a plugin cannot have). But the analytics/stats/history
+half is exactly what a plugin does best, so it is delegated to a Go plugin built
+on `pluginsdk` — mirroring `backend/cmd/plugin-todos`. This **eliminates all new
+backend surface**: no new proto service, no new migration (reuses the
+`plugin_data` table via `Host.Store/Query`), and no new Swift service (reuses
+`PluginService.invoke`).
 
-- **proto** (`proto/vibecare.proto`): new `DetectionService` with
-  `RecordDetection(RecordDetectionRequest) returns (Empty)` and
-  `GetDetectionStats(GetDetectionStatsRequest) returns (GetDetectionStatsResponse)`.
-  Messages carry behavior type, timestamp, and (for stats) day/hour buckets.
-- **migration** (Goose): `detection_events` table (id, behavior, occurred_at,
-  device_id/profile_id as applicable).
-- **backend** (`backend/internal/api/`): service implementation + repository.
-- **Swift** (`Services/DetectionService.swift`): gRPC wrapper used by the view
-  model; a simple stats view renders `GetDetectionStats`.
+- **Location:** new root **`plugins/vibecheck/`** dir (establishing plugins as a
+  first-class top-level concept, separate from Core). `plugin-todos` stays at
+  `backend/cmd/` for now. Build wiring (justfile + `bin/` output + manifest
+  `exec` path) is added for the new location.
+- **`plugin-vibecheck` (Go):**
+  - `OnAction("record_detection", {behavior, ts})` → `Host.Store("detections",
+    uuid, {...})`.
+  - `OnRender("main")` → `Host.Query("detections")` → renders counts by behavior
+    + a recent-history list as a declarative `List`/`Row` view in the Plugins
+    sidebar.
+  - `manifest.yaml`: id `com.vibecare.vibecheck`, provides action
+    `record_detection`, data collection `detections`.
+- **Native client → plugin:** `VibeCheckViewModel` calls
+  `PluginService.invoke(pluginId: "com.vibecare.vibecheck",
+  action: "record_detection", params: ["behavior": ..., "ts": ...])` on each
+  confirmed event. The stats UI appears automatically in the existing Plugins
+  screen (no new Swift view required).
 
 ## Data flow
 
@@ -129,9 +148,11 @@ Webcam frame
   → BFRBDetector (Vision requests → landmarks → region geometry → DetectionResult)
   → DetectionPolicy (smoothing, dwell, cooldown → BFRBEvent)
   → VibeCheckViewModel
-      ├─ local interrupt (sound + overlay)         [instant, offline]
-      ├─ ActionService.ExecuteAction(actionID)     [vibecare action dispatch]
-      └─ DetectionService.RecordDetection(event)   [persistent analytics, Phase 3]
+      ├─ local interrupt (sound + overlay; later NotificationManager)  [instant, offline]
+      └─ PluginService.invoke("com.vibecare.vibecheck",
+             "record_detection", {behavior, ts})                       [analytics, Phase 3]
+                → plugin-vibecheck: Host.Store("detections", …)
+                → Plugins sidebar renders stats/history (declarative)
 ```
 
 ## Error handling
@@ -140,18 +161,21 @@ Webcam frame
   state with a button to open System Settings; detection simply doesn't start.
 - **Vision request failure on a frame** — logged and skipped; the loop
   continues with the next frame (never crashes the session).
-- **Backend unreachable** — action dispatch and analytics calls fail
-  gracefully; the local interrupt and session counts are unaffected (offline
-  still works). Failed analytics events are dropped in v1 (no local queue).
+- **Plugin/backend unreachable** — the `record_detection` invoke fails
+  gracefully (like `PluginService` returning empty on error); the local
+  interrupt and session counts are unaffected (offline still works). Failed
+  analytics events are dropped in v1 (no local queue).
 
 ## Testing
 
-- **Go**: table tests for `RecordDetection` / `GetDetectionStats` and the
-  migration.
-- **Swift**: unit tests for `BFRBDetector` region geometry and
-  `DetectionPolicy` debounce/cooldown using fixture landmark data (no camera
-  required). `CameraSession` and the live overlay are verified manually via the
-  running screen.
+- **Go**: `main_test.go` for `plugin-vibecheck` mirroring
+  `backend/cmd/plugin-todos/main_test.go` — drive the plugin subprocess, invoke
+  `record_detection`, and assert the rendered stats view + stored data.
+- **Swift**: unit tests (Swift Testing / `@Test`) for `BFRBDetector` region
+  geometry and `DetectionPolicy` debounce/cooldown using fixture landmark data
+  (no camera required), following the protocol-seam DI style of
+  `SystemCommandTests.swift`. `CameraSession` and the live overlay are verified
+  manually via the running screen.
 
 ## Phased build (each phase is visibly runnable)
 
@@ -160,13 +184,16 @@ Webcam frame
 2. **Detection + interrupt** — behaviors fire the local sound/overlay interrupt;
    per-behavior toggles, sensitivity and alert-interval settings, live session
    counter. Client-only.
-3. **VibeCare wiring** — `ExecuteAction` dispatch per behavior + backend
-   analytics (proto / migration / stats service) + a simple stats view.
+3. **Plugin analytics** — `plugin-vibecheck` (root `plugins/vibecheck/`) stores
+   detections and renders stats/history in the Plugins sidebar; the native
+   client reports each confirmed event via `PluginService.invoke`. Stats UI is
+   free from the existing plugin renderer — no new Swift view.
 
 Where phases contain independent units, they may be built in parallel (e.g.
 `BFRBDetector` geometry + `DetectionPolicy` can be developed and unit-tested
-alongside `CameraSession`; the Phase 3 backend proto/migration can proceed in
-parallel with client polish).
+alongside `CameraSession`; the Phase 3 `plugin-vibecheck` Go work can proceed in
+parallel with client polish, since it only depends on the agreed
+`record_detection` action name + param shape).
 
 ## Out of scope (v1)
 
@@ -180,7 +207,16 @@ parallel with client polish).
 
 - Native macOS client, Apple Vision framework, Neural Engine path.
 - Geometric hair-pull zone (no hair segmentation).
-- Option D wiring: instant local interrupt + backend (action dispatch +
-  persistent analytics).
+- Hybrid architecture: **native detection engine** (Swift client) +
+  **`plugin-vibecheck`** (Go) for analytics/stats — no new proto service, no new
+  migration, no new Swift service.
+- Option D wiring: instant local interrupt (client-side, no `ExecuteAction`
+  RPC) + persistent analytics via `PluginService.invoke` →
+  `plugin-vibecheck` → `Host.Store`.
+- Plugin source lives in a new root **`plugins/vibecheck/`** directory.
 - v1 behaviors: nail-biting, nose-picking, hair-pulling.
-- Camera entitlement + `NSCameraUsageDescription` added to the macOS target.
+- Camera usage string via `INFOPLIST_KEY_NSCameraUsageDescription` build
+  setting (app uses `GENERATE_INFOPLIST_FILE = YES`, no Info.plist file);
+  camera entitlement added to `vibecare.entitlements` only if sandboxed.
+- New `.swift` files auto-included via Xcode file-system-synchronized groups —
+  no `project.pbxproj` file-registration needed.
