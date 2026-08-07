@@ -84,6 +84,17 @@ final class CameraSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         output.setSampleBufferDelegate(self, queue: frameQueue)
         guard session.canAddOutput(output) else { return false }
         session.addOutput(output)
+
+        // Lock the data-output mirroring deterministically so Vision always
+        // analyzes a mirrored buffer that matches the mirrored preview. Without
+        // this, automatic mirroring can drift when the preview layer re-attaches
+        // on navigation, flipping the overlay's coordinate space so it renders
+        // mirrored after the user returns to the screen. autoAdjust=false pins it.
+        if let connection = output.connection(with: .video),
+           connection.isVideoMirroringSupported {
+            connection.automaticallyAdjustsVideoMirroring = false
+            connection.isVideoMirrored = true
+        }
         return true
     }
 
