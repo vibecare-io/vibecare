@@ -101,6 +101,27 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         self.screenBlurIntensity = screenBlurIntensity
     }
 
+    /// Returns an independent copy of these preferences (a distinct reference,
+    /// same field values). Used when seeding per-behavior instances so edits to
+    /// one don't mutate the shared singleton or other behaviors.
+    func copy() -> NotificationPreferences {
+        NotificationPreferences(
+            bundledIconId: bundledIconId,
+            svgPath: svgPath,
+            svgWidth: svgWidth,
+            svgHeight: svgHeight,
+            title: title,
+            message: message,
+            position: position,
+            width: width,
+            height: height,
+            moveable: moveable,
+            autoDismissAfter: autoDismissAfter,
+            screenBlurEnabled: screenBlurEnabled,
+            screenBlurIntensity: screenBlurIntensity
+        )
+    }
+
     // MARK: - Default Presets
 
     nonisolated(unsafe) static let `default` = NotificationPreferences(
