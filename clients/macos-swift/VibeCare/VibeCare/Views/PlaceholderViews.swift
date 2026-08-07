@@ -175,6 +175,7 @@ struct CreateProfileView: View {
 public struct MenuBarView: View {
   @EnvironmentObject private var appState: AppState
   @StateObject private var notificationPolicy = NotificationPolicy.shared
+  @StateObject private var vibeCheck = VibeCheckViewModel.shared
   @Environment(\.openWindow) private var openWindow
 
   public init() {}
@@ -237,6 +238,12 @@ public struct MenuBarView: View {
           icon: notificationPolicy.enabled ? "bell.slash.fill" : "bell.fill",
           title: notificationPolicy.enabled ? "Pause Notifications" : "Resume Notifications",
           action: { notificationPolicy.toggle() }
+        )
+
+        MenuBarButton(
+          icon: vibeCheck.isDetectionEnabled ? "video.fill" : "video.slash",
+          title: vibeCheck.isDetectionEnabled ? "Detection: On" : "Turn On Detection",
+          action: { Task { await vibeCheck.toggleDetection() } }
         )
 
         MenuBarButton(
