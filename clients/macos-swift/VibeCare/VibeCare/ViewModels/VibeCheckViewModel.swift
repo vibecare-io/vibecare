@@ -14,6 +14,17 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     @Published var flash = false
     @Published var showOverlay = true
 
+    /// App-wide instance shared by the Dashboard toolbar and the menu-bar
+    /// scene so a single camera session backs both toggles. Tests must NOT
+    /// use this — they construct their own VM via `init(...)`.
+    static let shared = VibeCheckViewModel()
+
+    /// Reflects the user's explicit intent to run detection. Distinct from
+    /// `isRunning` (actual camera state): they can diverge briefly, e.g. when
+    /// permission is denied on resume the intent resolves back to `false`.
+    @Published private(set) var isDetectionEnabled: Bool
+
+    private var preference: DetectionPreferenceStoring
     private var detector = BFRBDetector(sensitivity: 0.5)
     private var policy = DetectionPolicy(dwell: 0.15, cooldown: 5)
     private let interrupt: InterruptPlaying
@@ -47,10 +58,13 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
 
     init(
         interrupt: InterruptPlaying = InterruptPlayer(),
-        notifier: DetectionNotifying = VibeNotifyDetectionNotifier()
+        notifier: DetectionNotifying = VibeNotifyDetectionNotifier(),
+        preference: DetectionPreferenceStoring = DetectionPreference()
     ) {
         self.interrupt = interrupt
         self.notifier = notifier
+        self.preference = preference
+        self.isDetectionEnabled = preference.enabled
     }
 
     func start() async {
@@ -63,6 +77,32 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     func stop() {
         camera.stop()
         isRunning = false
+    }
+
+    /// Turns detection on or off and persists the resolved intent. When
+    /// turning on, `isDetectionEnabled` follows whether the camera actually
+    /// started (`isRunning`) — a denied permission resolves the flag back to
+    /// `false` so resume can't loop into a broken state.
+    func setDetection(_ on: Bool) async {
+        if on {
+            await start()
+            isDetectionEnabled = isRunning
+        } else {
+            stop()
+            isDetectionEnabled = false
+        }
+        preference.enabled = isDetectionEnabled
+    }
+
+    func toggleDetection() async {
+        await setDetection(!isDetectionEnabled)
+    }
+
+    /// Called once at app startup: restores detection if it was on at last quit.
+    func resumeIfEnabled() async {
+        if preference.enabled {
+            await setDetection(true)
+        }
     }
 
     nonisolated func didOutput(_ pixelBuffer: CVPixelBuffer) {
