@@ -15,14 +15,16 @@ struct VisionLandmarkExtractor {
     private let logger = Logger(label: "com.vibecare.vision")
 
     func analyze(_ pixelBuffer: CVPixelBuffer) -> LandmarkFrame {
+        let imageSize = CGSize(width: CVPixelBufferGetWidth(pixelBuffer),
+                                height: CVPixelBufferGetHeight(pixelBuffer))
         let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .up)
         do {
             try handler.perform([handRequest, faceRequest])
         } catch {
             logger.debug("Vision perform failed: \(error)")
-            return LandmarkFrame(hand: nil, face: nil)
+            return LandmarkFrame(hand: nil, face: nil, imageSize: imageSize)
         }
-        return LandmarkFrame(hand: extractHand(), face: extractFace())
+        return LandmarkFrame(hand: extractHand(), face: extractFace(), imageSize: imageSize)
     }
 
     private func extractHand() -> HandGeometry? {

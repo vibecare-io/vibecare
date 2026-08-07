@@ -16,4 +16,10 @@ enum BFRBBehavior: String, CaseIterable, Sendable, Identifiable {
 /// origin bottom-left, y increases upward.
 struct HandGeometry: Sendable { var fingertips: [CGPoint] }
 struct FaceGeometry: Sendable { var box: CGRect; var nose: CGPoint; var mouth: CGPoint }
-struct LandmarkFrame: Sendable { var hand: HandGeometry?; var face: FaceGeometry? }
+struct LandmarkFrame: Sendable {
+    var hand: HandGeometry?
+    var face: FaceGeometry?
+    /// Pixel-buffer dimensions the landmarks were computed against, used by
+    /// the overlay to map normalized points through the aspect-fill crop.
+    var imageSize: CGSize = .zero
+}

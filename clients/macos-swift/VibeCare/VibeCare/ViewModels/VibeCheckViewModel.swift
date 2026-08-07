@@ -15,7 +15,7 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     @Published var showOverlay = true
 
     private var detector = BFRBDetector(sensitivity: 0.5)
-    private var policy = DetectionPolicy(dwell: 0.4, cooldown: 5)
+    private var policy = DetectionPolicy(dwell: 0.15, cooldown: 5)
     private let interrupt: InterruptPlaying
     private let pluginService = PluginService()
     private static let vibeCheckPluginId = "com.vibecare.vibecheck"
@@ -42,7 +42,7 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     /// serializes all camera frame callbacks, so plain `nonisolated(unsafe)` is
     /// sufficient — there is no concurrent access to guard against.
     nonisolated(unsafe) private var lastAnalysisUnsafe = Date.distantPast
-    private let minInterval = 1.0 / 12.0
+    private let minInterval = 1.0 / 15.0
 
     init(interrupt: InterruptPlaying = InterruptPlayer()) {
         self.interrupt = interrupt
