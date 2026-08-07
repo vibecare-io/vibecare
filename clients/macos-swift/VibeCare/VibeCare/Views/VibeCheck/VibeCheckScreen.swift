@@ -10,6 +10,8 @@ struct VibeCheckScreen: View {
             } else {
                 CameraPreview(previewLayer: viewModel.camera.previewLayer)
                     .ignoresSafeArea()
+                DetectionOverlay(frame: viewModel.latestFrame)
+                    .ignoresSafeArea()
             }
         }
         .navigationTitle("VibeCheck")
