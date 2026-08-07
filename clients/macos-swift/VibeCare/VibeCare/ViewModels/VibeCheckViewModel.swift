@@ -25,6 +25,16 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     @Published private(set) var isDetectionEnabled: Bool
 
     private var preference: DetectionPreferenceStoring
+
+    /// Reentrancy guard for `setDetection`. Toolbar and menu-bar toggles are
+    /// both always visible and can fire near-simultaneously; `setDetection`
+    /// suspends inside `await start()` before `isDetectionEnabled` reflects
+    /// the new intent, so a second call arriving during that suspension would
+    /// otherwise also read the stale value and call `camera.start()` again —
+    /// violating `camera`'s documented sequential-only start/stop invariant.
+    /// Only ever touched on the main actor, so a plain `Bool` suffices.
+    private var isTransitioning = false
+
     private var detector = BFRBDetector(sensitivity: 0.5)
     private var policy = DetectionPolicy(dwell: 0.15, cooldown: 5)
     private let interrupt: InterruptPlaying
@@ -84,6 +94,10 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     /// started (`isRunning`) — a denied permission resolves the flag back to
     /// `false` so resume can't loop into a broken state.
     func setDetection(_ on: Bool) async {
+        guard !isTransitioning else { return }
+        isTransitioning = true
+        defer { isTransitioning = false }
+
         if on {
             await start()
             isDetectionEnabled = isRunning
@@ -99,7 +113,11 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     }
 
     /// Called once at app startup: restores detection if it was on at last quit.
+    /// No-op when the camera is already running so reopening the main window
+    /// (which recreates `ContentView` and re-fires its startup `.onAppear`)
+    /// doesn't redundantly restart an already-running camera.
     func resumeIfEnabled() async {
+        guard !isRunning else { return }
         if preference.enabled {
             await setDetection(true)
         }
