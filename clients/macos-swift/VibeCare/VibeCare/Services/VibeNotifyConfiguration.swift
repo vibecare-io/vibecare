@@ -241,6 +241,79 @@ enum VibeNotifyConfig {
       .autoDismiss(after: 2.0, showProgress: false)
       .show()
   }
+
+  // MARK: - VibeCheck Detection Alert
+
+  /// How long a detection alert stays up before auto-dismissing.
+  private static let bfrbAlertDuration: TimeInterval = 6.0
+
+  /// Shows the notification for a confirmed BFRB detection. Matches the
+  /// schedule (SVG) notification look: the icon, bold title, and nudge float
+  /// directly on a blurred backdrop with **no card background**, plus today's
+  /// streak (e.g. "3rd nudge today").
+  ///
+  /// The standard VibeNotify builder always draws an opaque card (see
+  /// StandardNotificationView), and the card-less path is reserved for SVG
+  /// icons — which the catalog has none of for these behaviors. So this renders
+  /// a custom card-less `BFRBAlertView` through `OverlayWindowManager`, whose
+  /// window is transparent. That lower-level path has no built-in auto-dismiss,
+  /// so we schedule one ourselves.
+  ///
+  /// Priority is `.critical` so it always shows regardless of the global mute
+  /// toggle — the detection sound and overlay flash already fire unconditionally.
+  @MainActor
+  @discardableResult
+  static func showBFRBAlert(behavior: BFRBBehavior, count: Int) -> UUID? {
+    guard NotificationPolicy.shared.isNotificationAllowed(priority: .critical) else {
+      return nil
+    }
+
+    let id = UUID()
+    let config = OverlayWindowManager.Configuration(
+      position: .center,
+      width: 480,
+      height: 300,
+      isMoveable: true,
+      alwaysOnTop: true,
+      screenBlur: true,
+      screenBlurIntensity: .medium,
+      dismissOnScreenTap: true
+    )
+
+    _ = OverlayWindowManager.shared.show(id: id, configuration: config) {
+      BFRBAlertView(behavior: behavior, count: count) {
+        OverlayWindowManager.shared.dismiss(id: id)
+      }
+    }
+
+    // The custom-content window has no auto-dismiss timer of its own.
+    Task { @MainActor in
+      try? await Task.sleep(for: .seconds(bfrbAlertDuration))
+      OverlayWindowManager.shared.dismiss(id: id)
+    }
+
+    return id
+  }
+
+  /// English ordinal for `n` (e.g. 1 -> "1st", 22 -> "22nd", 13 -> "13th").
+  /// 11/12/13 are the special-case exceptions that take "th" despite ending in
+  /// 1/2/3.
+  static func ordinal(_ n: Int) -> String {
+    let ones = n % 10
+    let tens = n % 100
+    let suffix: String
+    if (11...13).contains(tens) {
+      suffix = "th"
+    } else {
+      switch ones {
+      case 1: suffix = "st"
+      case 2: suffix = "nd"
+      case 3: suffix = "rd"
+      default: suffix = "th"
+      }
+    }
+    return "\(n)\(suffix)"
+  }
 }
 
 // MARK: - Notification Type Enum

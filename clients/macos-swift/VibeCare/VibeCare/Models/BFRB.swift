@@ -10,6 +10,30 @@ enum BFRBBehavior: String, CaseIterable, Sendable, Identifiable {
         case .hairPulling: return "Hair-pulling"
         }
     }
+
+    // MARK: - Detection-notification presentation
+    //
+    // The icon/copy shown by the VibeNotify alert on a confirmed detection
+    // (see VibeNotifyConfig.showBFRBAlert). Kept here as the single source of
+    // truth so the visuals and the behavior model never drift apart.
+
+    /// SF Symbol shown as the notification's icon.
+    var alertIcon: String {
+        switch self {
+        case .nailBiting:  return "hand.raised.fill"
+        case .nosePicking: return "nose.fill"
+        case .hairPulling: return "comb.fill"
+        }
+    }
+
+    /// Warm, encouraging redirection used as the notification message.
+    var nudge: String {
+        switch self {
+        case .nailBiting:  return "Take a breath — hands down 💛"
+        case .nosePicking: return "Ease off — hands away 💛"
+        case .hairPulling: return "Gently — hands down 💛"
+        }
+    }
 }
 
 /// All points are normalized [0,1] in Vision's coordinate space:
