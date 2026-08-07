@@ -5,6 +5,12 @@ protocol CameraFrameReceiver: AnyObject {
     func didOutput(_ pixelBuffer: CVPixelBuffer)
 }
 
+/// `AVCaptureSession` isn't `Sendable`, but `CameraSession` only ever mutates it
+/// synchronously during `configure()` (before `start()` dispatches to `frameQueue`)
+/// and thereafter touches it exclusively from closures run on `frameQueue`, which
+/// serializes all access. This assertion documents that manual synchronization.
+extension AVCaptureSession: @retroactive @unchecked Sendable {}
+
 /// Wraps an AVCaptureSession that streams downscaled webcam frames on a
 /// dedicated background queue. Frame analysis (Vision) runs off the delegate
 /// callback so the main thread is never blocked.
