@@ -17,6 +17,7 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     private var detector = BFRBDetector(sensitivity: 0.5)
     private var policy = DetectionPolicy(dwell: 0.15, cooldown: 5)
     private let interrupt: InterruptPlaying
+    private let notifier: DetectionNotifying
     private let pluginService = PluginService()
     private static let vibeCheckPluginId = "com.vibecare.vibecheck"
 
@@ -44,8 +45,12 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     nonisolated(unsafe) private var lastAnalysisUnsafe = Date.distantPast
     private let minInterval = 1.0 / 15.0
 
-    init(interrupt: InterruptPlaying = InterruptPlayer()) {
+    init(
+        interrupt: InterruptPlaying = InterruptPlayer(),
+        notifier: DetectionNotifying = VibeNotifyDetectionNotifier()
+    ) {
         self.interrupt = interrupt
+        self.notifier = notifier
     }
 
     func start() async {
@@ -85,10 +90,14 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
         }
     }
 
+    /// Handles a confirmed detection. `internal` (not `private`) so tests can
+    /// drive it directly with a `BFRBEvent`, exercising the notify + count
+    /// wiring without a camera/CVPixelBuffer.
     @MainActor
-    private func fire(_ event: BFRBEvent) {
+    func fire(_ event: BFRBEvent) {
         sessionCounts[event.behavior, default: 0] += 1
         interrupt.play(event.behavior)
+        notifier.notify(behavior: event.behavior, count: sessionCounts[event.behavior, default: 0])
         report(event)
         flash = true
         Task { try? await Task.sleep(for: .milliseconds(250)); flash = false }
@@ -113,5 +122,24 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
                 params: params
             )
         }
+    }
+}
+
+// MARK: - Detection notifier
+
+/// Surfaces a confirmed detection to the user. Abstracted (like `interrupt`)
+/// so `VibeCheckViewModel` can be tested with a spy instead of popping a real
+/// window. Only the method is `@MainActor` (not the whole protocol) so the
+/// production conformer's type stays nonisolated and can be used as a default
+/// initializer argument.
+protocol DetectionNotifying {
+    @MainActor func notify(behavior: BFRBBehavior, count: Int)
+}
+
+/// Production notifier: a VibeNotify center card with the behavior's icon and
+/// nudge (see `VibeNotifyConfig.showBFRBAlert`).
+struct VibeNotifyDetectionNotifier: DetectionNotifying {
+    @MainActor func notify(behavior: BFRBBehavior, count: Int) {
+        VibeNotifyConfig.showBFRBAlert(behavior: behavior, count: count)
     }
 }

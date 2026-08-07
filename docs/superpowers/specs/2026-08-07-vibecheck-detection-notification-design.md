@@ -28,12 +28,26 @@ priority bypasses the global mute (bell) toggle.
 
 ## Decisions (from brainstorming)
 
-- **Presentation:** center card + medium screen blur (most interruptive — meant
-  to break the habit loop).
-- **Copy:** warm nudge + today's streak, e.g. title `✋ Nail-biting`,
-  message `Take a breath — hands down 💛` / `3rd nudge today`.
+- **Presentation:** **card-less** — the icon, bold title, and nudge float
+  directly on a medium screen blur with **no card background**, matching the
+  schedule (SVG) notification (`SVGNotificationView`). Centered, 64pt SF Symbol,
+  spring-in animation, tap/ESC/auto-dismiss.
+- **Copy:** bold title = the behavior label (no emoji — the icon conveys it),
+  message = warm nudge + today's streak, e.g. `Nail-biting` /
+  `Take a breath — hands down 💛` / `3rd nudge today`.
 - **Policy:** always show — priority `.critical`, bypasses the bell toggle. The
   sound + flash already fire regardless.
+
+### Why a custom view (not the standard builder)
+
+`VibeNotify.builder().show()` routes non-SVG icons through
+`StandardNotificationView`, which **always draws an opaque card** background
+(`style.backgroundColor`). The card-less look is reserved for `SVGNotificationView`,
+used only for SVG icons — and the icon catalog has no hand/nose/comb glyph. So the
+alert is rendered as a custom `BFRBAlertView` (a plain `VStack`, no background) via
+`OverlayWindowManager.shared.show(configuration:content:)`, whose window is
+transparent. That lower-level path has no built-in auto-dismiss timer, so
+`showBFRBAlert` schedules a `dismiss(id:)` after `bfrbAlertDuration` (6s).
 
 ## Components
 
@@ -42,11 +56,11 @@ priority bypasses the global mute (bell) toggle.
 Extend `BFRBBehavior` with computed properties (single source of truth, pure,
 unit-testable):
 
-| behavior     | `alertEmoji` | `alertIcon` (SF Symbol) | `nudge`                          |
-|--------------|--------------|-------------------------|----------------------------------|
-| nailBiting   | ✋           | `hand.raised.fill`      | Take a breath — hands down 💛     |
-| nosePicking  | 👃           | `nose.fill`             | Ease off — hands away 💛          |
-| hairPulling  | 💇           | `comb.fill`             | Gently — hands down 💛            |
+| behavior     | `alertIcon` (SF Symbol) | `nudge`                          |
+|--------------|-------------------------|----------------------------------|
+| nailBiting   | `hand.raised.fill`      | Take a breath — hands down 💛     |
+| nosePicking  | `nose.fill`             | Ease off — hands away 💛          |
+| hairPulling  | `comb.fill`             | Gently — hands down 💛            |
 
 ### 2. Notification helper — `VibeNotifyConfig.showBFRBAlert(behavior:count:)`
 
@@ -57,12 +71,14 @@ static func showBFRBAlert(behavior: BFRBBehavior, count: Int) -> UUID?
 
 - Guard `NotificationPolicy.shared.isNotificationAllowed(priority: .critical)`
   (the one policy chokepoint; always true here → always shows).
-- Build: `.icon(.system(behavior.alertIcon))`,
-  `.title("\(behavior.alertEmoji) \(behavior.label)")`,
-  `.message("\(behavior.nudge)\n\(ordinal(count)) nudge today")`,
-  `.position(.center)`, `.screenBlur(true, intensity: .medium)`,
-  `.alwaysOnTop(true)`, `.dismissOnScreenTap(true)`,
-  `.autoDismiss(after: 3.5)`, `.show()`.
+- Render a card-less `BFRBAlertView` (icon + `behavior.label` + `nudge` +
+  `ordinal(count)` streak, no background) via
+  `OverlayWindowManager.shared.show(id:configuration:content:)` with a
+  `Configuration` of `position: .center`, `width: 480`, `height: 300`,
+  `screenBlur: true`, `screenBlurIntensity: .medium`, `dismissOnScreenTap: true`,
+  `alwaysOnTop: true`, `isMoveable: true`.
+- Schedule auto-dismiss: a `Task` sleeps `bfrbAlertDuration` (6s) then calls
+  `dismiss(id:)`. The view also dismisses on tap; ESC works via the manager.
 - Private `ordinal(_ n: Int) -> String`: 1→"1st", 2→"2nd", 3→"3rd", 4→"4th",
   11→"11th", 12→"12th", 13→"13th", 21→"21st" (standard English ordinal rules).
 
