@@ -59,3 +59,28 @@ import CoreGraphics
         iconSVGPath: "/tmp/i.svg", iconSVGWidth: 50, iconSVGHeight: 60)
     #expect(prefs.effectiveIcon(for: .nailBiting) == .svg(path: "/tmp/i.svg", size: CGSize(width: 50, height: 60)))
 }
+
+@MainActor
+@Test func storeDefaultsToDefaultPreferencesWhenUnset() {
+    let name = "test.vibecheck.alertprefs.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+
+    let store = DetectionAlertPreferencesStore(defaults: defaults)
+    #expect(store.preferences == DetectionAlertPreferences())
+}
+
+@MainActor
+@Test func storePersistsEditsAndSecondStoreReadsThemBack() {
+    let name = "test.vibecheck.alertprefs.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+
+    let writer = DetectionAlertPreferencesStore(defaults: defaults)
+    writer.preferences.shared.position = .bottomRight
+    writer.setBehavior(.nailBiting, DetectionAlertBehaviorPrefs(messageOverride: "Down"))
+
+    let reader = DetectionAlertPreferencesStore(defaults: defaults)
+    #expect(reader.preferences.shared.position == .bottomRight)
+    #expect(reader.behavior(.nailBiting).messageOverride == "Down")
+}
