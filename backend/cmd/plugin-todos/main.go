@@ -10,18 +10,20 @@
 package main
 
 import (
-	"fmt"
 	"log"
 
 	"github.com/google/uuid"
 	"github.com/vibecare-io/vibecare/backend/pkg/pluginsdk"
 )
 
-// todoText looks up the current text of the todo stored under id.
-func todoText(c pluginsdk.Ctx, id string) (string, error) {
+// todoRecord looks up the current text and done state of the todo stored
+// under id. found is false (with a nil err) when no record with that id
+// exists — a distinct case from a genuine Query/decode error, so callers
+// can tell "no-op, nothing to do" apart from "something actually broke".
+func todoRecord(c pluginsdk.Ctx, id string) (text string, done bool, found bool, err error) {
 	recs, err := c.Host.Query("todos")
 	if err != nil {
-		return "", err
+		return "", false, false, err
 	}
 	for _, r := range recs {
 		if r.Key != id {
@@ -29,12 +31,13 @@ func todoText(c pluginsdk.Ctx, id string) (string, error) {
 		}
 		m, err := r.AsMap()
 		if err != nil {
-			return "", err
+			return "", false, false, err
 		}
 		text, _ := m["text"].(string)
-		return text, nil
+		done, _ := m["done"].(bool)
+		return text, done, true, nil
 	}
-	return "", fmt.Errorf("todo %q not found", id)
+	return "", false, false, nil
 }
 
 func main() {
@@ -49,16 +52,23 @@ func main() {
 
 	p.OnAction("complete_todo", func(c pluginsdk.Ctx, in map[string]string) error {
 		// The Toggle that triggers this action only carries the row's id in
-		// its params (see Toggle in view.go), not its text — so the
-		// existing text has to be looked up rather than trusted from in,
-		// or completing a todo would blank it out.
-		text, err := todoText(c, in["id"])
+		// its params (see Toggle in view.go), not its text or current done
+		// state — so both have to be looked up rather than trusted from in.
+		// This action name is a misnomer carried over from v0 (it now
+		// toggles, not just completes): flip done, and preserve text so
+		// completing a todo never blanks it out. If the id can't be found
+		// (e.g. deleted from another client concurrently), treat it as a
+		// no-op rather than creating a blank record under a stale id.
+		text, done, found, err := todoRecord(c, in["id"])
 		if err != nil {
 			return err
 		}
+		if !found {
+			return nil
+		}
 		return c.Host.Store("todos", in["id"], map[string]any{
 			"text": text,
-			"done": true,
+			"done": !done,
 		})
 	})
 

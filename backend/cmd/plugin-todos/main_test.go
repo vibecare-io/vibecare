@@ -302,6 +302,32 @@ func TestTodosPluginEndToEnd(t *testing.T) {
 		t.Fatalf("expected done=true after complete_todo; rowDone = (%v, %v)", done, ok)
 	}
 
+	// complete_todo is a toggle, not a one-way latch: invoking it again on
+	// the same id must flip done back to false, with text still preserved.
+	// This is the regression test for the fix — the handler used to
+	// unconditionally set done:true, so a completed todo could never be
+	// un-completed.
+	if _, err := svc.InvokePluginAction(ctx, &pb.InvokePluginActionRequest{
+		PluginId: pluginID,
+		ViewId:   "main",
+		Action:   "complete_todo",
+		Params:   map[string]string{"id": dogID},
+	}); err != nil {
+		t.Fatalf("InvokePluginAction(complete_todo, second call) failed: %v", err)
+	}
+
+	view, err = svc.RenderPluginView(ctx, &pb.RenderPluginViewRequest{PluginId: pluginID, ViewId: "main"})
+	if err != nil {
+		t.Fatalf("RenderPluginView failed: %v", err)
+	}
+	row = findRow(view.GetNodes(), "walk the dog")
+	if row == nil {
+		t.Fatalf("\"walk the dog\" text vanished after second complete_todo (text should be preserved): %+v", view)
+	}
+	if done, ok := rowDone(row); !ok || done {
+		t.Fatalf("expected done=false after toggling complete_todo a second time; rowDone = (%v, %v)", done, ok)
+	}
+
 	// delete_todo: the id-routing loop this task's Button(label, action, id)
 	// change exists for.
 	if _, err := svc.InvokePluginAction(ctx, &pb.InvokePluginActionRequest{

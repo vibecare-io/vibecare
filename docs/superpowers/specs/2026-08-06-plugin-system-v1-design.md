@@ -200,6 +200,40 @@ Renders `main` as a list with an add field. ~50 lines on the SDK. No Swift.
   `ListPlugins` → `RenderPluginView` → `InvokePluginAction(add)` → assert the item persists
   and re-renders.
 
+## Known Limitations (v1)
+
+- **Plugin-id namespacing is unit-proven but not wired in production.** `HostService`
+  (`backend/internal/plugins/host_service.go`) attributes every `StoreData`/`QueryData`/
+  `DeleteData` call to a plugin id read from the request context via `WithPluginID`, and
+  Task 3's unit tests prove that namespacing works correctly when that context value is set.
+  But **nothing in the running system actually sets it**: `cmd/server/main.go` registers
+  `HostService` with no interceptor that calls `WithPluginID`, and the SDK's `HostClient`
+  sends no plugin id on its calls. In practice every plugin's storage calls land in the
+  **empty plugin_id namespace**. With exactly one plugin loaded (todos) this is harmless.
+  With a second plugin that happens to reuse a collection name, it would silently corrupt
+  or leak the first plugin's data.
+
+  **Mitigation (this slice):** `Registry` (`backend/internal/plugins/registry.go`) enforces
+  a single-plugin guard — after the first plugin (by deterministic, sorted discovery order)
+  loads successfully, any additional *distinct* plugin id is refused with a loud `Warn` log
+  naming this limitation, rather than being loaded and silently sharing the empty namespace.
+  This is a general guard, separate from (and in addition to) the pre-existing duplicate-id
+  skip for two manifests declaring the *same* id.
+
+  **Real fix (first task of the next slice):** wire plugin-id attribution end-to-end — the
+  SDK sends the plugin id as gRPC call metadata on every `HostClient` call, and Core installs
+  a matching unary interceptor (or a per-plugin `HostService` listener) that calls
+  `WithPluginID` from that metadata before the request reaches `HostService`'s methods. Once
+  that lands, the single-plugin guard in `Registry` should be removed.
+
+- **`EmitEvent` is a log-only no-op.** `HostService.EmitEvent` does not broadcast anything to
+  connected clients in v1 — it only logs the plugin id, event type, and payload. A real
+  `DispatchEvent` has no faithful mapping from an arbitrary plugin event yet (no `EventType`
+  for plugin-originated events, and events aren't profile-scoped), so building one would only
+  produce a meaningless `EVENT_TYPE_UNSPECIFIED` broadcast to every client's stream. Real event
+  dispatch (a proper `EventType` plus routing to the right profile's subscribers) is deferred,
+  not part of v1.
+
 ## Roadmap (later slices, each its own spec)
 
 - **Spec 2 — Web UI tier:** `ui.kind: web`; plugin serves HTML; client embeds a webview;

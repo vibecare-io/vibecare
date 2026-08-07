@@ -216,6 +216,17 @@ func main() {
 
 	// Register the plugin HostService — the callback API plugin subprocesses
 	// dial back into (at hostAddr, above) for storage/events/notify/log.
+	//
+	// KNOWN LIMITATION (v1): no interceptor is installed here to call
+	// hostService.WithPluginID per call, so every plugin's Store/Query/
+	// Delete calls land in the empty plugin_id namespace regardless of which
+	// plugin made them. That's safe only because pluginRegistry (above)
+	// refuses to load a second distinct plugin id. Fixing this — the SDK
+	// sending the plugin id as call metadata plus a matching unary
+	// interceptor here (or a per-plugin HostService listener) — is the
+	// first task of the next slice; see
+	// docs/superpowers/specs/2026-08-06-plugin-system-v1-design.md
+	// "Known Limitations (v1)".
 	pb.RegisterHostServiceServer(grpcServer, hostService)
 
 	// Register reflection service for debugging

@@ -301,6 +301,70 @@ func TestRegistryStartSkipsDuplicatePluginID(t *testing.T) {
 	}
 }
 
+// TestRegistryStartSkipsSecondDistinctPluginID verifies the single-plugin
+// guard (the mitigation for the known plugin-id-namespacing-not-wired-in-
+// production limitation, see the design doc's "Known Limitations (v1)"):
+// when two manifests in different directories declare two DIFFERENT plugin
+// ids, only the first (by deterministic, sorted discovery order) loads —
+// the second is skipped even though it's not a duplicate id. This mirrors
+// TestRegistryStartSkipsDuplicatePluginID's assertion style but is a
+// distinct code path: that test guards against the SAME id from two
+// directories, this one guards against a SECOND distinct id entirely, since
+// today all plugins share the empty plugin_id storage namespace and can't
+// safely coexist.
+func TestRegistryStartSkipsSecondDistinctPluginID(t *testing.T) {
+	root := t.TempDir()
+
+	// os.ReadDir (as sorted explicitly by Registry.Start) discovers "first"
+	// before "second", so "com.vibecare.first" is the one that must win.
+	firstDir := filepath.Join(root, "first")
+	writeManifest(t, firstDir, "com.vibecare.first", "First", "./first")
+
+	secondDir := filepath.Join(root, "second")
+	writeManifest(t, secondDir, "com.vibecare.second", "Second", "./second")
+
+	firstAddr, firstStop := startStubPlugin(t, "com.vibecare.first")
+	t.Cleanup(firstStop)
+
+	secondAddr, secondStop := startStubPlugin(t, "com.vibecare.second")
+	t.Cleanup(secondStop)
+
+	fl := &fakeLauncher{
+		addrs: map[string]string{
+			"com.vibecare.first":  firstAddr,
+			"com.vibecare.second": secondAddr,
+		},
+		stops: map[string]func(){
+			"com.vibecare.first":  func() {},
+			"com.vibecare.second": func() {},
+		},
+	}
+
+	reg := newRegistryWithLauncher(root, nil, "127.0.0.1:50051", zap.NewNop(), fl)
+	t.Cleanup(reg.Stop)
+
+	if err := reg.Start(context.Background()); err != nil {
+		t.Fatalf("Start failed: %v", err)
+	}
+
+	list := reg.List()
+	if len(list) != 1 {
+		t.Fatalf("List() = %+v, want exactly 1 plugin (second distinct id skipped by single-plugin guard)", list)
+	}
+	if list[0].ID != "com.vibecare.first" {
+		t.Errorf("expected the first-discovered plugin (com.vibecare.first) to win, got %+v", list[0])
+	}
+
+	if _, ok := reg.Client("com.vibecare.second"); ok {
+		t.Error("Client() should not find the second distinct plugin; the single-plugin guard should have skipped it")
+	}
+
+	if got := fl.callCount("com.vibecare.second"); got != 0 {
+		t.Errorf("launcher.launch called %d times for the second distinct plugin id, want exactly 0 — "+
+			"the single-plugin guard must reject it before ever being launched", got)
+	}
+}
+
 // TestRegistryStopKillsSubprocessesAndHealthPolling verifies Stop() calls
 // each plugin's stop func and does not panic or hang.
 func TestRegistryStopKillsSubprocessesAndHealthPolling(t *testing.T) {
