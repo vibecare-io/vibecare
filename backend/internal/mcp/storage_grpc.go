@@ -200,6 +200,18 @@ func (a *GRPCStorageAdapter) DeleteSchedule(scheduleID string) error {
 	return nil
 }
 
+func (a *GRPCStorageAdapter) ReplaceScheduleActions(scheduleID string, actionIDs []string) error {
+	ctx := context.Background()
+	_, err := a.scheduleClient.ReplaceScheduleActions(ctx, &pb.ReplaceScheduleActionsRequest{
+		ScheduleId: scheduleID,
+		ActionIds:  actionIDs,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to replace schedule actions: %w", err)
+	}
+	return nil
+}
+
 // Action operations
 func (a *GRPCStorageAdapter) ListActionsByProfile(profileID string) ([]*models.Action, error) {
 	ctx := context.Background()

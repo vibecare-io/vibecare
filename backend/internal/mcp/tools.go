@@ -1003,8 +1003,11 @@ func (s *Server) toolUpdateSchedule(ctx context.Context, args map[string]interfa
 				strActionIds = append(strActionIds, s)
 			}
 		}
-		// action_ids deprecated - use schedule_actions join table
-		updates = append(updates, "actions (use schedule_actions join table)")
+		// Persist the action set via the schedule_actions join table
+		if err := s.storage.ReplaceScheduleActions(schedule.ScheduleID, strActionIds); err != nil {
+			return CallToolResult{}, fmt.Errorf("failed to replace schedule actions: %w", err)
+		}
+		updates = append(updates, fmt.Sprintf("actions (%d attached)", len(strActionIds)))
 	}
 
 	// Save the updated schedule
