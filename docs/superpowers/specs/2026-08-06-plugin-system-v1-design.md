@@ -202,29 +202,18 @@ Renders `main` as a list with an add field. ~50 lines on the SDK. No Swift.
 
 ## Known Limitations (v1)
 
-- **Plugin-id namespacing is unit-proven but not wired in production.** `HostService`
-  (`backend/internal/plugins/host_service.go`) attributes every `StoreData`/`QueryData`/
-  `DeleteData` call to a plugin id read from the request context via `WithPluginID`, and
-  Task 3's unit tests prove that namespacing works correctly when that context value is set.
-  But **nothing in the running system actually sets it**: `cmd/server/main.go` registers
-  `HostService` with no interceptor that calls `WithPluginID`, and the SDK's `HostClient`
-  sends no plugin id on its calls. In practice every plugin's storage calls land in the
-  **empty plugin_id namespace**. With exactly one plugin loaded (todos) this is harmless.
-  With a second plugin that happens to reuse a collection name, it would silently corrupt
-  or leak the first plugin's data.
+- **~~Plugin-id namespacing is unit-proven but not wired in production.~~ RESOLVED.**
+  Plugin-id attribution is now wired end-to-end: the SDK sends the plugin id as gRPC call
+  metadata (`x-vibecare-plugin-id`) on every `HostClient` call, and Core installs a matching
+  unary interceptor (`plugins.PluginIDUnaryServerInterceptor`) that sets it on the context
+  before the request reaches `HostService`. The single-plugin guard in `Registry` has been
+  removed; multiple distinct plugins now load and get separate storage namespaces. See
+  [`2026-08-06-plugin-id-namespacing-wiring-design.md`](2026-08-06-plugin-id-namespacing-wiring-design.md).
 
-  **Mitigation (this slice):** `Registry` (`backend/internal/plugins/registry.go`) enforces
-  a single-plugin guard — after the first plugin (by deterministic, sorted discovery order)
-  loads successfully, any additional *distinct* plugin id is refused with a loud `Warn` log
-  naming this limitation, rather than being loaded and silently sharing the empty namespace.
-  This is a general guard, separate from (and in addition to) the pre-existing duplicate-id
-  skip for two manifests declaring the *same* id.
-
-  **Real fix (first task of the next slice):** wire plugin-id attribution end-to-end — the
-  SDK sends the plugin id as gRPC call metadata on every `HostClient` call, and Core installs
-  a matching unary interceptor (or a per-plugin `HostService` listener) that calls
-  `WithPluginID` from that metadata before the request reaches `HostService`'s methods. Once
-  that lands, the single-plugin guard in `Registry` should be removed.
+  **Follow-up (future security review):** the plugin id is *self-reported* metadata, which
+  is acceptable under v1's trusted-plugin model. Before untrusted/sandboxed plugins ship,
+  move to **server-bound identity** (a per-plugin `HostService` listener whose id is fixed
+  server-side) so a plugin cannot spoof another's namespace.
 
 - **`EmitEvent` is a log-only no-op.** `HostService.EmitEvent` does not broadcast anything to
   connected clients in v1 — it only logs the plugin id, event type, and payload. A real

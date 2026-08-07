@@ -24,12 +24,27 @@ import (
 	"os"
 	"sync"
 
+	"github.com/vibecare-io/vibecare/backend/pkg/pluginwire"
 	pb "github.com/vibecare-io/vibecare/backend/pkg/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"gopkg.in/yaml.v3"
 )
+
+// pluginIDInterceptor returns a client-side unary interceptor that attaches
+// the plugin's id as pluginwire.PluginIDMetadataKey call metadata on every
+// outbound HostService call, so Core can attribute (and namespace) it. An
+// empty id appends nothing, preserving the standalone/no-manifest-id behavior.
+func pluginIDInterceptor(pluginID string) grpc.UnaryClientInterceptor {
+	return func(ctx context.Context, method string, req, reply any, cc *grpc.ClientConn, invoker grpc.UnaryInvoker, opts ...grpc.CallOption) error {
+		if pluginID != "" {
+			ctx = metadata.AppendToOutgoingContext(ctx, pluginwire.PluginIDMetadataKey, pluginID)
+		}
+		return invoker(ctx, method, req, reply, cc, opts...)
+	}
+}
 
 // fileManifest is the on-disk manifest.yaml shape. It intentionally
 // mirrors backend/internal/plugins.FileManifest field-for-field rather
@@ -183,7 +198,10 @@ func (p *Plugin) start(hostAddr string) (addr string, stop func(), err error) {
 
 	var hostConn *grpc.ClientConn
 	if hostAddr != "" {
-		hostConn, err = grpc.NewClient(hostAddr, grpc.WithTransportCredentials(insecure.NewCredentials()))
+		hostConn, err = grpc.NewClient(hostAddr,
+			grpc.WithTransportCredentials(insecure.NewCredentials()),
+			grpc.WithChainUnaryInterceptor(pluginIDInterceptor(p.manifest.ID)),
+		)
 		if err != nil {
 			_ = lis.Close()
 			return "", nil, fmt.Errorf("dial host at %s: %w", hostAddr, err)

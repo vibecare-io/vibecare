@@ -203,10 +203,10 @@ func (r *Registry) Start(ctx context.Context) error {
 	}
 
 	// os.ReadDir already returns entries sorted by filename, but sort
-	// explicitly so "the first plugin discovered" (load-order-sensitive: see
-	// the single-plugin guard in loadOne, and the duplicate-id skip) is a
-	// documented, stable property of Registry rather than an incidental one
-	// borrowed from os.ReadDir's current contract.
+	// explicitly so load order (which the duplicate-id skip in loadOne depends
+	// on: the first manifest discovered for a given id wins) is a documented,
+	// stable property of Registry rather than an incidental one borrowed from
+	// os.ReadDir's current contract.
 	sort.Slice(entries, func(i, j int) bool { return entries[i].Name() < entries[j].Name() })
 
 	for _, e := range entries {
@@ -242,30 +242,9 @@ func (r *Registry) loadOne(ctx context.Context, dir, manifestPath string) error 
 
 	r.mu.RLock()
 	_, dup := r.plugins[m.ID]
-	loadedCount := len(r.plugins)
 	r.mu.RUnlock()
 	if dup {
 		return fmt.Errorf("duplicate plugin id %s (already loaded from another directory); skipping %s", m.ID, dir)
-	}
-
-	// KNOWN LIMITATION (v1): HostService namespaces StoreData/QueryData/
-	// DeleteData by a plugin id read from context (see WithPluginID in
-	// host_service.go), but nothing in production wires that id yet —
-	// cmd/server/main.go registers HostService with no interceptor, and the
-	// SDK's HostClient sends no id. Every real call is therefore attributed
-	// to the empty plugin id. With exactly one plugin loaded that's
-	// harmless; with two, a second plugin that reuses a collection name
-	// would silently corrupt or leak the first plugin's data. Until the
-	// SDK-sends-id + host-interceptor wiring lands (first task of the next
-	// slice), Registry only allows the first distinct plugin id discovered
-	// (see the sorted os.ReadDir above for "first") to load; every other
-	// distinct id is refused here, loudly, rather than silently corrupting
-	// data.
-	if loadedCount > 0 {
-		r.log.Warn("plugin skipped: multi-plugin disabled until per-plugin storage namespacing is wired in production (known limitation); only one plugin can run safely because all plugins currently share the empty plugin_id namespace",
-			zap.String("plugin_id", m.ID),
-			zap.String("dir", dir))
-		return fmt.Errorf("single-plugin guard: refusing to load second distinct plugin id %s (known limitation: production HostService namespacing is not yet wired, see docs/superpowers/specs/2026-08-06-plugin-system-v1-design.md#known-limitations-v1); skipping %s", m.ID, dir)
 	}
 
 	launchCtx, cancel := context.WithTimeout(ctx, launchTimeout)
