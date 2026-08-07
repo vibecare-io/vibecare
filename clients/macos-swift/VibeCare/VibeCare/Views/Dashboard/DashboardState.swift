@@ -6,6 +6,7 @@ final class DashboardState: ObservableObject {
     @Published var selectedRoutineId: String?
     @Published var selectedScheduleId: String?
     @Published var selectedActionId: String?
+    @Published var selectedVibeCheck: Bool = false   // screen has no list selection
     @Published var selectedPluginId: String?
     @Published var selectedSettingCategory: SettingCategory?
 
@@ -25,6 +26,8 @@ final class DashboardState: ObservableObject {
             return selectedScheduleId != nil
         case .actions:
             return selectedActionId != nil
+        case .vibecheck:
+            return false
         case .plugins:
             return selectedPluginId != nil
         case .settings:

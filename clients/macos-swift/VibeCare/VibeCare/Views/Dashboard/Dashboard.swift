@@ -91,6 +91,8 @@ public struct Dashboard: View {
       scheduleContentView
     case .actions:
       actionContentView
+    case .vibecheck:
+      vibeCheckContentView
     case .plugins:
       pluginContentView
     case .settings:
@@ -123,6 +125,10 @@ public struct Dashboard: View {
       searchText: dashboardState.searchText,
       selectedId: $dashboardState.selectedActionId
     )
+  }
+
+  private var vibeCheckContentView: some View {
+    VibeCheckScreen()
   }
 
   private var pluginContentView: some View {
@@ -175,6 +181,8 @@ public struct Dashboard: View {
       scheduleDetailView
     case .actions:
       actionDetailView
+    case .vibecheck:
+      EmptyView()
     case .plugins:
       pluginDetailView
     case .settings:
