@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct VibeCheckScreen: View {
-    @StateObject private var viewModel = VibeCheckViewModel()
+    @ObservedObject var viewModel: VibeCheckViewModel
 
     var body: some View {
         ZStack {
@@ -10,10 +10,13 @@ struct VibeCheckScreen: View {
             } else {
                 CameraPreview(previewLayer: viewModel.camera.previewLayer)
                     .ignoresSafeArea()
-                DetectionOverlay(frame: viewModel.latestFrame)
-                    .ignoresSafeArea()
+                if viewModel.showOverlay {
+                    DetectionOverlay(frame: viewModel.latestFrame,
+                                      enabledBehaviors: viewModel.enabledBehaviors)
+                        .ignoresSafeArea()
+                }
                 flashOverlay
-                controlsOverlay
+                overlayToggle
             }
         }
         .navigationTitle("VibeCheck")
@@ -30,74 +33,26 @@ struct VibeCheckScreen: View {
             .ignoresSafeArea()
     }
 
-    private var controlsOverlay: some View {
+    /// Eye toggle at the camera's top-right, shows/hides `DetectionOverlay`.
+    private var overlayToggle: some View {
         VStack {
-            Spacer()
             HStack {
-                controlsPanel
                 Spacer()
+                Button {
+                    viewModel.showOverlay.toggle()
+                } label: {
+                    Image(systemName: viewModel.showOverlay ? "eye" : "eye.slash")
+                        .font(.system(size: 14))
+                        .foregroundStyle(.white)
+                        .frame(width: 32, height: 32)
+                        .background(.black.opacity(0.4), in: Circle())
+                }
+                .buttonStyle(.plain)
+                .help(viewModel.showOverlay ? "Hide detection overlay" : "Show detection overlay")
             }
+            Spacer()
         }
         .padding()
-    }
-
-    private var controlsPanel: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Detection").font(.headline)
-
-            ForEach(BFRBBehavior.allCases) { behavior in
-                Toggle(behavior.label, isOn: behaviorBinding(behavior))
-            }
-
-            Divider()
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Sensitivity").font(.caption).foregroundStyle(.secondary)
-                Slider(value: $viewModel.sensitivity, in: 0...1)
-            }
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text("Alert interval: \(Int(viewModel.alertInterval))s")
-                    .font(.caption).foregroundStyle(.secondary)
-                Slider(value: $viewModel.alertInterval, in: 1...30)
-            }
-
-            Divider()
-
-            sessionCounter
-        }
-        .padding()
-        .frame(width: 240)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
-    }
-
-    private var sessionCounter: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text("Session").font(.caption).foregroundStyle(.secondary)
-            ForEach(BFRBBehavior.allCases) { behavior in
-                HStack {
-                    Text(behavior.label)
-                    Spacer()
-                    Text("\(viewModel.sessionCounts[behavior, default: 0])")
-                        .monospacedDigit()
-                        .foregroundStyle(.secondary)
-                }
-                .font(.caption)
-            }
-        }
-    }
-
-    private func behaviorBinding(_ behavior: BFRBBehavior) -> Binding<Bool> {
-        Binding(
-            get: { viewModel.enabledBehaviors.contains(behavior) },
-            set: { isOn in
-                if isOn {
-                    viewModel.enabledBehaviors.insert(behavior)
-                } else {
-                    viewModel.enabledBehaviors.remove(behavior)
-                }
-            }
-        )
     }
 
     private var permissionView: some View {

@@ -30,14 +30,19 @@ struct BFRBDetector {
     }
 
     /// Hair zone: a band above the forehead (y above box top), extended
-    /// laterally past the temples by 15% of face width.
-    private func inHairZone(_ p: CGPoint, _ box: CGRect) -> Bool {
+    /// laterally past the temples by 15% of face width. Vision space (y up).
+    /// Shared with `DetectionOverlay` so the drawn overlay and the actual
+    /// detection trigger region can never drift apart.
+    static func hairZone(for box: CGRect) -> CGRect {
         let pad = box.width * 0.15
-        let zone = CGRect(x: box.minX - pad,
-                          y: box.maxY,
-                          width: box.width + 2 * pad,
-                          height: box.height * 0.5)
-        return zone.contains(p)
+        return CGRect(x: box.minX - pad,
+                      y: box.maxY,
+                      width: box.width + 2 * pad,
+                      height: box.height * 0.5)
+    }
+
+    private func inHairZone(_ p: CGPoint, _ box: CGRect) -> Bool {
+        Self.hairZone(for: box).contains(p)
     }
 
     private func distance(_ a: CGPoint, _ b: CGPoint) -> Double {

@@ -32,11 +32,21 @@ final class CameraSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
 
     /// Requests permission, configures the session, and starts it.
     /// Returns false if permission is denied or no camera is available.
+    ///
+    /// Idempotent: safe to call again after the owning view model persists
+    /// across navigation (e.g. the user re-selects VibeCheck and the camera
+    /// view re-appears). `configure()` only runs once — calling it twice
+    /// would re-add inputs/outputs to `session` and throw a runtime error —
+    /// and `startRunning()` only runs if the session isn't already running.
     func start() async -> Bool {
         let authorized = await ensureAuthorized()
         guard authorized else { return false }
-        guard configure() else { return false }
-        frameQueue.async { [session] in session.startRunning() }
+        if session.inputs.isEmpty {
+            guard configure() else { return false }
+        }
+        frameQueue.async { [session] in
+            if !session.isRunning { session.startRunning() }
+        }
         return true
     }
 
