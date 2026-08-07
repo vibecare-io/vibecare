@@ -4,7 +4,10 @@ go 1.23.0
 
 toolchain go1.24.4
 
-require github.com/vibecare-io/vibecare/backend v0.0.0-00010101000000-000000000000
+require (
+	github.com/google/uuid v1.6.0
+	github.com/vibecare-io/vibecare/backend v0.0.0-00010101000000-000000000000
+)
 
 require (
 	golang.org/x/net v0.43.0 // indirect
