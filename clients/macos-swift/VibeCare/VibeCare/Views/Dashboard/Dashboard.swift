@@ -8,7 +8,7 @@ public struct Dashboard: View {
   @StateObject private var scheduleViewModel = ScheduleViewModel()
   @StateObject private var actionViewModel = ActionViewModel()
   @StateObject private var notificationPolicy = NotificationPolicy.shared
-  @StateObject private var vibeCheckViewModel = VibeCheckViewModel()
+  @StateObject private var vibeCheckViewModel = VibeCheckViewModel.shared
 
   public init() {}
 
@@ -150,6 +150,14 @@ public struct Dashboard: View {
 
   @ViewBuilder
   private var toolbarButtons: some View {
+    // Detection toggle (always visible)
+    Button {
+      Task { await vibeCheckViewModel.toggleDetection() }
+    } label: {
+      Image(systemName: vibeCheckViewModel.isDetectionEnabled ? "eye.fill" : "eye.slash")
+    }
+    .help(vibeCheckViewModel.isDetectionEnabled ? "Stop VibeCheck detection" : "Start VibeCheck detection")
+
     // Notification toggle (always visible)
     Button {
       notificationPolicy.toggle()
