@@ -197,36 +197,34 @@ func main() {
 		}
 	}()
 
-	// Create gRPC server with OpenTelemetry interceptors
-	// Order matters: panic recovery first, then OTel, then custom
-	serverOpts := []grpc.ServerOption{}
+	// Create gRPC server interceptor chain. Order matters: panic recovery
+	// first, then OTel, then custom telemetry, then plugin-id attribution
+	// last (closest to the handler). The tracing trio is only added when
+	// tracing is enabled; the plugin-id interceptor is always installed — it
+	// reads the caller's plugin id from incoming metadata to namespace plugin
+	// HostService storage calls, and is a harmless no-op for Core's own
+	// app-facing RPCs (which carry no such metadata).
+	interceptors := []grpc.UnaryServerInterceptor{}
 	if *enableTracing {
-		serverOpts = append(serverOpts,
-			grpc.ChainUnaryInterceptor(
-				telemetry.PanicRecoveryInterceptor(logger), // First: catch panics
-				otelgrpc.UnaryServerInterceptor(),          // Second: create spans
-				telemetry.UnaryServerInterceptor(logger),   // Third: add custom attributes
-			),
+		interceptors = append(interceptors,
+			telemetry.PanicRecoveryInterceptor(logger), // First: catch panics
+			otelgrpc.UnaryServerInterceptor(),          // Second: create spans
+			telemetry.UnaryServerInterceptor(logger),   // Third: add custom attributes
 		)
 	}
-	grpcServer := grpc.NewServer(serverOpts...)
+	interceptors = append(interceptors, plugins.PluginIDUnaryServerInterceptor())
+	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptors...))
 
 	// Register services
 	api.RegisterServices(grpcServer, db, eventHub, templateLoader, iconLoader, pluginRegistry, logger)
 
 	// Register the plugin HostService — the callback API plugin subprocesses
 	// dial back into (at hostAddr, above) for storage/events/notify/log.
-	//
-	// KNOWN LIMITATION (v1): no interceptor is installed here to call
-	// hostService.WithPluginID per call, so every plugin's Store/Query/
-	// Delete calls land in the empty plugin_id namespace regardless of which
-	// plugin made them. That's safe only because pluginRegistry (above)
-	// refuses to load a second distinct plugin id. Fixing this — the SDK
-	// sending the plugin id as call metadata plus a matching unary
-	// interceptor here (or a per-plugin HostService listener) — is the
-	// first task of the next slice; see
-	// docs/superpowers/specs/2026-08-06-plugin-system-v1-design.md
-	// "Known Limitations (v1)".
+	// Per-plugin storage namespacing is wired end-to-end: the SDK sends the
+	// plugin id as call metadata and plugins.PluginIDUnaryServerInterceptor
+	// (installed in the chain above) attributes each call before it reaches
+	// HostService. See
+	// docs/superpowers/specs/2026-08-06-plugin-id-namespacing-wiring-design.md.
 	pb.RegisterHostServiceServer(grpcServer, hostService)
 
 	// Register reflection service for debugging

@@ -7,9 +7,11 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/vibecare-io/vibecare/backend/pkg/pluginwire"
 	pb "github.com/vibecare-io/vibecare/backend/pkg/proto"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
 
@@ -24,15 +26,24 @@ type fakeHostServer struct {
 
 	mu    sync.Mutex
 	store map[string]map[string]string // collection -> key -> value_json
+	// lastStorePluginID records the x-vibecare-plugin-id call metadata seen on
+	// the most recent StoreData call, so tests can assert the SDK attributes
+	// the caller. Empty string means no such metadata was present.
+	lastStorePluginID string
 }
 
 func newFakeHostServer() *fakeHostServer {
 	return &fakeHostServer{store: make(map[string]map[string]string)}
 }
 
-func (f *fakeHostServer) StoreData(_ context.Context, req *pb.StoreRequest) (*emptypb.Empty, error) {
+func (f *fakeHostServer) StoreData(ctx context.Context, req *pb.StoreRequest) (*emptypb.Empty, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		if vals := md.Get(pluginwire.PluginIDMetadataKey); len(vals) > 0 {
+			f.lastStorePluginID = vals[0]
+		}
+	}
 	if f.store[req.GetCollection()] == nil {
 		f.store[req.GetCollection()] = make(map[string]string)
 	}
@@ -262,6 +273,42 @@ func TestPluginExecuteActionUnknownReturnsNotOk(t *testing.T) {
 	}
 	if resp.GetOk() {
 		t.Error("ExecuteAction.Ok = true for unknown action, want false")
+	}
+}
+
+// TestHostClientCallsCarryPluginIDMetadata verifies that HostClient calls
+// attribute the caller: the SDK attaches the plugin's manifest id as
+// x-vibecare-plugin-id call metadata, which Core's interceptor reads to
+// namespace storage. Without this, every plugin's calls land in the empty
+// namespace (the pre-wiring bug this test guards against).
+func TestHostClientCallsCarryPluginIDMetadata(t *testing.T) {
+	hostAddr, host, stopHost := startFakeHost(t)
+	t.Cleanup(stopHost)
+
+	p := newPlugin(fileManifest{ID: "com.vibecare.todos"})
+	p.OnAction("add", func(ctx Ctx, params map[string]string) error {
+		return ctx.Host.Store("items", params["id"], map[string]string{"name": params["name"]})
+	})
+	p.OnRender("main", func(ctx Ctx) View { return List() })
+
+	addr, stop, err := p.start(hostAddr)
+	if err != nil {
+		t.Fatalf("start failed: %v", err)
+	}
+	t.Cleanup(stop)
+
+	client := dialPlugin(t, addr)
+	if _, err := client.InvokeAction(context.Background(), &pb.InvokeActionRequest{
+		ViewId: "main", Action: "add", Params: map[string]string{"id": "1", "name": "milk"},
+	}); err != nil {
+		t.Fatalf("InvokeAction(add) failed: %v", err)
+	}
+
+	host.mu.Lock()
+	got := host.lastStorePluginID
+	host.mu.Unlock()
+	if got != "com.vibecare.todos" {
+		t.Errorf("StoreData saw plugin-id metadata %q, want %q", got, "com.vibecare.todos")
 	}
 }
 

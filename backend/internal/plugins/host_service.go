@@ -19,18 +19,15 @@ type pluginIDContextKey struct{}
 // HostService implements pb.HostServiceServer — the callback API plugins use
 // to talk back to Core. A single HostService instance serves every plugin;
 // each incoming call is attributed to a plugin via a context value set with
-// WithPluginID (by the supervisor, per-connection), never from request fields.
-// This is what gives StoreData/QueryData their namespacing guarantee.
+// WithPluginID, which in production is done by PluginIDUnaryServerInterceptor
+// (see interceptor.go) from the plugin-id call metadata the SDK sends. The id
+// never comes from request fields. This is what gives StoreData/QueryData
+// their namespacing guarantee.
 //
-// KNOWN LIMITATION (v1): nothing in production actually calls WithPluginID
-// yet — cmd/server/main.go registers HostService with no interceptor, and
-// the SDK's HostClient sends no plugin id, so every real call is attributed
-// to the empty plugin id. Namespacing is unit-proven (see host_service_test.go)
-// but not wired end-to-end. This is safe today only because Registry refuses
-// to load a second distinct plugin id (see the guard in registry.go); wiring
-// the SDK-sends-id + host-interceptor path is the first task of the next
-// slice. See docs/superpowers/specs/2026-08-06-plugin-system-v1-design.md
-// "Known Limitations (v1)".
+// The plugin id is self-reported by the (trusted, v1) plugin; see the design
+// doc docs/superpowers/specs/2026-08-06-plugin-id-namespacing-wiring-design.md
+// "Future security review" for the server-bound-identity follow-up before
+// untrusted plugins.
 type HostService struct {
 	pb.UnimplementedHostServiceServer
 
@@ -48,13 +45,10 @@ func NewHostService(db *storage.DB, hub *scheduler.EventHub, logger *zap.Logger)
 	}
 }
 
-// WithPluginID returns a copy of ctx carrying the calling plugin's id.
-//
-// NOTE: as of v1, nothing in production calls this on the real request path
-// (see the KNOWN LIMITATION note on HostService above) — it's exercised
-// directly by tests. Only single-plugin operation is safe until a gRPC
-// interceptor (fed by the SDK sending the plugin id as call metadata) wires
-// this into every real HostService call.
+// WithPluginID returns a copy of ctx carrying the calling plugin's id. In
+// production PluginIDUnaryServerInterceptor (interceptor.go) sets this from
+// call metadata before the request reaches HostService's methods; tests also
+// call it directly to attribute storage.
 func (h *HostService) WithPluginID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, pluginIDContextKey{}, id)
 }
