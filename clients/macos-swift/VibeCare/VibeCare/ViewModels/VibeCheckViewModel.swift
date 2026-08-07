@@ -7,6 +7,16 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     @Published var permissionDenied = false
     @Published var latestFrame = LandmarkFrame(hand: nil, face: nil)
 
+    @Published var enabledBehaviors: Set<BFRBBehavior> = Set(BFRBBehavior.allCases)
+    @Published var sensitivity: Double = 0.5
+    @Published var alertInterval: Double = 5       // cooldown seconds
+    @Published var sessionCounts: [BFRBBehavior: Int] = [:]
+    @Published var flash = false
+
+    private var detector = BFRBDetector(sensitivity: 0.5)
+    private var policy = DetectionPolicy(dwell: 0.4, cooldown: 5)
+    private let interrupt: InterruptPlaying
+
     /// `CameraSession` isn't `Sendable`. `nonisolated(unsafe)` asserts only that
     /// *this* reference is safe to await across the actor boundary the way this
     /// view model uses it (calling `start()`/`stop()` sequentially, never
@@ -31,6 +41,10 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     nonisolated(unsafe) private var lastAnalysisUnsafe = Date.distantPast
     private let minInterval = 1.0 / 12.0
 
+    init(interrupt: InterruptPlaying = InterruptPlayer()) {
+        self.interrupt = interrupt
+    }
+
     func start() async {
         camera.receiver = self
         let ok = await camera.start()
@@ -49,6 +63,30 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
         guard now.timeIntervalSince(lastAnalysisUnsafe) >= minInterval else { return }
         lastAnalysisUnsafe = now
         let frame = extractor.analyze(pixelBuffer)
-        Task { @MainActor in self.latestFrame = frame }
+        Task { @MainActor in self.consume(frame) }
+    }
+
+    /// Publishes the latest frame and runs detection on the main actor.
+    /// `detector`/`policy` are cheap pure value types owned by this
+    /// `@MainActor` view model, so running them here (rather than on
+    /// `frameQueue`) keeps all mutable detection state single-threaded
+    /// without needing extra synchronization.
+    @MainActor
+    private func consume(_ frame: LandmarkFrame) {
+        latestFrame = frame
+        detector.sensitivity = sensitivity
+        policy.cooldown = alertInterval
+        let result = detector.detect(frame, enabled: enabledBehaviors)
+        if let event = policy.ingest(result, at: Date().timeIntervalSinceReferenceDate) {
+            fire(event)
+        }
+    }
+
+    @MainActor
+    private func fire(_ event: BFRBEvent) {
+        sessionCounts[event.behavior, default: 0] += 1
+        interrupt.play(event.behavior)
+        flash = true
+        Task { try? await Task.sleep(for: .milliseconds(250)); flash = false }
     }
 }
