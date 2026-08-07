@@ -6,6 +6,13 @@ import SwiftUI
 /// sample buffer Vision analyzes is already mirrored to match the mirrored
 /// preview layer, so the landmark x already aligns with what's on screen —
 /// re-mirroring here would draw everything on the wrong horizontal side.
+///
+/// The preview uses `videoGravity = .resizeAspectFill`, so the displayed
+/// video is cropped/zoomed to fill the pane rather than stretched to it.
+/// Points must therefore be mapped through the aspect-FILL displayed video
+/// rect (computed from `frame.imageSize` vs the pane size), not the full
+/// pane rect, or the overlay drifts off the face whenever the pane's aspect
+/// ratio differs from the camera frame's.
 struct DetectionOverlay: View {
     let frame: LandmarkFrame
     let enabledBehaviors: Set<BFRBBehavior>
@@ -13,7 +20,18 @@ struct DetectionOverlay: View {
     var body: some View {
         GeometryReader { geo in
             let w = geo.size.width, h = geo.size.height
-            let pt: (CGPoint) -> CGPoint = { CGPoint(x: $0.x * w, y: (1 - $0.y) * h) }
+            // frame aspect; fall back to 16:9 if imageSize not yet known
+            let fa: CGFloat = frame.imageSize.height > 0 ? frame.imageSize.width / frame.imageSize.height : 16.0 / 9.0
+            let viewAspect = w / h
+            // aspect-FILL: video covers the view, cropping the longer dimension.
+            // (Ternary, not if/else — this closure is a SwiftUI @ViewBuilder body,
+            // and a plain if/else statement here is parsed as view-building control
+            // flow rather than a value computation.)
+            let dispW: CGFloat = viewAspect > fa ? w : h * fa   // view wider than frame → fill width; else fill height
+            let dispH: CGFloat = viewAspect > fa ? w / fa : h
+            let ox = (w - dispW) / 2
+            let oy = (h - dispH) / 2
+            let pt: (CGPoint) -> CGPoint = { CGPoint(x: ox + $0.x * dispW, y: oy + (1 - $0.y) * dispH) }
 
             Canvas { ctx, _ in
                 if let face = frame.face {
@@ -22,15 +40,15 @@ struct DetectionOverlay: View {
                     let origin = pt(CGPoint(x: face.box.minX, y: face.box.maxY))
                     let r = CGRect(x: origin.x,
                                    y: origin.y,
-                                   width: face.box.width * w,
-                                   height: face.box.height * h)
+                                   width: face.box.width * dispW,
+                                   height: face.box.height * dispH)
                     ctx.stroke(Path(r), with: .color(.cyan), lineWidth: 2)
 
                     if enabledBehaviors.contains(.hairPulling) {
-                        drawHairZone(ctx: &ctx, box: face.box, pt: pt, w: w, h: h)
+                        drawHairZone(ctx: &ctx, box: face.box, pt: pt, dispW: dispW, dispH: dispH)
                     }
                     if enabledBehaviors.contains(.nosePicking) {
-                        drawTargetMarker(ctx: &ctx, at: pt(face.nose), color: .orange)
+                        drawTargetMarker(ctx: &ctx, at: pt(face.nose), color: .green)
                     }
                     if enabledBehaviors.contains(.nailBiting) {
                         drawTargetMarker(ctx: &ctx, at: pt(face.mouth), color: .orange)
@@ -53,13 +71,13 @@ struct DetectionOverlay: View {
     /// is a geometric zone, not a hair-shaped mask (native macOS has no hair
     /// segmentation).
     private func drawHairZone(ctx: inout GraphicsContext, box: CGRect,
-                               pt: (CGPoint) -> CGPoint, w: CGFloat, h: CGFloat) {
+                               pt: (CGPoint) -> CGPoint, dispW: CGFloat, dispH: CGFloat) {
         let zone = BFRBDetector.hairZone(for: box)
         let origin = pt(CGPoint(x: zone.minX, y: zone.maxY))
         let r = CGRect(x: origin.x,
                         y: origin.y,
-                        width: zone.width * w,
-                        height: zone.height * h)
+                        width: zone.width * dispW,
+                        height: zone.height * dispH)
         let path = Path(roundedRect: r, cornerRadius: 8)
         ctx.fill(path, with: .color(.blue.opacity(0.25)))
         ctx.stroke(path, with: .color(.blue.opacity(0.6)), lineWidth: 1.5)
