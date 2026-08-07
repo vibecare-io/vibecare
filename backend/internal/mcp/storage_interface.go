@@ -23,6 +23,9 @@ type Storage interface {
 	UpdateSchedule(schedule *models.Schedule) (*models.Schedule, error)
 	DeleteSchedule(scheduleID string) error
 
+	// Schedule-Action association
+	ReplaceScheduleActions(scheduleID string, actionIDs []string) error
+
 	// Action operations
 	ListActionsByProfile(profileID string) ([]*models.Action, error)
 	CreateAction(action *models.Action) error

@@ -59,6 +59,10 @@ func (a *DBStorageAdapter) DeleteSchedule(scheduleID string) error {
 	return a.db.DeleteSchedule(scheduleID)
 }
 
+func (a *DBStorageAdapter) ReplaceScheduleActions(scheduleID string, actionIDs []string) error {
+	return a.db.ReplaceScheduleActions(scheduleID, actionIDs)
+}
+
 // Action operations
 func (a *DBStorageAdapter) ListActionsByProfile(profileID string) ([]*models.Action, error) {
 	return a.db.ListActionsByProfile(profileID)
