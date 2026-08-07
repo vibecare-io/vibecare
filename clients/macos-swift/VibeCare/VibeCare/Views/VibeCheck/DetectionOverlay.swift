@@ -44,8 +44,8 @@ struct DetectionOverlay: View {
                                    height: face.box.height * dispH)
                     ctx.stroke(Path(r), with: .color(.cyan), lineWidth: 2)
 
-                    if enabledBehaviors.contains(.hairPulling) {
-                        drawHairZone(ctx: &ctx, box: face.box, pt: pt, dispW: dispW, dispH: dispH)
+                    if enabledBehaviors.contains(.hairPulling), let mask = frame.hairMask {
+                        drawHairMask(ctx: &ctx, mask: mask, box: face.box, pt: pt, dispW: dispW, dispH: dispH)
                     }
                     if enabledBehaviors.contains(.nosePicking) {
                         drawTargetMarker(ctx: &ctx, at: pt(face.nose), color: .green)
@@ -66,21 +66,27 @@ struct DetectionOverlay: View {
         .allowsHitTesting(false)
     }
 
-    /// Translucent blue detection-zone rect for hair-pulling, computed from
-    /// the SAME Vision-space geometry `BFRBDetector` uses to trigger — this
-    /// is a geometric zone, not a hair-shaped mask (native macOS has no hair
-    /// segmentation).
-    private func drawHairZone(ctx: inout GraphicsContext, box: CGRect,
+    /// Draws the person-segmentation mask cells that are above the forehead
+    /// as translucent blue squares — a head/hair silhouette instead of the
+    /// old geometric rectangle. Uses the SAME mask `BFRBDetector` samples
+    /// for the hair-pulling trigger, so the drawn overlay and the actual
+    /// detection region can never drift apart. Cells at/below the forehead
+    /// are skipped so the face itself isn't tinted.
+    private func drawHairMask(ctx: inout GraphicsContext, mask: HairMask, box: CGRect,
                                pt: (CGPoint) -> CGPoint, dispW: CGFloat, dispH: CGFloat) {
-        let zone = BFRBDetector.hairZone(for: box)
-        let origin = pt(CGPoint(x: zone.minX, y: zone.maxY))
-        let r = CGRect(x: origin.x,
-                        y: origin.y,
-                        width: zone.width * dispW,
-                        height: zone.height * dispH)
-        let path = Path(roundedRect: r, cornerRadius: 8)
-        ctx.fill(path, with: .color(.blue.opacity(0.25)))
-        ctx.stroke(path, with: .color(.blue.opacity(0.6)), lineWidth: 1.5)
+        guard mask.cols > 0, mask.rows > 0 else { return }
+        let cellW = dispW / CGFloat(mask.cols)
+        let cellH = dispH / CGFloat(mask.rows)
+        for r in 0..<mask.rows {
+            let yUpTop = 1 - CGFloat(r) / CGFloat(mask.rows)          // cell's top edge, y-up
+            guard yUpTop > box.maxY else { continue }                  // skip at/below forehead
+            for c in 0..<mask.cols where mask.cells[r * mask.cols + c] {
+                let topLeft = CGPoint(x: CGFloat(c) / CGFloat(mask.cols), y: yUpTop)
+                let origin = pt(topLeft)
+                let cellRect = CGRect(x: origin.x, y: origin.y, width: cellW, height: cellH)
+                ctx.fill(Path(cellRect), with: .color(.blue.opacity(0.30)))
+            }
+        }
     }
 
     /// A small target-ring marker for point-based behaviors (nose/mouth).

@@ -22,7 +22,7 @@ struct BFRBDetector {
             if enabled.contains(.nailBiting), distance(tip, face.mouth) <= radius {
                 return DetectionResult(behavior: .nailBiting, point: tip)
             }
-            if enabled.contains(.hairPulling), inHairZone(tip, face.box) {
+            if enabled.contains(.hairPulling), isHairContact(tip, face: face, mask: frame.hairMask) {
                 return DetectionResult(behavior: .hairPulling, point: tip)
             }
         }
@@ -41,8 +41,16 @@ struct BFRBDetector {
                       height: box.height * 0.5)
     }
 
-    private func inHairZone(_ p: CGPoint, _ box: CGRect) -> Bool {
-        Self.hairZone(for: box).contains(p)
+    /// A fingertip counts as hair-pulling when it's above the forehead
+    /// (excludes the face itself) AND lands on the person/hair silhouette.
+    /// Prefers the segmentation mask; falls back to the geometric hair zone
+    /// when no mask is available (segmentation unsupported/failed).
+    private func isHairContact(_ p: CGPoint, face: FaceGeometry, mask: HairMask?) -> Bool {
+        guard p.y > face.box.maxY else { return false }          // above the forehead only
+        if let mask, mask.cols > 0 {
+            return mask.isPerson(atNormalized: p)                 // on the head/hair silhouette
+        }
+        return Self.hairZone(for: face.box).contains(p)           // graceful fallback (no mask)
     }
 
     private func distance(_ a: CGPoint, _ b: CGPoint) -> Double {
