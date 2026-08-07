@@ -85,16 +85,15 @@ final class CameraSession: NSObject, AVCaptureVideoDataOutputSampleBufferDelegat
         guard session.canAddOutput(output) else { return false }
         session.addOutput(output)
 
-        // Lock the data-output mirroring deterministically so Vision always
-        // analyzes a mirrored buffer that matches the mirrored preview. Without
-        // this, automatic mirroring can drift when the preview layer re-attaches
-        // on navigation, flipping the overlay's coordinate space so it renders
-        // mirrored after the user returns to the screen. autoAdjust=false pins it.
-        if let connection = output.connection(with: .video),
-           connection.isVideoMirroringSupported {
-            connection.automaticallyAdjustsVideoMirroring = false
-            connection.isVideoMirrored = true
-        }
+        // Deliberately DON'T touch mirroring on the output connection. macOS
+        // auto-mirrors the built-in front camera on both the preview and the
+        // data output by default (automaticallyAdjustsVideoMirroring), and that
+        // default is applied consistently at all times. Manually forcing it —
+        // in configure() or in the preview's make/updateNSView — only takes
+        // effect when the connection happens to be ready, which flips the
+        // overlay's coordinate space on exactly one of first-open / re-open.
+        // Leaving auto-mirroring on keeps preview and Vision buffer in sync, so
+        // the overlay's no-x-flip mapping stays correct across navigation.
         return true
     }
 
