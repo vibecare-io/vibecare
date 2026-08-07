@@ -6,13 +6,11 @@ package plugins
 import (
 	"context"
 
-	"github.com/google/uuid"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
 	pb "github.com/vibecare-io/vibecare/backend/pkg/proto"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/types/known/emptypb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // pluginIDContextKey is an unexported type to avoid context key collisions.
@@ -23,6 +21,16 @@ type pluginIDContextKey struct{}
 // each incoming call is attributed to a plugin via a context value set with
 // WithPluginID (by the supervisor, per-connection), never from request fields.
 // This is what gives StoreData/QueryData their namespacing guarantee.
+//
+// KNOWN LIMITATION (v1): nothing in production actually calls WithPluginID
+// yet — cmd/server/main.go registers HostService with no interceptor, and
+// the SDK's HostClient sends no plugin id, so every real call is attributed
+// to the empty plugin id. Namespacing is unit-proven (see host_service_test.go)
+// but not wired end-to-end. This is safe today only because Registry refuses
+// to load a second distinct plugin id (see the guard in registry.go); wiring
+// the SDK-sends-id + host-interceptor path is the first task of the next
+// slice. See docs/superpowers/specs/2026-08-06-plugin-system-v1-design.md
+// "Known Limitations (v1)".
 type HostService struct {
 	pb.UnimplementedHostServiceServer
 
@@ -41,6 +49,12 @@ func NewHostService(db *storage.DB, hub *scheduler.EventHub, logger *zap.Logger)
 }
 
 // WithPluginID returns a copy of ctx carrying the calling plugin's id.
+//
+// NOTE: as of v1, nothing in production calls this on the real request path
+// (see the KNOWN LIMITATION note on HostService above) — it's exercised
+// directly by tests. Only single-plugin operation is safe until a gRPC
+// interceptor (fed by the SDK sending the plugin id as call metadata) wires
+// this into every real HostService call.
 func (h *HostService) WithPluginID(ctx context.Context, id string) context.Context {
 	return context.WithValue(ctx, pluginIDContextKey{}, id)
 }
@@ -93,23 +107,22 @@ func (h *HostService) DeleteData(ctx context.Context, req *pb.DeleteRequest) (*e
 	return &emptypb.Empty{}, nil
 }
 
-// EmitEvent broadcasts a plugin-originated event to all connected clients.
-// v1: plugin events aren't profile-scoped yet, so this uses BroadcastToAll
-// rather than routing to a specific profile's subscribers.
+// EmitEvent is a log-only no-op in v1. A real DispatchEvent has no faithful
+// mapping from an arbitrary plugin event yet (there's no EventType for
+// plugin-originated events, and events aren't profile-scoped), so building
+// one here would only produce an EVENT_TYPE_UNSPECIFIED event broadcast to
+// every connected client's stream — meaningless noise, not a real feature.
+// Instead this just logs what the plugin emitted; wiring actual dispatch
+// (a real EventType + routing to the right profile's subscribers) is future
+// work, not part of v1. Signature and no-error contract are preserved so
+// plugins calling Emit today don't need to change when that lands.
 func (h *HostService) EmitEvent(ctx context.Context, req *pb.PluginEvent) (*emptypb.Empty, error) {
 	pluginID := pluginIDFromContext(ctx)
 
-	event := &pb.DispatchEvent{
-		EventId:   uuid.New().String(),
-		EventType: pb.EventType_EVENT_TYPE_UNSPECIFIED,
-		Timestamp: timestamppb.Now(),
-	}
-
-	h.hub.BroadcastToAll(event)
-
-	h.logger.Info("Plugin emitted event",
+	h.logger.Info("Plugin emitted event (log-only no-op in v1; not broadcast)",
 		zap.String("plugin_id", pluginID),
-		zap.String("event_type", req.GetType()))
+		zap.String("event_type", req.GetType()),
+		zap.Any("payload", req.GetPayload()))
 
 	return &emptypb.Empty{}, nil
 }
