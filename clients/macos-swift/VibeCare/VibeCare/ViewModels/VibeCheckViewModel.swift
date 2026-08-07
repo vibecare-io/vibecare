@@ -12,6 +12,7 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     @Published var alertInterval: Double = 5       // cooldown seconds
     @Published var sessionCounts: [BFRBBehavior: Int] = [:]
     @Published var flash = false
+    @Published var showOverlay = true
 
     private var detector = BFRBDetector(sensitivity: 0.5)
     private var policy = DetectionPolicy(dwell: 0.4, cooldown: 5)

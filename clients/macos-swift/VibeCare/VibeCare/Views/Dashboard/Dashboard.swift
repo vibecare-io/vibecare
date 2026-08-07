@@ -8,6 +8,7 @@ public struct Dashboard: View {
   @StateObject private var scheduleViewModel = ScheduleViewModel()
   @StateObject private var actionViewModel = ActionViewModel()
   @StateObject private var notificationPolicy = NotificationPolicy.shared
+  @StateObject private var vibeCheckViewModel = VibeCheckViewModel()
 
   public init() {}
 
@@ -128,7 +129,7 @@ public struct Dashboard: View {
   }
 
   private var vibeCheckContentView: some View {
-    VibeCheckScreen()
+    VibeCheckScreen(viewModel: vibeCheckViewModel)
   }
 
   private var pluginContentView: some View {
@@ -182,7 +183,7 @@ public struct Dashboard: View {
     case .actions:
       actionDetailView
     case .vibecheck:
-      EmptyView()
+      VibeCheckControlsPanel(viewModel: vibeCheckViewModel)
     case .plugins:
       pluginDetailView
     case .settings:
