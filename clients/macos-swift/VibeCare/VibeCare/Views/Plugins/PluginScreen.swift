@@ -61,7 +61,12 @@ struct PluginScreen: View {
             }
         }
         .navigationTitle(pluginId)
-        .task {
+        // Keyed on pluginId so switching to a different plugin (which reuses
+        // this same view identity in Dashboard's detail column) cancels the
+        // old load and re-runs load() for the newly-selected plugin. A plain
+        // `.task {}` only fires once per view identity and would leave the
+        // previous plugin's descriptor on screen.
+        .task(id: pluginId) {
             await load()
         }
         // Non-destructive surface for an invoke() failure that happened
@@ -87,10 +92,20 @@ struct PluginScreen: View {
     }
 
     private func load() async {
+        // Reset per-plugin state up front so switching plugins shows the
+        // loading spinner for the new one rather than briefly leaving the
+        // previous plugin's list on screen (this @State persists across the
+        // reused view identity - see the `.task(id:)` note above).
+        descriptor = nil
         errorMessage = nil
         do {
-            descriptor = try await pluginService.renderView(pluginId: pluginId, viewId: viewId)
+            let loaded = try await pluginService.renderView(pluginId: pluginId, viewId: viewId)
+            // If this load was superseded (pluginId changed, cancelling the
+            // task), don't clobber the newer plugin's state.
+            if Task.isCancelled { return }
+            descriptor = loaded
         } catch {
+            if Task.isCancelled { return }
             errorMessage = "Failed to load plugin view: \(error.localizedDescription)"
         }
     }
