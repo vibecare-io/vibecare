@@ -7,6 +7,8 @@ struct VibeCheckScreen: View {
         ZStack {
             if viewModel.permissionDenied {
                 permissionView
+            } else if !viewModel.isDetectionEnabled {
+                detectionOffView
             } else {
                 CameraPreview(previewLayer: viewModel.camera.previewLayer)
                     .ignoresSafeArea()
@@ -20,8 +22,6 @@ struct VibeCheckScreen: View {
             }
         }
         .navigationTitle("VibeCheck")
-        .task { await viewModel.start() }
-        .onDisappear { viewModel.stop() }
     }
 
     /// Translucent red flash shown briefly whenever an interrupt fires.
@@ -64,6 +64,20 @@ struct VibeCheckScreen: View {
                     NSWorkspace.shared.open(url)
                 }
             }
+        }
+    }
+
+    private var detectionOffView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "eye.slash").font(.system(size: 40))
+            Text("Detection is off").font(.title3).bold()
+            Text("Turn it on to start monitoring")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Button("Start Detection") {
+                Task { await viewModel.setDetection(true) }
+            }
+            .buttonStyle(.borderedProminent)
         }
     }
 }
