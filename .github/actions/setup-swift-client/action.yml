@@ -8,8 +8,16 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Set up Swift
-      uses: swift-actions/setup-swift@v2
+    # Use Xcode's bundled Swift toolchain, which matches the runner's SDK.
+    # Do NOT install a standalone toolchain (e.g. swift-actions/setup-swift):
+    # it shadows Xcode's swift and, when its version drifts from the runner's
+    # Xcode SDK, `swift build` fails with "this SDK is not supported by the
+    # compiler / failed to build module 'Darwin'".
+    - name: Show Swift toolchain
+      shell: bash
+      run: |
+        xcode-select -p
+        swift --version
 
     - name: Cache Swift build
       uses: actions/cache@v4
