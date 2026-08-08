@@ -32,16 +32,28 @@ final class DetectionAlertPreferencesStore: ObservableObject {
         // pure, non-mutating lookup (mutating @Published state from a getter reached
         // during SwiftUI view-body evaluation is undefined behavior).
         for b in BFRBBehavior.allCases where seededMap[b.rawValue] == nil {
-            seededMap[b.rawValue] = NotificationPreferences.default.copy()
+            seededMap[b.rawValue] = Self.makeDefault(for: b)
         }
         self.byBehavior = seededMap
+    }
+
+    /// The built-in default alert prefs for a behavior: bundled SVG icon +
+    /// mild (light) screen blur, everything else from `.default`.
+    static func makeDefault(for b: BFRBBehavior) -> NotificationPreferences {
+        let p = NotificationPreferences.default.copy()
+        p.svgPath = NetworkConfiguration.buildIconURL(iconId: b.defaultIconId)
+        p.svgWidth = 220
+        p.svgHeight = 150
+        p.screenBlurEnabled = true
+        p.screenBlurIntensity = .light
+        return p
     }
 
     /// Pure lookup for the prefs for `b`. `init` pre-seeds every `BFRBBehavior` case,
     /// so this normally finds an existing, stable instance; the `??` fallback is
     /// defensive only and does not mutate `byBehavior`.
     func preferences(for b: BFRBBehavior) -> NotificationPreferences {
-        byBehavior[b.rawValue] ?? NotificationPreferences.default.copy()
+        byBehavior[b.rawValue] ?? Self.makeDefault(for: b)
     }
 
     /// Encoded snapshot of the whole map. Reading it touches every field of every

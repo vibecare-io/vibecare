@@ -34,6 +34,16 @@ enum BFRBBehavior: String, CaseIterable, Sendable, Identifiable {
         case .hairPulling: return "Gently — hands down 💛"
         }
     }
+
+    /// Bundled icon id used as this behavior's default alert icon
+    /// (matches the backend catalog id and the /api/icons/<id>.svg path).
+    var defaultIconId: String {
+        switch self {
+        case .nailBiting:  return "nail-biting"
+        case .nosePicking: return "nose-picking"
+        case .hairPulling: return "hair-pulling"
+        }
+    }
 }
 
 /// All points are normalized [0,1] in Vision's coordinate space:

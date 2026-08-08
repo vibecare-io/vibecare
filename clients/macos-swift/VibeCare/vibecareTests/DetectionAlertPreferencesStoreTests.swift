@@ -42,3 +42,21 @@ import Foundation
     let decoded = try JSONDecoder().decode([String: NotificationPreferences].self, from: store.encodedSnapshot)
     #expect(decoded == store.byBehavior)
 }
+
+@MainActor
+@Test func seededDefaultUsesBundledIconAndMildBlur() {
+    let name = "test.vibecheck.alertprefs.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: name)!
+    defer { defaults.removePersistentDomain(forName: name) }
+
+    let store = DetectionAlertPreferencesStore(defaults: defaults)
+    for b in BFRBBehavior.allCases {
+        let p = store.preferences(for: b)
+        #expect(p.svgPath?.hasSuffix("/api/icons/\(b.defaultIconId).svg") == true)
+        #expect(p.screenBlurEnabled == true)
+        #expect(p.screenBlurIntensity == .light)
+        // regression: window geometry still the shared default
+        #expect(p.position == NotificationPreferences.default.position)
+        #expect(p.width == NotificationPreferences.default.width)
+    }
+}
