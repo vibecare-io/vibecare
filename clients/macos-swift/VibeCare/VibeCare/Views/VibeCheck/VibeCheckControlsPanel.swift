@@ -6,6 +6,7 @@ import SwiftUI
 /// effect on the live camera feed immediately.
 struct VibeCheckControlsPanel: View {
     @ObservedObject var viewModel: VibeCheckViewModel
+    @State private var showAdvanced = false
 
     var body: some View {
         Form {
@@ -37,6 +38,13 @@ struct VibeCheckControlsPanel: View {
                             .monospacedDigit()
                             .foregroundStyle(.secondary)
                     }
+                }
+            }
+
+            Section {
+                DisclosureGroup("Advanced: Alert Appearance", isExpanded: $showAdvanced) {
+                    VibeCheckAlertSettingsView()
+                        .padding(.top, 4)
                 }
             }
         }

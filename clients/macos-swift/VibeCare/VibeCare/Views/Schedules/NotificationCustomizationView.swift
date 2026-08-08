@@ -6,6 +6,8 @@ struct NotificationCustomizationView: View {
   @Binding var preferences: NotificationPreferences
   let scheduleName: String
   let scheduleNotes: String
+  var variablesHint: String? = nil
+  var onPreview: (() -> Void)? = nil
   @State private var showingFilePicker = false
   @State private var showingIconPicker = false
   @State private var previewNotification = false
@@ -333,7 +335,7 @@ struct NotificationCustomizationView: View {
         .cornerRadius(6)
       }
 
-      Text("Available variables: {scheduleName}, {routineName}, {time}")
+      Text(variablesHint ?? "Available variables: {scheduleName}, {routineName}, {time}")
         .font(.caption)
         .foregroundColor(.secondary)
         .padding(.leading, 4)
@@ -513,7 +515,7 @@ struct NotificationCustomizationView: View {
   private var previewSection: some View {
     VStack(alignment: .leading, spacing: 8) {
       Button(action: {
-        showPreviewNotification()
+        if let onPreview { onPreview() } else { showPreviewNotification() }
       }) {
         HStack {
           Image(systemName: "eye")
