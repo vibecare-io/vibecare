@@ -796,6 +796,27 @@
       "category": "lifestyle",
       "filename": "washing-machine-svgrepo-com.svg",
       "keywords": ["washing", "machine", "laundry", "clothes", "chores"]
+    },
+    {
+      "id": "nail-biting",
+      "name": "Nail Biting",
+      "category": "health",
+      "filename": "nail-biting.svg",
+      "keywords": ["nail", "biting", "bfrb", "vibecheck", "hand", "habit"]
+    },
+    {
+      "id": "nose-picking",
+      "name": "Nose Picking",
+      "category": "health",
+      "filename": "nose-picking.svg",
+      "keywords": ["nose", "picking", "bfrb", "vibecheck", "face", "habit"]
+    },
+    {
+      "id": "hair-pulling",
+      "name": "Hair Pulling",
+      "category": "health",
+      "filename": "hair-pulling.svg",
+      "keywords": ["hair", "pulling", "trichotillomania", "bfrb", "vibecheck", "habit"]
     }
   ]
 }
