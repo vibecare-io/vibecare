@@ -226,3 +226,83 @@ jobs:
             build/*.tar.gz
             build/*.sha256
           retention-days: 30
+  update-homebrew-tap:
+    name: Update Homebrew Tap
+    runs-on: ubuntu-latest
+    needs: create-release
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        uses: ./.github/actions/setup-version
+        with:
+          event-name: ${{ github.event_name }}
+          manual-version: ${{ github.event.inputs.version }}
+
+      - name: Compute tarball checksum
+        id: cask
+        run: |
+          VER="${{ steps.version.outputs.version }}"
+          NUM="${VER#v}"
+          URL="https://github.com/${{ github.repository }}/releases/download/${VER}/vibecare-${VER}-macos.tar.gz"
+          curl -fsSL "$URL" -o tarball.tgz
+          SHA="$(sha256sum tarball.tgz | awk '{print $1}')"
+          echo "num=$NUM" >> "$GITHUB_OUTPUT"
+          echo "sha=$SHA" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout tap
+        uses: actions/checkout@v4
+        with:
+          repository: vibecare-io/homebrew-apps
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: tap
+
+      - name: Write cask
+        run: |
+          mkdir -p tap/Casks
+          cat > tap/Casks/vibecare.rb <<CASK
+          cask "vibecare" do
+            version "${{ steps.cask.outputs.num }}"
+            sha256 "${{ steps.cask.outputs.sha }}"
+
+            url "https://github.com/${{ github.repository }}/releases/download/v#{version}/vibecare-v#{version}-macos.tar.gz",
+                verified: "github.com/${{ github.repository }}/"
+            name "VibeCare"
+            desc "Wellness and routine management app with on-device BFRB detection"
+            homepage "https://github.com/${{ github.repository }}"
+
+            depends_on macos: :sequoia
+
+            app "VibeCare.app"
+            binary "vibecare-server"
+
+            # App is Developer ID signed but not notarized; clear quarantine so
+            # Gatekeeper allows first launch.
+            postflight do
+              system_command "/usr/bin/xattr",
+                             args: ["-dr", "com.apple.quarantine", "#{appdir}/VibeCare.app"],
+                             sudo: false
+            end
+
+            zap trash: [
+              "~/Library/Application Support/VibeCare",
+              "~/.vibecare",
+              "~/Library/Preferences/io.vibecare.App.vibecare.plist",
+              "~/Library/Caches/io.vibecare.App.vibecare",
+            ]
+          end
+          CASK
+
+      - name: Commit and push
+        run: |
+          cd tap
+          if git diff --quiet; then
+            echo "Cask already up to date"; exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Casks/vibecare.rb
+          git commit -m "vibecare ${{ steps.version.outputs.version }}"
+          git push
