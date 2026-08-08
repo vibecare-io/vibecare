@@ -188,28 +188,14 @@ jobs:
           shasum -a 256 build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz \
             > build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz.sha256
 
-      - name: Create and sign PKG installer
-        run: |
-          ./.github/scripts/create-pkg-installer.sh \
-            "${{ steps.version.outputs.version }}" \
-            "${{ steps.certs.outputs.installer-identity }}" \
-            "dist/vibecare-server" \
-            "dist/VibeCare.app"
-
-      - name: Notarize PKG
-        run: |
-          ./.github/scripts/notarize-pkg.sh \
-            "build/VibeCare-${{ steps.version.outputs.version }}.pkg" \
-            "${{ secrets.APPLE_DEVELOPER_ID }}" \
-            "${{ secrets.APPLE_APP_PASSWORD }}" \
-            "${{ secrets.APPLE_TEAM_ID }}"
-
-      - name: Verify all signatures
-        run: |
-          ./.github/scripts/verify-signatures.sh \
-            "dist/vibecare-server" \
-            "dist/VibeCare.app" \
-            "build/VibeCare-${{ steps.version.outputs.version }}.pkg"
+      # PKG installer + notarization are intentionally skipped: notarization
+      # requires an in-effect Apple Developer agreement (currently blocked with
+      # "A required agreement is missing or has expired"). We ship the signed
+      # (Developer ID, not notarized) app + server as a tarball; the Homebrew
+      # cask installs it and clears the quarantine flag so Gatekeeper allows
+      # first launch. Restore the notarized .pkg once the Apple agreement is
+      # accepted (re-add create-pkg-installer.sh + notarize-pkg.sh here and the
+      # .pkg entries to the release files below).
 
       - name: Generate release notes
         run: |
@@ -226,8 +212,6 @@ jobs:
           draft: false
           prerelease: false
           files: |
-            build/VibeCare-${{ steps.version.outputs.version }}.pkg
-            build/VibeCare-${{ steps.version.outputs.version }}.pkg.sha256
             build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz
             build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz.sha256
         env:
