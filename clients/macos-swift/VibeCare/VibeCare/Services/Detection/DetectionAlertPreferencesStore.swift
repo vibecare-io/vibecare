@@ -21,21 +21,27 @@ final class DetectionAlertPreferencesStore: ObservableObject {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
+        var seededMap: [String: NotificationPreferences]
         if let data = defaults.data(forKey: key),
            let decoded = try? JSONDecoder().decode([String: NotificationPreferences].self, from: data) {
-            self.byBehavior = decoded
+            seededMap = decoded
         } else {
-            self.byBehavior = [:]
+            seededMap = [:]
         }
+        // Ensure every known behavior has an entry so `preferences(for:)` can be a
+        // pure, non-mutating lookup (mutating @Published state from a getter reached
+        // during SwiftUI view-body evaluation is undefined behavior).
+        for b in BFRBBehavior.allCases where seededMap[b.rawValue] == nil {
+            seededMap[b.rawValue] = NotificationPreferences.default.copy()
+        }
+        self.byBehavior = seededMap
     }
 
-    /// Get-or-create the prefs for `b`, seeded from `.default`. Inserts on first
-    /// access so the editor binds a stable instance across renders.
+    /// Pure lookup for the prefs for `b`. `init` pre-seeds every `BFRBBehavior` case,
+    /// so this normally finds an existing, stable instance; the `??` fallback is
+    /// defensive only and does not mutate `byBehavior`.
     func preferences(for b: BFRBBehavior) -> NotificationPreferences {
-        if let existing = byBehavior[b.rawValue] { return existing }
-        let seeded = NotificationPreferences.default.copy()
-        byBehavior[b.rawValue] = seeded
-        return seeded
+        byBehavior[b.rawValue] ?? NotificationPreferences.default.copy()
     }
 
     /// Encoded snapshot of the whole map. Reading it touches every field of every
