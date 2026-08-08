@@ -34,7 +34,12 @@ struct VibeCheckAlertSettingsView: View {
     private func binding(for b: BFRBBehavior) -> Binding<NotificationPreferences> {
         Binding(
             get: { store.preferences(for: b) },
-            set: { store.byBehavior[b.rawValue] = $0 }
+            // Copy on set: preset/reset buttons assign shared static instances
+            // (e.g. `NotificationPreferences.presets[name]`, `.default`). Storing
+            // the shared instance directly would let multiple behaviors alias the
+            // same object; copying here breaks that aliasing. Field-level edits
+            // mutate the stored instance in place and never go through this setter.
+            set: { store.byBehavior[b.rawValue] = $0.copy() }
         )
     }
 }
