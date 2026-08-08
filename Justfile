@@ -835,6 +835,18 @@ swift-run:
     @echo "{{GREEN}}Running Swift client...{{NC}}"
     cd clients/macos-swift/VibeCare && swift run VibeCare
 
+# Build + run the real .app bundle via Xcode. USE THIS FOR THE CAMERA:
+# `swift run` produces a bare CLI binary with no Info.plist, so macOS can't
+# prompt for camera access (VibeCheck never appears in Privacy > Camera). The
+# Xcode build embeds Info.plist (NSCameraUsageDescription + bundle id), so the
+# system prompts correctly and lists the app.
+[group('🍎 macOS / Swift')]
+swift-run-app:
+    @echo "{{GREEN}}Building VibeCare.app via Xcode (camera-capable Info.plist)...{{NC}}"
+    cd clients/macos-swift/VibeCare && xcodebuild -project vibecare.xcodeproj -scheme vibecare -configuration Debug -derivedDataPath .build/xcode -destination 'platform=macOS' build
+    @echo "{{GREEN}}Launching app...{{NC}}"
+    open clients/macos-swift/VibeCare/.build/xcode/Build/Products/Debug/vibecare.app
+
 [group('🍎 macOS / Swift')]
 swift-inspect-app-db:
     @echo "{{GREEN}}Inspect Swift client database...{{NC}}"
