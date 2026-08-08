@@ -15,6 +15,13 @@ extension BlurIntensity {
     }
 }
 
+private extension String {
+  var nonEmpty: String? {
+    let t = trimmingCharacters(in: .whitespacesAndNewlines)
+    return t.isEmpty ? nil : t
+  }
+}
+
 /// Centralized configuration for VibeNotify notifications
 /// Provides consistent styling and helper methods for VibeCare notifications
 enum VibeNotifyConfig {
@@ -46,10 +53,6 @@ enum VibeNotifyConfig {
     priority: NotificationPriority = .normal,
     preferences: NotificationPreferences? = nil
   ) -> UUID? {
-    guard NotificationPolicy.shared.isNotificationAllowed(priority: priority) else {
-      return nil
-    }
-
     // Use custom preferences or default
     let prefs = preferences ?? .default
 
@@ -69,41 +72,52 @@ enum VibeNotifyConfig {
       scheduledTime: scheduledTime
     )
 
-    // Start building notification
+    let notificationId = showNotification(
+      preferences: prefs,
+      title: title,
+      message: message,
+      defaultSystemIcon: "bell.badge.fill",
+      priority: priority
+    )
+    logger.debug("🔍 showScheduleNotification - END", metadata: ["notificationId": "\(notificationId?.uuidString ?? "nil")"])
+    return notificationId
+  }
+
+  // MARK: - Shared Notification Renderer
+
+  /// The shared VibeNotify builder core used by both schedule notifications
+  /// and the VibeCheck detection alert. Takes already-resolved `title`/`message`
+  /// and a `defaultSystemIcon` fallback for when no SVG icon is configured.
+  @MainActor
+  @discardableResult
+  private static func showNotification(
+    preferences prefs: NotificationPreferences,
+    title: String,
+    message: String,
+    defaultSystemIcon: String,
+    priority: NotificationPriority
+  ) -> UUID? {
+    guard NotificationPolicy.shared.isNotificationAllowed(priority: priority) else {
+      return nil
+    }
+
     var builder = VibeNotify.builder()
 
-    // Add SVG if specified (prioritizes bundled icon, falls back to custom path)
+    // Icon: SVG (url/file) if configured, else the caller's default system icon.
     if let svgPath = prefs.resolvedSVGPath, let svgSize = prefs.svgSize {
-      logger.debug("🔍 showScheduleNotification - SVG icon will be used", metadata: [
-        "svgPath": "\(svgPath)",
-        "svgSize": "\(svgSize)"
-      ])
-
-      // Check if it's a URL (http/https) or local file path
       if svgPath.hasPrefix("http://") || svgPath.hasPrefix("https://") {
-        // Remote URL - use .svgURL() method
         if let url = URL(string: svgPath) {
-          logger.debug("🔍 showScheduleNotification - Using .svgURL() for remote icon")
           builder = builder.svgURL(url, size: svgSize)
         } else {
-          logger.warning("🔍 showScheduleNotification - Invalid URL, falling back to system icon", metadata: ["svgPath": "\(svgPath)"])
-          builder = builder.icon(.system("bell.badge.fill"))
+          builder = builder.icon(.system(defaultSystemIcon))
         }
       } else {
-        // Local file path - use .svg() method
-        logger.debug("🔍 showScheduleNotification - Using .svg() for local file")
         builder = builder.svg(svgPath, size: svgSize)
       }
     } else {
-      logger.debug("🔍 showScheduleNotification - Fallback to system icon", metadata: [
-        "svgPath": "\(prefs.resolvedSVGPath == nil ? "nil" : "exists")",
-        "svgSize": "\(prefs.svgSize == nil ? "nil" : "exists")"
-      ])
-      // Fallback to system icon
-      builder = builder.icon(.system("bell.badge.fill"))
+      builder = builder.icon(.system(defaultSystemIcon))
     }
 
-    // Apply customizations
     builder = builder
       .title(title)
       .message(message)
@@ -112,12 +126,10 @@ enum VibeNotifyConfig {
       .dismissOnScreenTap(true)
       .autoDismiss(after: prefs.autoDismissAfter ?? quickDismissDelay)
 
-    // Apply screen blur if enabled with intensity
     if prefs.screenBlurEnabled {
       builder = builder.screenBlur(true, intensity: prefs.screenBlurIntensity.vibeNotifyIntensity)
     }
 
-    // Set position based on preference
     switch prefs.position {
     case .center:
       builder = builder.position(.center)
@@ -131,7 +143,6 @@ enum VibeNotifyConfig {
       builder = builder.position(.bottomRight)
     }
 
-    // Apply width and height if specified
     if let width = prefs.width {
       builder = builder.width(CGFloat(width))
     }
@@ -139,10 +150,7 @@ enum VibeNotifyConfig {
       builder = builder.height(CGFloat(height))
     }
 
-    logger.debug("🔍 showScheduleNotification - Calling builder.show()")
-    let notificationId = builder.show()
-    logger.debug("🔍 showScheduleNotification - END", metadata: ["notificationId": "\(notificationId.uuidString)"])
-    return Optional(notificationId)
+    return builder.show()
   }
 
   // MARK: - Position Mapping
@@ -244,55 +252,40 @@ enum VibeNotifyConfig {
 
   // MARK: - VibeCheck Detection Alert
 
-  /// How long a detection alert stays up before auto-dismissing.
-  private static let bfrbAlertDuration: TimeInterval = 6.0
-
-  /// Shows the notification for a confirmed BFRB detection. Matches the
-  /// schedule (SVG) notification look: the icon, bold title, and nudge float
-  /// directly on a blurred backdrop with **no card background**, plus today's
-  /// streak (e.g. "3rd nudge today").
+  /// Shows the notification for a confirmed BFRB detection, rendered through
+  /// the same shared VibeNotify builder (`showNotification`) that schedule
+  /// notifications use, customized via `DetectionAlertPreferencesStore`.
   ///
-  /// The standard VibeNotify builder always draws an opaque card (see
-  /// StandardNotificationView), and the card-less path is reserved for SVG
-  /// icons — which the catalog has none of for these behaviors. So this renders
-  /// a custom card-less `BFRBAlertView` through `OverlayWindowManager`, whose
-  /// window is transparent. That lower-level path has no built-in auto-dismiss,
-  /// so we schedule one ourselves.
+  /// Title/message fall back to the behavior's default label/nudge when the
+  /// user hasn't customized them, and today's streak (e.g. "3rd nudge today")
+  /// is always appended to the message.
   ///
   /// Priority is `.critical` so it always shows regardless of the global mute
   /// toggle — the detection sound and overlay flash already fire unconditionally.
   @MainActor
   @discardableResult
-  static func showBFRBAlert(behavior: BFRBBehavior, count: Int) -> UUID? {
-    guard NotificationPolicy.shared.isNotificationAllowed(priority: .critical) else {
-      return nil
-    }
-
-    let id = UUID()
-    let config = OverlayWindowManager.Configuration(
-      position: .center,
-      width: 480,
-      height: 300,
-      isMoveable: true,
-      alwaysOnTop: true,
-      screenBlur: true,
-      screenBlurIntensity: .medium,
-      dismissOnScreenTap: true
+  static func showBFRBAlert(
+    behavior: BFRBBehavior,
+    count: Int,
+    preferences: NotificationPreferences? = nil
+  ) -> UUID? {
+    // Swift default-parameter expressions can't reference another parameter
+    // (e.g. `= DetectionAlertPreferencesStore.shared.preferences(for: behavior)`
+    // is invalid because `behavior` isn't in scope there), so the default is
+    // resolved here instead. Behavior is identical: omitting `preferences`
+    // (as the sole caller, `VibeNotifyDetectionNotifier.notify`, does) still
+    // looks up the store's per-behavior preferences.
+    let prefs = preferences ?? DetectionAlertPreferencesStore.shared.preferences(for: behavior)
+    let title = prefs.title?.nonEmpty ?? behavior.label
+    let base = prefs.message?.nonEmpty ?? behavior.nudge
+    let message = "\(base)\n\(ordinal(count)) nudge today"
+    return showNotification(
+      preferences: prefs,
+      title: title,
+      message: message,
+      defaultSystemIcon: behavior.alertIcon,
+      priority: .critical
     )
-
-    _ = OverlayWindowManager.shared.show(id: id, configuration: config) {
-      BFRBAlertView(behavior: behavior, count: count) {
-        OverlayWindowManager.shared.dismiss(id: id)
-      }
-    }
-
-    // The custom-content window has no auto-dismiss timer of its own.
-    Task { @MainActor in
-      try? await Task.sleep(for: .seconds(bfrbAlertDuration))
-      OverlayWindowManager.shared.dismiss(id: id)
-    }
-
-    return id
   }
 
   /// English ordinal for `n` (e.g. 1 -> "1st", 22 -> "22nd", 13 -> "13th").
