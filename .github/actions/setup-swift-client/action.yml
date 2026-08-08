@@ -30,25 +30,12 @@ runs:
         restore-keys: |
           ${{ runner.os }}-swift-build-
 
-    - name: Cache Homebrew
-      uses: actions/cache@v4
-      with:
-        path: |
-          ~/Library/Caches/Homebrew
-          /opt/homebrew/Cellar/swift-protobuf
-          /opt/homebrew/Cellar/grpc-swift
-        key: ${{ runner.os }}-brew-${{ hashFiles('scripts/generate_proto.sh') }}
-        restore-keys: |
-          ${{ runner.os }}-brew-
-
-    - name: Install Protoc
-      uses: arduino/setup-protoc@v3
-      with:
-        repo-token: ${{ github.token }}
-        version: "23.x"
-
-    - name: Generate protobuf
-      shell: bash
-      run: |
-        chmod +x scripts/generate_proto.sh
-        ./scripts/generate_proto.sh -t ${{ inputs.proto-target }}
+    # NOTE: We deliberately do NOT regenerate the protobuf/gRPC stubs in CI.
+    # `VCStubs/` is committed and generated against the pinned grpc-swift-2
+    # runtime (Package.resolved). Regenerating here used `brew install
+    # grpc-swift`, whose protoc-gen-grpc-swift version drifts from the pinned
+    # runtime and emits mismatched code — e.g. `MethodDescriptor(…, type:)`,
+    # which the pinned GRPCCore rejects ("extra argument 'type' in call").
+    # The committed stubs already compile against the pinned runtime (this is
+    # exactly what `just swift-build` does locally), so we build them as-is.
+    # To update stubs, run `just proto-gen` locally and commit VCStubs/.
