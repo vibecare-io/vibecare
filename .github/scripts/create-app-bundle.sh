@@ -47,6 +47,8 @@ cat > "${APP_BUNDLE}/Contents/Info.plist" << EOF
     <true/>
     <key>LSUIElement</key>
     <true/>
+    <key>NSCameraUsageDescription</key>
+    <string>VibeCheck uses the camera to detect body-focused repetitive behaviors. Video is processed on-device and never leaves your Mac.</string>
 </dict>
 </plist>
 EOF
