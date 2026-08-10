@@ -3,8 +3,55 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @StateObject private var backend = BackendManager.shared
 
     var body: some View {
+        switch backend.state {
+        case .starting:
+            startingContent
+        case .failed(let message):
+            failedContent(message: message)
+        case .ready:
+            readyContent
+        }
+    }
+
+    @ViewBuilder
+    private var startingContent: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+            Text("Starting VibeCare…")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func failedContent(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.largeTitle)
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            Button("Retry") {
+                Task {
+                    await backend.ensureRunning()
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            Text("See ~/.vibecare/logs/server.log")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var readyContent: some View {
         Group {
             if horizontalSizeClass == .compact {
                 CompactDashboard()
