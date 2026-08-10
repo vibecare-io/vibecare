@@ -27,6 +27,10 @@ import (
 	"google.golang.org/grpc/reflection"
 )
 
+// version is the build version, overridden at build time via
+// `-ldflags "-X main.version=$VERSION"`.
+var version = "dev"
+
 // initLogger creates a zap logger with configurable level and format
 func initLogger(levelFlag, formatFlag string) (*zap.Logger, error) {
 	// Environment variables take precedence over flags
@@ -84,6 +88,7 @@ func main() {
 		log.Fatalf("Failed to initialize logger: %v", err)
 	}
 	defer logger.Sync()
+	logger.Info("VibeCare backend version", zap.String("version", version))
 
 	// Initialize OpenTelemetry tracing
 	var shutdownTracer func(context.Context) error
@@ -190,7 +195,7 @@ func main() {
 	httpTracer := telemetry.GetTracer("vibecare.http.server")
 
 	// Initialize and start web server with OpenTelemetry instrumentation
-	webServer := web.NewServer(*webPort, db, sched, mcpServer, iconLoader, httpTracer, logger)
+	webServer := web.NewServer(*webPort, db, sched, mcpServer, iconLoader, httpTracer, logger, version)
 	go func() {
 		if err := webServer.Start(); err != nil {
 			logger.Error("Web server failed", zap.Error(err))
