@@ -2,6 +2,7 @@ package web
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/pprof"
@@ -18,12 +19,13 @@ import (
 // Server represents the HTTP server for the web dashboard
 type Server struct {
 	httpServer *http.Server
+	mux        *http.ServeMux
 	logger     *zap.Logger
 	tracer     trace.Tracer
 }
 
 // NewServer creates a new web server with OpenTelemetry instrumentation
-func NewServer(port int, db *storage.DB, sched *scheduler.Scheduler, mcpServer *mcp.Server, iconLoader IconDataGetter, tracer trace.Tracer, logger *zap.Logger) *Server {
+func NewServer(port int, db *storage.DB, sched *scheduler.Scheduler, mcpServer *mcp.Server, iconLoader IconDataGetter, tracer trace.Tracer, logger *zap.Logger, version string) *Server {
 	handler := NewHandler(db, sched, mcpServer, logger)
 
 	mux := http.NewServeMux()
@@ -48,6 +50,15 @@ func NewServer(port int, db *storage.DB, sched *scheduler.Scheduler, mcpServer *
 
 		return handler
 	}
+
+	// Version endpoint — reports the running server's build version so
+	// clients can detect a stale/older backend. Intentionally independent
+	// of db/sched/mcp so it works even when those are nil.
+	versionHandler := func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]string{"version": version})
+	}
+	mux.Handle("/version", applyMiddleware(versionHandler, "version"))
 
 	// Register handlers with full middleware stack
 	mux.Handle("/status", applyMiddleware(handler.DashboardHandler, "dashboard_page"))
@@ -89,9 +100,16 @@ func NewServer(port int, db *storage.DB, sched *scheduler.Scheduler, mcpServer *
 			WriteTimeout: 15 * time.Second,
 			IdleTimeout:  60 * time.Second,
 		},
+		mux:    mux,
 		logger: logger,
 		tracer: tracer,
 	}
+}
+
+// Handler exposes the server's mux directly, primarily for testing routes
+// without starting a real listener.
+func (s *Server) Handler() http.Handler {
+	return s.mux
 }
 
 // Start starts the HTTP server

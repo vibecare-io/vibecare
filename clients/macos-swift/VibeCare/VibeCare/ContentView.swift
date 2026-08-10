@@ -3,8 +3,90 @@ import SwiftUI
 struct ContentView: View {
     @EnvironmentObject private var appState: AppState
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    @StateObject private var backend = BackendManager.shared
 
     var body: some View {
+        switch backend.state {
+        case .starting:
+            startingContent
+        case .failed(let message):
+            failedContent(message: message)
+        case .ready:
+            VStack(spacing: 0) {
+                if backend.backendStale {
+                    backendStaleBanner
+                }
+                readyContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var backendStaleBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                .foregroundStyle(.orange)
+            Text("A new version is installed — restart the backend to apply it.")
+                .font(.subheadline)
+                .lineLimit(2)
+            Spacer()
+            if backend.state == .starting {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Button("Restart") {
+                    Task {
+                        await backend.restart()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.15))
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+    }
+
+    @ViewBuilder
+    private var startingContent: some View {
+        VStack(spacing: 16) {
+            ProgressView()
+            Text("Starting VibeCare…")
+                .font(.headline)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private func failedContent(message: String) -> some View {
+        VStack(spacing: 16) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.largeTitle)
+                .foregroundStyle(.orange)
+            Text(message)
+                .font(.headline)
+                .multilineTextAlignment(.center)
+            Button("Retry") {
+                Task {
+                    await backend.ensureRunning()
+                }
+            }
+            .buttonStyle(.borderedProminent)
+            Text("See ~/.vibecare/logs/server.log")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .padding()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    @ViewBuilder
+    private var readyContent: some View {
         Group {
             if horizontalSizeClass == .compact {
                 CompactDashboard()

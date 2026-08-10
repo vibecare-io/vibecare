@@ -305,14 +305,29 @@ struct ProfileSettingsDetail: View {
 }
 
 struct GeneralSettingsDetail: View {
+  @AppStorage("backend.autoReload") private var autoReloadBackend: Bool = true
+
   var body: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    VStack(alignment: .leading, spacing: 20) {
       Text("General Settings")
         .font(.headline)
 
-      // Add general settings controls here
-      Text("General settings will be configured here")
-        .foregroundColor(.secondary)
+      VStack(alignment: .leading, spacing: 12) {
+        Text("Backend")
+          .font(.subheadline)
+          .foregroundColor(.secondary)
+
+        Toggle(isOn: $autoReloadBackend) {
+          VStack(alignment: .leading, spacing: 4) {
+            Text("Automatically restart backend after an update")
+              .font(.body)
+            Text("When the app updates, silently restart the backend instead of prompting.")
+              .font(.caption)
+              .foregroundColor(.secondary)
+          }
+        }
+        .toggleStyle(.switch)
+      }
     }
   }
 }

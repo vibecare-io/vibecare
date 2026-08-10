@@ -32,6 +32,7 @@ struct VibeCareApp: App {
                 .onAppear {
                     // Load initial data
                     Task {
+                        await BackendManager.shared.ensureRunning()
                         await appState.loadInitialData()
 
                         // Auto-resume VibeCheck detection if it was on at last quit.
