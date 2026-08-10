@@ -298,6 +298,9 @@ jobs:
               system_command "/usr/bin/xattr",
                              args: ["-dr", "com.apple.quarantine", "#{appdir}/VibeCare.app"],
                              sudo: false
+              system_command "/bin/launchctl",
+                             args: ["kickstart", "-k", "gui/#{Process.uid}/io.vibecare.server"],
+                             sudo: false
             end
 
             caveats <<~EOS
