@@ -291,7 +291,6 @@ jobs:
             depends_on macos: :sequoia
 
             app "VibeCare.app"
-            binary "vibecare-server"
 
             # App is Developer ID signed but not notarized; clear quarantine so
             # Gatekeeper allows first launch.
