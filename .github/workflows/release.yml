@@ -162,18 +162,6 @@ jobs:
           event-name: ${{ github.event_name }}
           manual-version: ${{ github.event.inputs.version }}
 
-      - name: Download backend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-binary
-          path: .
-
-      - name: Extract backend binary
-        run: |
-          tar -xvf backend-binary.tar
-          mkdir -p dist
-          mv vibecare-server dist/
-
       - name: Download client artifact
         uses: actions/download-artifact@v4
         with:

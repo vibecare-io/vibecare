@@ -31,6 +31,10 @@ final class BackendManager: ObservableObject {
 
     /// Pure, testable: backend is stale iff it reports a version that differs
     /// from the app's own. Unknown (nil) backend version is NOT stale.
+    /// A nil version covers a pre-`/version` daemon (404) or an unreachable
+    /// backend; treating it as "not stale" is deliberate — recovery for that
+    /// case relies on the cask's `kickstart` postflight + migration guidance,
+    /// not on this staleness check.
     nonisolated static func isStale(appVersion: String, backendVersion: String?) -> Bool {
         guard let b = backendVersion else { return false }
         return b != appVersion

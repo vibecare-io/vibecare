@@ -64,6 +64,27 @@ func initLogger(levelFlag, formatFlag string) (*zap.Logger, error) {
 	// Set the log level
 	config.Level = zap.NewAtomicLevelAt(level)
 
+	// Also write logs to ~/.vibecare/logs/server.log. This is done
+	// server-side (rather than via the LaunchAgent plist's StandardOutPath)
+	// because launchd does not expand "~" in plist paths, and resolving it
+	// here keeps behavior identical across the bundled LaunchAgent and
+	// `just run`/direct invocation on any OS. stderr is kept in
+	// OutputPaths/ErrorOutputPaths so console output is unaffected; if the
+	// log directory can't be created, we degrade gracefully to stderr-only
+	// instead of failing startup.
+	if home, err := os.UserHomeDir(); err == nil {
+		logDir := filepath.Join(home, ".vibecare", "logs")
+		if err := os.MkdirAll(logDir, 0o755); err != nil {
+			log.Printf("Failed to create log directory %q, logging to stderr only: %v", logDir, err)
+		} else {
+			logFile := filepath.Join(logDir, "server.log")
+			config.OutputPaths = append(config.OutputPaths, logFile)
+			config.ErrorOutputPaths = append(config.ErrorOutputPaths, logFile)
+		}
+	} else {
+		log.Printf("Failed to resolve home directory, logging to stderr only: %v", err)
+	}
+
 	// Build and return logger
 	return config.Build()
 }
