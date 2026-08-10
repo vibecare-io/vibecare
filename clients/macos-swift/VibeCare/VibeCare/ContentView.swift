@@ -12,7 +12,42 @@ struct ContentView: View {
         case .failed(let message):
             failedContent(message: message)
         case .ready:
-            readyContent
+            VStack(spacing: 0) {
+                if backend.backendStale {
+                    backendStaleBanner
+                }
+                readyContent
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var backendStaleBanner: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "arrow.triangle.2.circlepath.circle.fill")
+                .foregroundStyle(.orange)
+            Text("A new version is installed — restart the backend to apply it.")
+                .font(.subheadline)
+                .lineLimit(2)
+            Spacer()
+            if backend.state == .starting {
+                ProgressView()
+                    .controlSize(.small)
+            } else {
+                Button("Restart") {
+                    Task {
+                        await backend.restart()
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.small)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+        .background(Color.orange.opacity(0.15))
+        .overlay(alignment: .bottom) {
+            Divider()
         }
     }
 
