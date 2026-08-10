@@ -70,6 +70,7 @@ jobs:
   build-macos-client:
     name: Build macOS Swift Client
     runs-on: macos-latest
+    needs: build-backend
 
     steps:
       - name: Checkout code
@@ -108,6 +109,21 @@ jobs:
             "vibecare-client" \
             "${{ steps.version.outputs.version }}" \
             "io.vibecare.app"
+
+      - name: Download backend artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: .
+
+      - name: Embed server + LaunchAgent into app bundle
+        run: |
+          tar -xvf backend-binary.tar
+          mkdir -p VibeCare.app/Contents/Resources VibeCare.app/Contents/Library/LaunchAgents
+          cp vibecare-server VibeCare.app/Contents/Resources/vibecare-server
+          chmod +x VibeCare.app/Contents/Resources/vibecare-server
+          cp .github/scripts/io.vibecare.server.plist \
+             VibeCare.app/Contents/Library/LaunchAgents/io.vibecare.server.plist
 
       - name: Sign app bundle
         uses: ./.github/actions/sign-app-bundle
@@ -182,8 +198,7 @@ jobs:
         run: |
           mkdir -p build
           cd dist
-          tar -czf ../build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz \
-            vibecare-server VibeCare.app
+          tar -czf ../build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz VibeCare.app
           cd ..
           shasum -a 256 build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz \
             > build/vibecare-${{ steps.version.outputs.version }}-macos.tar.gz.sha256
