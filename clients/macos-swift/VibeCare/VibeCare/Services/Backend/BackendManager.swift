@@ -36,6 +36,17 @@ final class BackendManager: ObservableObject {
         return b != appVersion
     }
 
+    /// Pure, testable: should the app silently restart a stale backend?
+    nonisolated static func shouldAutoRestart(stale: Bool, autoReloadEnabled: Bool) -> Bool {
+        stale && autoReloadEnabled
+    }
+
+    /// Persisted user preference — "Automatically restart backend after an update".
+    /// Defaults to true when unset.
+    var autoReloadEnabled: Bool {
+        UserDefaults.standard.object(forKey: "backend.autoReload") as? Bool ?? true
+    }
+
     func ensureRunning() async {
         state = .starting
         do { try supervisor.ensureRegistered() }
@@ -44,6 +55,9 @@ final class BackendManager: ObservableObject {
             backendVersion = await probeVersion()
             backendStale = Self.isStale(appVersion: appVersion, backendVersion: backendVersion)
             state = .ready
+            if Self.shouldAutoRestart(stale: backendStale, autoReloadEnabled: autoReloadEnabled) {
+                await restart()
+            }
         } else {
             state = .failed("The VibeCare backend didn't start. Check ~/.vibecare/logs/server.log.")
         }
