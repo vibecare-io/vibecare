@@ -780,14 +780,48 @@ struct DebugSettingsDetail: View {
 }
 
 struct AboutSettingsDetail: View {
+  enum CheckState: Equatable {
+    case idle, checking, upToDate, available(String), failed
+  }
+
+  @StateObject private var backend = BackendManager.shared
+  @State private var checkState: CheckState = .idle
+
+  private var installedVersion: String {
+    Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      // Version info
+      // Client (app UI) version comes from the bundle; Backend (server) version
+      // comes from /version. On a shipped build both are the same release tag;
+      // in a dev build the client shows "1.0" (Xcode default) while the backend
+      // still reports the real running tag.
       VStack(alignment: .leading, spacing: 8) {
-        DetailRow(title: "Version", value: "1.0.0")
-        DetailRow(title: "Build", value: "1")
+        DetailRow(title: "Client (app)", value: installedVersion)
+        DetailRow(title: "Backend (server)", value: backend.backendVersion ?? "not connected")
         DetailRow(title: "Platform", value: "macOS")
       }
+
+      // Update check
+      VStack(alignment: .leading, spacing: 8) {
+        HStack(spacing: 8) {
+          Button {
+            Task { await checkForUpdates() }
+          } label: {
+            Label("Check for Updates", systemImage: "arrow.triangle.2.circlepath")
+          }
+          .disabled(checkState == .checking)
+          if checkState == .checking {
+            ProgressView().controlSize(.small)
+          }
+        }
+        updateStatus
+        Text("After running `brew upgrade`, quit and reopen VibeCare to apply the update.")
+          .font(.caption)
+          .foregroundColor(.secondary)
+      }
+      .padding(.top, 4)
 
       Divider()
 
@@ -799,6 +833,54 @@ struct AboutSettingsDetail: View {
         .frame(minHeight: 800)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
+    .task { await backend.refreshVersion() }
+  }
+
+  @ViewBuilder private var updateStatus: some View {
+    switch checkState {
+    case .idle, .checking:
+      EmptyView()
+    case .upToDate:
+      Label("You're on the latest version.", systemImage: "checkmark.circle.fill")
+        .font(.caption)
+        .foregroundColor(.green)
+    case .available(let latest):
+      VStack(alignment: .leading, spacing: 6) {
+        Label("Update available: \(latest)", systemImage: "arrow.down.circle.fill")
+          .font(.caption)
+          .foregroundColor(.blue)
+        HStack(spacing: 6) {
+          Text("brew upgrade --cask vibecare")
+            .font(.system(.caption, design: .monospaced))
+            .padding(6)
+            .background(Color.secondary.opacity(0.12))
+            .clipShape(RoundedRectangle(cornerRadius: 4))
+          Button {
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString("brew upgrade --cask vibecare", forType: .string)
+          } label: {
+            Image(systemName: "doc.on.doc")
+          }
+          .buttonStyle(.borderless)
+          .help("Copy command")
+        }
+      }
+    case .failed:
+      Label("Couldn't check for updates. Try again later.", systemImage: "exclamationmark.triangle")
+        .font(.caption)
+        .foregroundColor(.orange)
+    }
+  }
+
+  private func checkForUpdates() async {
+    checkState = .checking
+    guard let latest = await UpdateChecker.latestVersion() else {
+      checkState = .failed
+      return
+    }
+    checkState = UpdateChecker.isUpdateAvailable(installed: installedVersion, latest: latest)
+      ? .available(latest)
+      : .upToDate
   }
 }
 
