@@ -37,6 +37,13 @@ final class BackendManager: ObservableObject {
     /// not on this staleness check.
     nonisolated static func isStale(appVersion: String, backendVersion: String?) -> Bool {
         guard let b = backendVersion else { return false }
+        // Only meaningful when the app carries a real release version: CI sets
+        // both the app (CFBundleShortVersionString) and the backend (/version)
+        // to the same `vX…` release tag, so a difference means the daemon is
+        // behind the just-upgraded app. Dev builds report "1.0"/"dev" — never
+        // treat those as a "stale backend" (that produced a false restart banner
+        // in dev, where the app is "1.0" but the running backend is a real tag).
+        guard appVersion.hasPrefix("v") else { return false }
         return b != appVersion
     }
 
@@ -93,6 +100,12 @@ final class BackendManager: ObservableObject {
            let http = resp as? HTTPURLResponse { return http.statusCode == 200 }
         return false
     }
+    /// Re-probe the running backend's reported version. Used by the About page
+    /// to show the live backend version without a full restart cycle.
+    func refreshVersion() async {
+        backendVersion = await probeVersion()
+    }
+
     private func probeVersion() async -> String? {
         var req = URLRequest(url: versionURL); req.timeoutInterval = 2
         guard let (data, _) = try? await URLSession.shared.data(for: req),

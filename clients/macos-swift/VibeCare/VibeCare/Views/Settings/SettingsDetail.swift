@@ -784,21 +784,22 @@ struct AboutSettingsDetail: View {
     case idle, checking, upToDate, available(String), failed
   }
 
+  @StateObject private var backend = BackendManager.shared
   @State private var checkState: CheckState = .idle
 
   private var installedVersion: String {
     Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "unknown"
   }
-  private var build: String {
-    Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "—"
-  }
 
   var body: some View {
     VStack(alignment: .leading, spacing: 12) {
-      // Version info (reflects the shipped bundle version)
+      // Client (app UI) version comes from the bundle; Backend (server) version
+      // comes from /version. On a shipped build both are the same release tag;
+      // in a dev build the client shows "1.0" (Xcode default) while the backend
+      // still reports the real running tag.
       VStack(alignment: .leading, spacing: 8) {
-        DetailRow(title: "Version", value: installedVersion)
-        DetailRow(title: "Build", value: build)
+        DetailRow(title: "Client (app)", value: installedVersion)
+        DetailRow(title: "Backend (server)", value: backend.backendVersion ?? "not connected")
         DetailRow(title: "Platform", value: "macOS")
       }
 
@@ -832,6 +833,7 @@ struct AboutSettingsDetail: View {
         .frame(minHeight: 800)
         .clipShape(RoundedRectangle(cornerRadius: 8))
     }
+    .task { await backend.refreshVersion() }
   }
 
   @ViewBuilder private var updateStatus: some View {
