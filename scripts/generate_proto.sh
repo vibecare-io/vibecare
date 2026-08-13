@@ -105,13 +105,21 @@ generate_backend() {
 
     # Generate Go code
     echo -e "${GREEN}Output directory: $output_dir${NC}"
+
+    # Protos now live both at the root and under versioned subdirectories
+    # (plugin/v1, client/v1). paths=source_relative mirrors that tree into
+    # the output dir, so proto/plugin/v1/plugin.proto lands at
+    # backend/pkg/proto/plugin/v1/plugin.pb.go.
+    local proto_files
+    proto_files=$(cd "$PROTO_DIR" && find . -name '*.proto' | sed 's|^\./||' | sort)
+
     protoc \
         --proto_path="$PROTO_DIR" \
         --go_out="$output_dir" \
         --go_opt=paths=source_relative \
         --go-grpc_out="$output_dir" \
         --go-grpc_opt=paths=source_relative \
-        "$PROTO_DIR"/*.proto
+        $proto_files
 
     echo -e "${GREEN}✓ Go backend protobuf code generated successfully${NC}"
 }
@@ -181,13 +189,17 @@ generate_macos() {
 
     echo -e "${GREEN}Output directory: $output_dir${NC}"
 
+    local proto_files
+    proto_files=$(cd "$PROTO_DIR" && find . -name '*.proto' | sed 's|^\./||' | sort)
+
     # Generate protobuf messages
     echo -e "${GREEN}Generating Swift protobuf messages...${NC}"
     protoc \
         --proto_path="$PROTO_DIR" \
         --swift_opt=Visibility=Public \
+        --swift_opt=FileNaming=DropPath \
         --swift_out="$output_dir" \
-        "$PROTO_DIR"/*.proto
+        $proto_files
 
     # Generate gRPC service stubs
     echo -e "${GREEN}Generating Swift gRPC service stubs...${NC}"
@@ -195,8 +207,9 @@ generate_macos() {
         --proto_path="$PROTO_DIR" \
         --plugin=protoc-gen-grpc-swift="$grpc_plugin" \
         --grpc-swift_opt=Visibility=Public \
+        --grpc-swift_opt=FileNaming=DropPath \
         --grpc-swift_out="$output_dir" \
-        "$PROTO_DIR"/*.proto
+        $proto_files
 
     # List generated files
     echo -e "${GREEN}Generated files:${NC}"

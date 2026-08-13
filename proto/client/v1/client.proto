@@ -1,0 +1,51 @@
+syntax = "proto3";
+package vibecare.kernel.client.v1;
+
+option go_package = "github.com/vibecare-io/vibecare/backend/pkg/proto/client/v1;clientv1";
+option swift_prefix = "VCK";
+
+import "google/protobuf/empty.proto";
+import "plugin/v1/plugin.proto";
+
+// Shell is the entire client-facing plugin contract: two RPCs, frozen.
+// Clients contain no plugin-specific code — a client knows only "a URL",
+// never a schema.
+service Shell {
+  rpc Plugins(google.protobuf.Empty) returns (stream PluginList);
+  rpc Intents(google.protobuf.Empty) returns (stream UIIntent);
+}
+
+message PluginList {
+  repeated PluginInfo plugins = 1;
+  string base_url = 2;  // e.g. "http://127.0.0.1:52341"
+  string token    = 3;  // appended to the first webview load as ?vc=<token>
+}
+
+message PluginInfo {
+  string id     = 1;
+  string name   = 2;
+  string icon   = 3;
+  string path   = 4;   // "/p/todo/" — stable across plugin restarts
+  State  state  = 5;
+  string detail = 6;   // exit reason when down/failed; /health detail when degraded
+}
+
+enum State {
+  STARTING = 0;
+  UP       = 1;
+  DEGRADED = 2;
+  DOWN     = 3;
+  FAILED   = 4;
+}
+
+message UIIntent {
+  oneof k { Alert alert = 1; }
+}
+
+message Alert {
+  string plugin = 1;
+  string title  = 2;
+  string body   = 3;
+  string level  = 4;
+  repeated vibecare.kernel.plugin.v1.AlertAction actions = 5;
+}

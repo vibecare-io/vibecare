@@ -1,0 +1,59 @@
+syntax = "proto3";
+package vibecare.kernel.plugin.v1;
+
+option go_package = "github.com/vibecare-io/vibecare/backend/pkg/proto/plugin/v1;pluginv1";
+option swift_prefix = "VCK";
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+// PluginHost is served by core over a unix socket. A plugin is ALWAYS the
+// gRPC client and NEVER a gRPC server (design D2) — core has no way to call
+// into a plugin over gRPC, by construction.
+service PluginHost {
+  // Register opens the single long-lived stream that does three jobs:
+  // confirms registration (Ready), delivers subscribed bus events (Event),
+  // and signals graceful shutdown (Shutdown).
+  rpc Register(RegisterReq) returns (stream CoreMsg);
+  rpc Publish(Event) returns (google.protobuf.Empty);
+  rpc Alert(AlertReq) returns (google.protobuf.Empty);
+}
+
+// http_port is the kernel-assigned port the plugin's own HTTP server is
+// listening on (127.0.0.1:0 — the kernel picks it, see D6). Core needs it
+// to build the reverse-proxy target and to probe /health.
+message RegisterReq {
+  string id = 1;
+  uint32 http_port = 2;
+}
+
+message CoreMsg {
+  oneof k {
+    Ready    ready    = 1;
+    Event    event    = 2;
+    Shutdown shutdown = 3;
+  }
+}
+
+message Event {
+  string topic = 1;
+  bytes  payload = 2;
+  google.protobuf.Timestamp ts = 3;
+}
+
+message Ready {}
+
+message Shutdown { string reason = 1; }
+
+message AlertReq {
+  string title = 1;
+  string body  = 2;
+  string level = 3;                  // "info" | "warn"
+  repeated AlertAction actions = 4;  // rendered as buttons
+}
+
+// url is plugin-relative; the client navigates to /p/<plugin>/<url>.
+message AlertAction {
+  string label = 1;
+  string url   = 2;
+}

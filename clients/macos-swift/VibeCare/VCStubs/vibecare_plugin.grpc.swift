@@ -1525,6 +1525,18 @@ public enum Vibecare_Plugin_V1_HostService {
                 method: "QueryData"
             )
         }
+        /// Namespace for "DeleteData" metadata.
+        public enum DeleteData {
+            /// Request type for "DeleteData".
+            public typealias Input = Vibecare_Plugin_V1_DeleteRequest
+            /// Response type for "DeleteData".
+            public typealias Output = SwiftProtobuf.Google_Protobuf_Empty
+            /// Descriptor for "DeleteData".
+            public static let descriptor = GRPCCore.MethodDescriptor(
+                service: GRPCCore.ServiceDescriptor(fullyQualifiedService: "vibecare.plugin.v1.HostService"),
+                method: "DeleteData"
+            )
+        }
         /// Namespace for "Log" metadata.
         public enum Log {
             /// Request type for "Log".
@@ -1543,6 +1555,7 @@ public enum Vibecare_Plugin_V1_HostService {
             Notify.descriptor,
             StoreData.descriptor,
             QueryData.descriptor,
+            DeleteData.descriptor,
             Log.descriptor
         ]
     }
@@ -1625,6 +1638,20 @@ extension Vibecare_Plugin_V1_HostService {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.StreamingServerResponse<Vibecare_Plugin_V1_QueryResponse>
 
+        /// Handle the "DeleteData" method.
+        ///
+        /// - Parameters:
+        ///   - request: A streaming request of `Vibecare_Plugin_V1_DeleteRequest` messages.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A streaming response of `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        func deleteData(
+            request: GRPCCore.StreamingServerRequest<Vibecare_Plugin_V1_DeleteRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
         /// Handle the "Log" method.
         ///
         /// - Parameters:
@@ -1704,6 +1731,20 @@ extension Vibecare_Plugin_V1_HostService {
             context: GRPCCore.ServerContext
         ) async throws -> GRPCCore.ServerResponse<Vibecare_Plugin_V1_QueryResponse>
 
+        /// Handle the "DeleteData" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Vibecare_Plugin_V1_DeleteRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A response containing a single `SwiftProtobuf.Google_Protobuf_Empty` message.
+        func deleteData(
+            request: GRPCCore.ServerRequest<Vibecare_Plugin_V1_DeleteRequest>,
+            context: GRPCCore.ServerContext
+        ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>
+
         /// Handle the "Log" method.
         ///
         /// - Parameters:
@@ -1781,6 +1822,20 @@ extension Vibecare_Plugin_V1_HostService {
             context: GRPCCore.ServerContext
         ) async throws -> Vibecare_Plugin_V1_QueryResponse
 
+        /// Handle the "DeleteData" method.
+        ///
+        /// - Parameters:
+        ///   - request: A `Vibecare_Plugin_V1_DeleteRequest` message.
+        ///   - context: Context providing information about the RPC.
+        /// - Throws: Any error which occurred during the processing of the request. Thrown errors
+        ///     of type `RPCError` are mapped to appropriate statuses. All other errors are converted
+        ///     to an internal error.
+        /// - Returns: A `SwiftProtobuf.Google_Protobuf_Empty` to respond with.
+        func deleteData(
+            request: Vibecare_Plugin_V1_DeleteRequest,
+            context: GRPCCore.ServerContext
+        ) async throws -> SwiftProtobuf.Google_Protobuf_Empty
+
         /// Handle the "Log" method.
         ///
         /// - Parameters:
@@ -1840,6 +1895,17 @@ extension Vibecare_Plugin_V1_HostService.StreamingServiceProtocol {
             serializer: GRPCProtobuf.ProtobufSerializer<Vibecare_Plugin_V1_QueryResponse>(),
             handler: { request, context in
                 try await self.queryData(
+                    request: request,
+                    context: context
+                )
+            }
+        )
+        router.registerHandler(
+            forMethod: Vibecare_Plugin_V1_HostService.Method.DeleteData.descriptor,
+            deserializer: GRPCProtobuf.ProtobufDeserializer<Vibecare_Plugin_V1_DeleteRequest>(),
+            serializer: GRPCProtobuf.ProtobufSerializer<SwiftProtobuf.Google_Protobuf_Empty>(),
+            handler: { request, context in
+                try await self.deleteData(
                     request: request,
                     context: context
                 )
@@ -1906,6 +1972,17 @@ extension Vibecare_Plugin_V1_HostService.ServiceProtocol {
         return GRPCCore.StreamingServerResponse(single: response)
     }
 
+    public func deleteData(
+        request: GRPCCore.StreamingServerRequest<Vibecare_Plugin_V1_DeleteRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.StreamingServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        let response = try await self.deleteData(
+            request: GRPCCore.ServerRequest(stream: request),
+            context: context
+        )
+        return GRPCCore.StreamingServerResponse(single: response)
+    }
+
     public func log(
         request: GRPCCore.StreamingServerRequest<Vibecare_Plugin_V1_LogRequest>,
         context: GRPCCore.ServerContext
@@ -1966,6 +2043,19 @@ extension Vibecare_Plugin_V1_HostService.SimpleServiceProtocol {
     ) async throws -> GRPCCore.ServerResponse<Vibecare_Plugin_V1_QueryResponse> {
         return GRPCCore.ServerResponse<Vibecare_Plugin_V1_QueryResponse>(
             message: try await self.queryData(
+                request: request.message,
+                context: context
+            ),
+            metadata: [:]
+        )
+    }
+
+    public func deleteData(
+        request: GRPCCore.ServerRequest<Vibecare_Plugin_V1_DeleteRequest>,
+        context: GRPCCore.ServerContext
+    ) async throws -> GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty> {
+        return GRPCCore.ServerResponse<SwiftProtobuf.Google_Protobuf_Empty>(
+            message: try await self.deleteData(
                 request: request.message,
                 context: context
             ),
@@ -2070,6 +2160,25 @@ extension Vibecare_Plugin_V1_HostService {
             deserializer: some GRPCCore.MessageDeserializer<Vibecare_Plugin_V1_QueryResponse>,
             options: GRPCCore.CallOptions,
             onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<Vibecare_Plugin_V1_QueryResponse>) async throws -> Result
+        ) async throws -> Result where Result: Sendable
+
+        /// Call the "DeleteData" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Vibecare_Plugin_V1_DeleteRequest` message.
+        ///   - serializer: A serializer for `Vibecare_Plugin_V1_DeleteRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        func deleteData<Result>(
+            request: GRPCCore.ClientRequest<Vibecare_Plugin_V1_DeleteRequest>,
+            serializer: some GRPCCore.MessageSerializer<Vibecare_Plugin_V1_DeleteRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result
         ) async throws -> Result where Result: Sendable
 
         /// Call the "Log" method.
@@ -2228,6 +2337,36 @@ extension Vibecare_Plugin_V1_HostService {
             )
         }
 
+        /// Call the "DeleteData" method.
+        ///
+        /// - Parameters:
+        ///   - request: A request containing a single `Vibecare_Plugin_V1_DeleteRequest` message.
+        ///   - serializer: A serializer for `Vibecare_Plugin_V1_DeleteRequest` messages.
+        ///   - deserializer: A deserializer for `SwiftProtobuf.Google_Protobuf_Empty` messages.
+        ///   - options: Options to apply to this RPC.
+        ///   - handleResponse: A closure which handles the response, the result of which is
+        ///       returned to the caller. Returning from the closure will cancel the RPC if it
+        ///       hasn't already finished.
+        /// - Returns: The result of `handleResponse`.
+        public func deleteData<Result>(
+            request: GRPCCore.ClientRequest<Vibecare_Plugin_V1_DeleteRequest>,
+            serializer: some GRPCCore.MessageSerializer<Vibecare_Plugin_V1_DeleteRequest>,
+            deserializer: some GRPCCore.MessageDeserializer<SwiftProtobuf.Google_Protobuf_Empty>,
+            options: GRPCCore.CallOptions = .defaults,
+            onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+                try response.message
+            }
+        ) async throws -> Result where Result: Sendable {
+            try await self.client.unary(
+                request: request,
+                descriptor: Vibecare_Plugin_V1_HostService.Method.DeleteData.descriptor,
+                serializer: serializer,
+                deserializer: deserializer,
+                options: options,
+                onResponse: handleResponse
+            )
+        }
+
         /// Call the "Log" method.
         ///
         /// - Parameters:
@@ -2358,6 +2497,31 @@ extension Vibecare_Plugin_V1_HostService.ClientProtocol {
             request: request,
             serializer: GRPCProtobuf.ProtobufSerializer<Vibecare_Plugin_V1_QueryRequest>(),
             deserializer: GRPCProtobuf.ProtobufDeserializer<Vibecare_Plugin_V1_QueryResponse>(),
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "DeleteData" method.
+    ///
+    /// - Parameters:
+    ///   - request: A request containing a single `Vibecare_Plugin_V1_DeleteRequest` message.
+    ///   - options: Options to apply to this RPC.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func deleteData<Result>(
+        request: GRPCCore.ClientRequest<Vibecare_Plugin_V1_DeleteRequest>,
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        try await self.deleteData(
+            request: request,
+            serializer: GRPCProtobuf.ProtobufSerializer<Vibecare_Plugin_V1_DeleteRequest>(),
+            deserializer: GRPCProtobuf.ProtobufDeserializer<SwiftProtobuf.Google_Protobuf_Empty>(),
             options: options,
             onResponse: handleResponse
         )
@@ -2502,6 +2666,35 @@ extension Vibecare_Plugin_V1_HostService.ClientProtocol {
             metadata: metadata
         )
         return try await self.queryData(
+            request: request,
+            options: options,
+            onResponse: handleResponse
+        )
+    }
+
+    /// Call the "DeleteData" method.
+    ///
+    /// - Parameters:
+    ///   - message: request message to send.
+    ///   - metadata: Additional metadata to send, defaults to empty.
+    ///   - options: Options to apply to this RPC, defaults to `.defaults`.
+    ///   - handleResponse: A closure which handles the response, the result of which is
+    ///       returned to the caller. Returning from the closure will cancel the RPC if it
+    ///       hasn't already finished.
+    /// - Returns: The result of `handleResponse`.
+    public func deleteData<Result>(
+        _ message: Vibecare_Plugin_V1_DeleteRequest,
+        metadata: GRPCCore.Metadata = [:],
+        options: GRPCCore.CallOptions = .defaults,
+        onResponse handleResponse: @Sendable @escaping (GRPCCore.ClientResponse<SwiftProtobuf.Google_Protobuf_Empty>) async throws -> Result = { response in
+            try response.message
+        }
+    ) async throws -> Result where Result: Sendable {
+        let request = GRPCCore.ClientRequest<Vibecare_Plugin_V1_DeleteRequest>(
+            message: message,
+            metadata: metadata
+        )
+        return try await self.deleteData(
             request: request,
             options: options,
             onResponse: handleResponse
