@@ -3,8 +3,10 @@ package kernel
 import (
 	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -208,8 +210,11 @@ func TestFailedAfterMaxBadStarts(t *testing.T) {
 	defer s.Stop(context.Background())
 
 	waitState(t, reg, "alpha", StateFailed, 10*time.Second)
-	if d := reg.Snapshot()[0].Detail; !strings.Contains(d, "3") {
-		t.Errorf("detail = %q, want it to carry the exit reason", d)
+	// "exit status 3" specifically, not just Contains(d, "3"): a substring
+	// check on a bare "3" would also pass on an unrelated detail like "13
+	// consecutive failed starts", which defeats the point of the assertion.
+	if d := reg.Snapshot()[0].Detail; !strings.Contains(d, "exit status 3") {
+		t.Errorf("detail = %q, want it to carry the exit reason (exit status 3)", d)
 	}
 }
 
@@ -243,10 +248,20 @@ func TestRestartUnknownPluginErrors(t *testing.T) {
 
 // Stop must terminate a plugin that ignores SIGTERM, within the grace
 // period, rather than hanging core's shutdown.
+//
+// The fixture must be unkillable by SIGTERM in a way that actually forces
+// SIGKILL escalation: `trap '' TERM` only protects the shell itself, and
+// Stop signals the whole process group, so a plain `sleep 60` child (not
+// trapping anything) would still receive SIGTERM directly and exit well
+// inside the grace window — the escalation path would never run and the
+// test would pass regardless of whether SIGKILL escalation exists at all.
+// A tight busy loop has no separate signal-killable child, so nothing in
+// the group dies on SIGTERM; only SIGKILL (untrappable) can end it.
 func TestStopKillsUnresponsivePlugin(t *testing.T) {
-	s, reg, _ := newSup(t, "alpha", `
+	s, _, dir := newSup(t, "alpha", `
 trap '' TERM
-sleep 60
+touch "$PWD/trap-installed"
+while :; do :; done
 `)
 	shutdownGrace = 300 * time.Millisecond
 	t.Cleanup(func() { shutdownGrace = 5 * time.Second })
@@ -254,8 +269,30 @@ sleep 60
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	s.Start(ctx)
-	time.Sleep(200 * time.Millisecond)
 
+	// Wait for the script itself to confirm its trap is installed, rather
+	// than a fixed sleep or a pid check. Neither is enough: a pid appears
+	// the instant cmd.Start() returns from the fork+exec syscall, but the
+	// child still has to be scheduled, load /bin/sh, and execute its first
+	// line before "trap '' TERM" actually takes effect. Signaling before
+	// that line runs hits the shell's default SIGTERM disposition
+	// (terminate) despite the trap being present later in the script —
+	// confirmed by a standalone repro: sending SIGTERM immediately after
+	// spawn kills a script identical to this one, while waiting even 200ms
+	// first lets it survive as expected. Only a signal from the script's
+	// own execution proves the trap line has actually run.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(filepath.Join(dir, "trap-installed")); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "trap-installed")); err != nil {
+		t.Fatal("plugin never signaled that its TERM trap was installed")
+	}
+
+	start := time.Now()
 	done := make(chan struct{})
 	go func() { s.Stop(context.Background()); close(done) }()
 	select {
@@ -263,8 +300,14 @@ sleep 60
 	case <-time.After(5 * time.Second):
 		t.Fatal("Stop hung on a plugin that ignores SIGTERM")
 	}
-	if got, _ := reg.State("alpha"); got == StateUp {
-		t.Errorf("state = %v after Stop", got)
+	// The only way Stop can return this quickly against a plugin that
+	// never dies on SIGTERM is if SIGKILL escalation actually ran and
+	// killed it. (Stop unconditionally marks every plugin StateDown before
+	// it returns, so asserting on final registry state here would be
+	// vacuous — elapsed time against shutdownGrace is the real proof that
+	// escalation, not a graceful exit, is what ended the process.)
+	if elapsed := time.Since(start); elapsed < shutdownGrace {
+		t.Fatalf("Stop returned after %v, want at least shutdownGrace (%v): SIGKILL escalation did not run", elapsed, shutdownGrace)
 	}
 }
 
@@ -281,5 +324,84 @@ func TestStopPreventsRestart(t *testing.T) {
 	time.Sleep(500 * time.Millisecond)
 	if after := reg.Snapshot()[0].Restarts; after != before {
 		t.Fatalf("restarts went %d -> %d after Stop", before, after)
+	}
+}
+
+// kill() must never signal a reaped procState, even if its pid field still
+// holds a value that happens to name a real, live, signalable process —
+// exactly what pid reuse looks like from the supervisor's point of view.
+// This spawns a real bystander process (an innocent stand-in for "some
+// unrelated process that happens to have been handed the reaped plugin's
+// old pid"), deliberately assigns its pid to an already-reaped procState,
+// and proves kill() leaves it alone. Without the ps.exited guard in kill(),
+// this bystander — a real, alive, signalable process group — would be
+// SIGKILLed by this call.
+func TestKillRefusesReapedPid(t *testing.T) {
+	root := t.TempDir()
+
+	bystander := exec.Command("/bin/sh", "-c", "sleep 5")
+	bystander.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	if err := bystander.Start(); err != nil {
+		t.Fatalf("spawn bystander: %v", err)
+	}
+	bystanderPID := bystander.Process.Pid
+	t.Cleanup(func() {
+		_ = syscall.Kill(-bystanderPID, syscall.SIGKILL)
+		_ = bystander.Wait()
+	})
+
+	if err := syscall.Kill(bystanderPID, 0); err != nil {
+		t.Fatalf("bystander not alive before test: %v", err)
+	}
+
+	// A real plugin, run to completion and reaped, exactly like Stop or
+	// Restart would encounter one whose runOnce goroutine already returned.
+	dir := filepath.Join(root, "alpha")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	writeScript(t, dir, "exit 0")
+
+	reg := NewRegistry(zap.NewNop())
+	reg.Add(Manifest{ID: "alpha", Name: "alpha", Exec: "./plugin.sh", UI: "webview", Dir: dir})
+	s := NewSupervisor(reg, filepath.Join(root, "core.sock"), filepath.Join(root, "data"), zap.NewNop())
+
+	m, _ := reg.Manifest("alpha")
+	if err := s.runOnce(context.Background(), m); err != nil {
+		t.Fatalf("runOnce: %v", err)
+	}
+
+	ps := s.procs["alpha"]
+	if ps == nil {
+		t.Fatal("no procState recorded")
+	}
+	select {
+	case <-ps.exited:
+	default:
+		t.Fatal("expected ps.exited to be closed after runOnce returned")
+	}
+	if ps.pid != 0 {
+		t.Fatalf("pid = %d after Wait returned, want 0 (waitAndCleanup zeroes it)", ps.pid)
+	}
+
+	// Simulate pid reuse: the plugin's old pid slot now "belongs" to the
+	// bystander, exactly as the OS is free to do the instant a pid is
+	// reaped.
+	ps.pid = bystanderPID
+	s.kill(ps)
+
+	// syscall.Kill(pid, 0) is NOT enough to check survival here: a
+	// killed-but-unreaped child is a zombie, and signal 0 still succeeds
+	// against a zombie's pid until this test's own deferred Wait() reaps
+	// it. A non-blocking wait4 is the only way to tell "still running"
+	// apart from "already killed, just not reaped yet."
+	time.Sleep(50 * time.Millisecond)
+	var status syscall.WaitStatus
+	gotPID, err := syscall.Wait4(bystanderPID, &status, syscall.WNOHANG, nil)
+	if err != nil {
+		t.Fatalf("wait4: %v", err)
+	}
+	if gotPID == bystanderPID {
+		t.Fatalf("bystander (pid %d) was signaled by kill() on a reaped procState: exited with status %v", bystanderPID, status)
 	}
 }
