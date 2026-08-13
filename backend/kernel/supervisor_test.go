@@ -306,8 +306,90 @@ while :; do :; done
 	// it returns, so asserting on final registry state here would be
 	// vacuous — elapsed time against shutdownGrace is the real proof that
 	// escalation, not a graceful exit, is what ended the process.)
+	//
+	// Note this proves *an* escalation path in Stop's call graph killed the
+	// process, not specifically that terminate() (Stop's own SIGTERM/grace/
+	// SIGKILL sequence) did: Stop calls cancel() after its own escalation
+	// attempt, and every plugin runOnce spawns also has a Finding-3
+	// cancellation-watcher goroutine armed against that same ctx, which
+	// would independently SIGKILL an unresponsive process too. Both were
+	// verified disabled together during Finding 4's review — see the task
+	// report. TestTerminateEscalatesToSIGKILL below isolates terminate()
+	// specifically, with that watcher permanently disarmed, so between the
+	// two tests both "Stop's shutdown doesn't hang" and "terminate() is
+	// what does the escalating" are actually covered.
 	if elapsed := time.Since(start); elapsed < shutdownGrace {
 		t.Fatalf("Stop returned after %v, want at least shutdownGrace (%v): SIGKILL escalation did not run", elapsed, shutdownGrace)
+	}
+}
+
+// terminate() is Stop's per-plugin SIGTERM-then-grace-then-SIGKILL
+// escalation, factored out specifically so it can be driven in isolation
+// here. TestStopKillsUnresponsivePlugin above proves Stop's shutdown
+// doesn't hang on an unresponsive plugin, but it can't isolate terminate()
+// from the Finding-3 cancellation watcher: Stop always calls cancel() after
+// its own escalation attempt, and that watcher — armed for every plugin
+// runOnce spawns — would independently SIGKILL the same unresponsive
+// process, so that test alone doesn't prove terminate()'s own SIGKILL is
+// what did the work.
+//
+// This test drives runOnce directly with context.Background(), which is
+// never cancelled for the lifetime of the test. That permanently disarms
+// the cancellation watcher (it only ever fires on ctx.Done()), making
+// terminate() the only possible source of a kill here.
+func TestTerminateEscalatesToSIGKILL(t *testing.T) {
+	s, reg, dir := newSup(t, "alpha", `
+trap '' TERM
+touch "$PWD/trap-installed"
+while :; do :; done
+`)
+	shutdownGrace = 300 * time.Millisecond
+	t.Cleanup(func() { shutdownGrace = 5 * time.Second })
+
+	m, ok := reg.Manifest("alpha")
+	if !ok {
+		t.Fatal("manifest not found")
+	}
+	go func() {
+		_ = s.runOnce(context.Background(), m)
+	}()
+
+	// Same reasoning as TestStopKillsUnresponsivePlugin: wait for the
+	// script's own confirmation that its trap is installed, not a pid or a
+	// fixed sleep — a pid only proves fork+exec happened, not that the
+	// child has executed a line of its own script yet.
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		if _, err := os.Stat(filepath.Join(dir, "trap-installed")); err == nil {
+			break
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "trap-installed")); err != nil {
+		t.Fatal("plugin never signaled that its TERM trap was installed")
+	}
+
+	s.mu.Lock()
+	ps := s.procs["alpha"]
+	pid := 0
+	if ps != nil {
+		pid = ps.pid
+	}
+	s.mu.Unlock()
+	if ps == nil || pid == 0 {
+		t.Fatal("plugin has no pid yet")
+	}
+
+	start := time.Now()
+	s.terminate(ps, pid)
+	if elapsed := time.Since(start); elapsed < shutdownGrace {
+		t.Fatalf("terminate returned after %v, want at least shutdownGrace (%v): SIGKILL escalation did not run", elapsed, shutdownGrace)
+	}
+
+	select {
+	case <-ps.exited:
+	case <-time.After(2 * time.Second):
+		t.Fatal("process was not reaped after terminate's SIGKILL")
 	}
 }
 
