@@ -208,6 +208,87 @@ func TestUptimeOnlyWhileRunning(t *testing.T) {
 	}
 }
 
+func TestCompareAndSetStateSucceedsWhenExpectMatches(t *testing.T) {
+	r := testRegistry(t, "alpha")
+	r.SetState("alpha", StateUp, "")
+
+	if !r.CompareAndSetState("alpha", StateUp, StateDegraded, "camera busy") {
+		t.Fatal("CAS with matching expect should succeed")
+	}
+	got, _ := r.State("alpha")
+	if got != StateDegraded {
+		t.Fatalf("state = %v, want degraded", got)
+	}
+}
+
+// A CAS whose expect no longer matches must change nothing — not the
+// state, not the detail, and it must not wake a watcher, since nothing
+// about the roster actually moved.
+func TestCompareAndSetStateFailsWhenExpectStale(t *testing.T) {
+	r := testRegistry(t, "alpha")
+	r.SetState("alpha", StateDown, "exit status 1")
+
+	ch, cancel := r.Watch()
+	defer cancel()
+	<-ch // drain initial
+
+	if r.CompareAndSetState("alpha", StateUp, StateDegraded, "should not apply") {
+		t.Fatal("CAS with stale expect should fail")
+	}
+	got, detail := stateAndDetail(t, r, "alpha")
+	if got != StateDown || detail != "exit status 1" {
+		t.Fatalf("state = %v, detail = %q; a failed CAS must not mutate", got, detail)
+	}
+
+	select {
+	case snap := <-ch:
+		t.Fatalf("failed CAS notified watchers: %+v", snap)
+	case <-time.After(100 * time.Millisecond):
+	}
+}
+
+func TestCompareAndSetStateUnknownIDFails(t *testing.T) {
+	r := testRegistry(t)
+	if r.CompareAndSetState("ghost", StateUp, StateDegraded, "") {
+		t.Fatal("CAS on an unknown id should fail")
+	}
+}
+
+// A successful CAS is a real transition and must notify exactly like
+// SetState does.
+func TestCompareAndSetStateNotifiesWatchersLikeSetState(t *testing.T) {
+	r := testRegistry(t, "alpha")
+	r.SetState("alpha", StateUp, "")
+
+	ch, cancel := r.Watch()
+	defer cancel()
+	<-ch // drain initial
+
+	if !r.CompareAndSetState("alpha", StateUp, StateDown, "exit status 1") {
+		t.Fatal("CAS with matching expect should succeed")
+	}
+
+	select {
+	case snap := <-ch:
+		if snap[0].State != StateDown || snap[0].Detail != "exit status 1" {
+			t.Fatalf("snapshot = %+v", snap[0])
+		}
+	case <-time.After(time.Second):
+		t.Fatal("successful CAS did not notify")
+	}
+}
+
+func stateAndDetail(t *testing.T, r *Registry, id string) (State, string) {
+	t.Helper()
+	for _, s := range r.Snapshot() {
+		if s.ID == id {
+			return s.State, s.Detail
+		}
+	}
+	t.Fatalf("no such plugin %q", id)
+	return StateStarting, ""
+}
+
 // Mutations against an unknown id are no-ops rather than panics: the health
 // prober and supervisor can race with a plugin being removed.
 func TestUnknownIDIsSafe(t *testing.T) {

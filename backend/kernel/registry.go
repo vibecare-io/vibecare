@@ -145,9 +145,49 @@ func (r *Registry) SetState(id string, s State, detail string) {
 		r.mu.Unlock()
 		return
 	}
-	if p.state == s && p.detail == detail {
+	changed := r.setStateLocked(p, s, detail)
+	r.mu.Unlock()
+
+	if changed {
+		r.log.Info("plugin state", zap.String("plugin", id), zap.String("state", s.String()), zap.String("detail", detail))
+	}
+}
+
+// CompareAndSetState is SetState's atomic sibling: it applies the same
+// transition, but only if the plugin's current state is still expect. It
+// reports whether it wrote.
+//
+// SetState alone is fine for writers that already hold the truth (the
+// supervisor, which just watched its own child exit). It is not fine for a
+// writer that observed a state, then did something slow (a network probe)
+// and now wants to commit a decision computed from that stale observation:
+// reading state and writing it back as two separately-locked calls leaves
+// a window for another writer to move the plugin in between, and the
+// second writer's change would be silently overwritten. Doing the compare
+// and the write under one lock acquisition closes that window.
+func (r *Registry) CompareAndSetState(id string, expect, next State, detail string) bool {
+	r.mu.Lock()
+	p, ok := r.plugins[id]
+	if !ok || p.state != expect {
 		r.mu.Unlock()
-		return
+		return false
+	}
+	changed := r.setStateLocked(p, next, detail)
+	r.mu.Unlock()
+
+	if changed {
+		r.log.Info("plugin state", zap.String("plugin", id), zap.String("state", next.String()), zap.String("detail", detail))
+	}
+	return true
+}
+
+// setStateLocked applies s/detail to p, stamping the transition time and
+// notifying watchers if anything actually changed. Callers must hold r.mu.
+// It is the one place SetState and CompareAndSetState share their
+// transition semantics, so the two can never drift apart.
+func (r *Registry) setStateLocked(p *plugin, s State, detail string) bool {
+	if p.state == s && p.detail == detail {
+		return false
 	}
 	if p.state != s {
 		p.since = time.Now()
@@ -155,9 +195,7 @@ func (r *Registry) SetState(id string, s State, detail string) {
 	p.state, p.detail = s, detail
 	snap := r.snapshotLocked()
 	r.notifyLocked(snap)
-	r.mu.Unlock()
-
-	r.log.Info("plugin state", zap.String("plugin", id), zap.String("state", s.String()), zap.String("detail", detail))
+	return true
 }
 
 func (r *Registry) State(id string) (State, bool) {
