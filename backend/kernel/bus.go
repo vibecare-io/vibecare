@@ -3,6 +3,7 @@ package kernel
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -45,7 +46,6 @@ type subscriber struct {
 	id     string
 	topics []string
 	ch     chan BusEvent
-	closed bool
 }
 
 // Bus is topic -> subscriber channels, in memory, fire-and-forget. It is
@@ -134,7 +134,6 @@ func (b *Bus) Subscribe(pluginID string) (<-chan BusEvent, func()) {
 					delete(b.byTopic, t)
 				}
 			}
-			s.closed = true
 			close(s.ch)
 			b.mu.Unlock()
 			b.announceDemand(affected)
@@ -150,13 +149,7 @@ func (b *Bus) Publish(pluginID, topic string, payload []byte, ts time.Time) (int
 		return 0, fmt.Errorf("plugin %q may not publish reserved topic %q", pluginID, topic)
 	}
 	b.mu.Lock()
-	declared := false
-	for _, t := range b.publishes[pluginID] {
-		if t == topic {
-			declared = true
-			break
-		}
-	}
+	declared := slices.Contains(b.publishes[pluginID], topic)
 	b.mu.Unlock()
 	if !declared {
 		return 0, fmt.Errorf("plugin %q publishes undeclared topic %q", pluginID, topic)
@@ -164,59 +157,60 @@ func (b *Bus) Publish(pluginID, topic string, payload []byte, ts time.Time) (int
 	return b.deliver(topic, BusEvent{Topic: topic, Payload: payload, TS: ts}), nil
 }
 
-// deliver is the non-blocking fan-out. It snapshots the subscriber set
-// under the lock and sends outside it, so a send can never be holding the
-// bus lock.
+// deliver is the non-blocking fan-out. Sends happen WHILE holding b.mu, not
+// after releasing it: cancel() also closes a subscriber's channel under
+// b.mu, and a select-with-default only guards a full channel, not a closed
+// one — sending on a closed channel panics unconditionally, and -race
+// cannot see that particular race. Holding the lock across the sends makes
+// send and close mutually exclusive, which is what actually prevents the
+// panic. The onDelivered hook is invoked afterward, outside the lock: a
+// hook that re-entered the bus while the bus held its own mutex would
+// deadlock.
 func (b *Bus) deliver(topic string, e BusEvent) int {
 	b.mu.Lock()
-	targets := make([]*subscriber, 0, len(b.byTopic[topic]))
+	var delivered []string
 	for _, s := range b.byTopic[topic] {
-		targets = append(targets, s)
-	}
-	hook := b.onDelivered
-	b.mu.Unlock()
-
-	n := 0
-	for _, s := range targets {
 		select {
 		case s.ch <- e:
-			n++
-			if hook != nil {
-				hook(s.id, 1)
-			}
+			delivered = append(delivered, s.id)
 		default:
 			b.log.Warn("dropping event for slow subscriber",
 				zap.String("plugin", s.id), zap.String("topic", topic))
 		}
 	}
-	return n
+	hook := b.onDelivered
+	b.mu.Unlock()
+
+	if hook != nil {
+		for _, id := range delivered {
+			hook(id, 1)
+		}
+	}
+	return len(delivered)
 }
 
 // announceDemand sends the current subscriber count for each topic to
-// whichever plugin declares that topic in its publishes.
+// whichever plugin declares that topic in its publishes. Like deliver, the
+// send happens WHILE holding b.mu so it can never race a concurrent
+// cancel() closing the same channel — see the comment on deliver.
 func (b *Bus) announceDemand(topics []string) {
 	for _, topic := range topics {
 		b.mu.Lock()
 		count := len(b.byTopic[topic])
 		var publisher *subscriber
 		for id, pubTopics := range b.publishes {
-			for _, t := range pubTopics {
-				if t == topic {
-					publisher = b.subs[id]
-					break
-				}
-			}
-			if publisher != nil {
+			if slices.Contains(pubTopics, topic) {
+				publisher = b.subs[id]
 				break
 			}
 		}
-		b.mu.Unlock()
-
 		if publisher == nil {
+			b.mu.Unlock()
 			continue // provider not connected; it gets the count on Subscribe
 		}
 		payload, err := json.Marshal(DemandPayload{Topic: topic, Subscribers: count})
 		if err != nil {
+			b.mu.Unlock()
 			continue
 		}
 		e := BusEvent{Topic: TopicDemand, Payload: payload, TS: time.Now()}
@@ -226,6 +220,7 @@ func (b *Bus) announceDemand(topics []string) {
 			b.log.Warn("dropping demand event for slow publisher",
 				zap.String("plugin", publisher.id), zap.String("topic", topic))
 		}
+		b.mu.Unlock()
 	}
 }
 
