@@ -407,27 +407,7 @@ func (s *Supervisor) Stop(ctx context.Context) {
 		wg.Add(1)
 		go func(ps *procState, pid int) {
 			defer wg.Done()
-			// The pid snapshotted into tgt was valid when Stop scanned the
-			// roster, but that was before this goroutine was scheduled —
-			// check ps.exited before signaling so a plugin that exited on
-			// its own in the meantime doesn't get its (already-reused) pid
-			// signaled.
-			select {
-			case <-ps.exited:
-				return
-			default:
-			}
-			_ = syscall.Kill(-pid, syscall.SIGTERM)
-			// runOnce closes ps.exited after cmd.Wait returns. Waiting on
-			// that channel is the only race-free way to observe the exit —
-			// cmd.Wait is already in flight there, so neither a second Wait
-			// nor a read of cmd.ProcessState is safe from here.
-			select {
-			case <-ps.exited:
-			case <-time.After(shutdownGrace):
-				s.log.Warn("plugin ignored SIGTERM; killing", zap.Int("pid", pid))
-				s.kill(ps)
-			}
+			s.terminate(ps, pid)
 		}(tgt.ps, tgt.pid)
 	}
 	wg.Wait()
@@ -442,19 +422,64 @@ func (s *Supervisor) Stop(ctx context.Context) {
 	}
 }
 
-// kill SIGKILLs the process group, so anything the plugin spawned dies too.
+// terminate is Stop's per-plugin escalation sequence: SIGTERM, then SIGKILL
+// after shutdownGrace if the process is still alive. It is factored out of
+// Stop so it can also be driven directly by a test — TestStopKillsUnresponsivePlugin
+// exercises it through the full Stop path, where the Finding-3 cancellation
+// watcher (armed for every plugin runOnce spawns) is also in play and could
+// independently SIGKILL the same process; TestTerminateEscalatesToSIGKILL
+// calls this method directly against a plugin whose ctx is never cancelled,
+// which keeps that watcher permanently disarmed and makes this function the
+// only possible source of the kill.
+//
+// pid is the pid Stop's roster snapshot observed; it is used only for the
+// log line below if escalation is needed. It is never used to signal —
+// both s.signal and s.kill (called here) reread the live pid themselves.
+func (s *Supervisor) terminate(ps *procState, pid int) {
+	// s.signal rereads ps.pid fresh under the lock immediately before
+	// sending — see signal's doc comment — so a plugin reaped between
+	// Stop's roster snapshot and this goroutine running doesn't get a
+	// stale, possibly-reused pid signaled.
+	s.signal(ps, syscall.SIGTERM)
+	// runOnce closes ps.exited after cmd.Wait returns. Waiting on that
+	// channel is the only race-free way to observe the exit — cmd.Wait is
+	// already in flight there, so neither a second Wait nor a read of
+	// cmd.ProcessState is safe from here.
+	select {
+	case <-ps.exited:
+	case <-time.After(shutdownGrace):
+		s.log.Warn("plugin ignored SIGTERM; killing", zap.Int("pid", pid))
+		s.kill(ps)
+	}
+}
+
+// signal delivers sig to ps's process group, but only if it has not already
+// been reaped. Every signal this supervisor ever sends — kill()'s SIGKILL,
+// Stop()'s SIGTERM — goes through this one function specifically so there
+// is exactly one place that can get the reaped-pid guard wrong, rather than
+// each call site reimplementing it and risking the asymmetry that let
+// Stop() slip through review once already (it checked ps.exited but then
+// signaled a pid it had snapshotted earlier instead of rereading it here).
+//
 // It reads ps.pid under the supervisor lock rather than ps.cmd.Process:
 // runOnce writes that field with no synchronization of its own once Start
-// succeeds, so any other goroutine reading it directly would race.
+// succeeds, so any other goroutine reading it directly would race. And it
+// reads pid fresh, right before signaling, rather than trusting a value the
+// caller captured earlier: waitAndCleanup zeroes ps.pid under this same
+// lock before closing ps.exited, so a pid read long before this call could
+// already be stale even if the caller also checked ps.exited around the
+// same time.
 //
-// Before signaling, it checks ps.exited: a closed exited channel means
-// cmd.Wait has already returned, so the pid has been reaped and is free
-// for the OS to reuse for an unrelated process. Signaling a reused pid
-// with -pid would fan a signal out to that unrelated process's entire
-// group, so a reaped plugin must never be signaled again — the exited
-// check is the real guard, and the pid <= 0 check below is the fallback
-// for a caller that raced past it.
-func (s *Supervisor) kill(ps *procState) {
+// The ps.exited check below is a cheap early-out, not the only guard: a
+// closed exited channel means cmd.Wait has already returned, so the pid
+// has been reaped and is free for the OS to reuse for an unrelated
+// process, and signaling a reused pid with -pid would fan a signal out to
+// that unrelated process's entire group. But exited and pid can be
+// observed out of step for a few instructions (waitAndCleanup zeroes pid
+// first, then closes exited), so the pid <= 0 check after the lock is the
+// guard that actually matters — the exited check just avoids the lock
+// acquisition in the common case.
+func (s *Supervisor) signal(ps *procState, sig syscall.Signal) {
 	if ps == nil {
 		return
 	}
@@ -469,5 +494,11 @@ func (s *Supervisor) kill(ps *procState) {
 	if pid <= 0 {
 		return
 	}
-	_ = syscall.Kill(-pid, syscall.SIGKILL)
+	_ = syscall.Kill(-pid, sig)
+}
+
+// kill SIGKILLs the process group, so anything the plugin spawned dies too.
+// See signal for the reaped-pid guard.
+func (s *Supervisor) kill(ps *procState) {
+	s.signal(ps, syscall.SIGKILL)
 }
