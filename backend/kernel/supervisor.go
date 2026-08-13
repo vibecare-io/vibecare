@@ -64,11 +64,14 @@ type procState struct {
 	// so the loop can tell it apart from a crash.
 	intentional bool
 	// pid is cmd.Process.Pid, copied here under Supervisor.mu once Start
-	// succeeds. Every reader (Stop, Restart, the registration watchdog) goes
-	// through this field instead of cmd.Process: cmd.Start() writes that
-	// field with no synchronization of its own, so reading it from another
-	// goroutine while runOnce may still be inside Start() is a data race.
-	// pid == 0 means "not started yet".
+	// succeeds and zeroed again once Wait returns. Every reader (Stop,
+	// Restart, the registration watchdog) goes through this field instead
+	// of cmd.Process: cmd.Start() writes that field with no synchronization
+	// of its own, so reading it from another goroutine while runOnce may
+	// still be inside Start() is a data race. pid <= 0 means "not started
+	// yet, or already reaped" — never signal in either case: a reaped pid
+	// is free for the OS to hand to an unrelated process, and -pid would
+	// fan a signal out to that process's entire group.
 	pid int
 }
 
@@ -102,6 +105,11 @@ func NewSupervisor(reg *Registry, socketPath, dataRoot string, log *zap.Logger) 
 }
 
 // Start launches one supervision goroutine per discovered plugin.
+//
+// Stop is the graceful shutdown path: SIGTERM, then SIGKILL after
+// shutdownGrace. Cancelling ctx directly, without calling Stop, is the
+// abrupt path — every plugin is still guaranteed not to leak past the
+// cancellation, but with no grace period and no SIGTERM warning first.
 func (s *Supervisor) Start(ctx context.Context) {
 	ctx, cancel := context.WithCancel(ctx)
 	s.mu.Lock()
@@ -177,10 +185,22 @@ func (s *Supervisor) supervise(ctx context.Context, m Manifest) {
 		}
 
 		delay := backoffDelay(failures)
-		if intentional {
-			delay = 0
-		}
 		s.reg.IncRestarts(m.ID)
+		if intentional {
+			// This exit was triggered by a manual Restart, which already
+			// deposited a token in restartC to wake us. Drain it now
+			// instead of racing it against an immediate time.After(0):
+			// select picks a ready case at random, so the timer branch can
+			// win and leave the token sitting in the channel. A later
+			// StateFailed park (below, on a wholly unrelated future
+			// failure) would then read that stale token off the channel
+			// and un-park itself without any real user action.
+			select {
+			case <-s.restartChan(m.ID):
+			default:
+			}
+			continue
+		}
 		select {
 		case <-ctx.Done():
 			return
@@ -202,9 +222,10 @@ func (s *Supervisor) runOnce(ctx context.Context, m Manifest) error {
 
 	cmd := exec.Command(m.Exec)
 	cmd.Dir = m.Dir
-	// Exactly three variables, plus PATH/HOME so the process can find a
-	// shell and its own home. Everything else a plugin needs comes from its
-	// own directory or its data dir.
+	// The plugin inherits core's entire environment (PATH, HOME, etc. all
+	// come along), plus exactly these three VIBECARE_ variables on top.
+	// Everything plugin-specific comes from its own directory or its data
+	// dir — these three are the entire core/plugin contract.
 	cmd.Env = append(os.Environ(),
 		"VIBECARE_SOCKET="+s.socketPath,
 		"VIBECARE_PLUGIN_ID="+m.ID,
@@ -241,9 +262,7 @@ func (s *Supervisor) runOnce(ctx context.Context, m Manifest) error {
 
 	if stopping {
 		s.kill(ps)
-		err := cmd.Wait()
-		close(ps.exited)
-		return err
+		return s.waitAndCleanup(ps)
 	}
 
 	// Registration watchdog. A plugin that hasn't handshaken in time is
@@ -260,9 +279,37 @@ func (s *Supervisor) runOnce(ctx context.Context, m Manifest) error {
 	})
 	defer watchdog.Stop()
 
-	err := cmd.Wait()
-	// Publish the exit exactly once, so Stop can observe it without racing
-	// on cmd.ProcessState.
+	// Cancellation is the abrupt shutdown path: Stop is the graceful one
+	// (SIGTERM, then SIGKILL after shutdownGrace). A caller who cancels ctx
+	// directly instead — without calling Stop — still gets the process
+	// terminated, just with no grace period. This goroutine exits on its
+	// own via ps.exited once the process is reaped normally, so it never
+	// outlives runOnce.
+	go func() {
+		select {
+		case <-ctx.Done():
+			s.mu.Lock()
+			ps.intentional = true
+			s.mu.Unlock()
+			s.kill(ps)
+		case <-ps.exited:
+		}
+	}()
+
+	return s.waitAndCleanup(ps)
+}
+
+// waitAndCleanup blocks on cmd.Wait, then zeroes the pid and publishes the
+// exit exactly once. The pid is zeroed BEFORE ps.exited is closed and under
+// the same lock that publishes it: the closed channel is the real ordering
+// guarantee kill() and Stop() rely on, but zeroing the pid first means even
+// a caller that raced past the channel check still finds pid <= 0 and
+// refuses to signal — belt and braces against ever signaling a reused pid.
+func (s *Supervisor) waitAndCleanup(ps *procState) error {
+	err := ps.cmd.Wait()
+	s.mu.Lock()
+	ps.pid = 0
+	s.mu.Unlock()
 	close(ps.exited)
 	return err
 }
@@ -275,10 +322,16 @@ func (s *Supervisor) restartChan(id string) chan struct{} {
 
 // NotifyRegistered is called by the Register RPC when a plugin completes
 // the handshake. It disarms that spawn's registration watchdog.
+//
+// The check-then-close on ps.registered must happen under the same lock as
+// the map lookup: a plugin retrying its handshake (routine under Task 9's
+// SDK reconnect loop) can call this twice for the same spawn, and two
+// unsynchronized check-then-close sequences can both observe the channel
+// open and both call close, which panics.
 func (s *Supervisor) NotifyRegistered(id string) {
 	s.mu.Lock()
+	defer s.mu.Unlock()
 	ps := s.procs[id]
-	s.mu.Unlock()
 	if ps == nil {
 		return
 	}
@@ -354,6 +407,16 @@ func (s *Supervisor) Stop(ctx context.Context) {
 		wg.Add(1)
 		go func(ps *procState, pid int) {
 			defer wg.Done()
+			// The pid snapshotted into tgt was valid when Stop scanned the
+			// roster, but that was before this goroutine was scheduled —
+			// check ps.exited before signaling so a plugin that exited on
+			// its own in the meantime doesn't get its (already-reused) pid
+			// signaled.
+			select {
+			case <-ps.exited:
+				return
+			default:
+			}
 			_ = syscall.Kill(-pid, syscall.SIGTERM)
 			// runOnce closes ps.exited after cmd.Wait returns. Waiting on
 			// that channel is the only race-free way to observe the exit —
@@ -383,14 +446,27 @@ func (s *Supervisor) Stop(ctx context.Context) {
 // It reads ps.pid under the supervisor lock rather than ps.cmd.Process:
 // runOnce writes that field with no synchronization of its own once Start
 // succeeds, so any other goroutine reading it directly would race.
+//
+// Before signaling, it checks ps.exited: a closed exited channel means
+// cmd.Wait has already returned, so the pid has been reaped and is free
+// for the OS to reuse for an unrelated process. Signaling a reused pid
+// with -pid would fan a signal out to that unrelated process's entire
+// group, so a reaped plugin must never be signaled again — the exited
+// check is the real guard, and the pid <= 0 check below is the fallback
+// for a caller that raced past it.
 func (s *Supervisor) kill(ps *procState) {
 	if ps == nil {
 		return
 	}
+	select {
+	case <-ps.exited:
+		return
+	default:
+	}
 	s.mu.Lock()
 	pid := ps.pid
 	s.mu.Unlock()
-	if pid == 0 {
+	if pid <= 0 {
 		return
 	}
 	_ = syscall.Kill(-pid, syscall.SIGKILL)
