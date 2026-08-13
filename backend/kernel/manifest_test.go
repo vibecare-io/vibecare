@@ -21,36 +21,36 @@ func writePlugin(t *testing.T, root, dir, body string) {
 }
 
 const goodManifest = `
-id: todo
-name: Todo
+id: widget
+name: Widget
 icon: checklist
-exec: ./todo
+exec: ./widget
 subscribes: [activity.afk.v1]
-publishes: [todo.created.v1]
+publishes: [widget.created.v1]
 ui: webview
 `
 
 func TestLoadManifestParsesAllFields(t *testing.T) {
 	root := t.TempDir()
-	writePlugin(t, root, "todo", goodManifest)
+	writePlugin(t, root, "widget", goodManifest)
 
-	m, err := LoadManifest(filepath.Join(root, "todo", "manifest.yaml"))
+	m, err := LoadManifest(filepath.Join(root, "widget", "manifest.yaml"))
 	if err != nil {
 		t.Fatalf("LoadManifest: %v", err)
 	}
-	if m.ID != "todo" || m.Name != "Todo" || m.Icon != "checklist" || m.Exec != "./todo" {
+	if m.ID != "widget" || m.Name != "Widget" || m.Icon != "checklist" || m.Exec != "./widget" {
 		t.Errorf("scalar fields wrong: %+v", m)
 	}
 	if len(m.Subscribes) != 1 || m.Subscribes[0] != "activity.afk.v1" {
 		t.Errorf("subscribes = %v", m.Subscribes)
 	}
-	if len(m.Publishes) != 1 || m.Publishes[0] != "todo.created.v1" {
+	if len(m.Publishes) != 1 || m.Publishes[0] != "widget.created.v1" {
 		t.Errorf("publishes = %v", m.Publishes)
 	}
 	if m.UI != "webview" {
 		t.Errorf("ui = %q", m.UI)
 	}
-	if m.Dir != filepath.Join(root, "todo") {
+	if m.Dir != filepath.Join(root, "widget") {
 		t.Errorf("Dir = %q, want the manifest's own directory", m.Dir)
 	}
 }
@@ -58,7 +58,7 @@ func TestLoadManifestParsesAllFields(t *testing.T) {
 // A plugin id is the routing key, the data-dir name, and the topic
 // namespace prefix, so it is validated hard rather than sanitized.
 func TestLoadManifestRejectsBadIDs(t *testing.T) {
-	for _, id := range []string{"", "_core", "Todo", "9lives", "to_do", "todo!", "to/do"} {
+	for _, id := range []string{"", "_core", "Widget", "9lives", "wid_get", "widget!", "to/do"} {
 		t.Run(id, func(t *testing.T) {
 			root := t.TempDir()
 			writePlugin(t, root, "p", "id: "+id+"\nname: X\nexec: ./x\n")
@@ -71,8 +71,8 @@ func TestLoadManifestRejectsBadIDs(t *testing.T) {
 
 func TestLoadManifestRequiresExec(t *testing.T) {
 	root := t.TempDir()
-	writePlugin(t, root, "todo", "id: todo\nname: Todo\n")
-	_, err := LoadManifest(filepath.Join(root, "todo", "manifest.yaml"))
+	writePlugin(t, root, "widget", "id: widget\nname: Widget\n")
+	_, err := LoadManifest(filepath.Join(root, "widget", "manifest.yaml"))
 	if err == nil || !strings.Contains(err.Error(), "exec") {
 		t.Fatalf("err = %v, want an error naming the missing exec field", err)
 	}
@@ -130,12 +130,12 @@ func TestDiscoverFindsAllPluginsSorted(t *testing.T) {
 // directory or a stray checkout. Skipping it keeps `plugins/` droppable.
 func TestDiscoverSkipsDirsWithoutManifest(t *testing.T) {
 	root := t.TempDir()
-	writePlugin(t, root, "todo", goodManifest)
+	writePlugin(t, root, "widget", goodManifest)
 	if err := os.MkdirAll(filepath.Join(root, "notaplugin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	got, err := Discover(root)
-	if err != nil || len(got) != 1 || got[0].ID != "todo" {
+	if err != nil || len(got) != 1 || got[0].ID != "widget" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
