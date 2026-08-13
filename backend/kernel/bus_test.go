@@ -2,6 +2,8 @@ package kernel
 
 import (
 	"encoding/json"
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -222,5 +224,96 @@ func TestOnDeliveredHook(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 	if got["sub"] != 1 {
 		t.Fatalf("OnDelivered saw %v, want sub=1", got)
+	}
+}
+
+// deliver and announceDemand snapshot subscriber pointers, unlock, then
+// send. cancel concurrently locks, closes the channel, and unlocks. A
+// select-with-default guards a FULL channel, not a CLOSED one, so a send
+// racing a close panics unconditionally. This must survive heavy
+// concurrent Publish/Subscribe/cancel traffic without ever panicking.
+func TestConcurrentPublishAndCancelDoesNotPanic(t *testing.T) {
+	b := NewBus(zap.NewNop())
+	b.Declare("pub", nil, []string{"t.v1"})
+
+	const flappers = 8
+	ids := make([]string, flappers)
+	for i := range ids {
+		ids[i] = fmt.Sprintf("flap%d", i)
+		b.Declare(ids[i], []string{"t.v1"}, nil)
+	}
+
+	const iterations = 3000
+	var wg sync.WaitGroup
+
+	// Publishers hammering the topic.
+	for p := 0; p < 4; p++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				b.Publish("pub", "t.v1", []byte("x"), time.Now())
+			}
+		}()
+	}
+
+	// Flappers subscribing and immediately cancelling, racing the
+	// publishers above and each other's own demand announcements.
+	for _, id := range ids {
+		wg.Add(1)
+		go func(id string) {
+			defer wg.Done()
+			for i := 0; i < iterations; i++ {
+				_, cancel := b.Subscribe(id)
+				cancel()
+			}
+		}(id)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("timed out — possible deadlock")
+	}
+}
+
+// TestDemandDeliveredToPublisherOnSubscribeAndUnsubscribe (above) can't
+// distinguish announceDemand(own) from announceDemand(affected) because its
+// sensor plugin only publishes and its consumer plugin only subscribes, so
+// the "affected" announcement always lands on a different plugin's channel
+// than the "own" one — swapping the two calls would produce identical
+// output for that test.
+//
+// This test uses "relay", a plugin that publishes two topics (down.v1 and
+// up.v1) and also subscribes to one of its own published topics (up.v1) —
+// a deliberate self-loop so that BOTH the "own" announcement (down.v1,
+// up.v1, in declared order) and the "affected" announcement (up.v1, because
+// relay subscribes to it) resolve their publisher lookup back to relay
+// itself and land on relay's own channel. That lets the very first event
+// relay observes prove the order: if Subscribe announced affected before
+// own, the first event would be up.v1, not down.v1.
+func TestDemandAnnouncedForOwnTopicBeforeSubscribedTopic(t *testing.T) {
+	b := NewBus(zap.NewNop())
+	b.Declare("relay", []string{"up.v1"}, []string{"down.v1", "up.v1"})
+	b.Declare("consumer", []string{"down.v1"}, nil)
+
+	_, cancelConsumer := b.Subscribe("consumer")
+	defer cancelConsumer()
+
+	relayCh, cancelRelay := b.Subscribe("relay")
+	defer cancelRelay()
+
+	e := recvEvent(t, relayCh)
+	var d DemandPayload
+	if err := json.Unmarshal(e.Payload, &d); err != nil {
+		t.Fatal(err)
+	}
+	if d.Topic != "down.v1" {
+		t.Fatalf("first demand event topic = %q, want %q (own published topics announced before subscribed topics)", d.Topic, "down.v1")
 	}
 }
