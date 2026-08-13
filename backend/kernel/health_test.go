@@ -189,6 +189,51 @@ func TestHealthDegradesAfterThreeBadProbes(t *testing.T) {
 	}
 }
 
+// A probe that started while a plugin was up can still be on the wire
+// after the supervisor discovers the process died and moves it to down.
+// The probe's result — computed against the state it observed before it
+// went out — must not resurrect/overwrite that newer transition. This is
+// exactly the window CompareAndSetState closes; without it, the stale
+// probe would win the race and this test fails.
+func TestHealthDropsProbeResultWhenStateChangedUnderneath(t *testing.T) {
+	arrived := make(chan struct{})
+	release := make(chan struct{})
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		close(arrived)
+		<-release
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer srv.Close()
+
+	reg := NewRegistry(zap.NewNop())
+	reg.Add(Manifest{ID: "alpha", Name: "alpha", Exec: "./a", UI: "webview"})
+	reg.SetPort("alpha", serverPort(t, srv))
+	reg.SetState("alpha", StateUp, "")
+
+	h := NewHealth(reg, zap.NewNop())
+	// Two consecutive failures already on record: the probe in flight
+	// below is the third, which is what would cross probeFailThreshold
+	// and trigger a registry write (a probe that stays quiet never
+	// touches the registry, so it can never exhibit this race).
+	h.fails["alpha"] = 2
+
+	done := make(chan struct{})
+	go func() {
+		h.ProbeOnce(context.Background())
+		close(done)
+	}()
+
+	<-arrived // the third bad probe is now on the wire, believing alpha is up
+	reg.SetState("alpha", StateDown, "exit status 1") // supervisor: the process just died
+	close(release)                                     // let the now-stale probe finish failing
+
+	<-done
+
+	if got, _ := reg.State("alpha"); got != StateDown {
+		t.Fatalf("state = %v; a stale probe overwrote the supervisor's down transition, want down to stick", got)
+	}
+}
+
 // Plugins that aren't running have nothing to probe; probing them would
 // fight the supervisor over who owns the state.
 func TestHealthSkipsPluginsWithoutPortOrNotRunning(t *testing.T) {

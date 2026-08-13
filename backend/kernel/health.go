@@ -166,36 +166,53 @@ func (h *Health) ProbeOnce(ctx context.Context) {
 			continue
 		}
 		wg.Add(1)
-		go func(id string, port uint32) {
+		go func(id string, observed State, port uint32) {
 			defer wg.Done()
 			r := probeHealth(ctx, h.client, port)
 			h.reg.SetProbeLatency(id, r.latency)
 
-			// Re-read the current state after the (possibly slow, up to
-			// probeTimeout) probe rather than trusting the pre-probe
-			// snapshot. The supervisor owns transitions out of up/degraded
-			// (a crash, for instance) and must win any race against a
-			// probe that was already in flight when that happened; using
-			// a stale cur here would let this goroutine stomp a newer
-			// state with one computed from a state that no longer holds.
-			cur, ok := h.reg.State(id)
-			if !ok || (cur != StateUp && cur != StateDegraded) {
-				return
-			}
-
 			h.mu.Lock()
-			next, fails := advance(cur, r, h.fails[id])
-			h.fails[id] = fails
+			next, fails := advance(observed, r, h.fails[id])
 			h.mu.Unlock()
 
 			detail := r.detail
 			if next == StateUp {
 				detail = ""
 			}
-			if next != cur || detail != "" {
-				h.reg.SetState(id, next, detail)
+			if next == observed && detail == "" {
+				// Nothing to commit to the registry, just the local
+				// failure count (e.g. one bad probe that hasn't reached
+				// threshold yet).
+				h.mu.Lock()
+				h.fails[id] = fails
+				h.mu.Unlock()
+				return
 			}
-		}(stat.ID, port)
+
+			// Commit atomically against the state this probe actually
+			// observed before it went out on the wire (probeHealth can
+			// take up to probeTimeout). If another writer — the
+			// supervisor, most likely — has since moved the plugin away
+			// from `observed`, CompareAndSetState refuses the write, and
+			// this goroutine must not resurrect the plugin with a state
+			// computed from an assumption that no longer holds.
+			if h.reg.CompareAndSetState(id, observed, next, detail) {
+				h.mu.Lock()
+				h.fails[id] = fails
+				h.mu.Unlock()
+				return
+			}
+
+			// Dropped: `observed` is stale, so is everything computed
+			// from it, including fails — do not store it. Don't retry,
+			// either: the next probe is only probeInterval away and will
+			// read the plugin's true current state fresh, whereas
+			// retrying immediately here would just re-run the same race
+			// against a supervisor that has every right to win it.
+			h.mu.Lock()
+			delete(h.fails, id)
+			h.mu.Unlock()
+		}(stat.ID, stat.State, port)
 	}
 	wg.Wait()
 }
