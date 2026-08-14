@@ -124,5 +124,14 @@ func Discover(root string, log *zap.Logger) ([]Manifest, error) {
 		out = append(out, m)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+
+	// An empty scan is almost always the wrong directory rather than a
+	// deliberately empty one, and the symptom — a client that lists no
+	// plugins — looks identical either way. Say so at warn, naming the path,
+	// so the log answers the question instead of restating it.
+	if len(out) == 0 {
+		log.Warn("no plugins found; drop a <id>/manifest.yaml directory here and restart",
+			zap.String("dir", root))
+	}
 	return out, nil
 }
