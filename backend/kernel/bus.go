@@ -125,9 +125,27 @@ func (b *Bus) Subscribe(pluginID string) (<-chan BusEvent, func()) {
 	cancel := func() {
 		once.Do(func() {
 			b.mu.Lock()
-			if cur, ok := b.subs[pluginID]; ok && cur == s {
-				delete(b.subs, pluginID)
+			// A reconnecting plugin calls Subscribe again before its old
+			// stream's teardown runs cancel. Both subscriptions share the
+			// same plugin id AND the same topic list, so b.byTopic[t][id]
+			// now points at the NEW subscriber, not this one. Blindly
+			// deleting from b.byTopic here would unroute the live
+			// replacement — it would stay open, report up, and pass
+			// health probes while receiving zero events for the rest of
+			// its life. The identity check on b.subs guards the map entry
+			// but NOT b.byTopic, which is keyed the same way and just as
+			// exposed, so it needs the same guard. A stale cancel that
+			// does nothing is strictly better than one that unroutes a
+			// live subscriber, so skip the byTopic deletes, the channel
+			// close, and the demand re-announce entirely when this
+			// subscriber has already been superseded.
+			cur, ok := b.subs[pluginID]
+			current := ok && cur == s
+			if !current {
+				b.mu.Unlock()
+				return
 			}
+			delete(b.subs, pluginID)
 			for _, t := range s.topics {
 				delete(b.byTopic[t], pluginID)
 				if len(b.byTopic[t]) == 0 {
