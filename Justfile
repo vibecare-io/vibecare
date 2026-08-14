@@ -109,7 +109,7 @@ install-binaries: build-release swift-build-release
 [group('📦 Build & Run')]
 run: proto-gen
     @echo "{{GREEN}}Starting VibeCare server...{{NC}}"
-    cd {{backend_dir}} && go run cmd/server/main.go --enable-tracing --log-level debug
+    cd {{backend_dir}} && go run cmd/server/main.go --enable-tracing --log-level debug --plugins-dir ../plugins
 
 # Run the server with custom port
 [group('📦 Build & Run')]
