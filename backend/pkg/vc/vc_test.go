@@ -227,6 +227,81 @@ func TestSetHealthReportsDegraded(t *testing.T) {
 	}
 }
 
+// TestServeNilGoesThroughTheAdvertisedPath exercises the package doc
+// comment's worked example verbatim: a plugin that calls
+// http.Serve(h.Listener, nil) directly — writing zero health code — still
+// gets a working /health, because Connect already installed the default
+// handler on http.DefaultServeMux. This is the SDK's headline "no health
+// code at all" claim and must be tested end to end, not only through an
+// explicit mux as the other health tests do. It must also keep passing
+// when the whole package runs, not just in isolation, since every test
+// that calls Connect shares this same process-wide http.DefaultServeMux.
+func TestServeNilGoesThroughTheAdvertisedPath(t *testing.T) {
+	coreFixture(t, "alpha")
+	h, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+
+	go http.Serve(h.Listener, nil)
+
+	resp, err := http.Get("http://" + h.Listener.Addr().String() + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("code = %d, want 200", resp.StatusCode)
+	}
+}
+
+// h.Serve(nil) is documented to take the same path as
+// http.Serve(h.Listener, nil); cover it too.
+func TestHandleServeNilGoesThroughTheAdvertisedPath(t *testing.T) {
+	coreFixture(t, "alpha")
+	h, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+
+	go h.Serve(nil)
+
+	resp, err := http.Get("http://" + h.Listener.Addr().String() + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("code = %d, want 200", resp.StatusCode)
+	}
+}
+
+// A caller who passes http.DefaultServeMux to Serve should not panic:
+// Connect already registered /health there via the sync.Once indirection,
+// and *http.ServeMux.HandleFunc panics on a duplicate pattern. Serve must
+// detect that case and repoint the indirection instead of re-registering.
+func TestServeToleratesExplicitDefaultServeMux(t *testing.T) {
+	coreFixture(t, "alpha")
+	h, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+
+	go h.Serve(http.DefaultServeMux)
+
+	resp, err := http.Get("http://" + h.Listener.Addr().String() + "/health")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("code = %d, want 200", resp.StatusCode)
+	}
+}
+
 func TestPublishAttachesPluginID(t *testing.T) {
 	core, _ := coreFixture(t, "alpha")
 	h, err := Connect()

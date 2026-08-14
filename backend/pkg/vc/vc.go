@@ -77,7 +77,13 @@ type Handle struct {
 	ID       string
 	DataDir  string
 	Listener net.Listener
-	Events   <-chan Event
+
+	// Events delivers bus events the plugin subscribed to in its manifest.
+	// It is never closed — not by Close, not on shutdown — so a plugin
+	// that ranges over Events expecting the loop to end on its own will
+	// block forever after Close instead of seeing the channel close.
+	// OnShutdown, not channel closure, is the termination signal.
+	Events <-chan Event
 
 	conn   *grpc.ClientConn
 	client pluginv1.PluginHostClient
@@ -94,6 +100,11 @@ type Handle struct {
 // Connect reads the spawn environment, binds the plugin's HTTP listener,
 // dials core, registers, and starts the reconnect loop. It returns once
 // core has acknowledged with Ready.
+//
+// A plugin process is expected to call Connect exactly once. A second
+// Connect in the same process is not an error: it does not fail or
+// panic, it simply repoints the /health handler already installed on
+// http.DefaultServeMux at the newer Handle (see registerDefaultHealth).
 func Connect() (*Handle, error) {
 	socket := os.Getenv("VIBECARE_SOCKET")
 	id := os.Getenv("VIBECARE_PLUGIN_ID")
@@ -319,11 +330,22 @@ func (h *Handle) handleHealth(w http.ResponseWriter, _ *http.Request) {
 // Serve installs the default /health handler on mux and serves the
 // plugin's HTTP on the listener core assigned. Passing nil uses
 // http.DefaultServeMux, where Connect already installed /health.
+//
+// Passing http.DefaultServeMux explicitly is also safe: Connect already
+// registered /health there, and *http.ServeMux.HandleFunc panics on a
+// duplicate pattern, so Serve detects that case and repoints the
+// existing indirection at this Handle instead of registering again.
 func (h *Handle) Serve(mux *http.ServeMux) error {
 	if mux == nil {
 		return http.Serve(h.Listener, nil)
 	}
-	mux.HandleFunc("/health", h.handleHealth)
+	if mux == http.DefaultServeMux {
+		defaultHealthMu.Lock()
+		defaultHealthH = h
+		defaultHealthMu.Unlock()
+	} else {
+		mux.HandleFunc("/health", h.handleHealth)
+	}
 	return http.Serve(h.Listener, mux)
 }
 
