@@ -1,13 +1,14 @@
 package kernel
 
 import (
-	"bufio"
 	"fmt"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -131,47 +132,188 @@ func TestProxyDegradedPluginStillProxies(t *testing.T) {
 }
 
 // THE test that justifies FlushInterval = -1. Without it, ReverseProxy
-// buffers the response and an MJPEG preview or SSE stream never arrives
-// until the handler returns — i.e. never. This runs against a real
-// listener because httptest.Recorder cannot observe flushing.
+// buffers the response and a streaming preview never arrives until the
+// handler returns — i.e. never. This runs against a real listener because
+// httptest.Recorder cannot observe flushing.
+//
+// The response shape here is deliberate and load-bearing: Go's stdlib
+// ReverseProxy (net/http/httputil, (*ReverseProxy).flushInterval) already
+// forces immediate flushing on its own, regardless of FlushInterval,
+// whenever the response is Content-Type: text/event-stream OR has an
+// unknown (chunked) Content-Length. Using either of those shapes here
+// would make this test pass whether or not the proxy code actually sets
+// FlushInterval — it would be checking what the stdlib already does on its
+// own, not what this proxy's own configuration contributes.
+// image/jpeg with an explicit, fully-known Content-Length is the one
+// streaming shape the stdlib does NOT auto-flush; it is the shape that
+// still depends on FlushInterval being set explicitly. Do not "simplify"
+// this back to text/event-stream or drop the Content-Length — either
+// change would silently disarm the guard while it kept passing.
 func TestProxyStreamsWithoutBuffering(t *testing.T) {
 	reg := NewRegistry(zap.NewNop())
 	release := make(chan struct{})
+	var releaseOnce sync.Once
+	doRelease := func() { releaseOnce.Do(func() { close(release) }) }
+
+	first := []byte("FIRST-HALF")
+	second := []byte("SECOND-HALF")
 	upPlugin(t, reg, "alpha", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Content-Type", "image/jpeg")
+		w.Header().Set("Content-Length", strconv.Itoa(len(first)+len(second)))
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, "data: first\n\n")
+		w.Write(first)
 		w.(http.Flusher).Flush()
-		<-release // hold the handler open; the first chunk must already be out
-		fmt.Fprint(w, "data: second\n\n")
+		<-release // hold the handler open; the first half must already be out
+		w.Write(second)
 	}))
 
 	front := httptest.NewServer(NewProxy(reg, zap.NewNop()))
 	defer front.Close()
-	defer close(release)
+	// Safety net: whatever branch below runs, the backend handler must
+	// eventually unblock or front.Close() above hangs waiting on an
+	// outstanding request forever — release is a plain channel receive,
+	// unrelated to the TCP connection, so nothing else can wake it up.
+	defer doRelease()
 
-	resp, err := http.Get(front.URL + "/p/alpha/events")
+	// The request runs in its own goroutine because, with a small known
+	// Content-Length and no flushing, even the response HEADERS never
+	// reach the client until the handler returns — i.e. until the backend
+	// is released. A synchronous http.Get here would deadlock against the
+	// very release this test needs to trigger on timeout: the goroutine
+	// lets the 2-second budget below apply to the whole exchange, not
+	// just the body.
+	type result struct {
+		buf []byte
+		err error
+	}
+	got := make(chan result, 1)
+	go func() {
+		resp, err := http.Get(front.URL + "/p/alpha/frame.jpg")
+		if err != nil {
+			got <- result{err: err}
+			return
+		}
+		defer resp.Body.Close()
+		buf := make([]byte, len(first))
+		_, err = io.ReadFull(resp.Body, buf)
+		got <- result{buf: buf, err: err}
+	}()
+
+	select {
+	case r := <-got:
+		if r.err != nil {
+			t.Fatalf("read error: %v", r.err)
+		}
+		if string(r.buf) != string(first) {
+			t.Fatalf("read %q, want %q", r.buf, first)
+		}
+	case <-time.After(2 * time.Second):
+		doRelease() // let the backend finish so front.Close() doesn't also hang
+		t.Fatal("first half never arrived within 2s — the proxy is buffering; FlushInterval must be -1")
+	}
+}
+
+// A response has already reached the client (headers, at minimum a
+// non-1xx status) when the backend it is being proxied from disappears.
+// ReverseProxy's ErrorHandler is documented to run for this case as well
+// as for "the backend never responded at all" — and the two must not be
+// handled the same way, or a plugin that dies mid-stream gets a "not
+// running" error page spliced into whatever it had already sent, plus a
+// superfluous-WriteHeader log line.
+//
+// httputil.ReverseProxy does not, in practice, reach ErrorHandler for a
+// plain body-copy failure on the current standard library — it panics
+// with http.ErrAbortHandler internally instead, and net/http's server
+// recovers that panic by truncating the connection cleanly on its own.
+// This test exercises exactly that real, live path end to end and
+// confirms the client-visible outcome is what it should be — clean
+// truncation, nothing appended — without asserting anything about
+// whether ErrorHandler itself ran. TestHandleProxyErrorSkipsStartedResponse
+// below is what actually proves the ErrorHandler guard: it calls the
+// same handleProxyError function NewProxy wires in, with a response that
+// has already started, and would fail if the started check were removed.
+func TestProxyDeadMidStreamTruncatesCleanly(t *testing.T) {
+	reg := NewRegistry(zap.NewNop())
+	upPlugin(t, reg, "alpha", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.WriteHeader(http.StatusOK)
+		fmt.Fprint(w, "partial-body")
+		w.(http.Flusher).Flush()
+		panic(http.ErrAbortHandler) // simulate the plugin dying mid-response
+	}))
+
+	front := httptest.NewServer(NewProxy(reg, zap.NewNop()))
+	defer front.Close()
+
+	resp, err := http.Get(front.URL + "/p/alpha/stream")
 	if err != nil {
 		t.Fatal(err)
 	}
 	defer resp.Body.Close()
 
-	type read struct {
-		line string
-		err  error
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (the real status the plugin already sent)", resp.StatusCode)
 	}
-	got := make(chan read, 1)
-	go func() {
-		line, err := bufio.NewReader(resp.Body).ReadString('\n')
-		got <- read{line, err}
-	}()
+	body, _ := io.ReadAll(resp.Body)
+	if !strings.HasPrefix(string(body), "partial-body") {
+		t.Fatalf("body = %q, want it to start with the bytes the plugin already sent", body)
+	}
+	if strings.Contains(string(body), "is not running") || strings.Contains(string(body), "<!doctype") {
+		t.Fatalf("body = %q, an error page was spliced into a response that had already started", body)
+	}
+}
 
-	select {
-	case r := <-got:
-		if r.err != nil || !strings.Contains(r.line, "first") {
-			t.Fatalf("read %q, %v", r.line, r.err)
-		}
-	case <-time.After(2 * time.Second):
-		t.Fatal("first chunk never arrived — the proxy is buffering; FlushInterval must be -1")
+// The direct, deterministic proof for the ErrorHandler guard: call the
+// exact function NewProxy wires into ErrorHandler, once with a response
+// that has already sent real content and once with a fresh one, and check
+// each gets the outcome only it should. Delete the `if tracked.started`
+// check in handleProxyError and the first case fails — the down page gets
+// appended to "already-sent".
+func TestHandleProxyErrorSkipsStartedResponse(t *testing.T) {
+	rec := httptest.NewRecorder()
+	tracked := &startedResponseWriter{ResponseWriter: rec}
+	tracked.WriteHeader(http.StatusOK)
+	tracked.Write([]byte("already-sent"))
+
+	handleProxyError(tracked, PluginStat{ID: "alpha", Name: "alpha", State: StateUp})
+
+	if got := rec.Body.String(); got != "already-sent" {
+		t.Fatalf("body = %q, want it untouched by an error page once the response had started", got)
+	}
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d, want the original 200 to stand", rec.Code)
+	}
+}
+
+func TestHandleProxyErrorServesDownPageWhenNothingSentYet(t *testing.T) {
+	rec := httptest.NewRecorder()
+	tracked := &startedResponseWriter{ResponseWriter: rec}
+
+	handleProxyError(tracked, PluginStat{ID: "alpha", Name: "alpha", State: StateDown, Detail: "exit status 1"})
+
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("code = %d, want 503", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "alpha") {
+		t.Fatalf("body = %q, want the down page", rec.Body.String())
+	}
+}
+
+// A 1xx informational response (e.g. Early Hints) must not count as
+// "started": Go's own http.ResponseWriter treats 1xx as non-final and
+// accepts a real WriteHeader afterwards, so if a plugin sends a 1xx and
+// then dies before completing its real response, the down page must
+// still be served — not silently swallowed because a naive tracker
+// thought the response had already begun.
+func TestStartedResponseWriterIgnoresInformationalHeaders(t *testing.T) {
+	rec := httptest.NewRecorder()
+	tracked := &startedResponseWriter{ResponseWriter: rec}
+	tracked.WriteHeader(http.StatusEarlyHints) // 103
+	if tracked.started {
+		t.Fatal("a 1xx response must not mark the response as started")
+	}
+	tracked.WriteHeader(http.StatusOK)
+	if !tracked.started {
+		t.Fatal("a real (non-1xx) WriteHeader must mark the response as started")
 	}
 }

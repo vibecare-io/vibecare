@@ -53,24 +53,94 @@ func NewProxy(reg *Registry, log *zap.Logger) http.Handler {
 			return
 		}
 
+		tracked := &startedResponseWriter{ResponseWriter: w}
+
 		rp := &httputil.ReverseProxy{
 			Rewrite: func(pr *httputil.ProxyRequest) {
 				pr.SetURL(target)
 				pr.Out.URL.Path = "/" + path
 				pr.Out.Host = target.Host
 			},
-			// MANDATORY. Without this, ReverseProxy buffers responses and
-			// MJPEG previews and SSE streams never reach the client. There
-			// is a test for this; do not remove it.
+			// MANDATORY. Modern Go already auto-flushes text/event-stream
+			// responses and any response with an unknown (chunked)
+			// Content-Length — see (*ReverseProxy).flushInterval in the
+			// standard library, which forces immediate flushing for both
+			// regardless of this field. This setting is what's left: a
+			// streaming response with a known Content-Length and a
+			// non-SSE content type (e.g. a single MJPEG frame written in
+			// two chunks). It is also cheap insurance against that stdlib
+			// heuristic changing out from under us. There is a test for
+			// this; do not remove it.
 			FlushInterval: -1,
-			ErrorHandler: func(w http.ResponseWriter, _ *http.Request, err error) {
+			ErrorHandler: func(_ http.ResponseWriter, _ *http.Request, err error) {
 				log.Warn("proxy error", zap.String("plugin", id), zap.Error(err))
-				servePluginDown(w, stat)
+				handleProxyError(tracked, stat)
 			},
 		}
-		rp.ServeHTTP(w, r)
+		rp.ServeHTTP(tracked, r)
 	})
 }
+
+// handleProxyError is ReverseProxy's ErrorHandler, factored out so the
+// decision it makes can be exercised directly in tests rather than only
+// through httputil.ReverseProxy's internal call graph.
+//
+// ErrorHandler is documented to run both when the backend never responded
+// at all (tracked.started == false — nothing has reached the client yet,
+// so a down page is the right response) and, in principle, after a
+// response has already begun. The two need different handling: a down
+// page is only safe to splice in for the first case. Attempting it for
+// the second would append error markup to a half-sent body and log a
+// "superfluous WriteHeader" warning — truncating the connection is the
+// correct outcome for a plugin that dies mid-stream, not a corrupted page.
+//
+// In practice, on the standard library's current ReverseProxy, a body-copy
+// failure after headers were sent panics with http.ErrAbortHandler inside
+// ReverseProxy itself rather than calling ErrorHandler — the net/http
+// server recovers that panic and truncates the connection cleanly without
+// ever reaching this function at all. This check earns its keep as
+// insurance against that internal routing changing, not against something
+// observed failing today.
+func handleProxyError(tracked *startedResponseWriter, stat PluginStat) {
+	if tracked.started {
+		return
+	}
+	servePluginDown(tracked, stat)
+}
+
+// startedResponseWriter wraps an http.ResponseWriter and records whether a
+// real response has begun, so NewProxy's ErrorHandler can tell "the backend
+// never responded" (safe to serve an error page) apart from "the backend
+// died after it had already started replying" (not safe — the error page
+// would be appended to whatever was already sent).
+//
+// 1xx informational responses (e.g. Early Hints) do not count: Go's own
+// http.ResponseWriter treats them as non-final and happily accepts a real
+// WriteHeader afterwards, so this tracker must match that or it would
+// silently swallow a legitimate error page behind a discarded 1xx.
+//
+// Implementing Unwrap lets http.ResponseController (used internally by
+// ReverseProxy for flushing and protocol upgrades) see through this
+// wrapper to the real ResponseWriter's Flusher/Hijacker, so streaming and
+// upgrades keep working exactly as if this wrapper weren't there.
+type startedResponseWriter struct {
+	http.ResponseWriter
+	started bool
+}
+
+func (w *startedResponseWriter) WriteHeader(code int) {
+	if code < 100 || code >= 200 {
+		w.started = true
+	}
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *startedResponseWriter) Write(b []byte) (int, error) {
+	w.started = true
+	return w.ResponseWriter.Write(b)
+}
+
+func (w *startedResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func lookupStat(reg *Registry, id string) (PluginStat, bool) {
 	for _, s := range reg.Snapshot() {
