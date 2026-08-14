@@ -279,10 +279,17 @@ build-todo-plugin:
     cd plugins/todo && go build -o todo .
     @echo "{{GREEN}}✓ todo plugin built: plugins/todo/todo{{NC}}"
 
-# Build and install all plugins (v1 registry + v2 kernel)
+# Build all v2 kernel plugins. Deliberately does NOT depend on the v1
+# build-todos-plugin recipe above: `just run` depends on build-plugins to
+# keep the v2 kernel's binaries fresh, and that must not have the side
+# effect of building and installing an unrelated v1 plugin into
+# ~/.vibecare/plugins/todos/ on every dev-server start. v1's
+# build-todos-plugin (and backend/cmd/plugin-todos itself) is Task 14's to
+# retire; this recipe intentionally has no reference to it so deleting v1
+# there can't break `just run` here.
 [group('🧩 Plugins')]
-build-plugins: build-todos-plugin build-todo-plugin
-    @echo "{{GREEN}}✓ All plugins built and installed{{NC}}"
+build-plugins: build-todo-plugin
+    @echo "{{GREEN}}✓ All plugins built{{NC}}"
 
 # Picks a profile, builds vibecare-mcp-server, bakes it into the io.vibecare.mcp service
 # Deploy your local MCP build into an always-on LaunchAgent (HTTP mode, no sudo)

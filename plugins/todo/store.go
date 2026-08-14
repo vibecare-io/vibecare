@@ -10,6 +10,13 @@ import (
     "time"
 )
 
+// ErrTitleRequired is returned by Add for a blank (or whitespace-only)
+// title. It is a sentinel specifically so callers — main.go's HTTP handler
+// in particular — can tell a caller-fixable validation error (400) apart
+// from an I/O failure flushing to disk (500, and not the caller's to fix),
+// which Add's single error return would otherwise conflate.
+var ErrTitleRequired = errors.New("title is required")
+
 // Task is one item. IDs are assigned by the store.
 type Task struct {
     ID      string    `json:"id"`
@@ -63,7 +70,7 @@ func (s *Store) List() []Task {
 func (s *Store) Add(title string) (Task, error) {
     title = strings.TrimSpace(title)
     if title == "" {
-        return Task{}, errors.New("title is required")
+        return Task{}, ErrTitleRequired
     }
     s.mu.Lock()
     defer s.mu.Unlock()

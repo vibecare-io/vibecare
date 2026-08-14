@@ -28,8 +28,11 @@ func buildTodo(t *testing.T, dir string) {
 }
 
 // liveKernel drops the built plugin into a temp plugins dir, starts a
-// kernel over it, and returns an authenticated HTTP client plus the origin.
-func liveKernel(t *testing.T) (*http.Client, string) {
+// kernel over it, and returns an authenticated HTTP client, the origin, and
+// home — the root liveKernel derived cfg.DataRoot from — so callers can
+// assert on-disk state directly (e.g. under home/data/todo/) rather than
+// trusting the plugin's own in-memory responses for it.
+func liveKernel(t *testing.T) (*http.Client, string, string) {
     t.Helper()
     home := t.TempDir()
     pluginDir := filepath.Join(home, "plugins", "todo")
@@ -83,13 +86,13 @@ func liveKernel(t *testing.T) (*http.Client, string) {
         if err == nil {
             resp.Body.Close()
             if resp.StatusCode == http.StatusOK {
-                return client, base
+                return client, base, home
             }
         }
         time.Sleep(100 * time.Millisecond)
     }
     t.Fatal("plugin never became reachable through the proxy")
-    return nil, ""
+    return nil, "", ""
 }
 
 // cookieJar presents the kernel's session cookie on every request, which
@@ -104,7 +107,7 @@ func (j *cookieJar) Cookies(*url.URL) []*http.Cookie {
 // The whole loop: drop the directory in, start core, there is a working
 // plugin behind the proxy.
 func TestPluginServesUIAndAPIThroughTheProxy(t *testing.T) {
-    client, base := liveKernel(t)
+    client, base, _ := liveKernel(t)
 
     resp, err := client.Get(base + "/p/todo/")
     if err != nil {
@@ -118,7 +121,7 @@ func TestPluginServesUIAndAPIThroughTheProxy(t *testing.T) {
 }
 
 func TestPluginAPIRoundTrip(t *testing.T) {
-    client, base := liveKernel(t)
+    client, base, home := liveKernel(t)
 
     add, err := client.Post(base+"/p/todo/api/tasks", "application/json",
         bytes.NewReader([]byte(`{"title":"prove the loop"}`)))
@@ -143,12 +146,33 @@ func TestPluginAPIRoundTrip(t *testing.T) {
     if len(tasks) != 1 || tasks[0].Title != "prove the loop" {
         t.Fatalf("tasks = %+v", tasks)
     }
+
+    // The GET above only proves the plugin's in-memory state, which is true
+    // even of a store whose flush is a silent no-op. The claim this whole
+    // task exists to prove is the wiring: core's DataRoot ->
+    // VIBECARE_DATA_DIR -> OpenStore(h.DataDir) really lands the task on
+    // disk, at <DataRoot>/<plugin-id>/todo.json (see
+    // backend/kernel/supervisor.go's dataDir = filepath.Join(dataRoot,
+    // m.ID)). Assert against that file directly rather than trusting
+    // another round trip through the same process that wrote it.
+    storePath := filepath.Join(home, "data", "todo", "todo.json")
+    onDiskBytes, err := os.ReadFile(storePath)
+    if err != nil {
+        t.Fatalf("read persisted store %s: %v", storePath, err)
+    }
+    var onDisk []Task
+    if err := json.Unmarshal(onDiskBytes, &onDisk); err != nil {
+        t.Fatalf("parse persisted store %s: %v", storePath, err)
+    }
+    if len(onDisk) != 1 || onDisk[0].ID != tasks[0].ID || onDisk[0].Title != "prove the loop" {
+        t.Fatalf("on-disk tasks at %s = %+v", storePath, onDisk)
+    }
 }
 
 // The dashboard is the debugging surface for everything else, so it has to
 // show a real running plugin correctly.
 func TestDashboardShowsThePluginUp(t *testing.T) {
-    client, base := liveKernel(t)
+    client, base, _ := liveKernel(t)
 
     resp, err := client.Get(base + "/_core/api/plugins")
     if err != nil {
@@ -178,7 +202,7 @@ func TestDashboardShowsThePluginUp(t *testing.T) {
 // Requests that skip the token must not reach the plugin — plugins write
 // no auth code, so this is the only thing standing in front of them.
 func TestProxyRejectsUnauthenticatedRequests(t *testing.T) {
-    _, base := liveKernel(t)
+    _, base, _ := liveKernel(t)
 
     resp, err := http.Get(base + "/p/todo/api/tasks")
     if err != nil {

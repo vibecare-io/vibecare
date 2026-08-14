@@ -1,6 +1,6 @@
 module github.com/vibecare-io/vibecare/plugins/todo
 
-go 1.25.6
+go 1.23.0
 
 replace github.com/vibecare-io/vibecare/backend => ../../backend
 
