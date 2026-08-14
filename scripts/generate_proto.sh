@@ -21,6 +21,7 @@ TARGET="all"
 TARGET_DIR=""
 BACKEND_DEFAULT_DIR="$PROJECT_ROOT/backend/pkg/proto"
 MACOS_DEFAULT_DIR="$PROJECT_ROOT/clients/macos-swift/VibeCare/VCStubs"
+PLUGIN_SWIFT_DEFAULT_DIR="$PROJECT_ROOT/plugins/vibecheck/Sources/VCKStubs"
 
 # Function to display usage
 usage() {
@@ -29,7 +30,7 @@ usage() {
     echo "Generate protobuf code for VibeCare project"
     echo ""
     echo "Options:"
-    echo "  -t, --target TARGET         Target to generate for: backend, client-macos, all (default: all)"
+    echo "  -t, --target TARGET         Target to generate for: backend, client-macos, plugin-swift, all (default: all)"
     echo "  -td, --target-directory DIR Custom output directory (overrides default per target)"
     echo "  -h, --help                  Show this help message"
     echo ""
@@ -64,9 +65,9 @@ parse_arguments() {
     done
 
     # Validate target
-    if [[ ! "$TARGET" =~ ^(backend|client-macos|all)$ ]]; then
+    if [[ ! "$TARGET" =~ ^(backend|client-macos|plugin-swift|all)$ ]]; then
         echo -e "${RED}Invalid target: $TARGET${NC}"
-        echo "Valid targets are: backend, client-macos, all"
+        echo "Valid targets are: backend, client-macos, plugin-swift, all"
         exit 1
     fi
 }
@@ -124,35 +125,39 @@ generate_backend() {
     echo -e "${GREEN}✓ Go backend protobuf code generated successfully${NC}"
 }
 
-# Generate Swift macOS client code
-generate_macos() {
-    local output_dir="${TARGET_DIR:-$MACOS_DEFAULT_DIR}"
-
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-    echo -e "${GREEN}Generating Swift macOS client protobuf code...${NC}"
-    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-
-    # Check if Swift protoc plugins are installed
-    if ! command -v protoc-gen-swift &> /dev/null; then
-        echo -e "${YELLOW}Swift protobuf plugin not found.${NC}"
-
-        # Auto-install if in CI or AUTO_INSTALL_PLUGINS is set
-        if [[ "${CI:-false}" == "true" ]] || [[ "${AUTO_INSTALL_PLUGINS:-false}" == "true" ]]; then
-            echo -e "${GREEN}Installing swift-protobuf...${NC}"
-            brew install swift-protobuf
-        else
-            echo "To install: brew install swift-protobuf"
-            if [[ "$TARGET" == "client-macos" ]]; then
-                exit 1
-            else
-                echo -e "${YELLOW}Skipping Swift code generation.${NC}"
-                return
-            fi
-        fi
+# Ensure protoc-gen-swift is available. Shared by every Swift-generating
+# target (client-macos, plugin-swift) so the check lives in one place.
+# Exits if $TARGET strictly requires Swift output; otherwise returns 1 so
+# the caller can skip gracefully (e.g. `all` on a machine without Swift
+# tooling).
+ensure_swift_protoc_plugin() {
+    if command -v protoc-gen-swift &> /dev/null; then
+        return 0
     fi
 
-    # Check for gRPC Swift 2 plugin
-    local grpc_plugin=""
+    echo -e "${YELLOW}Swift protobuf plugin not found.${NC}"
+
+    # Auto-install if in CI or AUTO_INSTALL_PLUGINS is set
+    if [[ "${CI:-false}" == "true" ]] || [[ "${AUTO_INSTALL_PLUGINS:-false}" == "true" ]]; then
+        echo -e "${GREEN}Installing swift-protobuf...${NC}"
+        brew install swift-protobuf
+        return 0
+    fi
+
+    echo "To install: brew install swift-protobuf"
+    if [[ "$TARGET" == "client-macos" || "$TARGET" == "plugin-swift" ]]; then
+        exit 1
+    fi
+    echo -e "${YELLOW}Skipping Swift code generation.${NC}"
+    return 1
+}
+
+# Resolve the protoc-gen-grpc-swift(-2) plugin path into the global
+# $grpc_plugin so every Swift-generating target can see it. Exits if
+# $TARGET strictly requires Swift output; otherwise returns 1 so the
+# caller can skip.
+resolve_grpc_swift_plugin() {
+    grpc_plugin=""
     if [[ -f "/opt/homebrew/bin/protoc-gen-grpc-swift-2" ]]; then
         grpc_plugin="/opt/homebrew/bin/protoc-gen-grpc-swift-2"
     elif command -v protoc-gen-grpc-swift &> /dev/null; then
@@ -175,14 +180,28 @@ generate_macos() {
             fi
         else
             echo "To install: brew install grpc-swift"
-            if [[ "$TARGET" == "client-macos" ]]; then
+            if [[ "$TARGET" == "client-macos" || "$TARGET" == "plugin-swift" ]]; then
                 exit 1
             else
                 echo -e "${YELLOW}Skipping Swift gRPC code generation.${NC}"
-                return
+                return 1
             fi
         fi
     fi
+    return 0
+}
+
+# Generate Swift macOS client code
+generate_macos() {
+    local output_dir="${TARGET_DIR:-$MACOS_DEFAULT_DIR}"
+
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+    echo -e "${GREEN}Generating Swift macOS client protobuf code...${NC}"
+    echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+
+    ensure_swift_protoc_plugin || return
+    local grpc_plugin
+    resolve_grpc_swift_plugin || return
 
     # Create output directory if it doesn't exist
     mkdir -p "$output_dir"
@@ -218,6 +237,33 @@ generate_macos() {
     echo -e "${GREEN}✓ Swift macOS client protobuf code generated successfully${NC}"
 }
 
+# Generate Swift stubs for the plugin<->core contract only (plugin/v1). Used
+# by Swift plugins (e.g. plugins/vibecheck) — unlike generate_macos, this
+# does not walk the whole proto/ tree, and it is deliberately excluded from
+# the `all` target: `all` is the release path, this is plugin-local codegen
+# run from within a plugin's own build.
+generate_plugin_swift() {
+    local output_dir="${TARGET_DIR:-$PLUGIN_SWIFT_DEFAULT_DIR}"
+
+    ensure_swift_protoc_plugin || return
+    local grpc_plugin
+    resolve_grpc_swift_plugin || return
+
+    mkdir -p "$output_dir"
+    echo -e "${BLUE}Generating Swift plugin stubs -> $output_dir${NC}"
+    protoc \
+        --proto_path="$PROTO_DIR" \
+        --swift_opt=Visibility=Public \
+        --swift_opt=FileNaming=DropPath \
+        --swift_out="$output_dir" \
+        --plugin=protoc-gen-grpc-swift="$grpc_plugin" \
+        --grpc-swift_opt=Visibility=Public \
+        --grpc-swift_opt=FileNaming=DropPath \
+        --grpc-swift_out="$output_dir" \
+        "$PROTO_DIR/plugin/v1/plugin.proto"
+    echo -e "${GREEN}✓ Swift plugin stubs generated${NC}"
+}
+
 # Main function
 main() {
     echo -e "${GREEN}VibeCare Protobuf Code Generator${NC}"
@@ -233,6 +279,9 @@ main() {
             ;;
         client-macos)
             generate_macos
+            ;;
+        plugin-swift)
+            generate_plugin_swift
             ;;
         all)
             generate_backend

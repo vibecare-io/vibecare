@@ -1,0 +1,6 @@
+id: vibecheck
+name: VibeCheck
+icon: eye.trianglebadge.exclamationmark
+exec: ./vibecheck
+publishes: [vibecheck.behavior_detected.v1]
+ui: webview
