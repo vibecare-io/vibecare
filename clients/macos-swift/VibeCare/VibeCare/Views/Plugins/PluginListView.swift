@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// The plugin sidebar. It renders whatever the roster says and contains no
 /// plugin-specific code — adding a plugin never touches this file.
@@ -17,7 +18,7 @@ struct PluginListView: View {
             } else {
                 List(shell.roster.plugins, selection: $selectedId) { plugin in
                     HStack(spacing: 8) {
-                        Image(systemName: "puzzlepiece.extension")
+                        Image(systemName: iconName(for: plugin))
                             .foregroundStyle(.secondary)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(plugin.name)
@@ -33,6 +34,19 @@ struct PluginListView: View {
             }
         }
         .navigationTitle("Plugins")
+    }
+
+    /// Core supplies an icon per plugin (`PluginEntry.icon`, an SF Symbol
+    /// name) — falls back to the generic puzzle-piece glyph when it's empty
+    /// or not a name AppKit actually recognizes, so a typo'd/unknown symbol
+    /// from a plugin manifest never renders as a blank row.
+    private func iconName(for plugin: PluginEntry) -> String {
+        guard !plugin.icon.isEmpty,
+              NSImage(systemSymbolName: plugin.icon, accessibilityDescription: nil) != nil
+        else {
+            return "puzzlepiece.extension"
+        }
+        return plugin.icon
     }
 
     private func statusLine(for plugin: PluginEntry) -> String {

@@ -14,7 +14,10 @@ struct PluginWebView: NSViewRepresentable {
         let config = WKWebViewConfiguration()
         // Plugins are first-party and served from core's loopback origin.
         let view = WKWebView(frame: .zero, configuration: config)
-        view.setValue(false, forKey: "drawsBackground")
+        // `setValue(_:forKey: "drawsBackground")` is undocumented KVC on
+        // WKWebView that can throw at runtime; `underPageBackgroundColor`
+        // is the supported, public API (macOS 12+) for the same effect.
+        view.underPageBackgroundColor = .clear
         context.coordinator.loaded = nil
         return view
     }
