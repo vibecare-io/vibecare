@@ -83,6 +83,49 @@ FREQ=WEEKLY;BYDAY=MO,TU,WE,TH,FR;BYHOUR=14;BYMINUTE=0 # Weekdays at 2 PM
 FREQ=MONTHLY;BYMONTHDAY=1;BYHOUR=10;BYMINUTE=0         # First of month at 10 AM
 ```
 
+## Plugins
+
+Full design: [`docs/superpowers/specs/2026-08-13-plugin-architecture-v2-design.md`](superpowers/specs/2026-08-13-plugin-architecture-v2-design.md).
+
+Plugins are independent, supervised subprocesses — not code linked into
+Core or the client. A plugin is a directory under `plugins/<id>/` with a
+`manifest.yaml` and a binary; Core's kernel (`backend/kernel/`) discovers,
+spawns, and health-checks it at startup. `Discover` skips a malformed or
+invalid manifest with a warn log and keeps going, but a duplicate plugin id
+is a hard startup error. `Registry` (the kernel's in-memory plugin state)
+exposes `CompareAndSetState` for writes derived from a previously-read
+state, so concurrent supervisors don't clobber each other's transitions.
+
+```
+Core (kernel)                              Plugin subprocess
+┌─────────────────────────┐  unix socket   ┌─────────────────────┐
+│ ~/.vibecare/core.sock    │◄──────────────►│  vc.Connect()        │
+│  3 RPCs: Init/Health/... │  (plugin is    │  (backend/pkg/vc)    │
+└──────────┬────────────────┘   the client)  └──────────┬───────────┘
+           │                                              │
+           │ reverse proxy                                │ own HTTP server
+           ▼                                              ▼
+   <base_url>/p/<id>/ ───────────────────────────►  plugin's own web UI
+```
+
+- **Plugin↔core contract**: `proto/plugin/v1/plugin.proto` — three RPCs,
+  the plugin is always the gRPC *client*, dialing Core over
+  `~/.vibecare/core.sock`. Core never calls into a plugin.
+- **Plugin UI**: each plugin serves its own HTTP UI; Core reverse-proxies
+  it at `<base_url>/p/<id>/`. Plugins share one web origin, so a plugin's
+  UI must not depend on `localStorage` (state that should survive a
+  reload belongs in the plugin's own storage, via the SDK).
+- **Client↔core contract**: `proto/client/v1/client.proto` — two RPCs.
+  The Swift client gets a plugin roster and a stream of alerts; it
+  contains no plugin-specific code. Plugin screens are `WKWebView`s
+  pointed at Core's proxy path.
+- **Core's dashboard**: `/_core/status`, for inspecting plugin health
+  outside the client.
+- **Known gap**: alert action buttons are carried on the wire
+  (`plugin.proto`) and modeled on the client (`PluginAlert`), but are not
+  yet rendered — the client presents title/body/level only. Rendering
+  them is future work.
+
 ## Telemetry
 
 - OpenTelemetry instrumentation on both backend and Swift client

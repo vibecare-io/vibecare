@@ -14,13 +14,11 @@ import (
 
 	"github.com/vibecare-io/vibecare/backend/internal/api"
 	"github.com/vibecare-io/vibecare/backend/internal/mcp"
-	"github.com/vibecare-io/vibecare/backend/internal/plugins"
 	"github.com/vibecare-io/vibecare/backend/internal/scheduler"
 	"github.com/vibecare-io/vibecare/backend/internal/storage"
 	"github.com/vibecare-io/vibecare/backend/internal/telemetry"
 	"github.com/vibecare-io/vibecare/backend/internal/web"
 	"github.com/vibecare-io/vibecare/backend/kernel"
-	pb "github.com/vibecare-io/vibecare/backend/pkg/proto"
 	"go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -195,40 +193,17 @@ func main() {
 	sched := scheduler.NewScheduler(db, eventHub, logger)
 	go sched.Start()
 
-	// Determine plugins directory (~/.vibecare/plugins), using the same
-	// home-dir resolution as the default DB path, independent of whether
-	// --db was overridden.
+	// Determine home directory, using the same resolution as the default DB
+	// path, independent of whether --db was overridden.
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		logger.Fatal("Failed to get home directory", zap.Error(err))
 	}
-	// v1PluginsDir is the v1 shell-native plugin registry's directory. It is
-	// named distinctly from the *pluginsDir flag below (v2's --plugins-dir),
-	// which is a different, independently-configurable directory for the
-	// kernel to scan.
-	v1PluginsDir := filepath.Join(homeDir, ".vibecare", "plugins")
 
-	// Initialize the plugin host service (the callback API plugins use to
-	// talk back into Core: storage/events/notify/log) and the plugin
-	// registry (discovers, launches, and supervises plugin subprocesses).
-	// hostAddr is the address plugins dial to reach Core's HostService —
-	// it's the same address Core's own gRPC server binds below, so it must
-	// only start accepting connections once the server is actually serving.
-	hostService := plugins.NewHostService(db, eventHub, logger)
-	hostAddr := fmt.Sprintf("localhost:%d", *port)
-	pluginRegistry := plugins.NewRegistry(v1PluginsDir, hostService, hostAddr, logger)
-
-	// v2 plugin kernel. It runs alongside the v1 registry above until the
-	// Swift client migrates to the webview shell (see
-	// docs/superpowers/plans/2026-08-13-plugin-architecture-v2-kernel.md).
-	// Its HTTP origin and unix socket are independent of Core's gRPC and
-	// web ports — the kernel binds 127.0.0.1:0 for both.
-	//
-	// Default directory is deliberately NOT v1PluginsDir: real installs
-	// have v1 manifests there (e.g. id: com.vibecare.todos) that fail v2's
-	// stricter id pattern, and pointing the kernel at that directory would
-	// disable it on every existing install. "plugins-v2" keeps the two
-	// registries scanning disjoint directories until v1 is deleted.
+	// Plugin kernel: discovers, launches, and supervises plugin subprocesses.
+	// Its HTTP origin and unix socket are independent of Core's gRPC and web
+	// ports — the kernel binds 127.0.0.1:0 for both. Default directory is
+	// ~/.vibecare/plugins-v2 unless --plugins-dir overrides it.
 	kernelPluginsDir := *pluginsDir
 	if kernelPluginsDir == "" {
 		kernelPluginsDir = filepath.Join(homeDir, ".vibecare", "plugins-v2")
@@ -252,12 +227,8 @@ func main() {
 	}()
 
 	// Create gRPC server interceptor chain. Order matters: panic recovery
-	// first, then OTel, then custom telemetry, then plugin-id attribution
-	// last (closest to the handler). The tracing trio is only added when
-	// tracing is enabled; the plugin-id interceptor is always installed — it
-	// reads the caller's plugin id from incoming metadata to namespace plugin
-	// HostService storage calls, and is a harmless no-op for Core's own
-	// app-facing RPCs (which carry no such metadata).
+	// first, then OTel, then custom telemetry. The tracing trio is only
+	// added when tracing is enabled.
 	interceptors := []grpc.UnaryServerInterceptor{}
 	if *enableTracing {
 		interceptors = append(interceptors,
@@ -266,26 +237,16 @@ func main() {
 			telemetry.UnaryServerInterceptor(logger),   // Third: add custom attributes
 		)
 	}
-	interceptors = append(interceptors, plugins.PluginIDUnaryServerInterceptor())
 	grpcServer := grpc.NewServer(grpc.ChainUnaryInterceptor(interceptors...))
 
 	// Register services
-	api.RegisterServices(grpcServer, db, eventHub, templateLoader, iconLoader, pluginRegistry, logger)
+	api.RegisterServices(grpcServer, db, eventHub, templateLoader, iconLoader, logger)
 
 	// The client-facing plugin contract (roster + alerts) rides on the same
 	// TCP gRPC server the client already connects to.
 	if k != nil {
 		k.RegisterShell(grpcServer)
 	}
-
-	// Register the plugin HostService — the callback API plugin subprocesses
-	// dial back into (at hostAddr, above) for storage/events/notify/log.
-	// Per-plugin storage namespacing is wired end-to-end: the SDK sends the
-	// plugin id as call metadata and plugins.PluginIDUnaryServerInterceptor
-	// (installed in the chain above) attributes each call before it reaches
-	// HostService. See
-	// docs/superpowers/specs/2026-08-06-plugin-id-namespacing-wiring-design.md.
-	pb.RegisterHostServiceServer(grpcServer, hostService)
 
 	// Register reflection service for debugging
 	reflection.Register(grpcServer)
@@ -330,10 +291,6 @@ func main() {
 			k.Stop(ctx)
 		}
 
-		// Stop plugin subprocesses and health polling
-		logger.Info("Stopping plugin registry...")
-		pluginRegistry.Stop()
-
 		// Shutdown web server
 		logger.Info("Stopping web server...")
 		if err := webServer.Shutdown(ctx); err != nil {
@@ -362,24 +319,14 @@ func main() {
 		zap.Int("grpc_port", *port),
 		zap.Int("web_port", *webPort))
 
-	// Serve in the background so plugins can dial back into Core's
-	// HostService (at hostAddr) as soon as the registry launches them below.
 	go func() {
 		if err := grpcServer.Serve(lis); err != nil {
 			logger.Fatal("Failed to serve", zap.Error(err))
 		}
 	}()
 
-	// Start the plugin registry only after the gRPC server has begun
-	// serving. A plugin failing to load must not crash Core, so a registry
-	// start error is logged and startup continues without it.
-	logger.Info("Starting plugin registry", zap.String("dir", v1PluginsDir), zap.String("host_addr", hostAddr))
-	if err := pluginRegistry.Start(context.Background()); err != nil {
-		logger.Warn("Failed to start plugin registry; continuing without plugins", zap.Error(err))
-	}
-
-	// A kernel failure must not take down the server, exactly as a v1
-	// registry failure doesn't.
+	// A kernel failure must not take down the server: it is logged and
+	// startup continues without it.
 	if k != nil {
 		logger.Info("Starting plugin kernel", zap.String("dir", kernelCfg.PluginsDir))
 		if err := k.Start(context.Background()); err != nil {

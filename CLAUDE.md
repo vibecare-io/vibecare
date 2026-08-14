@@ -23,6 +23,7 @@ just new-migration NAME # Create new migration
 just inspect-db         # Open litecli for ~/.vibecare/vibecare.db
 just docs-setup         # One-time: install docs-site deps + pandoc
 just docs               # Serve docs/ as a Starlight site (http://localhost:4321)
+just build-plugins      # Build every plugin binary into its own directory
 ```
 
 ## Mono-Repo Conventions
@@ -42,6 +43,21 @@ When modifying `proto/vibecare.proto`:
 just new-migration add_foo_column  # creates SQL file
 just migrate                        # applies it
 ```
+
+### Plugins are independent subprocesses (v2)
+
+A plugin is a directory under `plugins/<id>/` with a `manifest.yaml` and a
+binary. Core discovers it at startup, spawns it, and reverse-proxies its
+HTTP UI at `/p/<id>/`. Adding a plugin requires **no change to core and no
+client release** — see
+[`docs/superpowers/specs/2026-08-13-plugin-architecture-v2-design.md`](docs/superpowers/specs/2026-08-13-plugin-architecture-v2-design.md).
+
+- Plugin↔core contract: `proto/plugin/v1/plugin.proto` (3 RPCs, plugin is always the client)
+- Client↔core contract: `proto/client/v1/client.proto` (2 RPCs, frozen)
+- SDK: `backend/pkg/vc` — `vc.Connect()` is the whole entry point
+- Reference plugin: `plugins/todo/`
+- Kernel: `backend/kernel/` — contains zero product semantics, enforced by `TestKernelContainsNoProductNouns`
+- Plugin state lives in `~/.vibecare/data/<id>/`; cross-plugin communication is bus topics only, never the filesystem
 
 ## Gotchas
 
