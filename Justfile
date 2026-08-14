@@ -282,15 +282,22 @@ build-todo-plugin:
 # Build the vibecheck plugin. Swift, not Go. The -sectcreate flags embed
 # Info.plist into the Mach-O so macOS has an NSCameraUsageDescription to
 # show when the camera is first opened — a bare binary has no bundle and
-# would otherwise get no prompt. No codesign step: the TCC grant is keyed
-# to the spawning process (vibecare-server), not to this binary, so an
-# ad-hoc signature is fine and the grant survives rebuilds.
+# would otherwise get no prompt. The codesign step is REQUIRED, not
+# optional cleanup: the -sectcreate section is inert until a signature
+# seals it, and the binary has no CFBundleIdentifier until then either —
+# TCC reads the *sealed* plist, so skipping this step means the camera
+# prompt silently never carries NSCameraUsageDescription. Do not remove
+# it. It's still ad-hoc (`-s -`, no certificate, nothing for a contributor
+# to install): the TCC grant is keyed to the spawning process
+# (vibecare-server), not to this binary, so an ad-hoc signature is fine
+# and the grant survives rebuilds.
 [group('🧩 Plugins')]
 build-vibecheck-plugin:
     @echo "{{GREEN}}Building vibecheck plugin...{{NC}}"
     cd plugins/vibecheck && swift build -c release \
         -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist
     cp plugins/vibecheck/.build/release/vibecheck plugins/vibecheck/vibecheck
+    codesign -f -s - plugins/vibecheck/vibecheck
     @echo "{{GREEN}}✓ vibecheck plugin built: plugins/vibecheck/vibecheck{{NC}}"
 
 # Copies each built plugin into the directory core scans by default
