@@ -1,0 +1,6 @@
+id: todo
+name: Todo
+icon: checklist
+exec: ./todo
+publishes: [todo.created.v1]
+ui: webview

@@ -130,6 +130,9 @@ node_modules/
 
 # Application data
 .data/
+
+# Built plugin binaries (see just build-plugins)
+plugins/todo/todo
 /clients/macos-swift/VibeCare/.build/
 /clients/macos-swift/VibeCare/.swiftpm/
 /clients/macos-swift/minimal-test/

@@ -107,7 +107,7 @@ install-binaries: build-release swift-build-release
 
 # Run the server in development mode
 [group('📦 Build & Run')]
-run: proto-gen
+run: proto-gen build-plugins
     @echo "{{GREEN}}Starting VibeCare server...{{NC}}"
     cd {{backend_dir}} && go run cmd/server/main.go --enable-tracing --log-level debug --plugins-dir ../plugins
 
@@ -270,9 +270,18 @@ build-todos-plugin:
     cp {{backend_dir}}/cmd/plugin-todos/manifest.yaml ~/.vibecare/plugins/todos/manifest.yaml
     @echo "{{GREEN}}✓ Todos plugin installed: ~/.vibecare/plugins/todos/{{NC}}"
 
-# Build and install all plugins
+# Build the v2 kernel's todo reference plugin into its own directory —
+# core's v2 kernel discovers plugins by scanning plugins/<id>/manifest.yaml,
+# so the binary lives alongside the manifest rather than under ~/.vibecare.
 [group('🧩 Plugins')]
-build-plugins: build-todos-plugin
+build-todo-plugin:
+    @echo "{{GREEN}}Building todo plugin...{{NC}}"
+    cd plugins/todo && go build -o todo .
+    @echo "{{GREEN}}✓ todo plugin built: plugins/todo/todo{{NC}}"
+
+# Build and install all plugins (v1 registry + v2 kernel)
+[group('🧩 Plugins')]
+build-plugins: build-todos-plugin build-todo-plugin
     @echo "{{GREEN}}✓ All plugins built and installed{{NC}}"
 
 # Picks a profile, builds vibecare-mcp-server, bakes it into the io.vibecare.mcp service
@@ -689,6 +698,7 @@ mcp-list-tools:
 test:
     @echo "{{GREEN}}Running tests...{{NC}}"
     cd {{backend_dir}} && go test -v ./...
+    cd plugins/todo && go test -v ./...
 
 # Run tests with coverage
 [group('🧪 Testing')]
