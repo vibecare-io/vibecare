@@ -279,6 +279,20 @@ build-todo-plugin:
     cd plugins/todo && go build -o todo .
     @echo "{{GREEN}}✓ todo plugin built: plugins/todo/todo{{NC}}"
 
+# Build the vibecheck plugin. Swift, not Go. The -sectcreate flags embed
+# Info.plist into the Mach-O so macOS has an NSCameraUsageDescription to
+# show when the camera is first opened — a bare binary has no bundle and
+# would otherwise get no prompt. No codesign step: the TCC grant is keyed
+# to the spawning process (vibecare-server), not to this binary, so an
+# ad-hoc signature is fine and the grant survives rebuilds.
+[group('🧩 Plugins')]
+build-vibecheck-plugin:
+    @echo "{{GREEN}}Building vibecheck plugin...{{NC}}"
+    cd plugins/vibecheck && swift build -c release \
+        -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist
+    cp plugins/vibecheck/.build/release/vibecheck plugins/vibecheck/vibecheck
+    @echo "{{GREEN}}✓ vibecheck plugin built: plugins/vibecheck/vibecheck{{NC}}"
+
 # Copies each built plugin into the directory core scans by default
 # (~/.vibecare/plugins-v2/<id>/), so an installed VibeCare finds them with
 # no --plugins-dir flag. `just run` uses the repo's plugins/ instead and
@@ -312,7 +326,7 @@ build-plugins-dev:
 
 # Build every plugin binary into its own directory.
 [group('🧩 Plugins')]
-build-plugins: build-todo-plugin
+build-plugins: build-todo-plugin build-vibecheck-plugin
     @echo "{{GREEN}}✓ All plugins built{{NC}}"
 
 # Picks a profile, builds vibecare-mcp-server, bakes it into the io.vibecare.mcp service
