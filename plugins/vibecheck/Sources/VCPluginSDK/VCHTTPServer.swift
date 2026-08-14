@@ -3,7 +3,23 @@ import NIOCore
 import NIOPosix
 import NIOHTTP1
 
-public enum VCHTTPError: Error { case notStarted, noPort }
+public enum VCHTTPError: Error, CustomStringConvertible {
+    case noPort
+    /// Thrown by `write(_:)` when called before `writeHead`. Silently
+    /// no-oping here used to leave the client hanging with no head and no
+    /// body and no error — worse than a throw in a service core
+    /// health-probes.
+    case writeBeforeHead
+
+    public var description: String {
+        switch self {
+        case .noPort:
+            return "VCHTTPServer: the OS did not assign a port to the bound socket"
+        case .writeBeforeHead:
+            return "VCResponseWriter.write(_:) was called before writeHead(status:headers:) — no status line has been sent yet"
+        }
+    }
+}
 
 /// HTTP/1.1 on 127.0.0.1:0. Keep-alive is left ON: the kernel's health
 /// prober (health.go:135) uses a shared http.Client with the default
@@ -82,7 +98,8 @@ actor VCNIOResponseWriter: VCResponseWriter {
     }
 
     func write(_ chunk: Data) async throws {
-        guard headWritten, !finished else { return }
+        guard headWritten else { throw VCHTTPError.writeBeforeHead }
+        guard !finished else { return }
         var buffer = channel.allocator.buffer(capacity: chunk.count)
         buffer.writeBytes(chunk)
         try await channel.writeAndFlush(HTTPServerResponsePart.body(.byteBuffer(buffer))).get()
@@ -126,12 +143,25 @@ actor VCNIOResponseWriter: VCResponseWriter {
 /// use off the event loop — NIO hops internally) and hands off to an
 /// unstructured `Task`. `ChannelHandlerContext` itself is never captured
 /// past the synchronous call that receives it.
+///
+/// Requests on one keep-alive connection are chained, not merely spawned:
+/// each new `Task` first awaits the previous request's `Task` before doing
+/// any routing or writing. Without this, two pipelined requests on the same
+/// socket could have their handler `Task`s interleave writes on the shared
+/// `Channel`, violating RFC 7230 §6.3.2 ("a server MUST send its responses
+/// in the same order that the requests were received"). No mainstream
+/// client pipelines by default, so this was unlikely to fire — but silent
+/// out-of-order responses on a rare pipelining client would have been
+/// miserable to diagnose. One consequence: a streaming handler (MJPEG, SSE)
+/// now holds up any later request queued behind it on the same connection
+/// until it finishes — correct HTTP/1.1 semantics, not a bug.
+///
 /// `@unchecked Sendable` because NIO only ever touches this instance from
 /// the single event-loop thread that owns its channel — the same guarantee
 /// `configureHTTPServerPipeline` relies on for every other handler in the
-/// pipeline. Its mutable state (`pendingHead`/`pendingBody`) never crosses
-/// threads; only the immutable `Channel` handed to each per-request `Task`
-/// does, and `Channel` is itself safe to use off-thread.
+/// pipeline. Its mutable state (`pendingHead`/`pendingBody`/`lastRequestTask`)
+/// never crosses threads; only the immutable `Channel` handed to each
+/// per-request `Task` does, and `Channel` is itself safe to use off-thread.
 final class VCHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
     typealias InboundIn = HTTPServerRequestPart
     typealias OutboundOut = HTTPServerResponsePart
@@ -140,6 +170,12 @@ final class VCHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
 
     private var pendingHead: HTTPRequestHead?
     private var pendingBody: ByteBuffer?
+
+    /// The most recently spawned per-request `Task` on this connection.
+    /// Each new request's `Task` awaits this before doing anything, so
+    /// requests on one channel are always serviced — and, crucially,
+    /// written to the wire — in the order they arrived.
+    private var lastRequestTask: Task<Void, Never>?
 
     init(router: VCRouter) {
         self.router = router
@@ -165,8 +201,11 @@ final class VCHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
             let channel = context.channel
             let router = self.router
             let writer = VCNIOResponseWriter(channel: channel, version: head.version, requestIsKeepAlive: head.isKeepAlive)
+            let previous = lastRequestTask
 
-            Task {
+            lastRequestTask = Task {
+                await previous?.value
+
                 let matched = await router.route(path)
                 guard let matched else {
                     await writer.sendBodylessStatus(404)
