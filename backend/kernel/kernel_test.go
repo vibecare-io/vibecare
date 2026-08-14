@@ -274,3 +274,43 @@ func TestStopWithoutStartIsSafe(t *testing.T) {
 		t.Fatal("Start after Stop should refuse rather than bind listeners no one will ever clean up")
 	}
 }
+
+// A plugins directory that does not exist is the default state of a fresh
+// install. Core must create it rather than silently scanning nothing —
+// "drop a directory in" is not an instruction you can follow if the
+// directory you would drop it into is absent.
+func TestStartCreatesThePluginsDir(t *testing.T) {
+	cfg := testConfig(t)
+	if _, err := os.Stat(cfg.PluginsDir); !os.IsNotExist(err) {
+		t.Fatalf("precondition: dir should not exist yet, got %v", err)
+	}
+
+	startKernel(t, cfg)
+
+	fi, err := os.Stat(cfg.PluginsDir)
+	if err != nil {
+		t.Fatalf("Start did not create the plugins dir: %v", err)
+	}
+	if !fi.IsDir() {
+		t.Fatal("plugins path exists but is not a directory")
+	}
+}
+
+// Creating it must never disturb one that is already populated.
+func TestStartLeavesAnExistingPluginsDirAlone(t *testing.T) {
+	cfg := testConfig(t)
+	dir := filepath.Join(cfg.PluginsDir, "alpha")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := "id: alpha\nname: Alpha\nexec: ./missing-binary\nui: webview\n"
+	if err := os.WriteFile(filepath.Join(dir, "manifest.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	k := startKernel(t, cfg)
+
+	if got := k.Registry().Snapshot(); len(got) != 1 || got[0].ID != "alpha" {
+		t.Fatalf("roster = %+v, want the pre-existing plugin still discovered", got)
+	}
+}

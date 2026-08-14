@@ -156,6 +156,14 @@ func (k *Kernel) Start(ctx context.Context) error {
 	// BaseURL.
 	defer k.closeReady()
 
+	// Create the plugins directory before scanning it. "Drop a directory in
+	// and restart" is the whole premise, and it is not an instruction anyone
+	// can follow if the directory they would drop it into does not exist.
+	// A fresh install has no plugins dir until something makes one.
+	if err := os.MkdirAll(k.cfg.PluginsDir, 0o700); err != nil {
+		return fmt.Errorf("create plugins dir: %w", err)
+	}
+
 	manifests, err := Discover(k.cfg.PluginsDir, k.log)
 	if err != nil {
 		return err

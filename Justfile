@@ -93,7 +93,7 @@ build-release:
 
 # Install built binaries to user-local paths (no sudo needed)
 [group('🔧 Setup & Installation')]
-install-binaries: build-release swift-build-release
+install-binaries: build-release swift-build-release install-plugins
     @echo "{{GREEN}}Installing binaries...{{NC}}"
     mkdir -p ~/.local/bin
     sudo cp bin/vibecare-server /usr/local/bin/vibecare-server
@@ -278,6 +278,27 @@ build-todo-plugin:
     @echo "{{GREEN}}Building todo plugin...{{NC}}"
     cd plugins/todo && go build -o todo .
     @echo "{{GREEN}}✓ todo plugin built: plugins/todo/todo{{NC}}"
+
+# Copies each built plugin into the directory core scans by default
+# (~/.vibecare/plugins-v2/<id>/), so an installed VibeCare finds them with
+# no --plugins-dir flag. `just run` uses the repo's plugins/ instead and
+# does not need this.
+#
+# Install built plugins where core looks for them by default
+[group('🧩 Plugins')]
+install-plugins: build-plugins
+    #!/usr/bin/env bash
+    set -euo pipefail
+    dest="$HOME/.vibecare/plugins-v2"
+    mkdir -p "$dest"
+    for dir in plugins/*/; do
+        id=$(basename "$dir")
+        [ -f "$dir/manifest.yaml" ] || continue
+        [ -x "$dir/$id" ] || { echo -e "${YELLOW}skipping $id: no binary${NC}"; continue; }
+        mkdir -p "$dest/$id"
+        cp "$dir/$id" "$dir/manifest.yaml" "$dest/$id/"
+        echo -e "${GREEN}✓ installed $id -> $dest/$id{{NC}}"
+    done
 
 # Builds with `-tags dev`, so each plugin serves its ui/ from disk and
 # exposes a reload stream instead of embedding the UI. Never release this.

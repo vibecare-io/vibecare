@@ -192,11 +192,14 @@ func TestDiscoverSkipsMalformedManifest(t *testing.T) {
 		t.Fatalf("got %+v, want the malformed plugin excluded", got)
 	}
 
-	entries := logs.All()
-	if len(entries) != 1 {
-		t.Fatalf("got %d warn logs, want exactly 1", len(entries))
+	// This fixture yields zero usable plugins, so the empty-scan warning
+	// fires too. Assert on the skip entry specifically rather than counting
+	// every warning, so the two remain independent.
+	skips := logs.FilterMessageSnippet("skipping invalid plugin manifest").All()
+	if len(skips) != 1 {
+		t.Fatalf("got %d skip warnings, want exactly 1: %+v", len(skips), logs.All())
 	}
-	fields := entries[0].ContextMap()
+	fields := skips[0].ContextMap()
 	path, _ := fields["path"].(string)
 	if path != filepath.Join(root, "broken", manifestName) {
 		t.Errorf("warn log path = %q, want the manifest's path", path)
@@ -220,5 +223,42 @@ func TestDiscoverSkipsBadManifestButKeepsGood(t *testing.T) {
 	}
 	if len(got) != 1 || got[0].ID != "widget" {
 		t.Fatalf("got %+v, want only the good plugin", got)
+	}
+}
+
+// An empty scan is nearly always a misconfigured directory rather than a
+// deliberate choice, so it must be visible at warn — an INFO line in a
+// debug-level log is where this question goes to die.
+func TestDiscoverWarnsWhenNothingIsFound(t *testing.T) {
+	core, logs := observer.New(zap.WarnLevel)
+	root := t.TempDir()
+
+	if _, err := Discover(root, zap.New(core)); err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+
+	entries := logs.All()
+	if len(entries) != 1 {
+		t.Fatalf("got %d warn entries, want exactly 1: %+v", len(entries), entries)
+	}
+	if !strings.Contains(entries[0].Message, "no plugins") {
+		t.Errorf("message = %q, want it to say no plugins were found", entries[0].Message)
+	}
+	if got := entries[0].ContextMap()["dir"]; got != root {
+		t.Errorf("dir field = %v, want the scanned path %q", got, root)
+	}
+}
+
+// A populated scan must stay quiet, or the warning becomes noise nobody reads.
+func TestDiscoverDoesNotWarnWhenPluginsExist(t *testing.T) {
+	core, logs := observer.New(zap.WarnLevel)
+	root := t.TempDir()
+	writePlugin(t, root, "widget", goodManifest)
+
+	if _, err := Discover(root, zap.New(core)); err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if n := logs.Len(); n != 0 {
+		t.Fatalf("got %d warn entries on a populated scan: %+v", n, logs.All())
 	}
 }
