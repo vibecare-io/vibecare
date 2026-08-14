@@ -250,7 +250,7 @@ func TestRestartUnknownPluginErrors(t *testing.T) {
 // period, rather than hanging core's shutdown.
 //
 // The fixture must be unkillable by SIGTERM in a way that actually forces
-// SIGKILL escalation: `trap '' TERM` only protects the shell itself, and
+// SIGKILL escalation: `trap ” TERM` only protects the shell itself, and
 // Stop signals the whole process group, so a plain `sleep 60` child (not
 // trapping anything) would still receive SIGTERM directly and exit well
 // inside the grace window — the escalation path would never run and the

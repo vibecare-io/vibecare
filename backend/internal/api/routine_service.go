@@ -287,4 +287,3 @@ func convertToProtoRoutine(routine *models.Routine) *pb.Routine {
 
 	return pbRoutine
 }
-

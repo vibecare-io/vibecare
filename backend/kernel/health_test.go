@@ -223,9 +223,9 @@ func TestHealthDropsProbeResultWhenStateChangedUnderneath(t *testing.T) {
 		close(done)
 	}()
 
-	<-arrived // the third bad probe is now on the wire, believing alpha is up
+	<-arrived                                         // the third bad probe is now on the wire, believing alpha is up
 	reg.SetState("alpha", StateDown, "exit status 1") // supervisor: the process just died
-	close(release)                                     // let the now-stale probe finish failing
+	close(release)                                    // let the now-stale probe finish failing
 
 	<-done
 

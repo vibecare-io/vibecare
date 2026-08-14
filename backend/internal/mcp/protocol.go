@@ -51,22 +51,22 @@ const (
 
 // MCP Protocol Methods
 const (
-	MethodInitialize           = "initialize"
-	MethodInitialized          = "notifications/initialized"
-	MethodListTools            = "tools/list"
-	MethodCallTool             = "tools/call"
-	MethodListResources        = "resources/list"
-	MethodReadResource         = "resources/read"
+	MethodInitialize            = "initialize"
+	MethodInitialized           = "notifications/initialized"
+	MethodListTools             = "tools/list"
+	MethodCallTool              = "tools/call"
+	MethodListResources         = "resources/list"
+	MethodReadResource          = "resources/read"
 	MethodListResourceTemplates = "resources/templates/list"
-	MethodListPrompts          = "prompts/list"
-	MethodGetPrompt            = "prompts/get"
+	MethodListPrompts           = "prompts/list"
+	MethodGetPrompt             = "prompts/get"
 )
 
 // InitializeRequest represents the MCP initialize request params
 type InitializeRequest struct {
-	ProtocolVersion string                 `json:"protocolVersion"`
-	Capabilities    ClientCapabilities     `json:"capabilities"`
-	ClientInfo      Implementation         `json:"clientInfo"`
+	ProtocolVersion string             `json:"protocolVersion"`
+	Capabilities    ClientCapabilities `json:"capabilities"`
+	ClientInfo      Implementation     `json:"clientInfo"`
 }
 
 // ClientCapabilities represents what the client supports
@@ -145,9 +145,9 @@ type CallToolResult struct {
 
 // Content represents a piece of content (text, image, etc.)
 type Content struct {
-	Type string `json:"type"` // "text", "image", "resource"
-	Text string `json:"text,omitempty"`
-	Data string `json:"data,omitempty"`
+	Type     string `json:"type"` // "text", "image", "resource"
+	Text     string `json:"text,omitempty"`
+	Data     string `json:"data,omitempty"`
 	MimeType string `json:"mimeType,omitempty"`
 }
 
@@ -161,10 +161,10 @@ type Resource struct {
 
 // ResourceContents represents the contents of a resource
 type ResourceContents struct {
-	URI      string    `json:"uri"`
-	MimeType string    `json:"mimeType,omitempty"`
-	Text     string    `json:"text,omitempty"`
-	Blob     string    `json:"blob,omitempty"`
+	URI      string `json:"uri"`
+	MimeType string `json:"mimeType,omitempty"`
+	Text     string `json:"text,omitempty"`
+	Blob     string `json:"blob,omitempty"`
 }
 
 // ReadResourceRequest represents a resource read request

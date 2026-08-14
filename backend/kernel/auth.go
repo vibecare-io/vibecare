@@ -70,8 +70,8 @@ func (a *Auth) Middleware(next http.Handler) http.Handler {
 				return
 			}
 			http.SetCookie(w, &http.Cookie{
-				Name:     sessionCookie,
-				Value:    a.token,
+				Name:  sessionCookie,
+				Value: a.token,
 				// Path=/ rather than /p/ because /_core/* is served from
 				// this same origin and needs the same cookie.
 				Path:     "/",

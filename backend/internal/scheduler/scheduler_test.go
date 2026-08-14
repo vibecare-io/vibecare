@@ -71,9 +71,9 @@ func TestGetNextExecution(t *testing.T) {
 	futureTime := time.Now().Add(24 * time.Hour)
 
 	tests := []struct {
-		name          string
-		schedule      *models.Schedule
-		expectNil     bool
+		name      string
+		schedule  *models.Schedule
+		expectNil bool
 	}{
 		{
 			name: "disabled schedule returns nil",

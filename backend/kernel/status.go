@@ -9,7 +9,16 @@ import (
 
 // corePrefix is reserved for core itself and is NEVER proxied. Plugin ids
 // cannot collide with it: the id regex rejects a leading underscore.
+//
+// Every route below is composed from this constant rather than repeating
+// the literal, so changing it can't silently unmount half the dashboard.
 const corePrefix = "/_core/"
+
+const (
+	statusPath      = corePrefix + "status"
+	apiPluginsPath  = corePrefix + "api/plugins"
+	apiPluginsIndex = apiPluginsPath + "/" // + "<id>/restart"
+)
 
 // Restarter is the slice of the supervisor the dashboard needs. Depending
 // on the interface rather than the concrete type keeps status.go testable
@@ -22,6 +31,7 @@ type statusPluginJSON struct {
 	ID              string `json:"id"`
 	Name            string `json:"name"`
 	Path            string `json:"path"`
+	UI              string `json:"ui"`
 	State           string `json:"state"`
 	Detail          string `json:"detail"`
 	PID             int    `json:"pid"`
@@ -32,6 +42,15 @@ type statusPluginJSON struct {
 	EventsDelivered uint64 `json:"events_delivered"`
 	LastEventUnix   int64  `json:"last_event_unix"`
 }
+
+// HasUI reports whether the dashboard should link to this plugin's own
+// path. A `ui: none` plugin serves no HTML there — same as the shell,
+// which excludes it from the roster — so linking to it would only ever
+// produce a dead or meaningless click. Exported so html/template's
+// reflection-based method lookup (used by the {{.HasUI}} call below) can
+// see it — an unexported method is invisible to that, even from within
+// this same package.
+func (s statusPluginJSON) HasUI() bool { return s.UI != "none" }
 
 type statusJSON struct {
 	Plugins []statusPluginJSON `json:"plugins"`
@@ -44,6 +63,7 @@ func toStatusJSON(stats []PluginStat) statusJSON {
 			ID:              s.ID,
 			Name:            s.Name,
 			Path:            s.Path,
+			UI:              s.UI,
 			State:           s.State.String(),
 			Detail:          s.Detail,
 			PID:             s.PID,
@@ -83,7 +103,7 @@ var dashboardTmpl = template.Must(template.New("status").Parse(`<!doctype html>
     <th>Probe</th><th>Events pub/del</th><th>Detail</th><th></th></tr>
 {{range .Plugins}}
 <tr>
-  <td><a href="/p/{{.ID}}/">{{.Name}}</a><br><code>{{.ID}}</code></td>
+  <td>{{if .HasUI}}<a href="` + proxyPrefix + `{{.ID}}/">{{.Name}}</a>{{else}}{{.Name}}{{end}}<br><code>{{.ID}}</code></td>
   <td class="s-{{.State}}">{{.State}}</td>
   <td>{{if .PID}}{{.PID}}{{else}}—{{end}}</td>
   <td>{{if .UptimeSec}}{{.UptimeSec}}s{{else}}—{{end}}</td>
@@ -91,14 +111,14 @@ var dashboardTmpl = template.Must(template.New("status").Parse(`<!doctype html>
   <td>{{if .ProbeLatencyMS}}{{.ProbeLatencyMS}}ms{{else}}—{{end}}</td>
   <td>{{.EventsPublished}} / {{.EventsDelivered}}</td>
   <td>{{.Detail}}</td>
-  <td><form method="post" action="/_core/api/plugins/{{.ID}}/restart">
+  <td><form method="post" action="` + apiPluginsIndex + `{{.ID}}/restart">
       <button type="submit">Restart</button></form></td>
 </tr>
 {{else}}
 <tr><td colspan="9">No plugins discovered.</td></tr>
 {{end}}
 </table>
-<p><a href="/_core/api/plugins">JSON</a> · refreshes every 5s</p>
+<p><a href="` + apiPluginsPath + `">JSON</a> · refreshes every 5s</p>
 `))
 
 // NewStatusHandler serves core's own surface. It follows the same HTML/JSON
@@ -108,19 +128,19 @@ var dashboardTmpl = template.Must(template.New("status").Parse(`<!doctype html>
 func NewStatusHandler(reg *Registry, r Restarter) http.Handler {
 	mux := http.NewServeMux()
 
-	mux.HandleFunc("/_core/status", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(statusPath, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
 		_ = dashboardTmpl.Execute(w, toStatusJSON(reg.Snapshot()))
 	})
 
-	mux.HandleFunc("/_core/api/plugins", func(w http.ResponseWriter, _ *http.Request) {
+	mux.HandleFunc(apiPluginsPath, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(toStatusJSON(reg.Snapshot()))
 	})
 
-	// /_core/api/plugins/<id>/restart
-	mux.HandleFunc("/_core/api/plugins/", func(w http.ResponseWriter, req *http.Request) {
-		rest := strings.TrimPrefix(req.URL.Path, "/_core/api/plugins/")
+	// <apiPluginsIndex><id>/restart
+	mux.HandleFunc(apiPluginsIndex, func(w http.ResponseWriter, req *http.Request) {
+		rest := strings.TrimPrefix(req.URL.Path, apiPluginsIndex)
 		id, action, ok := strings.Cut(rest, "/")
 		if !ok || action != "restart" {
 			http.NotFound(w, req)
@@ -141,7 +161,7 @@ func NewStatusHandler(reg *Registry, r Restarter) http.Handler {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-		http.Redirect(w, req, "/_core/status", http.StatusSeeOther)
+		http.Redirect(w, req, statusPath, http.StatusSeeOther)
 	})
 
 	return mux

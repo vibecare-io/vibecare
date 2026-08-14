@@ -81,7 +81,7 @@ type Schedule struct {
 	RoutineID        string       `json:"routine_id"`
 	ScheduleType     ScheduleType `json:"schedule_type"` // ONE_SHOT or RECURRING
 	Name             string       `json:"name"`
-	RRule            string       `json:"rrule"`            // RFC 5545 RRule string (empty for ONE_SHOT)
+	RRule            string       `json:"rrule"`             // RFC 5545 RRule string (empty for ONE_SHOT)
 	ScheduleTimezone string       `json:"schedule_timezone"` // IANA timezone for RRule calculations
 	DTStart          *time.Time   `json:"dtstart,omitempty"`
 	ExDates          []string     `json:"exdates,omitempty"`

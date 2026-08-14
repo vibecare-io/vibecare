@@ -285,6 +285,10 @@ func (k *Kernel) Stop(ctx context.Context) {
 	// happened (or never will).
 	k.closeReady()
 
+	// BroadcastShutdown itself blocks (bounded by shutdownDrainGrace) until
+	// every connected plugin's Shutdown message has actually left core, so
+	// the SIGTERM sup.Stop sends next does not win a race a direct signal
+	// would otherwise almost always win.
 	k.host.BroadcastShutdown("core shutting down")
 	k.sup.Stop(ctx)
 

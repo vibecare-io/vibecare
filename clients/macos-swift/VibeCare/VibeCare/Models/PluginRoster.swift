@@ -53,6 +53,12 @@ struct PluginRoster: Equatable, Sendable {
 
     static let empty = PluginRoster(plugins: [], baseURL: "", token: "")
 
+    /// The sidebar id for core's own built-in status dashboard row (D12).
+    /// A leading underscore can never collide with a real plugin id — core
+    /// rejects manifest ids that start with one (§4), for exactly this
+    /// reason: `/_core/*` is reserved.
+    static let coreStatusID = "_core"
+
     /// The URL for a plugin's INITIAL load. The token rides along exactly
     /// once: core validates it, sets an HttpOnly cookie, and redirects it
     /// away, so it never lands in history or a Referer header.
@@ -69,6 +75,20 @@ struct PluginRoster: Equatable, Sendable {
         guard var comps = URLComponents(string: baseURL), !baseURL.isEmpty else { return nil }
         let suffix = path.hasPrefix("/") ? String(path.dropFirst()) : path
         comps.path = entry.path + suffix
+        return comps.url
+    }
+
+    /// The URL for core's own built-in status dashboard (`/_core/status`,
+    /// D12) — the same handoff as `handoffURL`, but pointed at core's path
+    /// instead of a plugin's. This is what lets the shell render the
+    /// dashboard with the exact same `PluginWebView` it uses for any
+    /// plugin: core's HTML/JSON split (§7.4) means `/_core/status` is
+    /// authenticated and served exactly like `/p/<id>/`, so no parallel
+    /// client-side path is needed for it.
+    func coreStatusURL() -> URL? {
+        guard var comps = URLComponents(string: baseURL), !baseURL.isEmpty else { return nil }
+        comps.path = "/_core/status"
+        comps.queryItems = [URLQueryItem(name: "vc", value: token)]
         return comps.url
     }
 

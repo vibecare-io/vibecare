@@ -176,11 +176,11 @@ func TestProfileTimezoneValidation(t *testing.T) {
 	defer db.Close()
 
 	tests := []struct {
-		name            string
-		email           string
-		timezone        string
-		shouldDefault   bool
-		expectedValue   string
+		name          string
+		email         string
+		timezone      string
+		shouldDefault bool
+		expectedValue string
 	}{
 		{
 			name:          "Valid IANA timezone",

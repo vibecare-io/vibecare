@@ -313,6 +313,65 @@ func TestStaleCancelDoesNotUnrouteReplacementSubscriber(t *testing.T) {
 	recvEvent(t, chSecond)
 }
 
+// Finding 4: two plugins can publish the same topic (e.g. two camera
+// providers). announceDemand must notify EVERY connected publisher of that
+// topic, not just the first one a map iteration happens to find — a
+// provider that never learns demand dropped to zero would keep its camera
+// open, which the spec calls a privacy property enforced by mechanism
+// (§10.2).
+func TestDemandAnnouncedToEveryPublisherOfTheSameTopic(t *testing.T) {
+	b := NewBus(zap.NewNop())
+	b.Declare("providerA", nil, []string{"sensor.landmarks.v1"})
+	b.Declare("providerB", nil, []string{"sensor.landmarks.v1"})
+	b.Declare("consumer", []string{"sensor.landmarks.v1"}, nil)
+
+	chA, cancelA := b.Subscribe("providerA")
+	defer cancelA()
+	// providerA gets a connect-time announcement (0 demand) for its own
+	// topic the moment it connects, since it is the only publisher present
+	// yet.
+	recvEvent(t, chA)
+
+	chB, cancelB := b.Subscribe("providerB")
+	defer cancelB()
+	// providerB connecting re-announces the topic's demand to EVERY
+	// connected publisher (the fix under test), so BOTH channels get one
+	// more event here (still 0 demand — no consumer yet).
+	recvEvent(t, chA)
+	recvEvent(t, chB)
+
+	_, cancelConsumer := b.Subscribe("consumer")
+
+	readDemand := func(ch <-chan BusEvent) int {
+		t.Helper()
+		e := recvEvent(t, ch)
+		var d DemandPayload
+		if err := json.Unmarshal(e.Payload, &d); err != nil {
+			t.Fatal(err)
+		}
+		if d.Topic != "sensor.landmarks.v1" {
+			t.Fatalf("event topic = %q, want sensor.landmarks.v1", d.Topic)
+		}
+		return d.Subscribers
+	}
+
+	if got := readDemand(chA); got != 1 {
+		t.Fatalf("providerA demand after subscribe = %d, want 1", got)
+	}
+	if got := readDemand(chB); got != 1 {
+		t.Fatalf("providerB demand after subscribe = %d, want 1 (BOTH publishers of a shared topic must be notified)", got)
+	}
+
+	cancelConsumer()
+
+	if got := readDemand(chA); got != 0 {
+		t.Fatalf("providerA demand after unsubscribe = %d, want 0", got)
+	}
+	if got := readDemand(chB); got != 0 {
+		t.Fatalf("providerB demand after unsubscribe = %d, want 0 (a provider that never hears this keeps its camera open)", got)
+	}
+}
+
 // TestDemandDeliveredToPublisherOnSubscribeAndUnsubscribe (above) can't
 // distinguish announceDemand(own) from announceDemand(affected) because its
 // sensor plugin only publishes and its consumer plugin only subscribes, so

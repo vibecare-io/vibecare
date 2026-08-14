@@ -9,27 +9,40 @@ struct PluginListView: View {
 
     var body: some View {
         Group {
-            if shell.roster.plugins.isEmpty {
+            // The status row is core's own built-in dashboard (D12) —
+            // reachable even when no product plugin is installed, since
+            // that is exactly when it matters most.
+            if shell.roster.plugins.isEmpty && shell.roster.baseURL.isEmpty {
                 EmptyStateView(
                     title: "No Plugins",
                     subtitle: "Drop a plugin into the plugins directory and restart the backend.",
                     systemImage: "puzzlepiece.extension"
                 )
             } else {
-                List(shell.roster.plugins, selection: $selectedId) { plugin in
-                    HStack(spacing: 8) {
-                        Image(systemName: iconName(for: plugin))
-                            .foregroundStyle(.secondary)
-                        VStack(alignment: .leading, spacing: 1) {
-                            Text(plugin.name)
-                            if plugin.state != .up {
-                                Text(statusLine(for: plugin))
-                                    .font(.caption)
-                                    .foregroundStyle(color(for: plugin.state))
+                List(selection: $selectedId) {
+                    if !shell.roster.baseURL.isEmpty {
+                        HStack(spacing: 8) {
+                            Image(systemName: "gauge.with.dots.needle.67percent")
+                                .foregroundStyle(.secondary)
+                            Text("Status")
+                        }
+                        .tag(PluginRoster.coreStatusID)
+                    }
+                    ForEach(shell.roster.plugins) { plugin in
+                        HStack(spacing: 8) {
+                            Image(systemName: iconName(for: plugin))
+                                .foregroundStyle(.secondary)
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(plugin.name)
+                                if plugin.state != .up {
+                                    Text(statusLine(for: plugin))
+                                        .font(.caption)
+                                        .foregroundStyle(color(for: plugin.state))
+                                }
                             }
                         }
+                        .tag(plugin.id)
                     }
-                    .tag(plugin.id)
                 }
             }
         }

@@ -81,20 +81,20 @@ func (tl *TemplateLoader) GetTemplatesByCategory(category pb.TemplateCategory) [
 
 // templateConfig matches the JSON structure
 type templateConfig struct {
-	Version   string             `json:"version"`
+	Version   string               `json:"version"`
 	Templates []templateConfigItem `json:"templates"`
 }
 
 type templateConfigItem struct {
-	ID                  string               `json:"id"`
-	Category            string               `json:"category"`
-	RoutineName         string               `json:"routine_name"`
-	RoutineDescription  string               `json:"routine_description,omitempty"`
-	RoutineIcon         string               `json:"routine_icon"`
-	RoutineColor        string               `json:"routine_color"`
-	ScheduleName        string               `json:"schedule_name"`
-	ScheduleDescription string               `json:"schedule_description,omitempty"`
-	RRule               string               `json:"rrule"`
+	ID                  string                  `json:"id"`
+	Category            string                  `json:"category"`
+	RoutineName         string                  `json:"routine_name"`
+	RoutineDescription  string                  `json:"routine_description,omitempty"`
+	RoutineIcon         string                  `json:"routine_icon"`
+	RoutineColor        string                  `json:"routine_color"`
+	ScheduleName        string                  `json:"schedule_name"`
+	ScheduleDescription string                  `json:"schedule_description,omitempty"`
+	RRule               string                  `json:"rrule"`
 	DefaultTimes        []string                `json:"default_times"`
 	Actions             []templateActionItem    `json:"actions,omitempty"`
 	CountdownOptions    *countdownOptionsConfig `json:"countdown_options,omitempty"`

@@ -15,9 +15,9 @@ func TestConvertToProtoSchedule(t *testing.T) {
 	nextExec := now.Add(30 * time.Minute)
 
 	tests := []struct {
-		name          string
-		schedule      *models.Schedule
-		expectedType  pb.ScheduleType
+		name           string
+		schedule       *models.Schedule
+		expectedType   pb.ScheduleType
 		expectNextExec bool
 	}{
 		{
@@ -139,8 +139,8 @@ func TestConvertToProtoSchedule(t *testing.T) {
 
 func TestScheduleTypeEnumMapping(t *testing.T) {
 	tests := []struct {
-		name         string
-		modelType    models.ScheduleType
+		name              string
+		modelType         models.ScheduleType
 		expectedProtoType pb.ScheduleType
 	}{
 		{

@@ -4,10 +4,15 @@
 // kernel internals.
 package pluginwire
 
-// PluginIDMetadataKey is the gRPC call-metadata key the plugin SDK sets on
-// every call back into the kernel and the kernel's server interceptor reads
-// to attribute the call to a plugin. It is the single source of truth for
+// PluginIDMetadataKey is the gRPC call-metadata key the plugin SDK's
+// client interceptors (vc.attributionInterceptor and
+// attributionStreamInterceptor) attach to every outbound call, and that
+// rpc.go's callerID reads straight off the incoming context to attribute a
+// Publish or Alert to the caller. It is the single source of truth for
 // that key: both sides import it rather than duplicating the literal,
-// because a silent drift between them would be a storage-namespacing
-// (security) failure, not a mere parse error.
+// because a silent drift between them would let a plugin's calls go
+// unattributed (rejected) or, worse, let one plugin's traffic be
+// misattributed to another — Publish trusts this value instead of any
+// self-declared field precisely so a plugin cannot claim to be a different
+// one.
 const PluginIDMetadataKey = "x-vibecare-plugin-id"

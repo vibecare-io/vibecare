@@ -168,9 +168,9 @@ func (il *IconLoader) GetIconFS() fs.FS {
 
 // iconCatalog matches the JSON structure
 type iconCatalog struct {
-	Version    string                `json:"version"`
-	Categories []iconCategoryItem    `json:"categories"`
-	Icons      []iconItem            `json:"icons"`
+	Version    string             `json:"version"`
+	Categories []iconCategoryItem `json:"categories"`
+	Icons      []iconItem         `json:"icons"`
 }
 
 type iconCategoryItem struct {
