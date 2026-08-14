@@ -1,5 +1,20 @@
 import XCTest
+// This file is compiled by two different build systems with two different
+// module names for the app: SwiftPM's `VibeCare` executable target (built
+// by `swift test` / `just swift-test`) and the Xcode project's `vibecare`
+// app target (PRODUCT_MODULE_NAME=vibecare — `vibecareTests/` is a
+// file-system-synchronized group, so Xcode picks this file up too, but its
+// test target links no SwiftPM package products, so `VibeCare` doesn't
+// resolve there). `SWIFT_PACKAGE` is defined automatically by SwiftPM and
+// only by SwiftPM, so branch on it rather than relying on case-insensitive
+// APFS module matching (fragile, and not how Xcode actually resolves
+// modules). Do not "simplify" this to one import — it breaks one build
+// system or the other.
+#if SWIFT_PACKAGE
 @testable import VibeCare
+#else
+@testable import vibecare
+#endif
 
 final class PluginRosterTests: XCTestCase {
     private func entry(
