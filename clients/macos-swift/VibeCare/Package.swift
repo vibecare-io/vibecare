@@ -60,5 +60,19 @@ let package = Package(
         .process("Resources")
       ]
     ),
+    .testTarget(
+      name: "vibecareTests",
+      dependencies: ["VibeCare"],
+      path: "vibecareTests",
+      // Scoped to the SwiftPM-buildable subset. The rest of vibecareTests/
+      // uses `@testable import vibecare` (lowercase) to match the Xcode
+      // project's app target (PRODUCT_MODULE_NAME=vibecare, a separate
+      // build system from this package's `VibeCare` target) and is
+      // exercised there, not via `swift test`. `swift test` previously
+      // reported "no tests found" — there was no testTarget at all.
+      sources: [
+        "PluginRosterTests.swift"
+      ]
+    ),
   ]
 )

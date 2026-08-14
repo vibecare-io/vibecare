@@ -1,73 +1,50 @@
 import SwiftUI
 
+/// The plugin sidebar. It renders whatever the roster says and contains no
+/// plugin-specific code — adding a plugin never touches this file.
 struct PluginListView: View {
+    @ObservedObject var shell: PluginShellService
     @Binding var selectedId: String?
-
-    @StateObject private var pluginService = PluginService()
-    @State private var plugins: [PluginSummary] = []
-    @State private var isLoading = true
 
     var body: some View {
         Group {
-            if isLoading {
-                ProgressView("Loading plugins…")
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if plugins.isEmpty {
+            if shell.roster.plugins.isEmpty {
                 EmptyStateView(
                     title: "No Plugins",
-                    subtitle: "No plugins are currently installed",
+                    subtitle: "Drop a plugin into the plugins directory and restart the backend.",
                     systemImage: "puzzlepiece.extension"
                 )
             } else {
-                List(selection: $selectedId) {
-                    ForEach(plugins) { plugin in
-                        PluginRow(plugin: plugin)
-                            .tag(plugin.id)
+                List(shell.roster.plugins, selection: $selectedId) { plugin in
+                    HStack(spacing: 8) {
+                        Image(systemName: "puzzlepiece.extension")
+                            .foregroundStyle(.secondary)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(plugin.name)
+                            if plugin.state != .up {
+                                Text(statusLine(for: plugin))
+                                    .font(.caption)
+                                    .foregroundStyle(color(for: plugin.state))
+                            }
+                        }
                     }
+                    .tag(plugin.id)
                 }
-                .listStyle(.inset)
             }
         }
         .navigationTitle("Plugins")
-        .task {
-            await loadPlugins()
+    }
+
+    private func statusLine(for plugin: PluginEntry) -> String {
+        plugin.detail.isEmpty ? plugin.state.rawValue : "\(plugin.state.rawValue) — \(plugin.detail)"
+    }
+
+    private func color(for state: PluginState) -> Color {
+        switch state {
+        case .up: return .green
+        case .degraded: return .orange
+        case .down, .failed: return .red
+        case .starting: return .secondary
         }
     }
-
-    private func loadPlugins() async {
-        isLoading = true
-        plugins = await pluginService.listPlugins()
-        isLoading = false
-    }
-}
-
-// MARK: - Plugin Row
-
-private struct PluginRow: View {
-    let plugin: PluginSummary
-
-    var body: some View {
-        HStack {
-            Image(systemName: plugin.icon.isEmpty ? "puzzlepiece.extension" : plugin.icon)
-                .foregroundColor(.teal)
-                .frame(width: 20)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(plugin.name)
-                    .font(.headline)
-                Text(plugin.status)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-
-            Spacer()
-        }
-        .padding(.vertical, 4)
-    }
-}
-
-// MARK: - Preview
-
-#Preview {
-    PluginListView(selectedId: .constant(nil))
 }
