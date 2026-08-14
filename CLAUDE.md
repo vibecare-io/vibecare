@@ -58,6 +58,7 @@ client release** — see
 - Reference plugin: `plugins/todo/`
 - Kernel: `backend/kernel/` — contains zero product semantics, enforced by `TestKernelContainsNoProductNouns`
 - Plugin state lives in `~/.vibecare/data/<id>/`; cross-plugin communication is bus topics only, never the filesystem
+- Default plugins directory: `~/.vibecare/plugins-v2/` in production; `just run` overrides it with `--plugins-dir ../plugins`, scanning this repo's own `plugins/` instead — deliberately not the v1 `~/.vibecare/plugins/` directory, whose manifests use ids the v2 regex rejects
 
 ## Gotchas
 
