@@ -8,10 +8,8 @@
 package main
 
 import (
-	"embed"
 	"encoding/json"
 	"errors"
-	"io/fs"
 	"log"
 	"net/http"
 	"path/filepath"
@@ -19,9 +17,6 @@ import (
 
 	"github.com/vibecare-io/vibecare/backend/pkg/vc"
 )
-
-//go:embed ui
-var uiFS embed.FS
 
 func main() {
 	h, err := vc.Connect()
@@ -42,13 +37,11 @@ func main() {
 		h.Listener.Close()
 	})
 
-	ui, err := fs.Sub(uiFS, "ui")
-	if err != nil {
-		log.Fatalf("todo: %v", err)
-	}
-
 	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.FS(ui)))
+	// Embedded in shipping builds, served from disk with live reload under
+	// `-tags dev`. See ui_embed.go / ui_dev.go.
+	mux.Handle("/", uiHandler())
+	devReload(mux)
 	mux.HandleFunc("/api/tasks", func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 		case http.MethodGet:
