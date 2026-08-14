@@ -259,34 +259,16 @@ build-mcp-standalone:
     @echo "{{GREEN}}✓ Standalone MCP server built: bin/vibecare-mcp-server{{NC}}"
     @echo "{{YELLOW}}Usage: ./bin/vibecare-mcp-server --grpc-addr=localhost:50051 --profile-id=YOUR_PROFILE_ID{{NC}}"
 
-# Build the todos reference plugin and install it + its manifest into
-# ~/.vibecare/plugins/todos/, where Core's plugin registry discovers it.
-[group('🧩 Plugins')]
-build-todos-plugin:
-    @echo "{{GREEN}}Building todos reference plugin...{{NC}}"
-    cd {{backend_dir}} && go build -o ../bin/plugin-todos cmd/plugin-todos/main.go
-    @mkdir -p ~/.vibecare/plugins/todos
-    cp bin/plugin-todos ~/.vibecare/plugins/todos/plugin-todos
-    cp {{backend_dir}}/cmd/plugin-todos/manifest.yaml ~/.vibecare/plugins/todos/manifest.yaml
-    @echo "{{GREEN}}✓ Todos plugin installed: ~/.vibecare/plugins/todos/{{NC}}"
-
-# Build the v2 kernel's todo reference plugin into its own directory —
-# core's v2 kernel discovers plugins by scanning plugins/<id>/manifest.yaml,
-# so the binary lives alongside the manifest rather than under ~/.vibecare.
+# Build the kernel's todo reference plugin into its own directory — core
+# discovers plugins by scanning plugins/<id>/manifest.yaml, so the binary
+# lives alongside the manifest rather than under ~/.vibecare.
 [group('🧩 Plugins')]
 build-todo-plugin:
     @echo "{{GREEN}}Building todo plugin...{{NC}}"
     cd plugins/todo && go build -o todo .
     @echo "{{GREEN}}✓ todo plugin built: plugins/todo/todo{{NC}}"
 
-# Build all v2 kernel plugins. Deliberately does NOT depend on the v1
-# build-todos-plugin recipe above: `just run` depends on build-plugins to
-# keep the v2 kernel's binaries fresh, and that must not have the side
-# effect of building and installing an unrelated v1 plugin into
-# ~/.vibecare/plugins/todos/ on every dev-server start. v1's
-# build-todos-plugin (and backend/cmd/plugin-todos itself) is Task 14's to
-# retire; this recipe intentionally has no reference to it so deleting v1
-# there can't break `just run` here.
+# Build every plugin binary into its own directory.
 [group('🧩 Plugins')]
 build-plugins: build-todo-plugin
     @echo "{{GREEN}}✓ All plugins built{{NC}}"

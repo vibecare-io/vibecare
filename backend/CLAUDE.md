@@ -19,8 +19,18 @@ backend/
 │   ├── storage/               # SQLite layer, one file per entity
 │   │   └── migrations/        # Goose SQL migrations
 │   └── telemetry/             # OpenTelemetry + Jaeger integration
+├── kernel/                    # Plugin kernel: discovery, supervision, proxy, bus, dashboard
+├── pkg/vc/                    # Plugin SDK (vc.Connect())
 └── pkg/proto/                 # Generated protobuf stubs (do not edit)
 ```
+
+### `backend/kernel/` is generic infrastructure
+
+It contains zero product semantics — no mention of routines, schedules,
+notifications, or any other VibeCare noun. This is enforced by
+`TestKernelContainsNoProductNouns`; a change that adds a product-specific
+concept there will fail that test. Product logic belongs in a plugin
+(`plugins/<id>/`), not the kernel.
 
 ## Conventions
 

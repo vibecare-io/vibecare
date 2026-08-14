@@ -374,55 +374,6 @@ class GRPCClientManager: ObservableObject {
         }
     }
 
-    // MARK: - Plugin Host Service Client
-
-    nonisolated func withPluginHostServiceClient<T: Sendable>(_ operation: @Sendable (VCPluginHostService.Client<HTTP2ClientTransport.Posix>) async throws -> T) async throws -> T {
-        let host = await self.host
-        let port = await self.port
-        let useTLS = await self.useTLS
-        let logger = await self.logger
-
-        logger.info("Creating gRPC connection to \(host):\(port) for PluginHostService")
-
-        await MainActor.run {
-            self.connectionStatus = .connecting
-        }
-
-        do {
-            let transport = try HTTP2ClientTransport.Posix(
-                target: .dns(host: host, port: port),
-                transportSecurity: useTLS ? .tls : .plaintext
-            )
-
-            await MainActor.run {
-                self.isConnected = true
-                self.connectionStatus = .connected
-                self.lastError = nil
-            }
-
-            let result = try await withGRPCClient(transport: transport) { client in
-                let pluginHostServiceClient = VCPluginHostService.Client(wrapping: client)
-                return try await operation(pluginHostServiceClient)
-            }
-
-            await MainActor.run {
-                self.isConnected = false
-                self.connectionStatus = .disconnected
-            }
-
-            return result
-
-        } catch {
-            await MainActor.run {
-                self.isConnected = false
-                self.connectionStatus = .failed
-                self.lastError = error
-            }
-            logger.error("gRPC PluginHostService operation failed: \(error)")
-            throw error
-        }
-    }
-
     // MARK: - Plugin Shell Client (v2 kernel)
 
     /// The client's entire plugin surface: two frozen RPCs (`Plugins`,

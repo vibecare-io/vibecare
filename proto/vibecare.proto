@@ -7,7 +7,6 @@ option swift_prefix = "VC";
 
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/empty.proto";
-import "vibecare_plugin.proto";
 
 // ============================================================================
 // Core Domain Models
@@ -695,45 +694,4 @@ message ListIconsResponse {
 // Service definition
 service IconService {
   rpc ListIcons(ListIconsRequest) returns (ListIconsResponse);
-}
-
-// ============================================================================
-// Plugin Host (app-facing)
-// ============================================================================
-// The client never talks to plugins directly; Core proxies every call
-// through this service, dispatching to the right plugin via the plugin
-// registry (see internal/plugins.Registry).
-
-// Summary of a loaded plugin, as returned by ListPlugins.
-message PluginSummary {
-  string id = 1;
-  string name = 2;
-  string icon = 3;
-  string ui_kind = 4;
-  string ui_entry = 5;
-  string status = 6;  // "ready" | "unavailable"
-}
-
-message ListPluginsResponse {
-  repeated PluginSummary plugins = 1;
-}
-
-message RenderPluginViewRequest {
-  string plugin_id = 1;
-  string view_id = 2;
-  map<string, string> params = 3;
-}
-
-message InvokePluginActionRequest {
-  string plugin_id = 1;
-  string view_id = 2;
-  string action = 3;
-  map<string, string> params = 4;
-}
-
-// Service definition
-service PluginHostService {
-  rpc ListPlugins(google.protobuf.Empty) returns (ListPluginsResponse);
-  rpc RenderPluginView(RenderPluginViewRequest) returns (vibecare.plugin.v1.ViewDescriptor);
-  rpc InvokePluginAction(InvokePluginActionRequest) returns (vibecare.plugin.v1.ViewDescriptor);
 }

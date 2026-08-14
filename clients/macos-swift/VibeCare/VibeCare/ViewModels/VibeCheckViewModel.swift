@@ -39,8 +39,6 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
     private var policy = DetectionPolicy(dwell: 0.15, cooldown: 5)
     private let interrupt: InterruptPlaying
     private let notifier: DetectionNotifying
-    private let pluginService = PluginService()
-    private static let vibeCheckPluginId = "com.vibecare.vibecheck"
 
     /// `CameraSession` isn't `Sendable`. `nonisolated(unsafe)` asserts only that
     /// *this* reference is safe to await across the actor boundary the way this
@@ -156,30 +154,8 @@ final class VibeCheckViewModel: ObservableObject, CameraFrameReceiver {
         sessionCounts[event.behavior, default: 0] += 1
         interrupt.play(event.behavior)
         notifier.notify(behavior: event.behavior, count: sessionCounts[event.behavior, default: 0])
-        report(event)
         flash = true
         Task { try? await Task.sleep(for: .milliseconds(250)); flash = false }
-    }
-
-    /// Reports a confirmed detection to `plugin-vibecheck` so it persists for
-    /// the stats view. Fire-and-forget: `PluginService.invoke` throws on
-    /// failure (unlike `listPlugins`), so we swallow the error with `try?` —
-    /// a failed report must never disrupt the local interrupt, which has
-    /// already fired synchronously above.
-    @MainActor
-    private func report(_ event: BFRBEvent) {
-        let params = [
-            "behavior": event.behavior.rawValue,
-            "ts": ISO8601DateFormatter().string(from: Date())
-        ]
-        Task {
-            _ = try? await pluginService.invoke(
-                pluginId: Self.vibeCheckPluginId,
-                viewId: "main",
-                action: "record_detection",
-                params: params
-            )
-        }
     }
 }
 

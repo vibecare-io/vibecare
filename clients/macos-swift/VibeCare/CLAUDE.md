@@ -44,6 +44,16 @@ let profiles = try await GRPCClientManager.shared.withProfileServiceClient { cli
 ### Notifications
 Custom [VibeNotify](https://github.com/vibecare-io/vibe-notify-macos) library — bypasses native `UNUserNotificationCenter` for custom styling, positioning, and interactive actions.
 
+## Plugins (v2)
+
+The client contains no plugin-specific code. Plugin screens are
+`WKWebView`s pointed at Core's reverse-proxy path (`<base_url>/p/<id>/`);
+the client never speaks a plugin's own protocol. The only plugin-aware
+types are `PluginRoster`/`PluginEntry`/`PluginAlert` (`Models/PluginRoster.swift`),
+populated over the two-RPC shell contract (`GRPCClientManager.withShellClient`,
+`Services/PluginShellService.swift`) and rendered by `Views/Plugins/PluginListView.swift`,
+`PluginScreen.swift`, and `Views/Plugins/PluginWebView.swift`.
+
 ## Common Tasks
 
 **Add a new view**: Create in `Views/<Feature>/`, add to navigation in parent view, create ViewModel if needed.
