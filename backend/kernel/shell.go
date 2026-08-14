@@ -1,6 +1,8 @@
 package kernel
 
 import (
+	"context"
+
 	clientv1 "github.com/vibecare-io/vibecare/backend/pkg/proto/client/v1"
 	"google.golang.org/protobuf/types/known/emptypb"
 )
@@ -14,11 +16,16 @@ type ShellService struct {
 
 	reg     *Registry
 	intents *Intents
-	baseURL func() string
+	// baseURL takes a context because it can block: it isn't safe to call
+	// until Start has resolved the kernel's HTTP origin. Passing the
+	// stream's own context means a client that disconnects during that
+	// window unblocks this immediately instead of leaking the handler
+	// goroutine until Start eventually finishes.
+	baseURL func(context.Context) string
 	token   string
 }
 
-func NewShellService(reg *Registry, in *Intents, baseURL func() string, token string) *ShellService {
+func NewShellService(reg *Registry, in *Intents, baseURL func(context.Context) string, token string) *ShellService {
 	return &ShellService{reg: reg, intents: in, baseURL: baseURL, token: token}
 }
 
@@ -37,15 +44,15 @@ func (s *ShellService) Plugins(_ *emptypb.Empty, stream clientv1.Shell_PluginsSe
 			if !ok {
 				return nil
 			}
-			if err := stream.Send(s.toPluginList(snap)); err != nil {
+			if err := stream.Send(s.toPluginList(stream.Context(), snap)); err != nil {
 				return err
 			}
 		}
 	}
 }
 
-func (s *ShellService) toPluginList(snap []PluginStat) *clientv1.PluginList {
-	out := &clientv1.PluginList{BaseUrl: s.baseURL(), Token: s.token}
+func (s *ShellService) toPluginList(ctx context.Context, snap []PluginStat) *clientv1.PluginList {
+	out := &clientv1.PluginList{BaseUrl: s.baseURL(ctx), Token: s.token}
 	for _, p := range snap {
 		// A headless plugin gets no tab — that is what ui: none means.
 		if p.UI == "none" {

@@ -25,7 +25,7 @@ func newShellFixture(t *testing.T, manifests ...Manifest) (*Registry, *Intents, 
 		reg.Add(m)
 	}
 	intents := NewIntents(zap.NewNop())
-	svc := NewShellService(reg, intents, func() string { return "http://127.0.0.1:1" }, "tok123")
+	svc := NewShellService(reg, intents, func(context.Context) string { return "http://127.0.0.1:1" }, "tok123")
 
 	lis := bufconn.Listen(1 << 20)
 	srv := grpc.NewServer()
@@ -120,9 +120,9 @@ func TestIntentsStreamsAlertWrappedInUIIntent(t *testing.T) {
 func TestToPluginListCarriesOriginAndToken(t *testing.T) {
 	reg := NewRegistry(zap.NewNop())
 	reg.Add(Manifest{ID: "alpha", Name: "Alpha", Icon: "circle", Exec: "./a", UI: "webview"})
-	s := NewShellService(reg, NewIntents(zap.NewNop()), func() string { return "http://127.0.0.1:52341" }, "tok123")
+	s := NewShellService(reg, NewIntents(zap.NewNop()), func(context.Context) string { return "http://127.0.0.1:52341" }, "tok123")
 
-	got := s.toPluginList(reg.Snapshot())
+	got := s.toPluginList(context.Background(), reg.Snapshot())
 	if got.BaseUrl != "http://127.0.0.1:52341" || got.Token != "tok123" {
 		t.Fatalf("list = %+v", got)
 	}
@@ -144,9 +144,9 @@ func TestHeadlessPluginsAreNotInTheRoster(t *testing.T) {
 	reg := NewRegistry(zap.NewNop())
 	reg.Add(Manifest{ID: "alpha", Name: "Alpha", Exec: "./a", UI: "webview"})
 	reg.Add(Manifest{ID: "sensor", Name: "Sensor", Exec: "./s", UI: "none"})
-	s := NewShellService(reg, NewIntents(zap.NewNop()), func() string { return "" }, "")
+	s := NewShellService(reg, NewIntents(zap.NewNop()), func(context.Context) string { return "" }, "")
 
-	got := s.toPluginList(reg.Snapshot())
+	got := s.toPluginList(context.Background(), reg.Snapshot())
 	if len(got.Plugins) != 1 || got.Plugins[0].Id != "alpha" {
 		t.Fatalf("roster = %+v, want only the webview plugin", got.Plugins)
 	}
@@ -173,9 +173,9 @@ func TestDetailSurvivesIntoTheRoster(t *testing.T) {
 	reg := NewRegistry(zap.NewNop())
 	reg.Add(Manifest{ID: "alpha", Name: "Alpha", Exec: "./a", UI: "webview"})
 	reg.SetState("alpha", StateFailed, "5 consecutive failed starts")
-	s := NewShellService(reg, NewIntents(zap.NewNop()), func() string { return "" }, "")
+	s := NewShellService(reg, NewIntents(zap.NewNop()), func(context.Context) string { return "" }, "")
 
-	got := s.toPluginList(reg.Snapshot())
+	got := s.toPluginList(context.Background(), reg.Snapshot())
 	if got.Plugins[0].Detail != "5 consecutive failed starts" {
 		t.Fatalf("detail = %q", got.Plugins[0].Detail)
 	}

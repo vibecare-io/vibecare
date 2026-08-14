@@ -101,7 +101,7 @@ func main() {
 		mcpProfileID  = flag.String("mcp-profile-id", "", "Profile ID for MCP server (required if --with-mcp is set)")
 		logLevel      = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 		logFormat     = flag.String("log-format", "console", "Log format (console, json)")
-		pluginsDir    = flag.String("plugins-dir", "", "Directory scanned for <id>/manifest.yaml plugins (default ~/.vibecare/plugins)")
+		pluginsDir    = flag.String("plugins-dir", "", "Directory scanned for <id>/manifest.yaml plugins (default ~/.vibecare/plugins-v2)")
 	)
 	flag.Parse()
 
@@ -223,9 +223,15 @@ func main() {
 	// docs/superpowers/plans/2026-08-13-plugin-architecture-v2-kernel.md).
 	// Its HTTP origin and unix socket are independent of Core's gRPC and
 	// web ports — the kernel binds 127.0.0.1:0 for both.
+	//
+	// Default directory is deliberately NOT v1PluginsDir: real installs
+	// have v1 manifests there (e.g. id: com.vibecare.todos) that fail v2's
+	// stricter id pattern, and pointing the kernel at that directory would
+	// disable it on every existing install. "plugins-v2" keeps the two
+	// registries scanning disjoint directories until v1 is deleted.
 	kernelPluginsDir := *pluginsDir
 	if kernelPluginsDir == "" {
-		kernelPluginsDir = filepath.Join(homeDir, ".vibecare", "plugins")
+		kernelPluginsDir = filepath.Join(homeDir, ".vibecare", "plugins-v2")
 	}
 	kernelCfg := kernel.DefaultConfig(homeDir, kernelPluginsDir)
 	k, err := kernel.New(kernelCfg, logger)
@@ -379,7 +385,7 @@ func main() {
 		if err := k.Start(context.Background()); err != nil {
 			logger.Warn("Failed to start plugin kernel; continuing without it", zap.Error(err))
 		} else {
-			logger.Info("Plugin kernel ready", zap.String("origin", k.BaseURL()))
+			logger.Info("Plugin kernel ready", zap.String("origin", k.BaseURL(context.Background())))
 		}
 	}
 

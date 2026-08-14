@@ -5,6 +5,10 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 )
 
 // writePlugin creates root/<dir>/manifest.yaml with the given body and
@@ -117,7 +121,7 @@ func TestDiscoverFindsAllPluginsSorted(t *testing.T) {
 	writePlugin(t, root, "zeta", "id: zeta\nname: Z\nexec: ./z\n")
 	writePlugin(t, root, "alpha", "id: alpha\nname: A\nexec: ./a\n")
 
-	got, err := Discover(root)
+	got, err := Discover(root, zap.NewNop())
 	if err != nil {
 		t.Fatalf("Discover: %v", err)
 	}
@@ -134,20 +138,22 @@ func TestDiscoverSkipsDirsWithoutManifest(t *testing.T) {
 	if err := os.MkdirAll(filepath.Join(root, "notaplugin"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	got, err := Discover(root)
+	got, err := Discover(root, zap.NewNop())
 	if err != nil || len(got) != 1 || got[0].ID != "widget" {
 		t.Fatalf("got %+v, %v", got, err)
 	}
 }
 
 // Two plugins claiming the same id would collide on routing, data dir, and
-// topic namespace. The error must name BOTH paths so it's actionable.
+// topic namespace. The error must name BOTH paths so it's actionable. This
+// stays a hard, scan-aborting error — unlike a malformed manifest, which
+// plugin is at fault is genuinely ambiguous, not just broken.
 func TestDiscoverRejectsDuplicateIDs(t *testing.T) {
 	root := t.TempDir()
 	writePlugin(t, root, "one", "id: dup\nname: One\nexec: ./x\n")
 	writePlugin(t, root, "two", "id: dup\nname: Two\nexec: ./x\n")
 
-	_, err := Discover(root)
+	_, err := Discover(root, zap.NewNop())
 	if err == nil {
 		t.Fatal("expected duplicate-id error")
 	}
@@ -159,8 +165,60 @@ func TestDiscoverRejectsDuplicateIDs(t *testing.T) {
 
 // A missing plugins dir is normal on a fresh install, not an error.
 func TestDiscoverMissingRootReturnsEmpty(t *testing.T) {
-	got, err := Discover(filepath.Join(t.TempDir(), "nope"))
+	got, err := Discover(filepath.Join(t.TempDir(), "nope"), zap.NewNop())
 	if err != nil || len(got) != 0 {
 		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+// A single malformed manifest (fails to parse, or fails validation like a
+// bad id or missing exec) is that ONE plugin's problem, not the whole
+// scan's. Skipping it — rather than aborting Discover entirely — is what
+// stops one broken drop-in from disabling the entire plugin system. It
+// must still be visible to an operator, so it's logged at warn naming the
+// manifest path and the reason.
+func TestDiscoverSkipsMalformedManifest(t *testing.T) {
+	root := t.TempDir()
+	writePlugin(t, root, "broken", "id: Not-Valid!\nname: Broken\nexec: ./x\n")
+
+	core, logs := observer.New(zapcore.WarnLevel)
+	log := zap.New(core)
+
+	got, err := Discover(root, log)
+	if err != nil {
+		t.Fatalf("Discover: %v, want a skip rather than an aborted scan", err)
+	}
+	if len(got) != 0 {
+		t.Fatalf("got %+v, want the malformed plugin excluded", got)
+	}
+
+	entries := logs.All()
+	if len(entries) != 1 {
+		t.Fatalf("got %d warn logs, want exactly 1", len(entries))
+	}
+	fields := entries[0].ContextMap()
+	path, _ := fields["path"].(string)
+	if path != filepath.Join(root, "broken", manifestName) {
+		t.Errorf("warn log path = %q, want the manifest's path", path)
+	}
+	if fields["error"] == nil {
+		t.Errorf("warn log carries no reason for the skip")
+	}
+}
+
+// A good plugin alongside a broken one must still be discovered: the bad
+// manifest is skipped in isolation, not treated as a reason to give up on
+// the rest of the directory.
+func TestDiscoverSkipsBadManifestButKeepsGood(t *testing.T) {
+	root := t.TempDir()
+	writePlugin(t, root, "widget", goodManifest)
+	writePlugin(t, root, "broken", "id: Not-Valid!\nname: Broken\nexec: ./x\n")
+
+	got, err := Discover(root, zap.NewNop())
+	if err != nil {
+		t.Fatalf("Discover: %v", err)
+	}
+	if len(got) != 1 || got[0].ID != "widget" {
+		t.Fatalf("got %+v, want only the good plugin", got)
 	}
 }

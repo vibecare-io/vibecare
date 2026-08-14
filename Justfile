@@ -270,24 +270,9 @@ build-todos-plugin:
     cp {{backend_dir}}/cmd/plugin-todos/manifest.yaml ~/.vibecare/plugins/todos/manifest.yaml
     @echo "{{GREEN}}✓ Todos plugin installed: ~/.vibecare/plugins/todos/{{NC}}"
 
-# Build the vibecheck plugin and install it + its manifest into
-# ~/.vibecare/plugins/vibecheck/, where Core's plugin registry discovers it.
-# Unlike plugin-todos (built from within the backend module via
-# cmd/plugin-todos), vibecheck's source lives at the repo root
-# (plugins/vibecheck) outside the backend Go module, so it is its own module
-# with a replace directive back to ../../backend — see plugins/vibecheck/go.mod.
-[group('🧩 Plugins')]
-build-vibecheck-plugin:
-    @echo "{{GREEN}}Building vibecheck plugin...{{NC}}"
-    cd plugins/vibecheck && go build -o ../../bin/plugin-vibecheck .
-    @mkdir -p ~/.vibecare/plugins/vibecheck
-    cp bin/plugin-vibecheck ~/.vibecare/plugins/vibecheck/plugin-vibecheck
-    cp plugins/vibecheck/manifest.yaml ~/.vibecare/plugins/vibecheck/manifest.yaml
-    @echo "{{GREEN}}✓ VibeCheck plugin installed: ~/.vibecare/plugins/vibecheck/{{NC}}"
-
 # Build and install all plugins
 [group('🧩 Plugins')]
-build-plugins: build-todos-plugin build-vibecheck-plugin
+build-plugins: build-todos-plugin
     @echo "{{GREEN}}✓ All plugins built and installed{{NC}}"
 
 # Picks a profile, builds vibecare-mcp-server, bakes it into the io.vibecare.mcp service
