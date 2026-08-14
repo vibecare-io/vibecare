@@ -22,7 +22,9 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/vibecare-io/vibecare/backend/pkg/pluginwire"
@@ -39,6 +41,16 @@ var (
 	// reconnectMax. A var so tests can shrink it.
 	reconnectBase = time.Second
 	reconnectMax  = 30 * time.Second
+	// reconnectStable is how long a session must stay connected before the
+	// ladder resets to reconnectBase on its next drop, mirroring
+	// Supervisor.stableUptime's reasoning in the kernel: a drop after
+	// running fine for a while is a fresh problem, not a continuation of
+	// whatever caused an earlier flapping streak, and earns the fast retry
+	// again rather than whatever the ladder had climbed to. Without this, a
+	// plugin that has reconnected a handful of times over its lifetime —
+	// each drop entirely unrelated to the last — waits the full
+	// reconnectMax on every later one. A var so tests can shrink it.
+	reconnectStable = 60 * time.Second
 	// readyTimeout bounds how long Connect waits for core's Ready. Core
 	// kills an unregistered plugin after 10s anyway.
 	readyTimeout = 10 * time.Second
@@ -92,9 +104,33 @@ type Handle struct {
 	ctx    context.Context
 	cancel context.CancelFunc
 
-	mu         sync.Mutex
-	onShutdown func()
-	healthFn   func() (status, detail string)
+	// sigCh is the channel signal.Notify delivers SIGTERM to. Stored so
+	// Close can signal.Stop it — otherwise a plugin process that calls
+	// Connect more than once (this package's own tests do) would pile up
+	// one registration per call, all still live.
+	sigCh chan os.Signal
+
+	mu           sync.Mutex
+	onShutdown   func()
+	healthFn     func() (status, detail string)
+	shutdownOnce sync.Once
+}
+
+// runShutdown invokes the registered OnShutdown callback at most once, no
+// matter which of the two independent paths triggers it first: the
+// Shutdown message arriving on the Register stream, or the process
+// receiving SIGTERM directly. Both exist because a direct signal beats a
+// gRPC round trip over a unix socket essentially always — SIGTERM is not a
+// fallback for a rare case, it is the path that normally wins.
+func (h *Handle) runShutdown() {
+	h.shutdownOnce.Do(func() {
+		h.mu.Lock()
+		fn := h.onShutdown
+		h.mu.Unlock()
+		if fn != nil {
+			fn()
+		}
+	})
 }
 
 // Connect reads the spawn environment, binds the plugin's HTTP listener,
@@ -139,6 +175,28 @@ func Connect() (*Handle, error) {
 	}
 	h.Events = h.events
 
+	// A direct SIGTERM beats a gRPC round trip over a unix socket
+	// essentially always, so core's Shutdown message (handled below in
+	// session, via runShutdown) frequently loses that race even though core
+	// sends it first. This is the SDK-side half of that fix: trap SIGTERM
+	// here too and run the SAME onShutdown callback, guarded by the same
+	// sync.Once, so a plugin flushes its buffered state regardless of which
+	// path wins. Core still follows up with SIGKILL after its grace period
+	// if the process doesn't exit on its own — this handler does not call
+	// os.Exit, so a plugin author who wants SIGTERM itself to end the
+	// process (as closing the HTTP listener naturally does, e.g. in
+	// plugins/todo) gets that from their own OnShutdown body, exactly as
+	// the Shutdown-message path already requires.
+	h.sigCh = make(chan os.Signal, 1)
+	signal.Notify(h.sigCh, syscall.SIGTERM)
+	go func() {
+		select {
+		case <-h.sigCh:
+			h.runShutdown()
+		case <-h.ctx.Done():
+		}
+	}()
+
 	// The default /health handler, so most plugin authors write none. A
 	// plugin process calls Connect exactly once in production, but this
 	// package's own tests call it many times against the single
@@ -169,12 +227,22 @@ func (h *Handle) run(onReady func()) {
 		if h.ctx.Err() != nil {
 			return
 		}
-		if err := h.session(onReady); err != nil && h.ctx.Err() == nil {
-			// stderr only: stdout belongs to the plugin author.
-			fmt.Fprintf(os.Stderr, "vc: register stream ended (%v); reconnecting in %s\n", err, delay)
-		}
+		startedAt := time.Now()
+		err := h.session(onReady)
 		if h.ctx.Err() != nil {
 			return
+		}
+		// A session that stayed connected for a meaningful stretch is a
+		// fresh problem when it drops, not a continuation of whatever
+		// caused an earlier flapping streak — reset the ladder rather than
+		// let one rough patch years ago keep costing reconnectMax on every
+		// later, unrelated drop.
+		if time.Since(startedAt) >= reconnectStable {
+			delay = reconnectBase
+		}
+		if err != nil {
+			// stderr only: stdout belongs to the plugin author.
+			fmt.Fprintf(os.Stderr, "vc: register stream ended (%v); reconnecting in %s\n", err, delay)
 		}
 		select {
 		case <-h.ctx.Done():
@@ -225,12 +293,7 @@ func (h *Handle) session(onReady func()) error {
 			}
 
 		case msg.GetShutdown() != nil:
-			h.mu.Lock()
-			fn := h.onShutdown
-			h.mu.Unlock()
-			if fn != nil {
-				fn()
-			}
+			h.runShutdown()
 		}
 	}
 }
@@ -351,6 +414,9 @@ func (h *Handle) Serve(mux *http.ServeMux) error {
 
 func (h *Handle) Close() error {
 	h.cancel()
+	if h.sigCh != nil {
+		signal.Stop(h.sigCh)
+	}
 	if h.Listener != nil {
 		h.Listener.Close()
 	}

@@ -51,16 +51,16 @@ func (h *Handler) DashboardHandler(w http.ResponseWriter, r *http.Request) {
 
 // StatusResponse represents the scheduler status API response
 type StatusResponse struct {
-	Stats     Stats              `json:"stats"`
-	Schedules []ScheduleInfo     `json:"schedules"`
-	UpdatedAt time.Time          `json:"updated_at"`
+	Stats     Stats          `json:"stats"`
+	Schedules []ScheduleInfo `json:"schedules"`
+	UpdatedAt time.Time      `json:"updated_at"`
 }
 
 // Stats represents scheduler statistics
 type Stats struct {
-	Total      int       `json:"total"`
-	Active     int       `json:"active"`
-	Paused     int       `json:"paused"`
+	Total        int           `json:"total"`
+	Active       int           `json:"active"`
+	Paused       int           `json:"paused"`
 	NextUpcoming *ScheduleInfo `json:"next_upcoming"`
 }
 

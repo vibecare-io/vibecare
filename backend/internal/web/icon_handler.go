@@ -53,7 +53,7 @@ func ServeSVGIcon(w http.ResponseWriter, r *http.Request, iconLoader IconDataGet
 	// Set content type and caching headers
 	w.Header().Set("Content-Type", "image/svg+xml")
 	w.Header().Set("Cache-Control", "public, max-age=86400") // Cache for 24 hours
-	w.Header().Set("Access-Control-Allow-Origin", "*")        // Allow CORS for local dev
+	w.Header().Set("Access-Control-Allow-Origin", "*")       // Allow CORS for local dev
 
 	// Write SVG content
 	if _, err := w.Write(svgData); err != nil {

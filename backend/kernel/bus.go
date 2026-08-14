@@ -207,24 +207,32 @@ func (b *Bus) deliver(topic string, e BusEvent) int {
 	return len(delivered)
 }
 
-// announceDemand sends the current subscriber count for each topic to
-// whichever plugin declares that topic in its publishes. Like deliver, the
-// send happens WHILE holding b.mu so it can never race a concurrent
-// cancel() closing the same channel — see the comment on deliver.
+// announceDemand sends the current subscriber count for each topic to EVERY
+// connected plugin that declares that topic in its publishes — not just the
+// first one found. Two plugins can publish the same topic (e.g. two camera
+// providers), and this is a privacy property enforced by mechanism (§10.2):
+// if only one of several publishers were notified, the others could miss
+// demand dropping to zero and keep a capture session open indefinitely.
+// Like deliver, the send happens WHILE holding b.mu so it can never race a
+// concurrent cancel() closing the same channel — see the comment on
+// deliver.
 func (b *Bus) announceDemand(topics []string) {
 	for _, topic := range topics {
 		b.mu.Lock()
 		count := len(b.byTopic[topic])
-		var publisher *subscriber
+		var publishers []*subscriber
 		for id, pubTopics := range b.publishes {
-			if slices.Contains(pubTopics, topic) {
-				publisher = b.subs[id]
-				break
+			if !slices.Contains(pubTopics, topic) {
+				continue
 			}
+			if s, ok := b.subs[id]; ok {
+				publishers = append(publishers, s)
+			}
+			// Not connected: it gets the count on its own Subscribe.
 		}
-		if publisher == nil {
+		if len(publishers) == 0 {
 			b.mu.Unlock()
-			continue // provider not connected; it gets the count on Subscribe
+			continue
 		}
 		payload, err := json.Marshal(DemandPayload{Topic: topic, Subscribers: count})
 		if err != nil {
@@ -232,11 +240,13 @@ func (b *Bus) announceDemand(topics []string) {
 			continue
 		}
 		e := BusEvent{Topic: TopicDemand, Payload: payload, TS: time.Now()}
-		select {
-		case publisher.ch <- e:
-		default:
-			b.log.Warn("dropping demand event for slow publisher",
-				zap.String("plugin", publisher.id), zap.String("topic", topic))
+		for _, publisher := range publishers {
+			select {
+			case publisher.ch <- e:
+			default:
+				b.log.Warn("dropping demand event for slow publisher",
+					zap.String("plugin", publisher.id), zap.String("topic", topic))
+			}
 		}
 		b.mu.Unlock()
 	}

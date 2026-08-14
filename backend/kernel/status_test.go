@@ -92,6 +92,31 @@ func TestStatusHTMLListsEveryPluginWithItsState(t *testing.T) {
 	}
 }
 
+// A `ui: none` plugin serves no HTML at its proxied path — the shell
+// correctly excludes it from anything clickable, and the dashboard must do
+// the same rather than linking to a page that doesn't exist.
+func TestStatusHTMLDoesNotLinkPluginsWithNoUI(t *testing.T) {
+	_, _, h := statusFixture(t)
+
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/_core/status", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d", rec.Code)
+	}
+
+	body := rec.Body.String()
+	if !strings.Contains(body, "Beta") {
+		t.Fatalf("dashboard must still name the ui:none plugin:\n%s", body)
+	}
+	if strings.Contains(body, `href="/p/beta/"`) {
+		t.Errorf("dashboard links to /p/beta/, but beta declares ui: none and serves nothing there:\n%s", body)
+	}
+	// The webview-capable plugin must still be linked.
+	if !strings.Contains(body, `href="/p/alpha/"`) {
+		t.Errorf("dashboard did not link the ui:webview plugin:\n%s", body)
+	}
+}
+
 func TestRestartEndpointCallsSupervisor(t *testing.T) {
 	_, fr, h := statusFixture(t)
 

@@ -72,6 +72,25 @@ final class PluginRosterTests: XCTestCase {
         XCTAssertTrue(url.path(percentEncoded: false).hasPrefix("/p/todo/"))
     }
 
+    // The built-in dashboard row (D12) uses the same handoff shape as any
+    // plugin — token rides once, exchanged for a cookie by core — just at
+    // core's own reserved path instead of a plugin's.
+    func testCoreStatusURLPointsAtCoreStatusWithTheToken() throws {
+        let url = try XCTUnwrap(roster([entry()]).coreStatusURL())
+        XCTAssertEqual(url.absoluteString, "http://127.0.0.1:52341/_core/status?vc=abc123")
+    }
+
+    func testCoreStatusURLIsNilWithoutABaseURL() {
+        XCTAssertNil(roster([entry()], baseURL: "").coreStatusURL())
+    }
+
+    // The core dashboard row must never collide with a real plugin id —
+    // core's manifest id regex rejects a leading underscore for exactly
+    // this reason.
+    func testCoreStatusIDCannotCollideWithARealPluginID() {
+        XCTAssertTrue(PluginRoster.coreStatusID.hasPrefix("_"))
+    }
+
     func testStateParsingCoversEveryCase() {
         XCTAssertEqual(PluginState(protoState: .starting), .starting)
         XCTAssertEqual(PluginState(protoState: .up), .up)

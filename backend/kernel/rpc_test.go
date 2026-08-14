@@ -240,6 +240,58 @@ func TestStreamLossMovesPluginToStarting(t *testing.T) {
 	t.Fatalf("state = %v after stream loss, want starting", got)
 }
 
+// Two Register streams for one id can overlap across a reconnect: the new
+// one registers (setting StateUp) before the old handler's teardown has run
+// (it can still be blocked trying to Send on a dead transport). The OLD
+// stream's teardown must recognize it has been superseded and leave the
+// roster alone — otherwise it demotes the healthy replacement to
+// "reconnecting" with nothing to ever recover it, since Health.ProbeOnce
+// skips any plugin that isn't up/degraded. This is the rpc.go half of the
+// stale-stream identity guard (stillCurrent); bus.go has its own regression
+// test for the parallel byTopic hazard.
+func TestStaleStreamTeardownDoesNotDemoteCurrentRegistration(t *testing.T) {
+	f := newHostFixture(t, Manifest{ID: "alpha", Name: "Alpha", Exec: "./a", UI: "webview"})
+
+	ctx1, cancel1 := context.WithCancel(context.Background())
+	defer cancel1()
+	stream1, err := f.client.Register(ctx1, &pluginv1.RegisterReq{Id: "alpha", HttpPort: 1})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg, err := stream1.Recv(); err != nil || msg.GetReady() == nil {
+		t.Fatalf("stream1 want Ready first: %+v %v", msg, err)
+	}
+
+	// A reconnect: a second Register for the SAME id arrives and takes over
+	// while stream1's handler goroutine is still alive server-side.
+	ctx2, cancel2 := context.WithCancel(context.Background())
+	defer cancel2()
+	stream2, err := f.client.Register(ctx2, &pluginv1.RegisterReq{Id: "alpha", HttpPort: 2})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if msg, err := stream2.Recv(); err != nil || msg.GetReady() == nil {
+		t.Fatalf("stream2 want Ready first: %+v %v", msg, err)
+	}
+	if got, _ := f.reg.State("alpha"); got != StateUp {
+		t.Fatalf("state after stream2 registers = %v, want up", got)
+	}
+
+	// Now the OLD stream tears down. Its teardown must see it has been
+	// superseded and do nothing to the roster.
+	cancel1()
+
+	// Give the superseded teardown time to run and (if the guard were
+	// missing) clobber the state; then assert it did NOT.
+	deadline := time.Now().Add(1 * time.Second)
+	for time.Now().Before(deadline) {
+		if got, _ := f.reg.State("alpha"); got != StateUp {
+			t.Fatalf("state = %v after the STALE stream tore down, want it to stay up (the current, live stream2 must not be demoted)", got)
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+}
+
 func TestBroadcastShutdownReachesPlugins(t *testing.T) {
 	f := newHostFixture(t, Manifest{ID: "alpha", Name: "Alpha", Exec: "./a", UI: "webview"})
 	ctx, cancel := context.WithCancel(context.Background())

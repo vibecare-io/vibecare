@@ -97,11 +97,12 @@ exposes `CompareAndSetState` for writes derived from a previously-read
 state, so concurrent supervisors don't clobber each other's transitions.
 
 ```
-Core (kernel)                              Plugin subprocess
-┌─────────────────────────┐  unix socket   ┌─────────────────────┐
-│ ~/.vibecare/core.sock    │◄──────────────►│  vc.Connect()        │
-│  3 RPCs: Init/Health/... │  (plugin is    │  (backend/pkg/vc)    │
-└──────────┬────────────────┘   the client)  └──────────┬───────────┘
+Core (kernel)                                Plugin subprocess
+┌───────────────────────────┐  unix socket   ┌───────────────────────┐
+│ ~/.vibecare/core.sock      │◄──────────────►│  vc.Connect()          │
+│ 3 RPCs: Register/Publish/  │  (plugin is    │  (backend/pkg/vc)      │
+│ Alert                      │   the client)  │                        │
+└──────────┬──────────────────┘               └──────────┬─────────────┘
            │                                              │
            │ reverse proxy                                │ own HTTP server
            ▼                                              ▼

@@ -13,11 +13,11 @@ import (
 
 // GRPCStorageAdapter implements Storage interface using gRPC client
 type GRPCStorageAdapter struct {
-	conn          *grpc.ClientConn
-	routineClient pb.RoutineServiceClient
+	conn           *grpc.ClientConn
+	routineClient  pb.RoutineServiceClient
 	scheduleClient pb.ScheduleServiceClient
-	actionClient  pb.ActionServiceClient
-	profileID     string
+	actionClient   pb.ActionServiceClient
+	profileID      string
 }
 
 // NewGRPCStorageAdapter creates a new adapter for gRPC-based storage access
@@ -29,11 +29,11 @@ func NewGRPCStorageAdapter(serverAddr string, profileID string) (Storage, error)
 	}
 
 	return &GRPCStorageAdapter{
-		conn:          conn,
-		routineClient: pb.NewRoutineServiceClient(conn),
+		conn:           conn,
+		routineClient:  pb.NewRoutineServiceClient(conn),
 		scheduleClient: pb.NewScheduleServiceClient(conn),
-		actionClient:  pb.NewActionServiceClient(conn),
-		profileID:     profileID,
+		actionClient:   pb.NewActionServiceClient(conn),
+		profileID:      profileID,
 	}, nil
 }
 

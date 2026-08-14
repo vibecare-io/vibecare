@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -159,6 +160,73 @@ func TestKernelDiscoversPluginsAtStart(t *testing.T) {
 	got := k.Registry().Snapshot()
 	if len(got) != 1 || got[0].ID != "alpha" {
 		t.Fatalf("roster = %+v, want the dropped-in plugin", got)
+	}
+}
+
+// buildShutdownPlugin compiles the testdata fixture plugin into dir. It is
+// explicitly path-built (not part of ./...) because it lives under
+// testdata/, which the Go toolchain never treats as an ordinary package.
+func buildShutdownPlugin(t *testing.T, outDir string) {
+	t.Helper()
+	cmd := exec.Command("go", "build", "-o", filepath.Join(outDir, "shutdownplugin"), "./testdata/shutdownplugin")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("build shutdownplugin fixture: %v\n%s", err, out)
+	}
+}
+
+// This is the Finding-1 regression test: BroadcastShutdown only enqueues
+// into a non-blocking outbox, and Supervisor.Stop follows immediately with
+// SIGTERM. A direct signal beats a gRPC round trip over a unix socket
+// essentially always, so without a drain wait between the two, a plugin's
+// OnShutdown hook — exactly where the SDK and its worked examples tell
+// authors to flush buffered state — loses that race on every core restart.
+//
+// The fixture plugin (testdata/shutdownplugin) writes its marker file ONLY
+// from inside OnShutdown, so the marker's existence after Stop is direct
+// evidence the Shutdown message won the race, not a side effect of some
+// other write path. Reverting shutdownDrainGrace's wait in
+// Host.BroadcastShutdown (rpc.go) back to a bare enqueue-and-return
+// reproduces the failure reliably.
+func TestShutdownMessageIsDeliveredBeforeSIGTERM(t *testing.T) {
+	cfg := testConfig(t)
+	dir := filepath.Join(cfg.PluginsDir, "shutdownplug")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	buildShutdownPlugin(t, dir)
+	manifest := "id: shutdownplug\nname: ShutdownPlug\nexec: ./shutdownplugin\nui: none\n"
+	if err := os.WriteFile(filepath.Join(dir, "manifest.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	k, err := New(cfg, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := k.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	// Wait for the plugin to actually register before shutting down —
+	// otherwise this could pass trivially because there was nothing to
+	// signal yet.
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) {
+		if got, _ := k.Registry().State("shutdownplug"); got == StateUp {
+			break
+		}
+		time.Sleep(20 * time.Millisecond)
+	}
+	if got, _ := k.Registry().State("shutdownplug"); got != StateUp {
+		t.Fatalf("fixture plugin never reached up (state = %v); can't test shutdown ordering", got)
+	}
+
+	k.Stop(context.Background())
+
+	markerPath := filepath.Join(cfg.DataRoot, "shutdownplug", "shutdown-received")
+	if _, err := os.Stat(markerPath); err != nil {
+		t.Fatalf("shutdown marker not found at %s after Stop: %v — the plugin's OnShutdown hook lost the race against SIGTERM", markerPath, err)
 	}
 }
 

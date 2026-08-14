@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"syscall"
 	"testing"
 	"time"
 
@@ -401,6 +403,72 @@ func TestShutdownCallbackFires(t *testing.T) {
 	}
 }
 
+// A direct SIGTERM beats a gRPC round trip over a unix socket essentially
+// always, so core's Shutdown message frequently loses that race even
+// though core sends it first (Finding 1). The SDK's own SIGTERM trap is
+// what makes OnShutdown fire anyway.
+func TestSIGTERMRunsOnShutdown(t *testing.T) {
+	coreFixture(t, "alpha")
+	h, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+
+	var calls int32
+	fired := make(chan struct{}, 1)
+	h.OnShutdown(func() {
+		atomic.AddInt32(&calls, 1)
+		select {
+		case fired <- struct{}{}:
+		default:
+		}
+	})
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+
+	select {
+	case <-fired:
+	case <-time.After(2 * time.Second):
+		t.Fatal("OnShutdown never fired on SIGTERM")
+	}
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("OnShutdown ran %d times after SIGTERM, want 1", got)
+	}
+}
+
+// In production a plugin can receive the Shutdown stream message AND
+// SIGTERM for the same shutdown — that is the whole race Finding 1 is
+// about. Both paths call runShutdown, and it must be idempotent: whichever
+// arrives second must be a no-op, not a second invocation of the plugin
+// author's flush logic.
+func TestSIGTERMAndShutdownMessageAreIdempotentTogether(t *testing.T) {
+	core, _ := coreFixture(t, "alpha")
+	h, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+
+	var calls int32
+	h.OnShutdown(func() { atomic.AddInt32(&calls, 1) })
+
+	if err := syscall.Kill(os.Getpid(), syscall.SIGTERM); err != nil {
+		t.Fatal(err)
+	}
+	core.send(&pluginv1.CoreMsg{K: &pluginv1.CoreMsg_Shutdown{
+		Shutdown: &pluginv1.Shutdown{Reason: "core shutting down"},
+	}})
+
+	// Give both paths a moment to land, in whichever order.
+	time.Sleep(200 * time.Millisecond)
+	if got := atomic.LoadInt32(&calls); got != 1 {
+		t.Fatalf("OnShutdown ran %d times across SIGTERM + Shutdown message, want exactly 1", got)
+	}
+}
+
 // The reconnect loop is what makes a core restart survivable: without it,
 // restarting core would kill every running plugin.
 func TestReconnectsAfterStreamDrop(t *testing.T) {
@@ -444,6 +512,97 @@ func TestReconnectsAfterStreamDrop(t *testing.T) {
 		time.Sleep(20 * time.Millisecond)
 	}
 	t.Fatal("plugin never re-registered after the stream dropped")
+}
+
+// Finding 3: the reconnect ladder must reset to reconnectBase after a
+// session that stayed connected for a meaningful stretch — mirroring
+// Supervisor.stableUptime — rather than doubling forever regardless of how
+// long the previous session lasted. Without the reset, a plugin that has
+// reconnected a handful of times over its life waits reconnectMax on every
+// later, wholly unrelated drop.
+//
+// This drives three drops and measures the wall-clock gap between each
+// drop and the resulting reconnect: the first two happen in rapid
+// succession (well under reconnectStable), which should inflate the ladder
+// (d2 > d1); the plugin is then held connected past reconnectStable before
+// a third drop, which must reconnect quickly again (d3 < d2) rather than at
+// the further-inflated delay an un-reset ladder would use. Comparing
+// relative gaps rather than absolute thresholds keeps this robust against
+// scheduling noise.
+func TestReconnectBackoffResetsAfterAStableSession(t *testing.T) {
+	core, srv := coreFixture(t, "alpha")
+	reconnectBase = 40 * time.Millisecond
+	reconnectMax = 5 * time.Second
+	reconnectStable = 250 * time.Millisecond
+	t.Cleanup(func() {
+		reconnectBase = time.Second
+		reconnectMax = 30 * time.Second
+		reconnectStable = 60 * time.Second
+	})
+
+	h, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+
+	sock := os.Getenv("VIBECARE_SOCKET")
+	cur := srv
+	t.Cleanup(func() { cur.Stop() })
+
+	// dropAndTime stops the current server, waits for the plugin to
+	// re-register on a fresh one bound to the same socket path, and
+	// returns how long the reconnect took.
+	dropAndTime := func() time.Duration {
+		core.mu.Lock()
+		before := core.connects
+		core.mu.Unlock()
+
+		start := time.Now()
+		cur.Stop()
+		if err := os.Remove(sock); err != nil && !os.IsNotExist(err) {
+			t.Fatal(err)
+		}
+		lis, err := net.Listen("unix", sock)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cur = grpc.NewServer()
+		pluginv1.RegisterPluginHostServer(cur, core)
+		go cur.Serve(lis)
+
+		deadline := time.Now().Add(5 * time.Second)
+		for time.Now().Before(deadline) {
+			core.mu.Lock()
+			n := core.connects
+			core.mu.Unlock()
+			if n > before {
+				return time.Since(start)
+			}
+			time.Sleep(5 * time.Millisecond)
+		}
+		t.Fatal("plugin never reconnected")
+		return 0
+	}
+
+	// Two rapid-fire drops: neither session lives anywhere near
+	// reconnectStable, so the ladder should climb (d2 noticeably bigger
+	// than d1).
+	d1 := dropAndTime()
+	d2 := dropAndTime()
+
+	// Now let the session stay up past reconnectStable before dropping
+	// again.
+	time.Sleep(reconnectStable + 100*time.Millisecond)
+	d3 := dropAndTime()
+
+	t.Logf("d1=%s d2=%s d3=%s", d1, d2, d3)
+	if d2 <= d1 {
+		t.Fatalf("d2 (%s) did not grow past d1 (%s); the ladder must climb on rapid drops for this test to mean anything", d2, d1)
+	}
+	if d3 >= d2 {
+		t.Fatalf("d3 (%s) >= d2 (%s): the backoff ladder did not reset after a stable session (reconnectStable=%s)", d3, d2, reconnectStable)
+	}
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }

@@ -71,8 +71,8 @@ func (s *Server) CreateSchedule(ctx context.Context, req *pb.CreateScheduleReque
 
 	// Create the schedule (passing client ID which may be empty)
 	schedule, err := s.db.CreateSchedule(
-		req.Id,               // Client-provided ID (optional)
-		req.ProfileId,        // Profile ID for direct access
+		req.Id,        // Client-provided ID (optional)
+		req.ProfileId, // Profile ID for direct access
 		req.RoutineId,
 		req.Name,
 		req.Rrule,

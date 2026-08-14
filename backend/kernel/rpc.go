@@ -3,6 +3,7 @@ package kernel
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/vibecare-io/vibecare/backend/pkg/pluginwire"
 	clientv1 "github.com/vibecare-io/vibecare/backend/pkg/proto/client/v1"
@@ -14,6 +15,22 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
+
+// shutdownDrainGrace is how long BroadcastShutdown waits, when at least one
+// plugin is connected, before returning to its caller (Kernel.Stop), which
+// follows up with SIGTERM. A direct signal beats a gRPC round trip over a
+// unix socket essentially always, so without this wait a plugin's
+// OnShutdown flush hook loses that race on every core restart.
+//
+// This is a flat wait, not merely "until the outbox channel is empty":
+// gRPC-go's stream.Send hands a message off to the transport's internal
+// write queue and can return before the bytes have actually left the
+// process, let alone before the plugin has received and acted on them. A
+// drain signal keyed off Send returning was tried and measurably raced —
+// see the Finding-1 report — so this waits the whole grace period instead,
+// which is cheap relative to the alternative of losing the flush. A var so
+// tests can shrink it.
+var shutdownDrainGrace = time.Second
 
 // Host implements PluginHost, the only gRPC surface plugins ever touch.
 // Three RPCs, one of them a stream. A plugin author writes an HTTP server
@@ -57,7 +74,7 @@ func (h *Host) Register(req *pluginv1.RegisterReq, stream pluginv1.PluginHost_Re
 	h.health.Reset(id)
 
 	// Core-originated messages (currently only Shutdown) go through this
-	// outbox so BroadcastShutdown never blocks on a wedged plugin.
+	// outbox so a wedged plugin can never block the sender of one.
 	out := make(chan *pluginv1.CoreMsg, 4)
 	h.mu.Lock()
 	h.streams[id] = out
@@ -193,7 +210,17 @@ func (h *Host) Alert(ctx context.Context, r *pluginv1.AlertReq) (*emptypb.Empty,
 }
 
 // BroadcastShutdown tells every connected plugin to close its listener and
-// flush storage. Core follows it with SIGTERM (see Supervisor.Stop).
+// flush storage, then gives them shutdownDrainGrace to actually receive and
+// act on that message before returning to its caller (Kernel.Stop), which
+// follows up with SIGTERM immediately after. Without the wait, a direct
+// SIGTERM essentially always beats the gRPC round trip over the unix
+// socket, and a plugin's OnShutdown flush hook never runs (spec §8:
+// Shutdown message, THEN SIGTERM, THEN SIGKILL after 5s — not SIGTERM
+// racing Shutdown).
+//
+// When no plugin is connected there is nothing to wait for, so this returns
+// immediately — shutdown must not get slower just because the plugin system
+// is idle.
 func (h *Host) BroadcastShutdown(reason string) {
 	h.mu.Lock()
 	outs := make([]chan *pluginv1.CoreMsg, 0, len(h.streams))
@@ -202,6 +229,10 @@ func (h *Host) BroadcastShutdown(reason string) {
 	}
 	h.mu.Unlock()
 
+	if len(outs) == 0 {
+		return
+	}
+
 	msg := &pluginv1.CoreMsg{K: &pluginv1.CoreMsg_Shutdown{Shutdown: &pluginv1.Shutdown{Reason: reason}}}
 	for _, out := range outs {
 		select {
@@ -209,6 +240,8 @@ func (h *Host) BroadcastShutdown(reason string) {
 		default: // wedged plugin; SIGTERM/SIGKILL will handle it
 		}
 	}
+
+	time.Sleep(shutdownDrainGrace)
 }
 
 // callerID reads the plugin id the SDK attaches to every outbound call.

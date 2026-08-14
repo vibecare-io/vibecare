@@ -8,7 +8,18 @@ struct PluginScreen: View {
 
     var body: some View {
         Group {
-            if let plugin = shell.roster.entry(id: pluginId) {
+            // Core's own status dashboard (D12) — rendered by the exact same
+            // PluginWebView as any plugin, just pointed at core's own path
+            // instead of a plugin's. No parallel client-side path: this is
+            // the one extra branch the built-in row needs.
+            if pluginId == PluginRoster.coreStatusID {
+                if let url = shell.roster.coreStatusURL() {
+                    PluginWebView(url: url, reloadToken: "core-status:\(shell.roster.baseURL)")
+                } else {
+                    ProgressView("Loading…")
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                }
+            } else if let plugin = shell.roster.entry(id: pluginId) {
                 if plugin.isViewable, let url = shell.roster.handoffURL(for: plugin) {
                     PluginWebView(url: url, reloadToken: plugin.reloadToken)
                 } else {
@@ -25,6 +36,6 @@ struct PluginScreen: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .navigationTitle(shell.roster.entry(id: pluginId)?.name ?? pluginId)
+        .navigationTitle(pluginId == PluginRoster.coreStatusID ? "Status" : (shell.roster.entry(id: pluginId)?.name ?? pluginId))
     }
 }

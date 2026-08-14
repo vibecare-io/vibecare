@@ -77,11 +77,11 @@ func TestCalculateNextFromRRule(t *testing.T) {
 
 func TestScheduleTypeDetection(t *testing.T) {
 	tests := []struct {
-		name             string
-		rrule            string
-		expectedType     models.ScheduleType
-		expectNextExec   bool
-		dtstartInFuture  bool
+		name            string
+		rrule           string
+		expectedType    models.ScheduleType
+		expectNextExec  bool
+		dtstartInFuture bool
 	}{
 		{
 			name:            "empty rrule creates ONE_SHOT",
@@ -149,12 +149,12 @@ func TestScheduleTypeDetection(t *testing.T) {
 
 func TestUpdateScheduleRecalculation(t *testing.T) {
 	tests := []struct {
-		name           string
-		oldRRule       string
-		newRRule       string
+		name             string
+		oldRRule         string
+		newRRule         string
 		expectTypeChange bool
-		oldType        models.ScheduleType
-		newType        models.ScheduleType
+		oldType          models.ScheduleType
+		newType          models.ScheduleType
 	}{
 		{
 			name:             "change from RECURRING to ONE_SHOT",
@@ -608,11 +608,11 @@ func TestCalculateNextFromRRule_MultipleTimezones(t *testing.T) {
 		timezone        string
 		expectedUTCHour int // expected UTC hour for 12:00 local time
 	}{
-		{"New York (EST)", "America/New_York", 17},  // 12:00 EST = 17:00 UTC
-		{"London (GMT)", "Europe/London", 12},       // 12:00 GMT = 12:00 UTC
-		{"Berlin (CET)", "Europe/Berlin", 11},       // 12:00 CET = 11:00 UTC
-		{"Sydney (AEDT)", "Australia/Sydney", 1},    // 12:00 AEDT = 01:00 UTC
-		{"Tokyo (JST)", "Asia/Tokyo", 3},            // 12:00 JST = 03:00 UTC
+		{"New York (EST)", "America/New_York", 17}, // 12:00 EST = 17:00 UTC
+		{"London (GMT)", "Europe/London", 12},      // 12:00 GMT = 12:00 UTC
+		{"Berlin (CET)", "Europe/Berlin", 11},      // 12:00 CET = 11:00 UTC
+		{"Sydney (AEDT)", "Australia/Sydney", 1},   // 12:00 AEDT = 01:00 UTC
+		{"Tokyo (JST)", "Asia/Tokyo", 3},           // 12:00 JST = 03:00 UTC
 	}
 
 	// Use January date to have consistent offsets (avoid DST complexity for this test)
@@ -1107,12 +1107,12 @@ func TestOptimizeDtstartForFrequency(t *testing.T) {
 	oldDtstart := time.Date(2020, 1, 1, 9, 0, 0, 0, time.UTC) // 5+ years ago
 
 	tests := []struct {
-		name                 string
-		freq                 rrule.Frequency
-		dtstart              time.Time
-		after                time.Time
-		expectOptimized      bool
-		expectTimePreserved  bool // time-of-day should be preserved
+		name                string
+		freq                rrule.Frequency
+		dtstart             time.Time
+		after               time.Time
+		expectOptimized     bool
+		expectTimePreserved bool // time-of-day should be preserved
 	}{
 		{
 			name:                "SECONDLY moves dtstart close to after",
