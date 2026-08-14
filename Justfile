@@ -111,6 +111,17 @@ run: proto-gen build-plugins
     @echo "{{GREEN}}Starting VibeCare server...{{NC}}"
     cd {{backend_dir}} && go run cmd/server/main.go --enable-tracing --log-level debug --plugins-dir ../plugins
 
+# Like `just run`, but plugins serve ui/ from disk and push a reload to the
+# browser on every edit — change plugins/todo/ui/index.html and the page
+# refreshes itself, no rebuild and no restart. For backend iteration that
+# also manages the background LaunchAgent, use `just dev` instead.
+#
+# Run the server with plugin UI live reload
+[group('📦 Build & Run')]
+dev-ui: proto-gen build-plugins-dev
+    @echo "{{GREEN}}Starting VibeCare server (plugin live reload enabled)...{{NC}}"
+    cd {{backend_dir}} && go run cmd/server/main.go --enable-tracing --log-level debug --plugins-dir ../plugins
+
 # Run the server with custom port
 [group('📦 Build & Run')]
 run-port port="50051":
@@ -267,6 +278,16 @@ build-todo-plugin:
     @echo "{{GREEN}}Building todo plugin...{{NC}}"
     cd plugins/todo && go build -o todo .
     @echo "{{GREEN}}✓ todo plugin built: plugins/todo/todo{{NC}}"
+
+# Builds with `-tags dev`, so each plugin serves its ui/ from disk and
+# exposes a reload stream instead of embedding the UI. Never release this.
+#
+# Build plugins with live reload (dev only, never for release)
+[group('🧩 Plugins')]
+build-plugins-dev:
+    @echo "{{GREEN}}Building plugins (dev: live reload)...{{NC}}"
+    cd plugins/todo && go build -tags dev -o todo .
+    @echo "{{GREEN}}✓ Plugins built with live reload{{NC}}"
 
 # Build every plugin binary into its own directory.
 [group('🧩 Plugins')]
