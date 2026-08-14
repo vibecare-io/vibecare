@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -14,10 +15,26 @@ import (
 func testConfig(t *testing.T) Config {
 	t.Helper()
 	home := t.TempDir()
+
+	// The unix socket path has to stay short: macOS (and GitHub's macOS
+	// runners) caps sockaddr_un.sun_path at 104 bytes, and t.TempDir()'s
+	// default location is a long, deeply-nested path
+	// (/var/folders/.../T/<TestName>/NNN) under a $TMPDIR that is itself
+	// already long — combined with a descriptive test function name, that
+	// routinely blows past the limit and fails net.Listen("unix", ...)
+	// with "invalid argument" on a completely healthy kernel. A short,
+	// fixed prefix under /tmp sidesteps both the test name length and
+	// whatever $TMPDIR happens to be set to.
+	sockDir, err := os.MkdirTemp("/tmp", "vck")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(sockDir) })
+
 	return Config{
 		PluginsDir:  filepath.Join(home, "plugins"),
 		DataRoot:    filepath.Join(home, "data"),
-		SocketPath:  filepath.Join(home, "core.sock"),
+		SocketPath:  filepath.Join(sockDir, "core.sock"),
 		SessionPath: filepath.Join(home, "session"),
 	}
 }
@@ -39,10 +56,10 @@ func TestKernelBindsLoopbackAndUnixSocket(t *testing.T) {
 	cfg := testConfig(t)
 	k := startKernel(t, cfg)
 
-	if !strings.HasPrefix(k.BaseURL(), "http://127.0.0.1:") {
-		t.Fatalf("BaseURL = %q, want a loopback origin with a kernel-assigned port", k.BaseURL())
+	if !strings.HasPrefix(k.BaseURL(context.Background()), "http://127.0.0.1:") {
+		t.Fatalf("BaseURL = %q, want a loopback origin with a kernel-assigned port", k.BaseURL(context.Background()))
 	}
-	if strings.HasSuffix(k.BaseURL(), ":0") {
+	if strings.HasSuffix(k.BaseURL(context.Background()), ":0") {
 		t.Fatal("BaseURL still has the placeholder port; report the ACTUAL bound port")
 	}
 
@@ -71,7 +88,7 @@ func TestKernelRemovesStaleSocket(t *testing.T) {
 func TestKernelHTTPRequiresAuth(t *testing.T) {
 	k := startKernel(t, testConfig(t))
 
-	resp, err := http.Get(k.BaseURL() + "/_core/status")
+	resp, err := http.Get(k.BaseURL(context.Background()) + "/_core/status")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -86,7 +103,7 @@ func TestKernelDashboardReachableWithToken(t *testing.T) {
 
 	// Don't follow the post-handoff redirect; assert on the handoff itself.
 	c := &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}
-	resp, err := c.Get(k.BaseURL() + "/_core/status?" + tokenParam + "=" + k.Token())
+	resp, err := c.Get(k.BaseURL(context.Background()) + "/_core/status?" + tokenParam + "=" + k.Token())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -95,7 +112,7 @@ func TestKernelDashboardReachableWithToken(t *testing.T) {
 		t.Fatalf("code = %d, want 302 after the token handoff", resp.StatusCode)
 	}
 
-	req, _ := http.NewRequest("GET", k.BaseURL()+"/_core/status", nil)
+	req, _ := http.NewRequest("GET", k.BaseURL(context.Background())+"/_core/status", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: k.Token()})
 	resp2, err := c.Do(req)
 	if err != nil {
@@ -113,7 +130,7 @@ func TestCorePathsAreNotProxied(t *testing.T) {
 	k := startKernel(t, testConfig(t))
 	c := &http.Client{}
 
-	req, _ := http.NewRequest("GET", k.BaseURL()+"/_core/api/plugins", nil)
+	req, _ := http.NewRequest("GET", k.BaseURL(context.Background())+"/_core/api/plugins", nil)
 	req.AddCookie(&http.Cookie{Name: sessionCookie, Value: k.Token()})
 	resp, err := c.Do(req)
 	if err != nil {
@@ -153,5 +170,39 @@ func TestStopIsIdempotent(t *testing.T) {
 
 	if _, err := os.Stat(cfg.SocketPath); !os.IsNotExist(err) {
 		t.Fatal("socket file should be removed on Stop")
+	}
+}
+
+// main.go can reach this state directly: kernel.New succeeds but Start is
+// never reached (or never called at all) before shutdown, and main.go
+// calls Stop unconditionally on any non-nil *Kernel. Stop must not panic,
+// hang, or require Start to have run first.
+func TestStopWithoutStartIsSafe(t *testing.T) {
+	cfg := testConfig(t)
+	k, err := New(cfg, zap.NewNop())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	done := make(chan struct{})
+	go func() {
+		k.Stop(context.Background())
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Stop hung when Start was never called")
+	}
+
+	// Nothing was ever bound, so there is nothing to have left behind.
+	if _, err := os.Stat(cfg.SocketPath); !os.IsNotExist(err) {
+		t.Fatal("no socket file should exist; Start never ran")
+	}
+
+	// A second Stop, and a late Start, must both remain safe.
+	k.Stop(context.Background())
+	if err := k.Start(context.Background()); err == nil {
+		t.Fatal("Start after Stop should refuse rather than bind listeners no one will ever clean up")
 	}
 }

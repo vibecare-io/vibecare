@@ -113,8 +113,20 @@ func (k *Kernel) closeReady() {
 // Start — e.g. one that connects to the shell service the instant it is
 // registered, before Start has bound anything — waits for the real answer
 // instead of observing an empty string.
-func (k *Kernel) BaseURL() string {
-	<-k.ready
+//
+// It takes ctx because its only caller (ShellService, via a gRPC streaming
+// handler) can itself be cancelled while waiting — a client that
+// disconnects during the pre-Start window must not leave that handler
+// blocked forever just because the kernel is slow to bind. ctx.Done()
+// unblocks BaseURL with an empty string in that case; the stream handler
+// is expected to treat an empty BaseUrl the same as "give up," which it
+// does naturally since it's already exiting on ctx.Done() itself.
+func (k *Kernel) BaseURL(ctx context.Context) string {
+	select {
+	case <-k.ready:
+	case <-ctx.Done():
+		return ""
+	}
 	k.mu.Lock()
 	defer k.mu.Unlock()
 	if k.httpAddr == "" {
@@ -144,7 +156,7 @@ func (k *Kernel) Start(ctx context.Context) error {
 	// BaseURL.
 	defer k.closeReady()
 
-	manifests, err := Discover(k.cfg.PluginsDir)
+	manifests, err := Discover(k.cfg.PluginsDir, k.log)
 	if err != nil {
 		return err
 	}
@@ -180,19 +192,35 @@ func (k *Kernel) Start(ctx context.Context) error {
 	// hasn't run yet) — calling it here would deadlock Start against itself.
 	k.log.Info("kernel http listening", zap.String("origin", origin))
 
+	// From here on, k.httpSrv already owns lis and is actively serving it
+	// in the background goroutine above. main.go treats a Start error as
+	// non-fatal and keeps running, so any error return past this point
+	// MUST close k.httpSrv first — otherwise the process serves a live
+	// dashboard/proxy origin for its entire remaining lifetime with no
+	// plugin socket ever bound, and BaseURL keeps handing that origin to
+	// clients as if the kernel were healthy.
+	closeHTTP := func() { _ = k.httpSrv.Close() }
+
 	// Unix socket: PluginHost, and nothing else. A previous core that was
 	// SIGKILLed leaves the path behind, which would block the bind.
 	if err := os.MkdirAll(filepath.Dir(k.cfg.SocketPath), 0o700); err != nil {
+		closeHTTP()
 		return fmt.Errorf("create socket dir: %w", err)
 	}
 	if err := os.Remove(k.cfg.SocketPath); err != nil && !os.IsNotExist(err) {
+		closeHTTP()
 		return fmt.Errorf("remove stale socket: %w", err)
 	}
 	sock, err := net.Listen("unix", k.cfg.SocketPath)
 	if err != nil {
+		closeHTTP()
 		return fmt.Errorf("bind plugin socket: %w", err)
 	}
 	if err := os.Chmod(k.cfg.SocketPath, 0o600); err != nil {
+		// sock hasn't been handed to grpcSrv yet on this path, so it must
+		// be closed directly rather than through a server.
+		_ = sock.Close()
+		closeHTTP()
 		return fmt.Errorf("chmod plugin socket: %w", err)
 	}
 	k.mu.Lock()
@@ -206,12 +234,34 @@ func (k *Kernel) Start(ctx context.Context) error {
 	}()
 
 	runCtx, cancel := context.WithCancel(ctx)
-	k.mu.Lock()
-	k.cancel = cancel
-	k.mu.Unlock()
 
+	// Publish cancel and decide whether to spawn Health/Supervisor as one
+	// atomic section under k.mu. Stop() takes the same lock to mark
+	// k.stopped and capture httpSrv/grpcSrv/cancel for its own cleanup —
+	// so either Stop's Lock() happens-before this section (in which case
+	// k.stopped is already true here, and this function tears down what
+	// it just bound instead of ever calling Health.Start/Supervisor.Start)
+	// or it happens-after (in which case Stop blocks until this section
+	// finishes and then observes the fully-published cancel/httpSrv/
+	// grpcSrv). Without this, a SIGTERM landing mid-Start could have Stop
+	// capture httpSrv/grpcSrv/cancel while they were still nil, run to
+	// completion having "cleaned up" nothing, and leave Health and
+	// Supervisor's freshly-spawned goroutines with no one left to ever
+	// cancel them — reproduced in review as a leftover socket file plus
+	// permanently running plugin processes.
+	k.mu.Lock()
+	if k.stopped {
+		k.mu.Unlock()
+		cancel()
+		k.grpcSrv.Stop()
+		closeHTTP()
+		_ = os.Remove(k.cfg.SocketPath)
+		return fmt.Errorf("kernel: Stop was called while Start was still binding")
+	}
+	k.cancel = cancel
 	k.health.Start(runCtx)
 	k.sup.Start(runCtx)
+	k.mu.Unlock()
 	return nil
 }
 

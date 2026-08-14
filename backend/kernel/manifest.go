@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"sort"
 
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
 
@@ -83,9 +84,15 @@ func LoadManifest(path string) (Manifest, error) {
 // but the plugin itself.
 //
 // A missing root is not an error (fresh install, no plugins yet). A
-// directory without a manifest is silently skipped. A duplicate id IS an
-// error, naming both offending directories.
-func Discover(root string) ([]Manifest, error) {
+// directory without a manifest is silently skipped. A directory WITH a
+// manifest that fails to parse or validate is logged at warn (naming the
+// path and the reason) and skipped, rather than aborting the whole scan —
+// one broken drop-in must not disable every other plugin. A duplicate id
+// IS a hard error, naming both offending directories: unlike a malformed
+// manifest, which plugin dropped in badly, two plugins claiming the same
+// id is genuinely ambiguous rather than merely broken, and there is no
+// safe way to pick a winner.
+func Discover(root string, log *zap.Logger) ([]Manifest, error) {
 	entries, err := os.ReadDir(root)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -107,7 +114,8 @@ func Discover(root string) ([]Manifest, error) {
 		}
 		m, err := LoadManifest(path)
 		if err != nil {
-			return nil, err
+			log.Warn("skipping invalid plugin manifest", zap.String("path", path), zap.Error(err))
+			continue
 		}
 		if prev, dup := seen[m.ID]; dup {
 			return nil, fmt.Errorf("duplicate plugin id %q claimed by %s and %s", m.ID, prev, m.Dir)
