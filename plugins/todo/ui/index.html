@@ -1,0 +1,64 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Todo</title>
+<style>
+ body{font:14px/1.6 -apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:1.5rem;max-width:34rem}
+ h1{font-size:1.1rem;margin:0 0 1rem}
+ form{display:flex;gap:.5rem;margin-bottom:1rem}
+ input[type=text]{flex:1;padding:.45rem .6rem;font:inherit;border:1px solid #ccc;border-radius:6px}
+ button{font:inherit;padding:.45rem .8rem;border-radius:6px;border:1px solid #ccc;background:#f6f6f6;cursor:pointer}
+ ul{list-style:none;padding:0;margin:0}
+ li{display:flex;align-items:center;gap:.6rem;padding:.4rem 0;border-bottom:1px solid #eee}
+ li.done span{text-decoration:line-through;opacity:.5}
+ li span{flex:1}
+ .del{border:0;background:none;opacity:.4}
+ .empty{opacity:.5;padding:1rem 0}
+ @media (prefers-color-scheme:dark){
+   body{background:#1b1b1b;color:#eee}
+   input[type=text],button{background:#2a2a2a;color:#eee;border-color:#444}
+   li{border-color:#333}
+ }
+</style>
+<h1>Todo</h1>
+<form id="add"><input type="text" id="title" placeholder="Add a task…" autofocus><button>Add</button></form>
+<ul id="list"></ul>
+<script>
+// Every URL here is relative, so the plugin neither knows nor cares that
+// core mounts it at /p/todo/.
+async function load() {
+  const tasks = await (await fetch('api/tasks')).json();
+  const ul = document.getElementById('list');
+  ul.innerHTML = '';
+  if (!tasks.length) {
+    ul.innerHTML = '<li class="empty">Nothing yet.</li>';
+    return;
+  }
+  for (const t of tasks) {
+    const li = document.createElement('li');
+    if (t.done) li.className = 'done';
+    const box = document.createElement('input');
+    box.type = 'checkbox'; box.checked = t.done;
+    box.onchange = async () => { await fetch('api/tasks/' + t.id + '/toggle', {method:'POST'}); load(); };
+    const span = document.createElement('span');
+    span.textContent = t.title;
+    const del = document.createElement('button');
+    del.className = 'del'; del.textContent = '✕';
+    del.onclick = async () => { await fetch('api/tasks/' + t.id, {method:'DELETE'}); load(); };
+    li.append(box, span, del);
+    ul.append(li);
+  }
+}
+document.getElementById('add').onsubmit = async (e) => {
+  e.preventDefault();
+  const input = document.getElementById('title');
+  if (!input.value.trim()) return;
+  await fetch('api/tasks', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({title: input.value})
+  });
+  input.value = '';
+  load();
+};
+load();
+</script>
