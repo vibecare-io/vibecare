@@ -10,6 +10,7 @@ package main
 import (
     "embed"
     "encoding/json"
+    "errors"
     "io/fs"
     "log"
     "net/http"
@@ -63,7 +64,18 @@ func main() {
             }
             t, err := store.Add(body.Title)
             if err != nil {
-                http.Error(w, err.Error(), http.StatusBadRequest)
+                // ErrTitleRequired is the caller's mistake to fix: 400 with
+                // the message. Anything else is Add's flushLocked failing
+                // to write — the caller can't fix a full disk or a
+                // permissions problem, and the error text can contain the
+                // store's absolute filesystem path, which is not this
+                // client's to see. Log it server-side and answer generic.
+                if errors.Is(err, ErrTitleRequired) {
+                    http.Error(w, err.Error(), http.StatusBadRequest)
+                } else {
+                    log.Printf("todo: add %q: %v", body.Title, err)
+                    http.Error(w, "internal error", http.StatusInternalServerError)
+                }
                 return
             }
             // Cross-plugin behavior is always an enhancement gated on
@@ -91,7 +103,10 @@ func main() {
         case action == "toggle" && r.Method == http.MethodPost:
             t, ok, err := store.Toggle(id)
             if err != nil {
-                http.Error(w, err.Error(), http.StatusInternalServerError)
+                // Toggle's only error path is flushLocked failing to
+                // write; never the caller's to fix or see the path of.
+                log.Printf("todo: toggle %q: %v", id, err)
+                http.Error(w, "internal error", http.StatusInternalServerError)
                 return
             }
             if !ok {
@@ -103,7 +118,9 @@ func main() {
         case action == "" && r.Method == http.MethodDelete:
             ok, err := store.Delete(id)
             if err != nil {
-                http.Error(w, err.Error(), http.StatusInternalServerError)
+                // Same as Toggle: only failure path is a disk write.
+                log.Printf("todo: delete %q: %v", id, err)
+                http.Error(w, "internal error", http.StatusInternalServerError)
                 return
             }
             if !ok {
