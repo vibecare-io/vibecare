@@ -67,11 +67,28 @@ func (h *Host) Register(req *pluginv1.RegisterReq, stream pluginv1.PluginHost_Re
 
 	defer func() {
 		unsubscribe()
+
 		h.mu.Lock()
-		if cur, ok := h.streams[id]; ok && cur == out {
+		cur, ok := h.streams[id]
+		stillCurrent := ok && cur == out
+		if stillCurrent {
 			delete(h.streams, id)
 		}
 		h.mu.Unlock()
+
+		// A stream loss is only meaningful for the plugin's CURRENT
+		// registration. Two Register calls can overlap across a
+		// reconnect: the new one already ran (setting StateUp) while
+		// this, the old handler, was still blocked in stream.Send on a
+		// dead transport. If a newer stream has since taken over
+		// h.streams[id] — the identity check above — then this teardown
+		// belongs to a superseded connection and must not touch the
+		// roster at all. Doing so would demote the healthy replacement to
+		// "reconnecting" with nothing to ever recover it: Health.ProbeOnce
+		// skips any plugin that isn't up/degraded.
+		if !stillCurrent {
+			return
+		}
 
 		// A dropped stream does NOT mean the process died — the SDK
 		// reconnects without exiting, which is what makes a core restart
@@ -83,6 +100,11 @@ func (h *Host) Register(req *pluginv1.RegisterReq, stream pluginv1.PluginHost_Re
 		// clobbered by this one. CompareAndSetState closes that window;
 		// if it reports the state moved on before we could act, we just
 		// drop this transition.
+		//
+		// The identity check above and this CAS answer different
+		// questions and both are required: identity asks "am I still the
+		// live stream for this plugin?"; the CAS asks "did someone else
+		// move the state while I was deciding?".
 		if observed, ok := h.reg.State(id); ok && (observed == StateUp || observed == StateDegraded) {
 			h.reg.CompareAndSetState(id, observed, StateStarting, "reconnecting")
 		}

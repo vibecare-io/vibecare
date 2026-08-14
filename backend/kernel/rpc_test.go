@@ -135,8 +135,14 @@ func TestRegisterStreamDeliversSubscribedEvents(t *testing.T) {
 	if ev == nil || ev.Topic != "t.v1" || string(ev.Payload) != "hi" {
 		t.Fatalf("event = %+v", msg)
 	}
-	if got := f.reg.Snapshot(); got[0].EventsPublished != 1 && got[1].EventsPublished != 1 {
-		t.Error("publish was not counted against the publisher")
+	var sensorPublished uint64
+	for _, p := range f.reg.Snapshot() {
+		if p.ID == "sensor" {
+			sensorPublished = p.EventsPublished
+		}
+	}
+	if sensorPublished != 1 {
+		t.Errorf("sensor.EventsPublished = %d, want 1 (publish must be counted against the publisher, not any plugin)", sensorPublished)
 	}
 }
 
@@ -151,6 +157,16 @@ func TestPublishUndeclaredTopicIsRejectedOverRPC(t *testing.T) {
 	f := newHostFixture(t, Manifest{ID: "sensor", Name: "S", Exec: "./s", UI: "none", Publishes: []string{"declared.v1"}})
 	if _, err := f.client.Publish(asPlugin("sensor"), &pluginv1.Event{Topic: "sneaky.v1"}); err == nil {
 		t.Fatal("expected an error publishing an undeclared topic")
+	}
+}
+
+// Alert has no plugin field either, so it needs the same caller-attribution
+// guard Publish already has: an unattributed caller must be rejected, not
+// silently broadcast under an empty/spoofable identity.
+func TestAlertWithoutAttributionIsRejected(t *testing.T) {
+	f := newHostFixture(t, Manifest{ID: "alpha", Name: "Alpha", Exec: "./a", UI: "webview"})
+	if _, err := f.client.Alert(context.Background(), &pluginv1.AlertReq{Title: "x"}); err == nil {
+		t.Fatal("expected an error for an unattributed Alert")
 	}
 }
 
@@ -184,7 +200,9 @@ func TestAlertReachesIntentSubscribers(t *testing.T) {
 // see it.
 func TestAlertsAreNotRetained(t *testing.T) {
 	f := newHostFixture(t, Manifest{ID: "alpha", Name: "Alpha", Exec: "./a", UI: "webview"})
-	f.client.Alert(asPlugin("alpha"), &pluginv1.AlertReq{Title: "early"})
+	if _, err := f.client.Alert(asPlugin("alpha"), &pluginv1.AlertReq{Title: "early"}); err != nil {
+		t.Fatalf("Alert: %v", err)
+	}
 	time.Sleep(50 * time.Millisecond)
 
 	ch, cancel := f.intents.Subscribe()

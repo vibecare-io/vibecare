@@ -282,6 +282,37 @@ func TestConcurrentPublishAndCancelDoesNotPanic(t *testing.T) {
 	}
 }
 
+// A reconnecting plugin calls Subscribe again before its old stream's
+// teardown gets around to calling cancel — both subscriptions share the
+// same plugin id and the same topic list. The stale (first) cancel must
+// not unroute the live (second) subscriber: b.byTopic is keyed by plugin
+// id just like b.subs, so blindly deleting from it removes the entry the
+// SECOND Subscribe call installed, not the first's, leaving the
+// reconnected stream open, healthy, and permanently deaf to every topic it
+// subscribes to.
+func TestStaleCancelDoesNotUnrouteReplacementSubscriber(t *testing.T) {
+	b := NewBus(zap.NewNop())
+	b.Declare("pub", nil, []string{"t.v1"})
+	b.Declare("alpha", []string{"t.v1"}, nil)
+
+	_, cancelFirst := b.Subscribe("alpha")
+	chSecond, cancelSecond := b.Subscribe("alpha") // simulates the reconnect
+	defer cancelSecond()
+
+	// Simulates the old Register stream's deferred teardown losing the
+	// race against the new stream that already replaced it.
+	cancelFirst()
+
+	n, err := b.Publish("pub", "t.v1", []byte("x"), time.Now())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n != 1 {
+		t.Fatalf("delivered to %d, want 1 (the replacement subscriber)", n)
+	}
+	recvEvent(t, chSecond)
+}
+
 // TestDemandDeliveredToPublisherOnSubscribeAndUnsubscribe (above) can't
 // distinguish announceDemand(own) from announceDemand(affected) because its
 // sensor plugin only publishes and its consumer plugin only subscribes, so
