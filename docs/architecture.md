@@ -121,6 +121,12 @@ Core (kernel)                              Plugin subprocess
   pointed at Core's proxy path.
 - **Core's dashboard**: `/_core/status`, for inspecting plugin health
   outside the client.
+- **Default plugins directory**: in production, core scans
+  `~/.vibecare/plugins-v2/`. In development, `just run` passes
+  `--plugins-dir ../plugins`, so it scans the repo's own `plugins/`
+  directory instead. This is deliberately *not* the v1
+  `~/.vibecare/plugins/` directory — those manifests use ids that v2's
+  stricter id regex rejects.
 - **Known gap**: alert action buttons are carried on the wire
   (`plugin.proto`) and modeled on the client (`PluginAlert`), but are not
   yet rendered — the client presents title/body/level only. Rendering
