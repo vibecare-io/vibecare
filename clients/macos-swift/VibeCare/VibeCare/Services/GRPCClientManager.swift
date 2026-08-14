@@ -423,6 +423,35 @@ class GRPCClientManager: ObservableObject {
         }
     }
 
+    // MARK: - Plugin Shell Client (v2 kernel)
+
+    /// The client's entire plugin surface: two frozen RPCs (`Plugins`,
+    /// `Intents`). Deliberately does NOT touch `connectionStatus` — the two
+    /// shell streams are long-lived, and flipping the shared status to
+    /// `.disconnected` when either ends would misreport the app's overall
+    /// connection state.
+    nonisolated func withShellClient<T: Sendable>(_ operation: @Sendable (VCKShell.Client<HTTP2ClientTransport.Posix>) async throws -> T) async throws -> T {
+        let host = await self.host
+        let port = await self.port
+        let useTLS = await self.useTLS
+        let logger = await self.logger
+
+        logger.info("Creating gRPC connection to \(host):\(port) for Shell")
+
+        do {
+            let transport = try HTTP2ClientTransport.Posix(
+                target: .dns(host: host, port: port),
+                transportSecurity: useTLS ? .tls : .plaintext
+            )
+            return try await withGRPCClient(transport: transport) { client in
+                try await operation(VCKShell.Client(wrapping: client))
+            }
+        } catch {
+            logger.error("gRPC Shell operation failed: \(error)")
+            throw error
+        }
+    }
+
     // MARK: - Icon Service Client
 
     nonisolated func withIconServiceClient<T: Sendable>(_ operation: @Sendable (VCIconService.Client<HTTP2ClientTransport.Posix>) async throws -> T) async throws -> T {

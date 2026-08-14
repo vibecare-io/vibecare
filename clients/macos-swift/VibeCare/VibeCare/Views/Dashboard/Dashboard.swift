@@ -9,6 +9,7 @@ public struct Dashboard: View {
   @StateObject private var actionViewModel = ActionViewModel()
   @StateObject private var notificationPolicy = NotificationPolicy.shared
   @StateObject private var vibeCheckViewModel = VibeCheckViewModel.shared
+  @StateObject private var pluginShell = PluginShellService()
 
   public init() {}
 
@@ -23,6 +24,9 @@ public struct Dashboard: View {
         }
         .onChange(of: appState.currentProfile) { _, _ in
           loadData()
+        }
+        .task {
+          pluginShell.start()
         }
 
       // Global status bar
@@ -133,7 +137,7 @@ public struct Dashboard: View {
   }
 
   private var pluginContentView: some View {
-    PluginListView(selectedId: $dashboardState.selectedPluginId)
+    PluginListView(shell: pluginShell, selectedId: $dashboardState.selectedPluginId)
   }
 
   private var settingsContentView: some View {
@@ -276,7 +280,7 @@ public struct Dashboard: View {
   @ViewBuilder
   private var pluginDetailView: some View {
     if let pluginId = dashboardState.selectedPluginId {
-      PluginScreen(pluginId: pluginId)
+      PluginScreen(shell: pluginShell, pluginId: pluginId)
     } else {
       EmptyStateView(
         title: "No Plugin Selected",
