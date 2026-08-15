@@ -443,10 +443,35 @@ func TestStateReportsPermissionAndConfig(t *testing.T) {
 // P4): a client following an action URL issues a GET, and core's proxy
 // does not rewrite methods. `enabled:false` is used throughout so nothing
 // here touches the real camera.
+// Seeds `enabled: true` before disabling — without this, `liveKernel`'s
+// freshly-booted plugin already starts at the default `enabled: false`, and
+// a handler that dropped `current.enabled = false` and merely echoed
+// whatever was already there would pass just as easily as a correct one.
+// (Review caught this: the assertion was decoration until this seed step
+// was added.) The seeding PUT itself no longer blocks on the camera
+// permission prompt — Task 15's follow-up fix responds before applying
+// live, in a detached Task — so this stays fast even though `enabled:true`
+// does end up starting the real camera in the background.
 func TestConfigDisableAcceptsGetAndPost(t *testing.T) {
 	for _, method := range []string{"GET", "POST"} {
 		t.Run(method, func(t *testing.T) {
 			client, base, _, _ := liveKernel(t)
+
+			seedBody := `{"enabled":true,"sensitivity":0.5,"dwell":0.15,"cooldown":5,"enabledBehaviors":["nailBiting"]}`
+			seedReq, err := http.NewRequest("PUT", base+"/p/vibecheck/api/config", strings.NewReader(seedBody))
+			if err != nil {
+				t.Fatal(err)
+			}
+			seedReq.Header.Set("Content-Type", "application/json")
+			seedResp, err := client.Do(seedReq)
+			if err != nil {
+				t.Fatal(err)
+			}
+			seedResp.Body.Close()
+			if seedResp.StatusCode != 200 {
+				t.Fatalf("seeding enabled=true: got %d, want 200", seedResp.StatusCode)
+			}
+
 			req, err := http.NewRequest(method, base+"/p/vibecheck/api/config/disable", nil)
 			if err != nil {
 				t.Fatal(err)

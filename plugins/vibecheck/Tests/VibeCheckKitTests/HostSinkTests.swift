@@ -34,12 +34,6 @@ private actor SpyAlertHost: AlertHost {
     }
 }
 
-private func face() -> FaceGeometry {
-    FaceGeometry(box: CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4),
-                 nose: CGPoint(x: 0.5, y: 0.5),
-                 mouth: CGPoint(x: 0.5, y: 0.62))
-}
-
 private func tempDir() throws -> URL {
     let d = URL(fileURLWithPath: NSTemporaryDirectory())
         .appendingPathComponent(UUID().uuidString)
@@ -47,16 +41,46 @@ private func tempDir() throws -> URL {
     return d
 }
 
-@Test func firedBroadcastsToEventsSubscribersEvenWithNoHostAttached() async {
+/// A fan-out regression (a continuation never yielded, or dropped before
+/// yielding) would otherwise hang `await iterator.next()` — and `swift test`
+/// — forever instead of failing. Every stream read below goes through this
+/// so that failure mode becomes a fast, clear test failure. Takes the
+/// STREAM (not a mutating `Iterator`) specifically so the read can run
+/// inside a `@Sendable` `Task` closure without capturing a mutable local var
+/// across the concurrency boundary.
+private func firstEvent(from stream: AsyncStream<DetectionBroadcast>) async -> DetectionBroadcast? {
+    for await value in stream { return value }
+    return nil
+}
+
+private enum HostSinkTestError: Error { case timedOut }
+
+private func withTimeout<T: Sendable>(
+    seconds: Double = 3, _ body: @escaping @Sendable () async -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask { await body() }
+        group.addTask {
+            try await Task.sleep(for: .seconds(seconds))
+            throw HostSinkTestError.timedOut
+        }
+        guard let result = try await group.next() else {
+            throw HostSinkTestError.timedOut
+        }
+        group.cancelAll()
+        return result
+    }
+}
+
+@Test func firedBroadcastsToEventsSubscribersEvenWithNoHostAttached() async throws {
     let prefs = try! AlertPrefsStore(directory: try! tempDir())
     let sink = HostSink(prefs: prefs, snooze: SnoozeGate())
 
     let stream = await sink.events()
-    var iterator = stream.makeAsyncIterator()
 
     await sink.fired(BFRBEvent(behavior: .nailBiting, time: 1), count: 1, behavior: .nailBiting)
 
-    let received = await iterator.next()
+    let received = try await withTimeout { await firstEvent(from: stream) }
     #expect(received?.behavior == .nailBiting)
     #expect(received?.count == 1)
 }
@@ -89,13 +113,12 @@ private func tempDir() throws -> URL {
     await sink.attach(host: host)
 
     let stream = await sink.events()
-    var iterator = stream.makeAsyncIterator()
 
     await sink.fired(BFRBEvent(behavior: .nosePicking, time: 1), count: 1, behavior: .nosePicking)
 
     // Still broadcast to SSE: snoozing suppresses the popup, not the fact
     // that a detection happened.
-    let received = await iterator.next()
+    let received = try await withTimeout { await firstEvent(from: stream) }
     #expect(received?.behavior == .nosePicking)
 
     // But no alert reached the host.
@@ -103,17 +126,17 @@ private func tempDir() throws -> URL {
     #expect(await host.publishedTopics.isEmpty)
 }
 
-@Test func multipleEventsSubscribersEachGetTheirOwnCopy() async {
+@Test func multipleEventsSubscribersEachGetTheirOwnCopy() async throws {
     let prefs = try! AlertPrefsStore(directory: try! tempDir())
     let sink = HostSink(prefs: prefs, snooze: SnoozeGate())
 
     let streamA = await sink.events()
     let streamB = await sink.events()
-    var a = streamA.makeAsyncIterator()
-    var b = streamB.makeAsyncIterator()
 
     await sink.fired(BFRBEvent(behavior: .nailBiting, time: 1), count: 1, behavior: .nailBiting)
 
-    #expect(await a.next()?.behavior == .nailBiting)
-    #expect(await b.next()?.behavior == .nailBiting)
+    let a = try await withTimeout { await firstEvent(from: streamA) }
+    let b = try await withTimeout { await firstEvent(from: streamB) }
+    #expect(a?.behavior == .nailBiting)
+    #expect(b?.behavior == .nailBiting)
 }

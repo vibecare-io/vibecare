@@ -195,12 +195,40 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// already `true`; released with the real result once the in-flight
     /// call returns. Same shape as `VCShutdownLatch` in `VCPluginSDK`.
     private var cameraStartWaiters: [CheckedContinuation<CameraStartResult, Never>] = []
-    /// Set by `stop()` when it arrives while `cameraStartInFlight` is
-    /// `true`. Checked — and cleared — by `startCameraOnly()`'s completion,
-    /// so a stop that raced an in-flight start wins instead of being
-    /// clobbered by whatever that now-stale start concludes. See `stop()`'s
-    /// doc comment for the concrete scenario this exists to prevent.
-    private var stopRequestedDuringStart = false
+    /// Bumped on EVERY call to `startCameraOnly()` — the leader that
+    /// actually calls `camera.start()` AND any waiter that merely parks on
+    /// an already in-flight call (there is only ever one real
+    /// `camera.start()` in flight at a time, by this method's own
+    /// coalescing guard, so a waiter's arrival is still a fresh, distinct
+    /// "start" intent even though it doesn't become the leader). This is
+    /// what a stop can be compared against to tell "was I superseded by a
+    /// later start request" apart from "no one has asked to start since
+    /// me" — see `queuedStopToken`'s doc comment for why a plain `Bool`
+    /// version of this got that distinction wrong.
+    private var startToken: Int = 0
+    /// Set by `stop()`, to the CURRENT `startToken` value, when it arrives
+    /// while `cameraStartInFlight` is `true`. Compared against `startToken`
+    /// again (not merely checked for non-nil) at the in-flight start's
+    /// completion: `queued == startToken` means "no start request has
+    /// arrived since this stop was queued," in which case the stop wins;
+    /// `queued != startToken` means a later `startCameraOnly()` call
+    /// (leader or waiter) has expressed fresher intent to start, which
+    /// supersedes the stale stop.
+    ///
+    /// A first version of this used a bare `Bool` instead, set by `stop()`
+    /// and cleared only by the LEADER's own completion. Review caught the
+    /// bug that shape has: if a stop raced an in-flight start, and then a
+    /// SECOND start request arrived (and, since only one `camera.start()`
+    /// can be in flight at a time, parked as a WAITER on the very same
+    /// in-flight call rather than becoming a new leader), the waiter's
+    /// arrival never touched the bool — so when the original start finally
+    /// resolved, the stale "please stop" from before the second request
+    /// still won, leaving `config.enabled == true` but the camera off and
+    /// `running == false`, with no further start ever issued (`apply` only
+    /// acts on a *transition*). Comparing tokens instead of a bool fixes
+    /// this: the waiter's arrival bumps `startToken`, which immediately
+    /// invalidates the earlier `queuedStopToken` recorded before it.
+    private var queuedStopToken: Int?
 
     public init(config: ConfigStore, counts: CountsStore, prefs: AlertPrefsStore, sink: DetectionSink,
                 previewStream: PreviewStream? = nil) {
@@ -241,8 +269,8 @@ public actor DetectionEngine: CameraFrameReceiver {
 
     /// Tells the camera to stop and reports `running = false` immediately —
     /// even while a `startCameraOnly()` call is suspended inside `await
-    /// camera.start()` for this very engine. See `stopRequestedDuringStart`
-    /// and `startCameraOnly()`'s completion below for the other half of this
+    /// camera.start()` for this very engine. See `queuedStopToken` and
+    /// `startCameraOnly()`'s completion below for the other half of this
     /// fix: without it, a `stop()` that races an in-flight start sets
     /// `running = false` here, then gets silently clobbered back to `true`
     /// (and the camera left running) the moment the in-flight `camera.start()`
@@ -255,14 +283,14 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// `camera.start()`'s TCC prompt.
     public func stop() async {
         if cameraStartInFlight {
-            stopRequestedDuringStart = true
+            queuedStopToken = startToken
         }
         // Told eagerly either way — no reason to wait for the in-flight
         // start to resolve before asking AVFoundation to shut down; `stop()`
         // on `CameraSession` is itself idempotent (gated on
         // `session.isRunning`), so calling it again from
-        // `startCameraOnly()`'s completion once `stopRequestedDuringStart`
-        // is observed costs nothing.
+        // `startCameraOnly()`'s completion once `queuedStopToken` is found
+        // to still apply costs nothing.
         camera.stop()
         running = false
     }
@@ -324,6 +352,11 @@ public actor DetectionEngine: CameraFrameReceiver {
     @discardableResult
     private func startCameraOnly() async -> CameraStartResult {
         camera.receiver = self
+        // Every entry — leader or waiter — is a fresh "start" intent, and
+        // bumping this unconditionally (before the in-flight check) is what
+        // invalidates a `queuedStopToken` recorded by a `stop()` that
+        // arrived before THIS call. See `queuedStopToken`'s doc comment.
+        startToken += 1
 
         if cameraStartInFlight {
             return await withCheckedContinuation { (continuation: CheckedContinuation<CameraStartResult, Never>) in
@@ -340,18 +373,23 @@ public actor DetectionEngine: CameraFrameReceiver {
         // still deserves to know whether permission was granted.
         permission = Self.permissionString(for: result)
 
-        if stopRequestedDuringStart {
+        if let queued = queuedStopToken, queued == startToken {
             // A stop() arrived while this start was suspended inside `await
-            // camera.start()` above and already set `running = false` and
-            // told the camera to stop. Honor that instead of clobbering it
-            // with `result` — even if the camera genuinely did come up,
-            // whoever called stop() must see `running == false` and the
-            // camera must end up stopped, not left running because a
-            // now-stale start happened to resolve afterward.
-            stopRequestedDuringStart = false
+            // camera.start()` above, and NO start request has arrived since
+            // (if one had, `startToken` would have moved past `queued` —
+            // see that property's doc comment). Honor the stop instead of
+            // clobbering it with `result` — even if the camera genuinely
+            // did come up, whoever called stop() must see `running ==
+            // false` and the camera must end up stopped, not left running
+            // because a now-stale start happened to resolve afterward.
+            queuedStopToken = nil
             camera.stop()
             running = false
         } else {
+            // Either no stop was queued, or one was but a later start
+            // superseded it — either way, clear any stale token so it can
+            // never accidentally match a future `startToken` value.
+            queuedStopToken = nil
             running = (result == .started)
         }
 

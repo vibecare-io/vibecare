@@ -62,18 +62,32 @@ private struct Fixture {
     let prefs: AlertPrefsStore
     let counts: CountsStore
     let preview = PreviewStream()
-    let snooze = SnoozeGate()
+    let snooze: SnoozeGate
     let sink: HostSink
     let engine: DetectionEngine
 
+    /// ONE `SnoozeGate` instance, shared by `sink` (which checks it in
+    /// `fired`) and the registered `/api/snooze` route (which sets it) —
+    /// exactly like `main.swift`'s composition root passes a single
+    /// `snoozeGate` to both `HostSink(...)` and `registerVibeCheckRoutes`.
+    /// An earlier version of this fixture built a SEPARATE, unused
+    /// `SnoozeGate()` for `sink` while wiring a different one to the
+    /// routes — the fixture still worked (both gates started fresh and
+    /// unsnoozed), but it meant nothing here could ever have caught a
+    /// `main.swift` regression that passed the wrong gate to one side,
+    /// because `snoozeRouteSuppressesTheNextAlertButNotTheDetectionBroadcast`
+    /// below is the only test that exercises the gate at all, and it would
+    /// have silently tested two independent, always-unsnoozed gates
+    /// instead of one shared, genuinely-snoozed one.
     static func make() async throws -> Fixture {
         let dir = try tempDir()
         let config = try ConfigStore(directory: dir)
         let prefs = try AlertPrefsStore(directory: dir)
         let counts = try CountsStore(directory: dir)
-        let sink = HostSink(prefs: prefs, snooze: SnoozeGate())
+        let snooze = SnoozeGate()
+        let sink = HostSink(prefs: prefs, snooze: snooze)
         let engine = DetectionEngine(config: config, counts: counts, prefs: prefs, sink: sink)
-        let f = Fixture(config: config, prefs: prefs, counts: counts, sink: sink, engine: engine)
+        let f = Fixture(config: config, prefs: prefs, counts: counts, snooze: snooze, sink: sink, engine: engine)
         await registerVibeCheckRoutes(
             router: f.router, engine: f.engine, config: f.config, prefs: f.prefs,
             preview: f.preview, sink: f.sink, snooze: f.snooze,
@@ -82,19 +96,30 @@ private struct Fixture {
         return f
     }
 
-    /// `Fixture.make()` builds its own private `HostSink`/`SnoozeGate` pair
-    /// for `sink`/`snooze`'s stored properties, but registers the routes
-    /// against the ones actually passed to `registerVibeCheckRoutes` above
-    /// — kept as separate `let`s (`self.snooze`, not the one baked into
-    /// `sink`) is intentional: it is the same instance the router closures
-    /// capture, so tests can drive it directly.
-    init(config: ConfigStore, prefs: AlertPrefsStore, counts: CountsStore, sink: HostSink, engine: DetectionEngine) {
+    init(config: ConfigStore, prefs: AlertPrefsStore, counts: CountsStore, snooze: SnoozeGate,
+         sink: HostSink, engine: DetectionEngine) {
         self.config = config
         self.prefs = prefs
         self.counts = counts
+        self.snooze = snooze
         self.sink = sink
         self.engine = engine
     }
+}
+
+private actor SpyAlertHost: AlertHost {
+    private(set) var alerts: [VCAlert] = []
+    func alert(_ a: VCAlert) async throws { alerts.append(a) }
+    func publish(topic: String, payload: Data) async throws {}
+}
+
+private func nosePickingHit() -> LandmarkFrame {
+    LandmarkFrame(
+        hand: HandGeometry(fingertips: [CGPoint(x: 0.5, y: 0.5)]),
+        face: FaceGeometry(box: CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4),
+                            nose: CGPoint(x: 0.5, y: 0.5),
+                            mouth: CGPoint(x: 0.5, y: 0.62))
+    )
 }
 
 private func request(_ method: String, _ path: String, query: [String: String] = [:], body: Data = Data()) -> VCRequest {
@@ -141,7 +166,17 @@ private func request(_ method: String, _ path: String, query: [String: String] =
     #expect(decoded.cooldown == 30)
 
     // Also confirms "apply live": the engine's own cached snapshot reflects
-    // the same clamped values, not just what's on disk.
+    // the same clamped values, not just what's on disk. `apply` now runs in
+    // a DETACHED Task (fixed after review: an inline `await engine.apply`
+    // here would block the HTTP response on a TCC prompt whenever
+    // `enabled` transitions to `true` — see API.swift's comment), so this
+    // polls for a bounded window instead of asserting immediately after the
+    // handler returns, which raced the detached Task's scheduling.
+    let deadline = ContinuousClock.now + .seconds(2)
+    while ContinuousClock.now < deadline {
+        if await f.engine.snapshot().config.sensitivity == 1.0 { break }
+        try await Task.sleep(for: .milliseconds(10))
+    }
     let snap = await f.engine.snapshot()
     #expect(snap.config.sensitivity == 1.0)
 }
@@ -185,6 +220,39 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
 
     #expect(await writer.status == 200)
     #expect(await f.snooze.isActive() == true)
+}
+
+// The behavior snooze exists for: hitting the route must actually suppress
+// the next alert, not merely flip a gate nothing downstream reads. This is
+// the test the fixture's earlier two-`SnoozeGate` bug (review finding #3)
+// would have sailed straight through — `Fixture.make()` now wires exactly
+// one `SnoozeGate` to both `sink` and the routes (see its doc comment), and
+// this is what actually exercises that being true rather than merely
+// asserting it in a comment.
+@Test func snoozeRouteSuppressesTheNextAlertButNotTheDetectionBroadcast() async throws {
+    let f = try await Fixture.make()
+    let spyHost = SpyAlertHost()
+    await f.sink.attach(host: spyHost)
+
+    let stream = await f.sink.events()
+    var iterator = stream.makeAsyncIterator()
+
+    let snoozeHandler = try #require(await f.router.route("/api/snooze"))
+    try await snoozeHandler(request("POST", "/api/snooze", query: ["minutes": "10"]), RecordingWriter())
+    #expect(await f.snooze.isActive() == true)
+
+    let hit = nosePickingHit()
+    await f.engine.ingestForTesting(hit, at: 0)
+    await f.engine.ingestForTesting(hit, at: 0.2)   // dwell (0.15) satisfied -> fires
+
+    // Still broadcast to SSE: snoozing suppresses the popup, not the fact
+    // that a detection happened.
+    let received = await iterator.next()
+    #expect(received?.behavior == .nosePicking)
+
+    // But the alert itself never reached the host — this is the one
+    // assertion that actually proves the route and the sink share a gate.
+    #expect(await spyHost.alerts.isEmpty)
 }
 
 @Test func snoozeWithoutMinutesIs400() async throws {
