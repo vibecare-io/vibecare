@@ -297,24 +297,35 @@ build-vibecheck-plugin:
     @echo "{{GREEN}}Building vibecheck plugin...{{NC}}"
     cd plugins/vibecheck && swift build -c release \
         -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist
-    # Sign BEFORE copying, and specifically in .build/release/. plugins/vibecheck/
-    # contains an Info.plist, so codesigning the copy there makes codesign treat
-    # the whole directory as a bundle: it hashes everything under it — all of
-    # .build/ included — and drops a ~9 MB plugins/vibecheck/_CodeSignature/
-    # CodeResources next to the binary. Signing where no Info.plist sits beside
-    # the Mach-O produces the same signature (the __info_plist section is linked
-    # in above, so Identifier and Info.plist entries are identical) with no
-    # bundle. The signature lives inside the Mach-O, so the copy preserves it.
+    # Sign BEFORE copying, and specifically in .build/release/. The signature
+    # lives inside the Mach-O, so the copy preserves it, and signing where no
+    # Info.plist sits beside the binary produces the same signature anyway
+    # (the __info_plist section is linked in above, so Identifier and
+    # Info.plist entries are identical).
     codesign -f -s - plugins/vibecheck/.build/release/vibecheck
-    cp plugins/vibecheck/.build/release/vibecheck plugins/vibecheck/vibecheck
+    # Stage into plugins/vibecheck/dist/ — a directory that holds ONLY the
+    # binary and its resource bundle.
+    #
+    # NOT plugins/vibecheck/ itself. That directory contains Info.plist, and
+    # a directory holding an Info.plist beside an executable named after the
+    # directory IS a flat bundle to codesign. It then resolves the plugin
+    # root as a bundle and rejects the binary — "code has no resources but
+    # signature indicates they must be present" — which AMFI turns into a
+    # SIGKILL the instant core spawns it (`plugin state {"state":"down",
+    # "detail":"signal: killed"}`). That made `just run`, which points
+    # --plugins-dir at this very directory, unable to start vibecheck at all.
+    # dist/ holds no Info.plist and its name differs from the binary's, so
+    # the staged copy stays a plain Mach-O and verifies.
+    rm -rf plugins/vibecheck/dist
+    mkdir -p plugins/vibecheck/dist
+    cp plugins/vibecheck/.build/release/vibecheck plugins/vibecheck/dist/vibecheck
     # The UI is a SwiftPM resource (Sources/vibecheck/ui, declared as
     # `resources: [.copy("ui")]`), so it ships as a .bundle directory that
     # must sit NEXT TO the binary — that is the only place the generated
     # Bundle.module accessor looks in a real install. Copy the binary alone
     # and GET /p/vibecheck/ serves a 500 with no UI.
-    rm -rf plugins/vibecheck/vibecheck_vibecheck.bundle
-    cp -R plugins/vibecheck/.build/release/vibecheck_vibecheck.bundle plugins/vibecheck/
-    @echo "{{GREEN}}✓ vibecheck plugin built: plugins/vibecheck/vibecheck{{NC}}"
+    cp -R plugins/vibecheck/.build/release/vibecheck_vibecheck.bundle plugins/vibecheck/dist/
+    @echo "{{GREEN}}✓ vibecheck plugin built: plugins/vibecheck/dist/vibecheck{{NC}}"
 
 # Copies each built plugin into the directory core scans by default
 # (~/.vibecare/plugins-v2/<id>/), so an installed VibeCare finds them with
@@ -328,20 +339,63 @@ install-plugins: build-plugins
     set -euo pipefail
     dest="$HOME/.vibecare/plugins-v2"
     mkdir -p "$dest"
+
+    # Install by rename, never by overwriting in place.
+    #
+    # A plain `cp` over a binary that a RUNNING core has mapped keeps the
+    # same inode, and macOS then refuses to exec that inode again: the next
+    # spawn dies with SIGKILL and core reports `signal: killed`, while
+    # `codesign --verify` still calls the file perfectly valid — the
+    # signature is fine, the kernel's cached validation for that inode is
+    # not. Since installing while a core is up is the normal case (that is
+    # the whole point of installing), this bit every time.
+    #
+    # Renaming into place swaps the directory entry to a NEW inode instead.
+    # The running process keeps the old one until it exits, and the next
+    # spawn gets a clean file. Same filesystem, so mv is an atomic rename.
+    install_file() {
+        cp "$1" "$2.tmp.$$"
+        mv -f "$2.tmp.$$" "$2"
+    }
+    install_tree() {
+        rm -rf "$2.tmp.$$"
+        cp -R "$1" "$2.tmp.$$"
+        rm -rf "$2"
+        mv "$2.tmp.$$" "$2"
+    }
+
     for dir in plugins/*/; do
         id=$(basename "$dir")
         [ -f "$dir/manifest.yaml" ] || continue
-        [ -x "$dir/$id" ] || { echo -e "${YELLOW}skipping $id: no binary${NC}"; continue; }
         mkdir -p "$dest/$id"
-        cp "$dir/$id" "$dir/manifest.yaml" "$dest/$id/"
-        # SwiftPM plugins ship their resources as a .bundle beside the
-        # binary, and the generated Bundle.module accessor resolves it
-        # relative to the executable — so it has to travel with it.
-        for bundle in "$dir"*.bundle; do
-            [ -d "$bundle" ] || continue
-            rm -rf "$dest/$id/$(basename "$bundle")"
-            cp -R "$bundle" "$dest/$id/"
-        done
+        if [ -d "$dir/dist" ]; then
+            # A plugin that stages its build output (vibecheck does, so its
+            # binary never sits beside Info.plist — see
+            # build-vibecheck-plugin). Copy dist/ AS dist/, keeping the
+            # layout identical to the repo's, so the manifest's
+            # `exec: ./dist/<id>` resolves the same way in both places.
+            install_file "$dir/manifest.yaml" "$dest/$id/manifest.yaml"
+            install_tree "$dir/dist" "$dest/$id/dist"
+            # Clear the pre-dist layout if this destination still has it.
+            # Harmless to leave (the manifest points into dist/ now), but a
+            # stale binary sitting at the top level is exactly what someone
+            # checks the timestamp of when a plugin looks out of date, and
+            # it would answer with the wrong file.
+            rm -f "$dest/$id/$id"
+            rm -rf "$dest/$id"/*.bundle
+        else
+            # A plugin whose binary sits beside its manifest (todo).
+            [ -x "$dir/$id" ] || { echo -e "${YELLOW}skipping $id: no binary${NC}"; continue; }
+            install_file "$dir/$id" "$dest/$id/$id"
+            install_file "$dir/manifest.yaml" "$dest/$id/manifest.yaml"
+            # SwiftPM plugins ship their resources as a .bundle beside the
+            # binary, and the generated Bundle.module accessor resolves it
+            # relative to the executable — so it has to travel with it.
+            for bundle in "$dir"*.bundle; do
+                [ -d "$bundle" ] || continue
+                install_tree "$bundle" "$dest/$id/$(basename "$bundle")"
+            done
+        fi
         echo -e "${GREEN}✓ installed $id -> $dest/$id{{NC}}"
     done
 
