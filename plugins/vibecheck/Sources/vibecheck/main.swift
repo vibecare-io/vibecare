@@ -1,5 +1,6 @@
 import Foundation
 import VCPluginSDK
+import VibeCheckKit
 
 // Composition root. Order matters: routes before connect, because connect
 // binds, accepts, and registers — and core's proxy targets our port the
@@ -56,6 +57,13 @@ case .failure(let err):
     exit(1)
 }
 
+// `VIBECARE_DATA_DIR` is created 0700 by core before spawn, so this never
+// has to create the directory itself — only open (or start fresh) the file
+// inside it. A throw here is a programming error (a malformed URL), not a
+// missing-file condition: ConfigStore itself treats a missing or corrupt
+// config.json as defaults rather than throwing.
+let configStore = try ConfigStore(directory: env.dataDir)
+
 let router = VCRouter()
 
 await router.handle("/") { _, writer in
@@ -86,6 +94,48 @@ await router.handle("/api/state") { _, writer in
     ])
     try await writer.write(body)
     try await writer.finish()
+}
+
+// GET returns the persisted config (defaults if none was ever saved); PUT
+// clamps and writes it atomically. This is the only wiring proving
+// DataRoot -> VIBECARE_DATA_DIR -> config.json is genuinely connected — see
+// e2e_test.go's TestConfigPersistsToTheDataDir, which asserts the file on
+// disk rather than reading it back through this same process.
+await router.handle("/api/config") { request, writer in
+    switch request.method {
+    case "GET":
+        let body = (try? JSONEncoder().encode(await configStore.load())) ?? Data(#"{}"#.utf8)
+        try await writer.writeHead(status: 200, headers: [
+            "Content-Type": "application/json",
+            "Content-Length": "\(body.count)",
+        ])
+        try await writer.write(body)
+        try await writer.finish()
+
+    case "PUT":
+        guard let decoded = try? JSONDecoder().decode(VibeCheckConfig.self, from: request.body) else {
+            let body = Data(#"{"error":"invalid config"}"#.utf8)
+            try await writer.writeHead(status: 400, headers: [
+                "Content-Type": "application/json",
+                "Content-Length": "\(body.count)",
+            ])
+            try await writer.write(body)
+            try await writer.finish()
+            return
+        }
+        try await configStore.save(decoded)
+        let body = (try? JSONEncoder().encode(await configStore.load())) ?? Data(#"{}"#.utf8)
+        try await writer.writeHead(status: 200, headers: [
+            "Content-Type": "application/json",
+            "Content-Length": "\(body.count)",
+        ])
+        try await writer.write(body)
+        try await writer.finish()
+
+    default:
+        try await writer.writeHead(status: 405, headers: ["Allow": "GET, PUT"])
+        try await writer.finish()
+    }
 }
 
 let host = try await VCHost.connect(env: env, router: router)

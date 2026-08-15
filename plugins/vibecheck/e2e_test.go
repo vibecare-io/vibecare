@@ -333,8 +333,6 @@ func TestSIGTERMExitsWellInsideCoreShutdownGrace(t *testing.T) {
 // whose flush is a silent no-op. The claim this test exists to make is the
 // wiring: core's DataRoot -> VIBECARE_DATA_DIR -> the file on disk.
 func TestConfigPersistsToTheDataDir(t *testing.T) {
-	t.Skip("config store arrives in Task 10")
-
 	client, base, home, _ := liveKernel(t)
 	body := `{"enabled":true,"sensitivity":0.7,"dwell":0.15,"cooldown":5,"enabledBehaviors":["nailBiting"]}`
 	req, _ := http.NewRequest("PUT", base+"/p/vibecheck/api/config", strings.NewReader(body))
