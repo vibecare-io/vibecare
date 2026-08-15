@@ -16,8 +16,10 @@ private func visionLog(_ message: String) {
 /// This is the ONLY place in the plugin where Vision's coordinate
 /// convention (normalized, origin bottom-left, y UP) exists. Every point and
 /// rect this type emits has already been converted to viewer space (origin
-/// top-left, y DOWN) via `normalize` below — nothing downstream ever sees a
-/// Vision-space coordinate.
+/// top-left, y DOWN) via `ViewerSpace.point`/`ViewerSpace.rect` — the single
+/// canonical conversion, shared with (per the architecture ruling) Task
+/// 14's JPEG preview flip — nothing downstream ever sees a Vision-space
+/// coordinate.
 public struct VisionLandmarkExtractor {
     private let handRequest: VNDetectHumanHandPoseRequest = {
         let r = VNDetectHumanHandPoseRequest()
@@ -69,35 +71,25 @@ public struct VisionLandmarkExtractor {
 
     // MARK: - Coordinate normalization
     //
-    // Deliberately NOT `private`, unlike the rest of this type: these two
-    // functions are pure (no Vision, no camera) and are exactly where the
-    // real risk in this file lives, so they need to be reachable from
-    // `VibeCheckKitTests` via `@testable import`. Everything else here needs
-    // real hardware to exercise and is verified manually instead.
-
-    /// y is always flipped (Vision is y-up). x is flipped ONLY when the
-    /// source was not already mirrored — an external USB webcam or a
-    /// Continuity Camera is not auto-mirrored, and without this every x
-    /// would be silently wrong for those devices.
-    static func normalize(_ p: CGPoint, mirrored: Bool) -> CGPoint {
-        let x = mirrored ? p.x : 1 - p.x
-        return CGPoint(x: x, y: 1 - p.y)
-    }
-
-    /// A Vision rect's TOP edge is at y-up `maxY`, which becomes viewer
-    /// `1 - maxY`. When not mirrored, the rect's right edge (`maxX`) becomes
-    /// the new left edge, so the new `minX` is `1 - maxX`. Width and height
-    /// are unchanged either way.
-    static func normalize(_ r: CGRect, mirrored: Bool) -> CGRect {
-        let minX = mirrored ? r.minX : 1 - r.maxX
-        return CGRect(x: minX, y: 1 - r.maxY, width: r.width, height: r.height)
-    }
+    // Point/rect conversion lives in `ViewerSpace` (Geometry.swift) — the
+    // single canonical implementation. It used to be duplicated here with
+    // its own (differently-signed) x rule; that duplication is exactly the
+    // kind of "two answers, quietly disagreeing" bug this comment now warns
+    // against. Only the mask-specific column mapping stays local to this
+    // type, since it has no equivalent in `ViewerSpace`.
 
     /// Maps a viewer-space mask column back to the column to sample from the
     /// (unflipped) segmentation buffer. When `mirrored` is false the columns
-    /// must be reversed the same way `normalize(_:mirrored:)` reverses x, or
-    /// the mask and the landmarks it's compared against would disagree about
-    /// which side of the frame is which.
+    /// must be reversed the same way `ViewerSpace.point`/`.rect` reverse x —
+    /// `sourceColumn`'s reversal is the same "flip when not mirrored" rule
+    /// expressed as a column index rather than a [0,1] coordinate, and
+    /// `VisionLandmarkExtractorTests` pins the two rules against each other
+    /// directly — or the mask would disagree with every landmark point
+    /// emitted alongside it about which side of the frame is which.
+    ///
+    /// Deliberately NOT `private`: pure, no Vision/camera involved, and
+    /// reachable from `VibeCheckKitTests` via `@testable import` for exactly
+    /// that reason.
     static func sourceColumn(forViewerColumn c: Int, cols: Int, mirrored: Bool) -> Int {
         mirrored ? c : (cols - 1 - c)
     }
@@ -109,7 +101,7 @@ public struct VisionLandmarkExtractor {
         var tips: [CGPoint] = []
         for joint in tipJoints {
             if let p = try? obs.recognizedPoint(joint), p.confidence > 0.3 {
-                tips.append(Self.normalize(CGPoint(x: p.location.x, y: p.location.y), mirrored: mirrored))
+                tips.append(ViewerSpace.point(CGPoint(x: p.location.x, y: p.location.y), mirrored: mirrored))
             }
         }
         return tips.isEmpty ? nil : HandGeometry(fingertips: tips)
@@ -128,9 +120,9 @@ public struct VisionLandmarkExtractor {
             ?? CGPoint(x: box.midX, y: box.midY)
         let mouth = centroid(face.landmarks?.outerLips)
             ?? CGPoint(x: box.midX, y: box.minY + box.height * 0.2)
-        return FaceGeometry(box: Self.normalize(box, mirrored: mirrored),
-                             nose: Self.normalize(nose, mirrored: mirrored),
-                             mouth: Self.normalize(mouth, mirrored: mirrored))
+        return FaceGeometry(box: ViewerSpace.rect(box, mirrored: mirrored),
+                             nose: ViewerSpace.point(nose, mirrored: mirrored),
+                             mouth: ViewerSpace.point(mouth, mirrored: mirrored))
     }
 
     /// Downsamples the person-segmentation mask (OneComponent8, 0..255,

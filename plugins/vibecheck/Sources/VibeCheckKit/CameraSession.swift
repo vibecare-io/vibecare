@@ -94,14 +94,6 @@ public final class CameraSession: NSObject, AVCaptureVideoDataOutputSampleBuffer
         }
     }
 
-    /// Whether the currently configured output connection is source-mirrored,
-    /// exposed for diagnostics (e.g. the `--probe-camera` startup check).
-    /// The per-frame value handed to the receiver in `captureOutput` is the
-    /// one that actually matters — see the comment there.
-    public var isSourceMirrored: Bool {
-        output.connection(with: .video)?.isVideoMirrored ?? true
-    }
-
     private func configure() -> Bool {
         session.beginConfiguration()
         defer { session.commitConfiguration() }
@@ -123,18 +115,34 @@ public final class CameraSession: NSObject, AVCaptureVideoDataOutputSampleBuffer
         guard session.canAddOutput(output) else { return false }
         session.addOutput(output)
 
-        // Deliberately DON'T touch mirroring on the output connection. macOS
-        // auto-mirrors the built-in front camera on the data output by
-        // default (automaticallyAdjustsVideoMirroring), and that default is
-        // applied consistently at all times. Manually forcing it in
-        // configure() only takes effect when the connection happens to be
-        // ready, which flips the published coordinate space on exactly one
-        // of first-open / re-open — this was hit and fixed empirically in
-        // the client this was ported from. Leaving auto-mirroring on and
-        // reading `connection.isVideoMirrored` per frame (see
-        // captureOutput below) keeps it correct across restarts regardless
-        // of timing, and also correctly reports `false` for an external
-        // webcam or Continuity Camera, which macOS does not auto-mirror.
+        // Deliberately DON'T touch mirroring on the output connection.
+        //
+        // This comment used to claim macOS auto-mirrors the built-in front
+        // camera on the data output by default. Measured false: with
+        // automaticallyAdjustsVideoMirroring left at its default (true), a
+        // real run of this plugin's --probe-camera against the built-in
+        // "MacBook Pro Camera" found BOTH this data output's
+        // connection.isVideoMirrored AND a temporarily-added previewLayer's
+        // connection.isVideoMirrored come back `false`, stable across 10
+        // consecutive frames (see the Task 11/12 report). That device's
+        // AVCaptureDevice.position is .unspecified, not .front — whatever
+        // heuristic macOS uses to decide to auto-mirror apparently never
+        // fires for it. So macOS is not silently doing the right thing here
+        // for this plugin, on this hardware, and the architecture ruling
+        // that followed this measurement is: the plugin mirrors both
+        // surfaces (landmarks and, in Task 14, the JPEG preview) ITSELF,
+        // driven by the per-frame value this connection actually reports —
+        // never by an assumption about which camera is attached.
+        //
+        // The original reasoning is gone, but its conclusion still holds:
+        // still don't force mirroring here. `connection.isVideoMirrored` is
+        // only meaningful once the connection is ready, and forcing/caching
+        // a value in configure() reintroduces the client's original
+        // first-open-vs-reopen timing bug (see captureOutput below). Read it
+        // per frame instead and forward it as-is — whatever it says — as
+        // `LandmarkFrame.mirrored`, the single value every consumer of this
+        // frame (this extractor's ViewerSpace calls, and Task 14's encoder)
+        // must derive its flip from.
         return true
     }
 
