@@ -11,6 +11,7 @@ import {
   orgFilesExist,
   routeForDocsPath,
   rewriteLinks,
+  normalizeDocsRel,
 } from './sync-docs.mjs';
 
 test('deriveTitle uses first H1', () => {
@@ -81,6 +82,12 @@ test('rewriteLinks resolves relative to the source file directory', () => {
   const src = 'link to [y](y.md)';
   const out = rewriteLinks(src, 'superpowers/specs/x.md', docSet);
   assert.match(out, /\[y\]\(\/superpowers\/specs\/y\/\)/);
+});
+
+test('normalizeDocsRel strips a leading dot from each path segment', () => {
+  assert.equal(normalizeDocsRel('.superpowers/sdd/x.md'), 'superpowers/sdd/x.md');
+  assert.equal(normalizeDocsRel('superpowers/specs/y.md'), 'superpowers/specs/y.md');
+  assert.equal(normalizeDocsRel('MCP_SETUP.md'), 'MCP_SETUP.md');
 });
 
 test('convertOrg turns org into markdown (needs pandoc)', { skip: !hasPandoc() }, () => {
