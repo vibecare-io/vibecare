@@ -116,9 +116,21 @@ case .failure(let err):
 // `VIBECARE_DATA_DIR` is created 0700 by core before spawn, so this never
 // has to create the directory itself — only open (or start fresh) the file
 // inside it. A throw here is a programming error (a malformed URL), not a
-// missing-file condition: ConfigStore itself treats a missing or corrupt
-// config.json as defaults rather than throwing.
+// missing-file condition: ConfigStore/AlertPrefsStore/CountsStore all treat
+// a missing or corrupt file as defaults rather than throwing.
 let configStore = try ConfigStore(directory: env.dataDir)
+let alertPrefsStore = try AlertPrefsStore(directory: env.dataDir)
+let countsStore = try CountsStore(directory: env.dataDir)
+
+let previewStream = PreviewStream()
+let snoozeGate = SnoozeGate()
+// Constructed hostless: routes (and the `DetectionEngine` they need to
+// exist) must be registered before `VCHost.connect()` can be called at all
+// — see the ordering comment below — so no live `VCHost` exists yet at this
+// point. `hostSink.attach(host:)` runs right after `connect()` returns.
+let hostSink = HostSink(prefs: alertPrefsStore, snooze: snoozeGate)
+let engine = DetectionEngine(config: configStore, counts: countsStore, prefs: alertPrefsStore,
+                              sink: hostSink, previewStream: previewStream)
 
 let router = VCRouter()
 
@@ -139,69 +151,50 @@ await router.handle("/") { _, writer in
     try await writer.finish()
 }
 
-await router.handle("/api/state") { _, writer in
-    // Task 8 replaces this with the detector's real state. Until then it is
-    // still load-bearing: it is what the e2e harness polls to decide the
-    // plugin is reachable through the proxy.
-    let body = Data(#"{"running":false}"#.utf8)
-    try await writer.writeHead(status: 200, headers: [
-        "Content-Type": "application/json",
-        "Content-Length": "\(body.count)",
-    ])
-    try await writer.write(body)
-    try await writer.finish()
-}
-
-// GET returns the persisted config (defaults if none was ever saved); PUT
-// clamps and writes it atomically. This is the only wiring proving
-// DataRoot -> VIBECARE_DATA_DIR -> config.json is genuinely connected — see
-// e2e_test.go's TestConfigPersistsToTheDataDir, which asserts the file on
-// disk rather than reading it back through this same process.
-await router.handle("/api/config") { request, writer in
-    switch request.method {
-    case "GET":
-        let body = (try? JSONEncoder().encode(await configStore.load())) ?? Data(#"{}"#.utf8)
-        try await writer.writeHead(status: 200, headers: [
-            "Content-Type": "application/json",
-            "Content-Length": "\(body.count)",
-        ])
-        try await writer.write(body)
-        try await writer.finish()
-
-    case "PUT":
-        guard let decoded = try? JSONDecoder().decode(VibeCheckConfig.self, from: request.body) else {
-            let body = Data(#"{"error":"invalid config"}"#.utf8)
-            try await writer.writeHead(status: 400, headers: [
-                "Content-Type": "application/json",
-                "Content-Length": "\(body.count)",
-            ])
-            try await writer.write(body)
-            try await writer.finish()
-            return
-        }
-        try await configStore.save(decoded)
-        let body = (try? JSONEncoder().encode(await configStore.load())) ?? Data(#"{}"#.utf8)
-        try await writer.writeHead(status: 200, headers: [
-            "Content-Type": "application/json",
-            "Content-Length": "\(body.count)",
-        ])
-        try await writer.write(body)
-        try await writer.finish()
-
-    default:
-        try await writer.writeHead(status: 405, headers: ["Allow": "GET, PUT"])
-        try await writer.finish()
-    }
-}
+// The whole `/api/*` surface — state, config, alert-prefs, snooze, disable,
+// the SSE event feed, the MJPEG preview, and the bundled behavior icons.
+// Registered before `VCHost.connect()` below, same reasoning as `/` above:
+// core's proxy targets this plugin's port the instant `connect()` marks it
+// up, and `/api/state` in particular is what the e2e harness (and any real
+// client) polls first to decide the plugin is reachable at all.
+await registerVibeCheckRoutes(
+    router: router,
+    engine: engine,
+    config: configStore,
+    prefs: alertPrefsStore,
+    preview: previewStream,
+    sink: hostSink,
+    snooze: snoozeGate,
+    loadIcon: { id in uiResourceURL("ui/icons/\(id).svg").flatMap { try? Data(contentsOf: $0) } }
+)
 
 let host = try await VCHost.connect(env: env, router: router)
 
+// Only now does a live `VCHost` exist for `HostSink.fired` to alert/publish
+// through — see `HostSink`'s and `hostSink`'s own doc comments for why this
+// can't happen any earlier.
+await hostSink.attach(host: host)
+
 // Registered immediately after connecting, not later: SIGTERM can land in
 // the gap, and a hook registered after shutdown has already run is executed
-// rather than dropped (the Go SDK's sync.Once silently loses it). Nothing to
-// flush yet — the detector and the config store arrive in Tasks 8 and 10 —
-// but the ordering is the part that has to be right from the start.
-await host.onShutdown {}
+// rather than dropped (the Go SDK's sync.Once silently loses it). Stops the
+// camera on the way down — privacy-adjacent, same as every other path that
+// turns detection off — via the same `stop()` this task's wiring fixed to
+// coordinate with an in-flight camera start.
+await host.onShutdown { await engine.stop() }
+
+// Fire-and-forget, NOT awaited inline: `engine.start()` may await a TCC
+// permission prompt (or, per `CameraSession.start()`, `AVCaptureDevice.
+// requestAccess`) that can take arbitrarily long — or in a display-less
+// environment, may not resolve promptly at all. Awaiting it here would
+// block this script from ever reaching `waitForShutdown()` below, and
+// `waitForShutdown()` returning is the ONLY way this process exits (see its
+// own doc comment) — SIGTERM handling is independent (trapped inside
+// `VCHost.connect()` already), but the process itself would never fall off
+// the end and never actually terminate. `start()` internally loads
+// `cachedConfig` from disk and only opens the camera if it says `enabled`,
+// so a fresh/disabled install returns near-instantly regardless.
+Task { await engine.start() }
 
 // This — not a sleep, and not exit() — is how the process ends. VCHost's
 // SIGTERM handler runs the shutdown hooks and deliberately does NOT call

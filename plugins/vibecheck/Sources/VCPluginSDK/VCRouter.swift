@@ -5,6 +5,19 @@ public struct VCRequest: Sendable {
     public let path: String
     public let query: [String: String]
     public let body: Data
+
+    /// Only `VCHTTPHandler.channelRead` builds these in production (from a
+    /// real NIO request), but the struct otherwise has no reason to be
+    /// unconstructable from outside this module — a plugin's own test suite
+    /// driving its registered `VCHandler`s directly, in-process, with no
+    /// real socket, is exactly the kind of fast/deterministic test this
+    /// field-only struct should make easy.
+    public init(method: String, path: String, query: [String: String] = [:], body: Data = Data()) {
+        self.method = method
+        self.path = path
+        self.query = query
+        self.body = body
+    }
 }
 
 /// Streaming response interface. Handlers write rather than return, because
