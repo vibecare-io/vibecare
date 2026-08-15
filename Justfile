@@ -296,8 +296,16 @@ build-vibecheck-plugin:
     @echo "{{GREEN}}Building vibecheck plugin...{{NC}}"
     cd plugins/vibecheck && swift build -c release \
         -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist
+    # Sign BEFORE copying, and specifically in .build/release/. plugins/vibecheck/
+    # contains an Info.plist, so codesigning the copy there makes codesign treat
+    # the whole directory as a bundle: it hashes everything under it — all of
+    # .build/ included — and drops a ~9 MB plugins/vibecheck/_CodeSignature/
+    # CodeResources next to the binary. Signing where no Info.plist sits beside
+    # the Mach-O produces the same signature (the __info_plist section is linked
+    # in above, so Identifier and Info.plist entries are identical) with no
+    # bundle. The signature lives inside the Mach-O, so the copy preserves it.
+    codesign -f -s - plugins/vibecheck/.build/release/vibecheck
     cp plugins/vibecheck/.build/release/vibecheck plugins/vibecheck/vibecheck
-    codesign -f -s - plugins/vibecheck/vibecheck
     @echo "{{GREEN}}✓ vibecheck plugin built: plugins/vibecheck/vibecheck{{NC}}"
 
 # Copies each built plugin into the directory core scans by default
