@@ -12,6 +12,14 @@ private func engineLog(_ message: String) {
     fputs("vibecheck: \(message)\n", stderr)
 }
 
+/// See `didOutput`'s use of this for why it exists: a `@unchecked Sendable`
+/// wrapper that lets a `CVPixelBuffer` cross into an unstructured `Task`
+/// despite the compiler's region-based "sending" check being unable to
+/// prove that's safe on its own.
+private struct PixelBufferBox: @unchecked Sendable {
+    let buffer: CVPixelBuffer
+}
+
 /// Abstracts what happens to a confirmed detection so `DetectionEngine` can be
 /// tested without a live core connection. Mirrors the client's
 /// `DetectionNotifying` seam (`VibeCheckViewModel.swift`). The production
@@ -123,6 +131,16 @@ public actor DetectionEngine: CameraFrameReceiver {
     private let prefs: AlertPrefsStore
     private var sink: DetectionSink
 
+    /// `/preview.mjpeg`'s whole frame source. `nil` in every existing test
+    /// (and safe to leave `nil` there): `CameraSession.receiver` is a single
+    /// slot, already claimed by this engine for Vision analysis, so the raw
+    /// pixel buffer has to be re-forwarded from here rather than have
+    /// `PreviewStream` attach to the camera independently. Fed EVERY raw
+    /// frame in `didOutput`, deliberately before the Vision throttle below —
+    /// see `PreviewStream.publish`'s own doc comment for why its cadence is
+    /// independent of, and looser than, Vision's 15fps gate.
+    public nonisolated let previewStream: PreviewStream?
+
     private var detector = BFRBDetector(sensitivity: VibeCheckConfig.default.sensitivity)
     private var policy = DetectionPolicy(dwell: VibeCheckConfig.default.dwell,
                                           cooldown: VibeCheckConfig.default.cooldown)
@@ -177,12 +195,20 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// already `true`; released with the real result once the in-flight
     /// call returns. Same shape as `VCShutdownLatch` in `VCPluginSDK`.
     private var cameraStartWaiters: [CheckedContinuation<CameraStartResult, Never>] = []
+    /// Set by `stop()` when it arrives while `cameraStartInFlight` is
+    /// `true`. Checked — and cleared — by `startCameraOnly()`'s completion,
+    /// so a stop that raced an in-flight start wins instead of being
+    /// clobbered by whatever that now-stale start concludes. See `stop()`'s
+    /// doc comment for the concrete scenario this exists to prevent.
+    private var stopRequestedDuringStart = false
 
-    public init(config: ConfigStore, counts: CountsStore, prefs: AlertPrefsStore, sink: DetectionSink) {
+    public init(config: ConfigStore, counts: CountsStore, prefs: AlertPrefsStore, sink: DetectionSink,
+                previewStream: PreviewStream? = nil) {
         self.config = config
         self.counts = counts
         self.prefs = prefs
         self.sink = sink
+        self.previewStream = previewStream
     }
 
     // MARK: - Lifecycle
@@ -213,7 +239,30 @@ public actor DetectionEngine: CameraFrameReceiver {
         return await startCameraOnly()
     }
 
+    /// Tells the camera to stop and reports `running = false` immediately —
+    /// even while a `startCameraOnly()` call is suspended inside `await
+    /// camera.start()` for this very engine. See `stopRequestedDuringStart`
+    /// and `startCameraOnly()`'s completion below for the other half of this
+    /// fix: without it, a `stop()` that races an in-flight start sets
+    /// `running = false` here, then gets silently clobbered back to `true`
+    /// (and the camera left running) the moment the in-flight `camera.start()`
+    /// call resolves — a caller who just asked to turn detection off, mid-
+    /// start, would see `/api/state` report `running: true` and the camera
+    /// hardware still active. That is a real, user-triggerable race through
+    /// this task's own wiring: `PUT /api/config` with `enabled: false` calls
+    /// `apply(_:)` -> `stop()`, and can land while `start()` (called once,
+    /// unawaited, from main.swift's boot sequence) is still awaiting
+    /// `camera.start()`'s TCC prompt.
     public func stop() async {
+        if cameraStartInFlight {
+            stopRequestedDuringStart = true
+        }
+        // Told eagerly either way — no reason to wait for the in-flight
+        // start to resolve before asking AVFoundation to shut down; `stop()`
+        // on `CameraSession` is itself idempotent (gated on
+        // `session.isRunning`), so calling it again from
+        // `startCameraOnly()`'s completion once `stopRequestedDuringStart`
+        // is observed costs nothing.
         camera.stop()
         running = false
     }
@@ -286,8 +335,25 @@ public actor DetectionEngine: CameraFrameReceiver {
         let result = await camera.start()
         cameraStartInFlight = false
 
-        running = (result == .started)
+        // `permission` always reflects what the OS actually said, even if a
+        // stop() below overrides `running` — a caller who stopped mid-start
+        // still deserves to know whether permission was granted.
         permission = Self.permissionString(for: result)
+
+        if stopRequestedDuringStart {
+            // A stop() arrived while this start was suspended inside `await
+            // camera.start()` above and already set `running = false` and
+            // told the camera to stop. Honor that instead of clobbering it
+            // with `result` — even if the camera genuinely did come up,
+            // whoever called stop() must see `running == false` and the
+            // camera must end up stopped, not left running because a
+            // now-stale start happened to resolve afterward.
+            stopRequestedDuringStart = false
+            camera.stop()
+            running = false
+        } else {
+            running = (result == .started)
+        }
 
         let waiters = cameraStartWaiters
         cameraStartWaiters.removeAll()
@@ -370,6 +436,26 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// doc comment for why a `Date`-based throttle would be exactly the bug
     /// `monotonicSeconds()` exists to avoid for policy time.
     public nonisolated func didOutput(_ pixelBuffer: CVPixelBuffer, mirrored: Bool) {
+        // Every raw frame, unconditionally, BEFORE the Vision throttle below
+        // — `PreviewStream.publish` has its own, independent, looser cadence
+        // gate (10fps) and idles for free when nobody is attached, so this
+        // never costs anything when no one is watching the preview.
+        //
+        // `pixelBuffer` is still used below (by `extractor.analyze`), so the
+        // compiler's region-based "sending" check refuses to hand the bare
+        // variable to an unstructured `Task` — it cannot prove this closure
+        // won't race the rest of this function's use of the same buffer.
+        // `PixelBufferBox` sidesteps that the same way `CameraSession`'s
+        // `AVCaptureSession: @unchecked Sendable` extension does: CVPixelBuffer
+        // is a CF reference type, safe to hand to another concurrency domain
+        // for a read-only encode, and the box's `@unchecked Sendable`
+        // conformance is what lets the closure capture IT instead of the
+        // tracked `pixelBuffer` binding.
+        if let previewStream {
+            let box = PixelBufferBox(buffer: pixelBuffer)
+            Task { await previewStream.publish(box.buffer, mirrored: mirrored) }
+        }
+
         let ts = Date()
         seqUnsafe &+= 1
         let seq = seqUnsafe
@@ -462,22 +548,108 @@ public actor DetectionEngine: CameraFrameReceiver {
 
 // MARK: - Production sink
 
-/// Production `DetectionSink`: an alert to every connected client, plus a bus
-/// publish. The publish is an enhancement gated on presence — nothing in this
+/// The subset of `VCHost` that `HostSink` actually calls. Exists purely as a
+/// unit-testing seam: `VCHost` dials a real gRPC socket in `connect()` and
+/// cannot be constructed in a test, so tests inject a spy conforming to this
+/// instead. `VCHost` itself needs no changes to conform — its `alert(_:)`
+/// and `publish(topic:payload:)` already match this signature exactly.
+public protocol AlertHost: Sendable {
+    func alert(_ a: VCAlert) async throws
+    func publish(topic: String, payload: Data) async throws
+}
+
+extension VCHost: AlertHost {}
+
+/// One confirmed detection, broadcast to every `/api/events` SSE subscriber
+/// via `HostSink.events()`. Deliberately a thin wrapper around `BFRBEvent`
+/// rather than reusing it directly: `count` and `behavior` are
+/// `fired(_:count:behavior:)` arguments, not part of `BFRBEvent` itself, and
+/// a subscriber needs all three to render "3rd nail-biting nudge today".
+public struct DetectionBroadcast: Sendable {
+    public let event: BFRBEvent
+    public let count: Int
+    public let behavior: BFRBBehavior
+
+    public init(event: BFRBEvent, count: Int, behavior: BFRBBehavior) {
+        self.event = event
+        self.count = count
+        self.behavior = behavior
+    }
+}
+
+/// Production `DetectionSink`: fans every confirmed detection out to
+/// `/api/events` SSE subscribers, then — unless `SnoozeGate` says the alert
+/// should be suppressed — alerts every connected client and publishes to the
+/// bus. The publish is an enhancement gated on presence — nothing in this
 /// tree subscribes to `vibecheck.behavior_detected.v1` today, so it simply
 /// goes nowhere; it is not load-bearing for the alert.
-public struct HostSink: DetectionSink {
-    let host: VCHost
+///
+/// An actor, not a struct, because `attach(host:)` and the SSE continuation
+/// registry both need actor-isolated mutable state. `host` is optional and
+/// settable after construction rather than a required `init` parameter:
+/// `main.swift`'s composition root must register HTTP routes — and with them
+/// `DetectionEngine`, which needs a `DetectionSink` at construction — before
+/// `VCHost.connect()` can be called at all (see that file's ordering
+/// comment), so no live `VCHost` exists yet at the point this sink is built.
+/// `DetectionEngine.start()` runs only after `attach(host:)`, so `host` is
+/// never actually nil when a real detection fires in production; a nil host
+/// here only logs and still broadcasts to SSE, rather than crashing, for the
+/// same "nothing in this plugin terminates the process" discipline as
+/// everything else in it.
+public actor HostSink: DetectionSink {
+    private var host: (any AlertHost)?
     /// Not read today — see `DetectionEngine.prefs`'s doc comment for why it
     /// is still carried here.
-    let prefs: AlertPrefsStore
+    private let prefs: AlertPrefsStore
+    private let snooze: SnoozeGate
+    private var continuations: [UUID: AsyncStream<DetectionBroadcast>.Continuation] = [:]
 
-    public init(host: VCHost, prefs: AlertPrefsStore) {
-        self.host = host
+    public init(prefs: AlertPrefsStore, snooze: SnoozeGate) {
         self.prefs = prefs
+        self.snooze = snooze
+    }
+
+    /// Called once, from `main.swift`, right after `VCHost.connect()`
+    /// returns.
+    public func attach(host: any AlertHost) {
+        self.host = host
+    }
+
+    /// A fan-out subscription for `/api/events`, same continuation-map shape
+    /// as `DetectionEngine.frames()`/`VCHost.events()`.
+    public func events() -> AsyncStream<DetectionBroadcast> {
+        let (stream, continuation) = AsyncStream<DetectionBroadcast>.makeStream(
+            of: DetectionBroadcast.self,
+            bufferingPolicy: .bufferingNewest(64)
+        )
+        let key = UUID()
+        continuations[key] = continuation
+        continuation.onTermination = { [weak self] _ in
+            guard let self else { return }
+            Task { await self.dropContinuation(key) }
+        }
+        return stream
+    }
+
+    private func dropContinuation(_ key: UUID) {
+        continuations.removeValue(forKey: key)
     }
 
     public func fired(_ event: BFRBEvent, count: Int, behavior: BFRBBehavior) async {
+        // Broadcast first and unconditionally: a snooze suppresses the popup
+        // alert, not the fact that a detection happened, and an SSE
+        // subscriber (a future TUI client, say) wants the latter regardless.
+        let broadcast = DetectionBroadcast(event: event, count: count, behavior: behavior)
+        for continuation in continuations.values {
+            continuation.yield(broadcast)
+        }
+
+        guard !(await snooze.isActive()) else { return }
+        guard let host else {
+            engineLog("detection fired before a host was attached; alert dropped (SSE still got it)")
+            return
+        }
+
         // "warn" (not "info") so the banner holds 8s instead of 3s — only
         // "info" and "warn" exist; anything else silently renders as info.
         let alert = VCAlert(

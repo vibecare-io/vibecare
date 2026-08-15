@@ -361,6 +361,185 @@ func TestConfigPersistsToTheDataDir(t *testing.T) {
 	}
 }
 
+// Task 15's error discipline, copied from plugins/todo/main.go's own
+// comments: a caller's mistake — malformed JSON — gets a 400, never a 500
+// (which would suggest the plugin's own fault) and never a 200 (which
+// would silently accept garbage).
+func TestConfigRejectsMalformedJSON(t *testing.T) {
+	client, base, _, _ := liveKernel(t)
+	req, _ := http.NewRequest("PUT", base+"/p/vibecheck/api/config", strings.NewReader("{not json"))
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("got %d, want 400", resp.StatusCode)
+	}
+}
+
+// PUT stores whatever VibeCheckConfig.clamped() produces, not the raw
+// decode — this asserts that clamping is genuinely applied end to end
+// (through the real HTTP round trip, not just ConfigStore.save's own unit
+// tests) before the value is echoed back by a later GET.
+func TestConfigClampsOutOfRangeValues(t *testing.T) {
+	client, base, _, _ := liveKernel(t)
+	body := `{"enabled":false,"sensitivity":5.0,"dwell":0.15,"cooldown":900,"enabledBehaviors":[]}`
+	req, _ := http.NewRequest("PUT", base+"/p/vibecheck/api/config", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 200 {
+		t.Fatalf("PUT got %d, want 200", resp.StatusCode)
+	}
+
+	getResp, err := client.Get(base + "/p/vibecheck/api/config")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer getResp.Body.Close()
+	var c struct {
+		Sensitivity float64 `json:"sensitivity"`
+		Cooldown    float64 `json:"cooldown"`
+	}
+	if err := json.NewDecoder(getResp.Body).Decode(&c); err != nil {
+		t.Fatal(err)
+	}
+	if c.Sensitivity != 1.0 {
+		t.Fatalf("sensitivity = %v, want clamped to 1.0", c.Sensitivity)
+	}
+	if c.Cooldown != 30 {
+		t.Fatalf("cooldown = %v, want clamped to 30", c.Cooldown)
+	}
+}
+
+// `permission` must always be reported — even before the camera has ever
+// been asked to start — so the UI (or a future TUI client) can explain
+// itself ("off by choice" vs. "asked and refused") without a special case
+// for "never asked yet".
+func TestStateReportsPermissionAndConfig(t *testing.T) {
+	client, base, _, _ := liveKernel(t)
+	resp, err := client.Get(base + "/p/vibecheck/api/state")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	var s struct {
+		Running    bool   `json:"running"`
+		Permission string `json:"permission"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
+		t.Fatal(err)
+	}
+	if s.Permission == "" {
+		t.Fatal("permission must always be reported so the UI can explain itself")
+	}
+}
+
+// GET and POST are both accepted for the two alert-action targets (ruling
+// P4): a client following an action URL issues a GET, and core's proxy
+// does not rewrite methods. `enabled:false` is used throughout so nothing
+// here touches the real camera.
+func TestConfigDisableAcceptsGetAndPost(t *testing.T) {
+	for _, method := range []string{"GET", "POST"} {
+		t.Run(method, func(t *testing.T) {
+			client, base, _, _ := liveKernel(t)
+			req, err := http.NewRequest(method, base+"/p/vibecheck/api/config/disable", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				body, _ := io.ReadAll(resp.Body)
+				t.Fatalf("%s got %d, want 200: %.200s", method, resp.StatusCode, body)
+			}
+			var c struct {
+				Enabled bool `json:"enabled"`
+			}
+			if err := json.NewDecoder(resp.Body).Decode(&c); err != nil {
+				t.Fatal(err)
+			}
+			if c.Enabled {
+				t.Fatal("enabled = true, want false after /api/config/disable")
+			}
+		})
+	}
+}
+
+func TestSnoozeAcceptsGetAndPost(t *testing.T) {
+	for _, method := range []string{"GET", "POST"} {
+		t.Run(method, func(t *testing.T) {
+			client, base, _, _ := liveKernel(t)
+			req, err := http.NewRequest(method, base+"/p/vibecheck/api/snooze?minutes=10", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			resp, err := client.Do(req)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer resp.Body.Close()
+			if resp.StatusCode != 200 {
+				body, _ := io.ReadAll(resp.Body)
+				t.Fatalf("%s got %d, want 200: %.200s", method, resp.StatusCode, body)
+			}
+		})
+	}
+}
+
+func TestSnoozeWithoutMinutesIs400(t *testing.T) {
+	client, base, _, _ := liveKernel(t)
+	resp, err := client.Get(base + "/p/vibecheck/api/snooze")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != 400 {
+		t.Fatalf("got %d, want 400", resp.StatusCode)
+	}
+}
+
+// The bundled behavior icons: the plugin's own `NotificationPreferences.
+// default(for:)` points every default alert at "icons/<id>.svg", so these
+// must actually resolve through the real resource bundle, not just through
+// the in-process Swift unit tests (which inject a fake loadIcon closure).
+func TestIconRouteServesTheBundledIcons(t *testing.T) {
+	client, base, _, _ := liveKernel(t)
+	for _, id := range []string{"nail-biting", "nose-picking", "hair-pulling"} {
+		resp, err := client.Get(base + "/p/vibecheck/icons/" + id + ".svg")
+		if err != nil {
+			t.Fatal(err)
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+		if resp.StatusCode != 200 {
+			t.Fatalf("icon %q: got %d, want 200: %.200s", id, resp.StatusCode, body)
+		}
+		if ct := resp.Header.Get("Content-Type"); ct != "image/svg+xml" {
+			t.Fatalf("icon %q: Content-Type = %q, want image/svg+xml", id, ct)
+		}
+		if !bytes.Contains(body, []byte("<svg")) {
+			t.Fatalf("icon %q: body does not look like an SVG: %.100s", id, body)
+		}
+	}
+
+	resp, err := client.Get(base + "/p/vibecheck/icons/not-a-real-icon.svg")
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp.Body.Close()
+	if resp.StatusCode != 404 {
+		t.Fatalf("unknown icon: got %d, want 404", resp.StatusCode)
+	}
+}
+
 // Required assertion for Task 14 (PreviewStream/JPEGEncoder): the proxy
 // must genuinely STREAM /preview.mjpeg, not buffer it until the response
 // completes — which for this endpoint never happens at all, since the
@@ -376,16 +555,42 @@ func TestConfigPersistsToTheDataDir(t *testing.T) {
 // main.swift (this plugin's route table, per the plan, lists it as
 // "Task 14" only in the sense that PreviewStream — the type this test's
 // sibling Swift suite exercises directly — is what Task 14 delivers).
-// Skipped until that wiring lands, using this plan's own precedent (see
-// Task 6's TestConfigPersistsToTheDataDir / Task 10's un-skip) rather than
-// left red: an un-skipped, expected-404 failure here would make a genuine
-// regression introduced by Task 15's OTHER work indistinguishable from
-// this known gap in `go test ./...`'s exit code. Task 15 deletes the
-// t.Skip line below; the assertion body needs no further changes.
+// Task 15 wires the route (`registerVibeCheckRoutes` -> `preview.attach`),
+// so the t.Skip that gated this on Task 15 landing is gone.
+//
+// Deviation from the brief's literal Step 5 claim ("Task 15 deletes the
+// t.Skip line...the assertion body needs no further changes"): the camera
+// is gated on `config.enabled` alone, deliberately and repeatedly
+// documented that way throughout DetectionEngine.swift/CameraSession.swift
+// ("a fresh install with detection off must never trigger the TCC
+// camera-permission prompt") — a URL fetch must not be what turns the
+// camera on behind a user's back. `PreviewStream.publish` is only ever
+// called from `DetectionEngine.didOutput`, which the camera never invokes
+// unless `apply(enabled: true)` has run. So a PUT enabling detection is
+// added here as test SETUP (not a weakening of the assertion that follows,
+// which is unchanged): without it, `liveKernel`'s freshly-booted plugin
+// (default config: `enabled: false`) attaches a writer to an idle
+// `PreviewStream` that never receives a single frame, and the test fails
+// with 0 boundary markers for a reason that has nothing to do with
+// streaming — confirmed by first running this test unmodified against the
+// real Task 15 wiring and observing exactly that failure.
 func TestPreviewStreamsThroughTheProxy(t *testing.T) {
-	t.Skip("preview route arrives in Task 15")
-
 	client, base, _, _ := liveKernel(t)
+
+	putBody := `{"enabled":true,"sensitivity":0.5,"dwell":0.15,"cooldown":5,"enabledBehaviors":["nailBiting","nosePicking","hairPulling"]}`
+	putReq, err := http.NewRequest("PUT", base+"/p/vibecheck/api/config", strings.NewReader(putBody))
+	if err != nil {
+		t.Fatal(err)
+	}
+	putReq.Header.Set("Content-Type", "application/json")
+	putResp, err := client.Do(putReq)
+	if err != nil {
+		t.Fatal(err)
+	}
+	putResp.Body.Close()
+	if putResp.StatusCode != http.StatusOK {
+		t.Fatalf("enabling detection: got %d, want 200", putResp.StatusCode)
+	}
 
 	req, err := http.NewRequest("GET", base+"/p/vibecheck/preview.mjpeg", nil)
 	if err != nil {
