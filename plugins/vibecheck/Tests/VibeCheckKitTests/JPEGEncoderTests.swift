@@ -117,6 +117,11 @@ private enum FakeWriterError: Error { case boom }
 
 private actor FakeWriter: VCResponseWriter {
     private(set) var headWritten = false
+    /// Captured, not discarded — a test asserting only `headWritten` cannot
+    /// tell a correct multipart head apart from any other 200. See
+    /// `attachSendsTheMultipartHead`, which reads these.
+    private(set) var headStatus: Int?
+    private(set) var headHeaders: [String: String] = [:]
     private(set) var writes: [Data] = []
     /// Counts every `write` call, including ones that go on to throw — the
     /// only way a test can tell "never called again after removal" apart
@@ -128,6 +133,8 @@ private actor FakeWriter: VCResponseWriter {
     func writeHead(status: Int, headers: [String: String]) async throws {
         if shouldThrowOnWriteHead { throw FakeWriterError.boom }
         headWritten = true
+        headStatus = status
+        headHeaders = headers
     }
 
     func write(_ chunk: Data) async throws {
@@ -147,6 +154,10 @@ private actor FakeWriter: VCResponseWriter {
     let writer = FakeWriter()
     await stream.attach(writer)
     #expect(await writer.headWritten)
+    #expect(await writer.headStatus == 200)
+    let headers = await writer.headHeaders
+    #expect(headers["Content-Type"] == "multipart/x-mixed-replace; boundary=vcframe")
+    #expect(headers["Cache-Control"] == "no-store")
     #expect(await stream.writerCount == 1)
 }
 
@@ -158,7 +169,7 @@ private actor FakeWriter: VCResponseWriter {
     #expect(await stream.writerCount == 0)
 }
 
-@Test func dropsAWriterWhoseWriteThrowsWithoutDisturbingOthers() async {
+@Test func dropsAWriterWhoseWriteThrowsWithoutDisturbingOthers() async throws {
     let stream = PreviewStream()
     let good = FakeWriter()
     let bad = FakeWriter()
@@ -167,10 +178,41 @@ private actor FakeWriter: VCResponseWriter {
     await stream.attach(bad)
     #expect(await stream.writerCount == 2)
 
-    await stream.publish(solidBuffer(width: 8, height: 8), mirrored: true)
+    await stream.publish(stripedBuffer(), mirrored: true)
 
     #expect(await good.writes.count == 1)
     #expect(await bad.writeAttempts == 1)
     // The failing writer is gone; the good one is untouched.
     #expect(await stream.writerCount == 1)
+
+    // Nothing green above proves `publish` actually emitted a
+    // `multipartChunk`-framed JPEG rather than something else — inspect
+    // the bytes `good` actually received.
+    let firstWrite = try #require(await good.writes.first)
+    #expect(firstWrite.starts(with: Data("--vcframe\r\n".utf8)))
+    #expect(firstWrite.range(of: Data([0xFF, 0xD8])) != nil)   // JPEG SOI, somewhere in the body
+}
+
+// MARK: - PreviewStream: idles when nobody is attached
+//
+// `publish` returns before touching `JPEGEncoder` at all when `writers` is
+// empty — but no fast, deterministic test can observe "no CPU work
+// happened" from the outside, since `JPEGEncoder` is a stateless `enum`,
+// not an injectable dependency. `framesEncoded` is the cheap seam that
+// closes that gap without changing the encoder's shape: it counts only the
+// attempts that got PAST the idle guard, so "stays at 0 with zero writers
+// attached" is a real assertion about the guard firing, not a restatement
+// of "no writers means no writes".
+@Test func publishNeverEncodesWhenNoWriterIsAttached() async {
+    let stream = PreviewStream()
+    await stream.publish(stripedBuffer(), mirrored: true)
+    await stream.publish(stripedBuffer(), mirrored: false)
+    #expect(await stream.framesEncoded == 0)
+}
+
+@Test func publishEncodesOnceThereIsAWriterToReceiveIt() async {
+    let stream = PreviewStream()
+    await stream.attach(FakeWriter())
+    await stream.publish(stripedBuffer(), mirrored: true)
+    #expect(await stream.framesEncoded == 1)
 }
