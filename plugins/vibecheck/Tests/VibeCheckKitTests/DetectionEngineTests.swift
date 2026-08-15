@@ -21,7 +21,9 @@ private struct NoopSink: DetectionSink {
 }
 
 /// Builds a `DetectionEngine` backed by real (temp-directory) stores, with an
-/// initial config already applied.
+/// initial config already applied. Returns the backing directory too, so a
+/// test can point a FRESH `CountsStore` at it afterward and assert what
+/// actually landed on disk — see `firesThroughTheSinkWithAPostIncrementCount`.
 ///
 /// Deviates from the task brief's literal `let engine = try makeTestEngine()`
 /// (unawaited): `DetectionEngine.init` deliberately does NOT read `ConfigStore`
@@ -37,7 +39,7 @@ private struct NoopSink: DetectionSink {
 private func makeTestEngine(
     enabledBehaviors: Set<BFRBBehavior> = Set(BFRBBehavior.allCases),
     sensitivity: Double = 0.5
-) async throws -> DetectionEngine {
+) async throws -> (engine: DetectionEngine, dir: URL) {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     let config = try ConfigStore(directory: dir)
@@ -49,7 +51,7 @@ private func makeTestEngine(
     c.sensitivity = sensitivity
     c.enabledBehaviors = enabledBehaviors.map(\.rawValue)
     await engine.apply(c)
-    return engine
+    return (engine, dir)
 }
 
 // Face box in VIEWER space: top edge at y=0.3, bottom at y=0.7. Nose (0.5, 0.5).
@@ -70,7 +72,7 @@ private func face() -> FaceGeometry {
 @Test func firesThroughTheSinkWithAPostIncrementCount() async throws {
     // The client's notifier asserted the count is post-increment — the first
     // nudge of the day reads "1st", not "0th".
-    let engine = try await makeTestEngine()
+    let (engine, dir) = try await makeTestEngine()
     let sink = SpySink()
     await engine.setSink(sink)
 
@@ -83,10 +85,20 @@ private func face() -> FaceGeometry {
     #expect(calls.count == 1)
     #expect(calls[0].0 == .nosePicking)
     #expect(calls[0].1 == 1)
+
+    // `fire`'s error-path fallback (`(todayCounts[...] ?? 0) + 1`) also
+    // produces 1 on a first detection, so the assertion above cannot tell a
+    // genuine `CountsStore.increment` write apart from a completely broken
+    // one silently falling back. Point a FRESH `CountsStore` at the same
+    // directory — same pattern as `StoreTests.configRoundTripsThroughDisk`
+    // — and read back what actually landed on disk.
+    let today = CountsStore.dayKey(Date())
+    let reloaded = try CountsStore(directory: dir)
+    #expect(await reloaded.count(.nosePicking, on: today) == 1)
 }
 
 @Test func aDisabledBehaviorNeverReachesTheSink() async throws {
-    let engine = try await makeTestEngine(enabledBehaviors: [])
+    let (engine, _) = try await makeTestEngine(enabledBehaviors: [])
     let sink = SpySink()
     await engine.setSink(sink)
 
@@ -101,7 +113,7 @@ private func face() -> FaceGeometry {
 @Test func configChangesTakeEffectWithoutRestart() async throws {
     // The client re-read sensitivity and cooldown every frame so a slider
     // move applied immediately. Preserve that.
-    let engine = try await makeTestEngine(sensitivity: 0.0)   // radius 0.04
+    let (engine, _) = try await makeTestEngine(sensitivity: 0.0)   // radius 0.04
     let sink = SpySink()
     await engine.setSink(sink)
 
@@ -123,4 +135,48 @@ private func face() -> FaceGeometry {
     #expect(calls.count == 1)
     #expect(calls[0].0 == .nosePicking)
     #expect(calls[0].1 == 1)
+}
+
+@Test func cooldownChangesTakeEffectWithoutRestart() async throws {
+    // The brief names both sensitivity AND cooldown as re-read every frame;
+    // the previous test only exercised sensitivity. This one holds
+    // sensitivity/geometry fixed and varies only cooldown.
+    let (engine, _) = try await makeTestEngine()   // default cooldown: 5s
+    let sink = SpySink()
+    await engine.setSink(sink)
+
+    let hit = LandmarkFrame(hand: HandGeometry(fingertips: [CGPoint(x: 0.5, y: 0.5)]),
+                            face: face())
+
+    // First nudge: dwell (0.15s) satisfied at t=0.2; starts the 5s cooldown.
+    await engine.ingestForTesting(hit, at: 0)
+    await engine.ingestForTesting(hit, at: 0.2)
+    #expect(await sink.calls.count == 1)
+
+    // Still well inside the default 5s cooldown — must stay suppressed.
+    // (Dwell re-accumulates from t=0.3 across these two calls, but
+    // `DetectionPolicy` does not clear `dwellStart` on a cooldown-blocked
+    // frame — see `DetectionPolicyTests.cooldownSuppressesRepeatsOf...` —
+    // so it carries forward into the next phase below.)
+    await engine.ingestForTesting(hit, at: 0.3)
+    await engine.ingestForTesting(hit, at: 0.5)
+    #expect(await sink.calls.count == 1)
+
+    // Shrink cooldown live, with sensitivity/enabledBehaviors untouched.
+    // 1.0, not e.g. 0.05: `apply(_:)` now clamps (fix #5 of this review
+    // round) via `VibeCheckConfig.clamped()`, whose floor for cooldown is 1 —
+    // an unclamped 0.05 would silently become 1.0 anyway, which is exactly
+    // the divergence-from-disk bug that clamp exists to prevent.
+    var c = VibeCheckConfig.default
+    c.cooldown = 1.0
+    await engine.apply(c)
+
+    // t=1.5: dwell has been continuously satisfied since 0.3 (well past
+    // 0.15s — same "dwell already primed" shape `DetectionPolicyTests`
+    // documents), and 1.5 - 0.2 = 1.3s clears the shrunk 1.0s cooldown.
+    await engine.ingestForTesting(hit, at: 1.5)
+
+    let calls = await sink.calls
+    try #require(calls.count == 2)
+    #expect(calls[1].1 == 2)
 }
