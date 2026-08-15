@@ -2,28 +2,65 @@ import Testing
 import CoreGraphics
 @testable import VibeCheckKit
 
-@Test func pointConversionFlipsYAndLeavesXAlone() {
+@Test func mirroredPointFlipsYOnlyLeavesXAlone() {
     // Vision: origin bottom-left, y up. Viewer: origin top-left, y down.
-    // x is NEVER touched — the front-camera buffer is already mirrored and
-    // re-mirroring draws everything on the wrong horizontal side.
-    let p = ViewerSpace.point(CGPoint(x: 0.25, y: 0.75))
+    // mirrored == true: the source connection reported itself as already
+    // mirrored, so x passes through untouched.
+    let p = ViewerSpace.point(CGPoint(x: 0.25, y: 0.75), mirrored: true)
     #expect(p.x == 0.25)
     #expect(p.y == 0.25)
 }
 
-@Test func rectConversionMapsTopEdgeCorrectly() {
+@Test func unmirroredPointFlipsBothXAndY() {
+    // mirrored == false: measured true even for the built-in camera on real
+    // hardware (see CameraSession.configure()'s comment and the Task 11/12
+    // report) — macOS does not reliably auto-mirror the data-output
+    // connection, so the plugin must flip x itself or every landmark lands
+    // on the wrong side of the frame.
+    let p = ViewerSpace.point(CGPoint(x: 0.25, y: 0.75), mirrored: false)
+    #expect(p.x == 0.75)
+    #expect(p.y == 0.25)
+}
+
+@Test func mirroredRectConversionMapsTopEdgeCorrectly() {
     // A Vision box sitting in the upper half: y=0.6, height=0.3, so its top
-    // edge is at y-up 0.9 -> viewer y 0.1. Height is unchanged.
-    let r = ViewerSpace.rect(CGRect(x: 0.1, y: 0.6, width: 0.2, height: 0.3))
+    // edge is at y-up 0.9 -> viewer y 0.1. minX/width/height unchanged.
+    let r = ViewerSpace.rect(CGRect(x: 0.1, y: 0.6, width: 0.2, height: 0.3), mirrored: true)
     #expect(r.minX == 0.1)
     #expect(abs(r.minY - 0.1) < 1e-9)
     #expect(r.width == 0.2)
     #expect(abs(r.height - 0.3) < 1e-9)
 }
 
-@Test func conversionIsItsOwnInverse() {
-    let original = CGPoint(x: 0.3, y: 0.8)
-    #expect(ViewerSpace.point(ViewerSpace.point(original)) == original)
+@Test func unmirroredRectConversionFlipsLeftEdgeToFormerRightEdge() {
+    // Same box, not mirrored: minX becomes 1 - maxX (1 - (0.1+0.2) = 0.7).
+    let r = ViewerSpace.rect(CGRect(x: 0.1, y: 0.6, width: 0.2, height: 0.3), mirrored: false)
+    #expect(abs(r.minX - 0.7) < 1e-9)
+    #expect(abs(r.minY - 0.1) < 1e-9)
+    #expect(r.width == 0.2)
+    #expect(abs(r.height - 0.3) < 1e-9)
+}
+
+// Cross-consistency between the point and rect conversions: converting the
+// rect and reading its midX must agree with converting the point at the
+// ORIGINAL rect's midpoint directly. Both individually pin their own
+// values above, but nothing stops a future edit from changing one formula
+// and not the other — this is the assertion that would catch exactly that,
+// which the review flagged as the gap that let `ViewerSpace` and
+// `VisionLandmarkExtractor`'s now-deleted duplicate `normalize` disagree.
+
+@Test func mirroredRectMidpointAgreesWithPointConversion() {
+    let original = CGRect(x: 0.1, y: 0.6, width: 0.2, height: 0.3)
+    let convertedRect = ViewerSpace.rect(original, mirrored: true)
+    let convertedMidpoint = ViewerSpace.point(CGPoint(x: original.midX, y: original.midY), mirrored: true)
+    #expect(abs(convertedRect.midX - convertedMidpoint.x) < 1e-9)
+}
+
+@Test func unmirroredRectMidpointAgreesWithPointConversion() {
+    let original = CGRect(x: 0.1, y: 0.6, width: 0.2, height: 0.3)
+    let convertedRect = ViewerSpace.rect(original, mirrored: false)
+    let convertedMidpoint = ViewerSpace.point(CGPoint(x: original.midX, y: original.midY), mirrored: false)
+    #expect(abs(convertedRect.midX - convertedMidpoint.x) < 1e-9)
 }
 
 @Test func hairMaskRowZeroIsTopInViewerSpace() {

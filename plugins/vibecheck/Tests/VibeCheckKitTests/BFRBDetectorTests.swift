@@ -74,24 +74,27 @@ private func face() -> FaceGeometry {
 // (y-up) literals through `ViewerSpace.point`/`ViewerSpace.rect` — the same
 // conversion Task 7 built and tested — rather than hand-recomputing the
 // arithmetic, so the inversion itself can't be gotten backwards here.
+// `mirrored: true` throughout: these fixtures model a source that reports
+// itself already mirrored, matching the original vibecareTests literals
+// they were mechanically inverted from (x untouched, y flipped only).
 
 /// Mechanical inversion of the original vibecareTests `face()` fixture
 /// (box (0.35, 0.35, 0.3, 0.4) y-up, nose (0.5, 0.55), mouth (0.5, 0.45)).
 private func legacyFace() -> FaceGeometry {
-    FaceGeometry(box: ViewerSpace.rect(CGRect(x: 0.35, y: 0.35, width: 0.3, height: 0.4)),
-                 nose: ViewerSpace.point(CGPoint(x: 0.5, y: 0.55)),
-                 mouth: ViewerSpace.point(CGPoint(x: 0.5, y: 0.45)))
+    FaceGeometry(box: ViewerSpace.rect(CGRect(x: 0.35, y: 0.35, width: 0.3, height: 0.4), mirrored: true),
+                 nose: ViewerSpace.point(CGPoint(x: 0.5, y: 0.55), mirrored: true),
+                 mouth: ViewerSpace.point(CGPoint(x: 0.5, y: 0.45), mirrored: true))
 }
 
 @Test func nailBitingFiresWhenFingertipAtMouth() {
-    let f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.5, y: 0.45))]),
+    let f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.5, y: 0.45), mirrored: true)]),
                           face: legacyFace())
     let d = BFRBDetector(sensitivity: 0.5)
     #expect(d.detect(f, enabled: [.nailBiting])?.behavior == .nailBiting)
 }
 
 @Test func noFireWhenHandAwayFromFace() {
-    let f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.1, y: 0.1))]),
+    let f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.1, y: 0.1), mirrored: true)]),
                           face: legacyFace())
     let d = BFRBDetector(sensitivity: 0.5)
     #expect(d.detect(f, enabled: Set(BFRBBehavior.allCases)) == nil)
@@ -99,7 +102,7 @@ private func legacyFace() -> FaceGeometry {
 
 @Test func disabledBehaviorNeverFires() {
     // nose point, hair enabled only
-    let f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.5, y: 0.55))]),
+    let f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.5, y: 0.55), mirrored: true)]),
                           face: legacyFace())
     let d = BFRBDetector(sensitivity: 0.5)
     #expect(d.detect(f, enabled: [.hairPulling]) == nil)
@@ -108,7 +111,7 @@ private func legacyFace() -> FaceGeometry {
 @Test func hairPullingFiresWithMaskPersonTrueAboveForehead() {
     // 4x4 grid, all cells person=true. Fingertip above the forehead.
     let mask = HairMask(cols: 4, rows: 4, cells: [Bool](repeating: true, count: 16))
-    var f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.5, y: 0.8))]),
+    var f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.5, y: 0.8), mirrored: true)]),
                           face: legacyFace())
     f.hairMask = mask
     let d = BFRBDetector(sensitivity: 0.5)
@@ -119,7 +122,7 @@ private func legacyFace() -> FaceGeometry {
     // Below the forehead; the guard should short-circuit before consulting
     // the mask at all, even though the mask says "person" everywhere.
     let mask = HairMask(cols: 4, rows: 4, cells: [Bool](repeating: true, count: 16))
-    var f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.5, y: 0.5))]),
+    var f = LandmarkFrame(hand: HandGeometry(fingertips: [ViewerSpace.point(CGPoint(x: 0.5, y: 0.5), mirrored: true)]),
                           face: legacyFace())
     f.hairMask = mask
     let d = BFRBDetector(sensitivity: 0.5)

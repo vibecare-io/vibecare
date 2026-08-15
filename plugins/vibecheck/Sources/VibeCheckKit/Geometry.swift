@@ -51,20 +51,40 @@ public enum BFRBBehavior: String, CaseIterable, Sendable, Identifiable {
 /// viewer space (origin top-left, y DOWN) — the frame as the user sees
 /// themselves in a mirrored selfie preview, per architecture v2 §10.1.
 ///
-/// x is deliberately untouched. The macOS front-camera buffer is already
-/// x-mirrored by AVCaptureConnection's automaticallyAdjustsVideoMirroring,
-/// so the landmark x already aligns with what is on screen. A source that is
-/// NOT mirrored must be flipped by the capture layer before it reaches here
-/// (see CameraSession.isSourceMirrored) — not by consumers.
+/// y is always flipped (Vision is y-up). x is flipped ONLY when `mirrored`
+/// is false. This used to be documented as "x is deliberately untouched
+/// because the front camera is already mirrored by the OS" — that premise
+/// was measured false: with `automaticallyAdjustsVideoMirroring` left at
+/// its default, BOTH a data-output connection's and a preview layer's
+/// `isVideoMirrored` came back `false` for the built-in camera on real
+/// hardware (see `CameraSession.configure()`'s comment for the measurement,
+/// and the Task 11/12 report for the raw run). macOS is not silently doing
+/// the mirroring for this plugin, so the plugin does it itself, driven by
+/// the per-frame flag it actually measured — never by which camera it
+/// thinks it has.
+///
+/// This is the single canonical conversion. `VisionLandmarkExtractor` calls
+/// it for every point/rect it emits, and per the architecture ruling that
+/// followed this measurement, whatever encodes the preview JPEG (Task 14)
+/// must derive its own flip from the same `mirrored` value carried on
+/// `LandmarkFrame.mirrored` — not reimplement this rule, and not read
+/// mirroring state from anywhere else.
 public enum ViewerSpace {
-    public static func point(_ p: CGPoint) -> CGPoint {
-        CGPoint(x: p.x, y: 1 - p.y)
+    public static func point(_ p: CGPoint, mirrored: Bool) -> CGPoint {
+        let x = mirrored ? p.x : 1 - p.x
+        return CGPoint(x: x, y: 1 - p.y)
     }
 
     /// A Vision rect's TOP edge is at y-up `maxY`, which becomes viewer
-    /// `1 - maxY`. Width and height are unchanged.
-    public static func rect(_ r: CGRect) -> CGRect {
-        CGRect(x: r.minX, y: 1 - r.maxY, width: r.width, height: r.height)
+    /// `1 - maxY`. When not mirrored, the rect's right edge (`maxX`) becomes
+    /// the new left edge, so the new `minX` is `1 - maxX` — the same rule
+    /// `point` applies to x, so `rect(_:mirrored:).midX` always equals
+    /// `point(_:mirrored:)` applied to the original rect's midpoint (see
+    /// `GeometryTests` for the assertion pinning that agreement). Width and
+    /// height are unchanged either way.
+    public static func rect(_ r: CGRect, mirrored: Bool) -> CGRect {
+        let minX = mirrored ? r.minX : 1 - r.maxX
+        return CGRect(x: minX, y: 1 - r.maxY, width: r.width, height: r.height)
     }
 }
 
@@ -129,8 +149,14 @@ public struct LandmarkFrame: Sendable {
     /// Monotonic per provider. Gaps mean dropped frames — the 15fps throttle
     /// discards frames and today there is no record of it.
     public var seq: UInt64 = 0
-    /// Whether the SOURCE was already mirrored. Recorded for diagnostics
-    /// only; coordinates in this struct are always viewer space regardless.
+    /// Whether the SOURCE connection reported itself as already mirrored
+    /// (`AVCaptureConnection.isVideoMirrored`, read per frame — see
+    /// `CameraSession.captureOutput`). NOT diagnostics-only: coordinates on
+    /// this struct have already been flipped through `ViewerSpace` using
+    /// this exact value, and it is the single source of truth both that
+    /// landmark flip and Task 14's JPEG preview flip must derive from. The
+    /// two surfaces disagreeing about which flip to apply is exactly the
+    /// bug this field exists to prevent.
     public var mirrored: Bool = true
 
     public init(hand: HandGeometry? = nil,
