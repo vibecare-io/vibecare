@@ -149,13 +149,16 @@ func spawnPlugin(t *testing.T, socketPath string) *spawnedPlugin {
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	installVibeCheck(t, dir)
+	execRel := installVibeCheck(t, dir)
 	dataDir := filepath.Join(home, "data", "vibecheck")
 	if err := os.MkdirAll(dataDir, 0o700); err != nil {
 		t.Fatal(err)
 	}
 
-	cmd := exec.Command(filepath.Join(dir, "vibecheck"))
+	// Relative path + cmd.Dir, which is literally what supervisor.go:231-232
+	// does. Resolving it to an absolute path here would work but would stop
+	// exercising the manifest-relative spawn that core actually performs.
+	cmd := exec.Command(execRel)
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(),
 		"VIBECARE_SOCKET="+socketPath,

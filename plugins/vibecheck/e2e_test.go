@@ -66,21 +66,46 @@ func buildVibeCheckOnce(t *testing.T) string {
 }
 
 // installVibeCheck lays out a plugin directory the way core expects to find
-// one: the binary, its resource bundle, and the manifest, all siblings.
-func installVibeCheck(t *testing.T, dir string) {
+// one: the manifest at the root, and the binary wherever that manifest's
+// `exec` says it lives, with the resource bundle beside it.
+//
+// The destination is DERIVED from the manifest via the kernel's own loader
+// rather than hardcoded here. An earlier version of this helper hardcoded
+// <dir>/vibecheck, which silently stopped matching the moment `exec` became
+// ./dist/vibecheck (the flat-bundle fix — see `just build-vibecheck-plugin`):
+// core spawned a path that did not exist, every liveKernel test burned its
+// full 60s deadline, and the package blew Go's 10m timeout. Reading the same
+// field core reads means this harness cannot drift from the manifest again.
+//
+// Returns the manifest-relative exec path so callers that spawn the binary
+// directly (spawnPlugin) resolve it the same way, from the same read.
+func installVibeCheck(t *testing.T, dir string) string {
 	t.Helper()
 	release := buildVibeCheckOnce(t)
-
-	copyFile(t, filepath.Join(release, "vibecheck"), filepath.Join(dir, "vibecheck"), 0o755)
-	copyTree(t, filepath.Join(release, resourceBundle), filepath.Join(dir, resourceBundle))
 
 	manifest, err := os.ReadFile("manifest.yaml")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(filepath.Join(dir, "manifest.yaml"), manifest, 0o644); err != nil {
+	installed := filepath.Join(dir, "manifest.yaml")
+	if err := os.WriteFile(installed, manifest, 0o644); err != nil {
 		t.Fatal(err)
 	}
+	m, err := kernel.LoadManifest(installed)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// m.Exec is relative to the plugin dir, which is what supervisor.go sets
+	// cmd.Dir to. The bundle goes in the binary's OWN directory, not the
+	// plugin root: Bundle.module resolves as a sibling of the executable.
+	binary := filepath.Join(dir, filepath.FromSlash(m.Exec))
+	if err := os.MkdirAll(filepath.Dir(binary), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	copyFile(t, filepath.Join(release, "vibecheck"), binary, 0o755)
+	copyTree(t, filepath.Join(release, resourceBundle), filepath.Join(filepath.Dir(binary), resourceBundle))
+	return m.Exec
 }
 
 func copyFile(t *testing.T, src, dst string, mode os.FileMode) {
