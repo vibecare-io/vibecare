@@ -32,6 +32,45 @@ import Foundation
     #expect(d.contains("camera unavailable"))
 }
 
+// The shutdown-hook drain is bounded by VCShutdownLatch, so a hook that hangs
+// costs the drain budget rather than the whole of core's 5s SIGTERM->SIGKILL
+// grace. A task group cannot express this: it awaits every child before
+// returning, so it can never abandon work that ignores cancellation. These
+// two tests pin both sides of that.
+
+@Test func aHookThatNeverFinishesIsAbandonedAtItsBudget() async {
+    let latch = VCShutdownLatch()
+    // Nothing ever calls complete() — this stands in for the wedged hook.
+    let started = ContinuousClock.now
+    let finished = await latch.waitForCompletion(upTo: .milliseconds(250))
+    let elapsed = ContinuousClock.now - started
+
+    #expect(finished == false)
+    #expect(elapsed >= .milliseconds(250))
+    // The point of the whole exercise: waiting ended on the budget, not on
+    // the hook.
+    #expect(elapsed < .seconds(2))
+}
+
+@Test func aHookThatFinishesInTimeIsReportedAsCompleted() async {
+    let latch = VCShutdownLatch()
+    Task { await latch.complete() }
+    // A budget far longer than the work, to prove the wait ends on the work.
+    let started = ContinuousClock.now
+    #expect(await latch.waitForCompletion(upTo: .seconds(30)) == true)
+    #expect(ContinuousClock.now - started < .seconds(5))
+}
+
+@Test func completionBeforeTheWaitStartsIsNotLost() async {
+    // The hook can finish before the drain gets around to waiting on it; the
+    // latch must not then block for the full budget.
+    let latch = VCShutdownLatch()
+    await latch.complete()
+    let started = ContinuousClock.now
+    #expect(await latch.waitForCompletion(upTo: .seconds(30)) == true)
+    #expect(ContinuousClock.now - started < .seconds(1))
+}
+
 @Test func demandPayloadDecodes() throws {
     let json = Data(#"{"topic":"sensor.landmarks.v1","subscribers":2}"#.utf8)
     let d = try JSONDecoder().decode(VCDemand.self, from: json)
