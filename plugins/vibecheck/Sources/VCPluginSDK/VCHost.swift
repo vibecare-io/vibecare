@@ -526,18 +526,11 @@ public actor VCHost {
             : error
     }
 
-    /// `fputs`, not `FileHandle.standardError.write(_:)`.
-    ///
-    /// The `FileHandle` overload raises an **uncatchable** `NSException` — an
-    /// abort, not a Swift error — when the descriptor is closed or the pipe
-    /// has no reader. Core closes the plugin's stderr pipe during its own
-    /// shutdown, so a single log line from the reconnect loop after that point
-    /// would kill the process, and `supervisor.go` would charge it as a failed
-    /// start. This file carries the "nothing terminates the process"
-    /// guarantee; it must not be the one holding an abort path. `fputs` just
-    /// returns `EOF`.
+    /// Routed through `vcLog` rather than `FileHandle.standardError.write(_:)`,
+    /// which aborts the process on a closed descriptor — see `VCLog.swift` for
+    /// why that matters most in exactly this loop.
     private nonisolated func log(_ message: String) {
-        fputs("vibecheck/sdk: \(message)\n", stderr)
+        vcLog("sdk: \(message)")
     }
 }
 
