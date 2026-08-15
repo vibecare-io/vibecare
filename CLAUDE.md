@@ -55,7 +55,9 @@ A plugin is a directory under `plugins/<id>/` with a `manifest.yaml` and a
 binary. Core discovers it at startup, spawns it, and reverse-proxies its
 HTTP UI at `/p/<id>/`. Adding a plugin requires **no change to core and no
 client release** — see
-[`docs/superpowers/specs/2026-08-13-plugin-architecture-v2-design.md`](docs/superpowers/specs/2026-08-13-plugin-architecture-v2-design.md).
+[`docs/plugin-architecture.md`](docs/plugin-architecture.md) for contracts, lifecycle and
+gotchas, or the [design spec](docs/superpowers/specs/2026-08-13-plugin-architecture-v2-design.md)
+for the rationale.
 
 - Plugin↔core contract: `proto/plugin/v1/plugin.proto` (3 RPCs, plugin is always the client)
 - Client↔core contract: `proto/client/v1/client.proto` (2 RPCs, frozen)

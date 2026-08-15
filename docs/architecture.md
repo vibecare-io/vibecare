@@ -85,7 +85,9 @@ FREQ=MONTHLY;BYMONTHDAY=1;BYHOUR=10;BYMINUTE=0         # First of month at 10 AM
 
 ## Plugins
 
-Full design: [`docs/superpowers/specs/2026-08-13-plugin-architecture-v2-design.md`](superpowers/specs/2026-08-13-plugin-architecture-v2-design.md).
+Reference: [`docs/plugin-architecture.md`](plugin-architecture.md) — contracts, lifecycle,
+and the rules that bite.
+Full design rationale: [`docs/superpowers/specs/2026-08-13-plugin-architecture-v2-design.md`](superpowers/specs/2026-08-13-plugin-architecture-v2-design.md).
 
 Plugins are independent, supervised subprocesses — not code linked into
 Core or the client. A plugin is a directory under `plugins/<id>/` with a
