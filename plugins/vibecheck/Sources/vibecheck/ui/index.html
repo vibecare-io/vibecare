@@ -797,6 +797,17 @@
         };
       }
 
+      // Decodes the hair mask's `bits` field: base64 of the packed-bit
+      // payload `HairMaskDTO` emits (see `API.swift`). `atob` gives back a
+      // binary string (one JS char per byte, code points 0-255); mapping
+      // `charCodeAt` over it recovers the actual byte values.
+      function decodeBase64ToBytes(b64) {
+        var bin = atob(b64);
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes;
+      }
+
       function drawFrame(frame) {
         var w = overlayCanvas.width / overlayDPR;
         var h = overlayCanvas.height / overlayDPR;
@@ -807,19 +818,21 @@
         var imageSize = { width: frame.imageWidth, height: frame.imageHeight };
 
         // Hair mask (coarse person-segmentation grid), drawn as filled
-        // canvas cells — never as individual SVG rects. NOTE: as of the
-        // current /api/events wire format, FrameEventDTO does not include
-        // a hairMask field, so `frame.hairMask` is always undefined today
-        // and this branch never runs. It is written defensively so the
-        // overlay lights up immediately if/when that field is added to the
-        // DTO, with no further UI change required. See the task report for
-        // the full account of this gap.
+        // canvas cells — never as individual SVG rects (3072 cells/frame is
+        // far too many DOM nodes to hold frame rate). The wire format packs
+        // the mask as bits (base64 of 384 packed bytes, ~512 chars) rather
+        // than a naive 3072-element JSON bool array (~15KB/frame) — see
+        // API.swift's `HairMaskDTO` doc comment for the exact bit order
+        // (MSB-first, row-major) this decode must agree with.
         if (frame.hairMask && frame.hairMask.cols > 0 && frame.hairMask.rows > 0) {
           var mask = frame.hairMask;
+          var maskBytes = decodeBase64ToBytes(mask.bits);
           overlayCtx.fillStyle = "rgba(10, 132, 255, 0.28)";
           for (var row = 0; row < mask.rows; row++) {
             for (var col = 0; col < mask.cols; col++) {
-              if (!mask.cells[row * mask.cols + col]) continue;
+              var bitIndex = row * mask.cols + col;
+              var byte = maskBytes[bitIndex >> 3];
+              if (!(byte & (0x80 >> (bitIndex & 7)))) continue;
               var cellRect = mapRect(
                 { x: col / mask.cols, y: row / mask.rows, width: 1 / mask.cols, height: 1 / mask.rows },
                 w, h, imageSize

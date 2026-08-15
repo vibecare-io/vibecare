@@ -210,8 +210,21 @@ func TestPluginServesUIAndAPIThroughTheProxy(t *testing.T) {
 	// Assert on content, not just the status: uiIndexHTML() resolves the
 	// SwiftPM resource bundle at runtime, and a 200 alone would still pass
 	// if that lookup silently failed and something generic came back.
-	if !bytes.Contains(body, []byte("<title>VibeCheck</title>")) {
-		t.Fatalf("body is not the packaged ui/index.html: %.200s", body)
+	//
+	// `<title>VibeCheck</title>` alone cannot tell the real UI apart from
+	// the Task 6 placeholder page it replaced — both carry that identical
+	// title (a ninth can't-fail guard, caught when Task 16's implementer
+	// tried to consume this contract). Two-sided instead: require a
+	// structural marker unique to the real UI (`id="preview-off"`, the
+	// element `index.html`'s own JS toggles when the live preview is off)
+	// AND require the placeholder's distinctive string to be absent — so
+	// neither a stale/pre-Task-16 bundle nor some future gutted page can
+	// slip through either half alone.
+	if !bytes.Contains(body, []byte(`id="preview-off"`)) {
+		t.Fatalf("body is missing id=\"preview-off\" — not the real vibecheck UI: %.300s", body)
+	}
+	if bytes.Contains(body, []byte("arrives in Task")) {
+		t.Fatalf("body still contains the Task 6 placeholder's text: %.300s", body)
 	}
 }
 

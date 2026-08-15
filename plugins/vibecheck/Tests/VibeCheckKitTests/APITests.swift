@@ -399,6 +399,77 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
     }
 }
 
+// `HairMask` is 3072 booleans, recomputed every frame — encoding it as a
+// naive JSON bool array would run ~15KB/frame through the SSE stream and
+// the kernel proxy. `FrameEventDTO`/`HairMaskDTO` pack it as bits (base64
+// of 384 packed bytes) instead. This test PINS that wire encoding: the
+// expected base64 string below was computed independently, via a
+// standalone `python3 -c` one-liner (packing the same 8 cells MSB-first,
+// row-major), NOT by re-deriving `HairMaskDTO`'s own packing formula — so
+// if a future edit changes the bit order or byte layout without updating
+// both sides, this fails instead of quietly agreeing with itself.
+@Test func frameEventsIncludeThePackedHairMask() async throws {
+    let f = try await Fixture.make()
+    var c = VibeCheckConfig.default
+    c.enabled = false   // stays off real AVFoundation
+    await f.engine.apply(c)
+
+    let handler = try #require(await f.router.route("/api/events"))
+    let writer = RecordingWriter()
+    let handlerTask = Task {
+        try? await handler(request("GET", "/api/events"), writer)
+    }
+    try await Task.sleep(for: .milliseconds(50))
+
+    // cells = [T,T,T,F,F,F,F,F] packed MSB-first row-major into one byte:
+    // 0xE0 -> base64 "4A==" (verified independently: `python3 -c
+    // "print(__import__('base64').b64encode(bytes([0xE0])))"` -> b'4A==').
+    // Deliberately NOT a bit-reversal-symmetric pattern (an earlier draft's
+    // fixture — [T,F,T,F,F,T,F,T] — happened to pack to the identical byte
+    // under BOTH MSB-first and LSB-first bit order, so a mutation flipping
+    // the bit direction silently passed; caught by actually mutating
+    // `HairMaskDTO`'s packing and re-running before settling on this one).
+    let mask = HairMask(cols: 4, rows: 2, cells: [true, true, true, false, false, false, false, false])
+    let frame = LandmarkFrame(
+        hand: HandGeometry(fingertips: [CGPoint(x: 0.5, y: 0.5)]),
+        face: FaceGeometry(box: CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4),
+                            nose: CGPoint(x: 0.5, y: 0.5),
+                            mouth: CGPoint(x: 0.5, y: 0.62)),
+        hairMask: mask
+    )
+    await f.engine.ingestForTesting(frame, at: 0)
+
+    struct HairMaskWire: Decodable { var cols: Int; var rows: Int; var bits: String }
+    struct FrameWire: Decodable { var hairMask: HairMaskWire? }
+
+    var found: HairMaskWire?
+    let deadline = ContinuousClock.now + .seconds(3)
+    while ContinuousClock.now < deadline {
+        let body = String(decoding: await writer.body, as: UTF8.self)
+        if let line = body.split(separator: "\n", omittingEmptySubsequences: false)
+            .first(where: { $0.hasPrefix("data: ") && $0.contains("\"hairMask\"") }) {
+            let jsonText = String(line.dropFirst("data: ".count))
+            if let data = jsonText.data(using: .utf8),
+               let decoded = try? JSONDecoder().decode(FrameWire.self, from: data) {
+                found = decoded.hairMask
+                break
+            }
+        }
+        try await Task.sleep(for: .milliseconds(20))
+    }
+
+    await writer.setFailNextWrite(true)
+    await f.engine.ingestForTesting(frame, at: 10)
+    try await withTimeout(seconds: 3) {
+        _ = await handlerTask.value
+    }
+
+    let wire = try #require(found, "no frame event carrying a hairMask arrived within 3s")
+    #expect(wire.cols == 4)
+    #expect(wire.rows == 2)
+    #expect(wire.bits == "4A==")
+}
+
 /// Reads the first element off a `HostSink.events()` stream, for use inside
 /// `withTimeout` below — takes the STREAM (not a mutating `Iterator`)
 /// specifically so the read can run inside a `@Sendable` `Task` closure
