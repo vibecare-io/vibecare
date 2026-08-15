@@ -83,12 +83,413 @@ type Alert struct {
 	Level   string // "info" | "warn"
 	Actions []AlertAction
 
-	// Appearance is an opaque, plugin-defined presentation hint forwarded
-	// to the client verbatim; core never parses it. Nil means "no opinion"
-	// and the client renders its own default alert — which is a different
-	// thing from a pointer to "", so this is a *string rather than a
-	// string.
+	// Style is the typed, checked way to ask for a particular look. Nil
+	// means "no opinion" and the client renders its default alert. Prefer
+	// this over Appearance: every field is documented with its valid
+	// values, units and client-side default, and the two enums are named
+	// types, so a typo is a compile error instead of a field the client
+	// silently drops.
+	//
+	// PRECEDENCE: if both Style and Appearance are set, Style WINS —
+	// Appearance is not merged into it, not appended to it, and not sent.
+	// The typed value is the one a reader can check, so it is the one that
+	// gets to be authoritative; a raw blob left over from older code never
+	// silently overrides a field someone set deliberately.
+	Style *Appearance
+
+	// Appearance is the raw escape hatch: an opaque, plugin-defined
+	// presentation hint forwarded to the client verbatim; core never parses
+	// it. Nil means "no opinion" and the client renders its own default
+	// alert — which is a different thing from a pointer to "", so this is a
+	// *string rather than a string.
+	//
+	// Use it only for a key the client understands but this SDK's
+	// Appearance struct does not yet model. For everything else use Style,
+	// which serialises to exactly this string for you.
 	Appearance *string
+}
+
+// Position places the alert window on screen. It is the `position` key of
+// an Appearance.
+//
+// Valid values — these five, and nothing else:
+//
+//	PositionCenter      "center"      (the client's default)
+//	PositionTopLeft     "topLeft"
+//	PositionTopRight    "topRight"
+//	PositionBottomLeft  "bottomLeft"
+//	PositionBottomRight "bottomRight"
+//
+// Anything else is rejected by Appearance.Validate (and so by Handle.Alert),
+// because the client would silently ignore it and fall back to the default.
+type Position string
+
+// The complete set of alert positions. See Position.
+const (
+	// PositionCenter centres the alert on the active screen. This is what
+	// the client uses when position is omitted.
+	PositionCenter Position = "center"
+	// PositionTopLeft pins the alert to the top-left corner.
+	PositionTopLeft Position = "topLeft"
+	// PositionTopRight pins the alert to the top-right corner.
+	PositionTopRight Position = "topRight"
+	// PositionBottomLeft pins the alert to the bottom-left corner.
+	PositionBottomLeft Position = "bottomLeft"
+	// PositionBottomRight pins the alert to the bottom-right corner.
+	PositionBottomRight Position = "bottomRight"
+)
+
+// BlurIntensity is how strongly the screen behind the alert is blurred. It
+// is the `screenBlurIntensity` key of an Appearance and has NO effect
+// unless screenBlurEnabled is also true — set both at once with
+// Appearance.WithScreenBlur.
+//
+// Valid values — these three, and nothing else:
+//
+//	BlurLight  "light"
+//	BlurMedium "medium"  (the client's default)
+//	BlurHeavy  "heavy"
+//
+// Anything else is rejected by Appearance.Validate.
+type BlurIntensity string
+
+// The complete set of blur intensities. See BlurIntensity.
+const (
+	// BlurLight is the subtlest backdrop blur.
+	BlurLight BlurIntensity = "light"
+	// BlurMedium is the client's default intensity.
+	BlurMedium BlurIntensity = "medium"
+	// BlurHeavy is the strongest backdrop blur.
+	BlurHeavy BlurIntensity = "heavy"
+)
+
+// Appearance is the presentation hint that rides on one alert: the typed
+// form of Alert.Appearance's JSON. Core forwards it to the client without
+// parsing it; the client decodes it and styles that single notification.
+//
+// # Every field is optional, and omitted means "client default"
+//
+// Each field is a pointer so that "unset" and "set to the zero value" stay
+// distinguishable on the wire: a nil field is not serialised at all, and
+// only an absent key makes the client keep its own default. Sending
+// `"width": 0` is a request for a zero-width window, not a request for the
+// default one. Build values with the With… helpers (or the Ptr helper) and
+// this is handled for you.
+//
+// # Runnable example
+//
+//	// A centred, 520-wide card with a bundled illustration, a heavy
+//	// backdrop blur, dismissing itself after 30 seconds.
+//	style := vc.NewAppearance().
+//	    WithBundledIcon("yoga").
+//	    WithPosition(vc.PositionCenter).
+//	    WithSize(520, 260).
+//	    WithSVGSize(240, 160).
+//	    WithScreenBlur(vc.BlurHeavy).
+//	    WithAutoDismissAfter(30 * time.Second).
+//	    WithMoveable(false)
+//
+//	if err := h.Alert(vc.Alert{
+//	    Title:   "Stretch break",
+//	    Body:    "Ninety minutes at the desk. Stand up.",
+//	    Level:   "info",
+//	    Actions: []vc.AlertAction{{Label: "Snooze", URL: "snooze"}},
+//	    Style:   style,
+//	}); err != nil {
+//	    log.Printf("alert: %v", err)
+//	}
+//
+//	// That Style serialises to exactly:
+//	// {"bundledIconId":"yoga","svgWidth":240,"svgHeight":160,
+//	//  "position":"center","width":520,"height":260,"moveable":false,
+//	//  "autoDismissAfter":30,"screenBlurEnabled":true,
+//	//  "screenBlurIntensity":"heavy"}
+//
+// # Two client behaviours worth knowing
+//
+// An appearance whose keys match NONE of the ones below is rejected whole
+// and the alert renders as a plain banner, so an all-nil Appearance (see
+// IsEmpty) is worse than no Appearance at all — it serialises to `{}`.
+// Unknown extra keys, by contrast, are tolerated, and one bad value costs
+// only that one field.
+type Appearance struct {
+	// BundledIconID names an illustration from the client's own built-in
+	// icon catalog, e.g. "yoga", "water-bottle", "timer", "focus",
+	// "break", "sleep", "meeting". The full list is the `id` field of
+	// every entry in the client's SVGIconCatalog.json. An id the client
+	// does not know draws no illustration (and the alert falls back to the
+	// plain banner rendering). Omitted: no illustration.
+	//
+	// Wire key: "bundledIconId". Set with WithBundledIcon.
+	BundledIconID *string `json:"bundledIconId,omitempty"`
+
+	// SVGPath points at an illustration the plugin supplies itself. Two
+	// accepted forms:
+	//
+	//	absolute        "https://…", "http://…", "file://…", "/abs/path.svg"
+	//	plugin-relative "assets/stretch.svg" — resolved by the client
+	//	                against this plugin's own mount, /p/<id>/
+	//
+	// Prefer the relative form for anything the plugin serves itself: a
+	// plugin cannot know which port core assigned it, so a relative path
+	// is the only self-referential URL it can honestly produce. Omitted:
+	// no custom illustration (BundledIconID, if set, is used instead).
+	//
+	// Wire key: "svgPath". Set with WithSVGPath or WithSVG.
+	SVGPath *string `json:"svgPath,omitempty"`
+
+	// SVGWidth is the illustration's drawn width in points. Client
+	// default when omitted: 220.
+	//
+	// Wire key: "svgWidth". Set with WithSVGSize or WithSVG.
+	SVGWidth *float64 `json:"svgWidth,omitempty"`
+
+	// SVGHeight is the illustration's drawn height in points. Client
+	// default when omitted: 150.
+	//
+	// Wire key: "svgHeight". Set with WithSVGSize or WithSVG.
+	SVGHeight *float64 `json:"svgHeight,omitempty"`
+
+	// Position places the window on the active screen. One of
+	// PositionCenter, PositionTopLeft, PositionTopRight,
+	// PositionBottomLeft, PositionBottomRight — see Position. Client
+	// default when omitted: PositionCenter.
+	//
+	// Wire key: "position". Set with WithPosition.
+	Position *Position `json:"position,omitempty"`
+
+	// Width is the alert window's width in points. Client default when
+	// omitted: 450.
+	//
+	// Wire key: "width". Set with WithSize.
+	Width *float64 `json:"width,omitempty"`
+
+	// Height is the alert window's height in points — a FLOOR, not a fixed
+	// size. The client measures the assembled view and takes whichever is
+	// larger, so adding action buttons can only grow the window, never
+	// clip the message. Client default when omitted: 220.
+	//
+	// Wire key: "height". Set with WithSize.
+	Height *float64 `json:"height,omitempty"`
+
+	// Moveable lets the user drag the alert around. Client default when
+	// omitted: true.
+	//
+	// Wire key: "moveable". Set with WithMoveable.
+	Moveable *bool `json:"moveable,omitempty"`
+
+	// AutoDismissAfter is the delay in SECONDS before the alert dismisses
+	// itself. Client default when omitted: 20. Fractional values are
+	// allowed.
+	//
+	// Wire key: "autoDismissAfter". Set with WithAutoDismissAfter, which
+	// takes a time.Duration and converts.
+	AutoDismissAfter *float64 `json:"autoDismissAfter,omitempty"`
+
+	// ScreenBlurEnabled blurs the desktop behind the alert. Client default
+	// when omitted: false. ScreenBlurIntensity is ignored unless this is
+	// true, which is why WithScreenBlur sets both together.
+	//
+	// Wire key: "screenBlurEnabled".
+	ScreenBlurEnabled *bool `json:"screenBlurEnabled,omitempty"`
+
+	// ScreenBlurIntensity is how strong that blur is: BlurLight,
+	// BlurMedium or BlurHeavy — see BlurIntensity. Client default when
+	// omitted: BlurMedium. Only takes effect when ScreenBlurEnabled is
+	// true.
+	//
+	// Wire key: "screenBlurIntensity". Set with WithScreenBlur.
+	ScreenBlurIntensity *BlurIntensity `json:"screenBlurIntensity,omitempty"`
+
+	// Title is ACCEPTED BY THE CLIENT BUT NEVER APPLIED. The alert's own
+	// Title always wins, because the sender already worded it and may have
+	// computed part of it at fire time. The field exists only so a plugin
+	// that stores a full appearance blob can forward it verbatim without
+	// stripping keys. Setting it has no visible effect — set Alert.Title.
+	//
+	// Wire key: "title".
+	Title *string `json:"title,omitempty"`
+
+	// Message is ACCEPTED BY THE CLIENT BUT NEVER APPLIED, for the same
+	// reason as Title. Set Alert.Body instead.
+	//
+	// Wire key: "message".
+	Message *string `json:"message,omitempty"`
+}
+
+// NewAppearance returns an empty Appearance ready to be chained through the
+// With… helpers. An Appearance with no fields set is not a useful thing to
+// send (see IsEmpty), so set at least one.
+func NewAppearance() *Appearance { return &Appearance{} }
+
+// Ptr returns a pointer to v. It exists so an Appearance can also be
+// written as a plain struct literal without a local variable per field:
+//
+//	style := &vc.Appearance{Width: vc.Ptr(520.0), Moveable: vc.Ptr(false)}
+func Ptr[T any](v T) *T { return &v }
+
+// WithBundledIcon sets BundledIconID — an id from the client's built-in
+// icon catalog, e.g. "yoga" or "water-bottle".
+func (a *Appearance) WithBundledIcon(id string) *Appearance {
+	a = a.ensure()
+	a.BundledIconID = &id
+	return a
+}
+
+// WithSVGPath sets SVGPath. The path may be absolute ("https://…",
+// "file://…", "/abs/path.svg") or plugin-relative ("assets/x.svg", resolved
+// against /p/<id>/).
+func (a *Appearance) WithSVGPath(path string) *Appearance {
+	a = a.ensure()
+	a.SVGPath = &path
+	return a
+}
+
+// WithSVGSize sets the illustration's drawn size in points (client
+// defaults: 220 x 150).
+func (a *Appearance) WithSVGSize(width, height float64) *Appearance {
+	a = a.ensure()
+	a.SVGWidth, a.SVGHeight = &width, &height
+	return a
+}
+
+// WithSVG sets the illustration path and its drawn size in points in one
+// call. Equivalent to WithSVGPath followed by WithSVGSize.
+func (a *Appearance) WithSVG(path string, width, height float64) *Appearance {
+	return a.WithSVGPath(path).WithSVGSize(width, height)
+}
+
+// WithPosition sets Position. Use one of the Position constants;
+// Handle.Alert refuses to send any other value.
+func (a *Appearance) WithPosition(p Position) *Appearance {
+	a = a.ensure()
+	a.Position = &p
+	return a
+}
+
+// WithSize sets the alert window's width and height in points (client
+// defaults: 450 x 220). Height is a floor, not a cap — see Appearance.Height.
+func (a *Appearance) WithSize(width, height float64) *Appearance {
+	a = a.ensure()
+	a.Width, a.Height = &width, &height
+	return a
+}
+
+// WithMoveable sets whether the user can drag the alert (client default:
+// true).
+func (a *Appearance) WithMoveable(moveable bool) *Appearance {
+	a = a.ensure()
+	a.Moveable = &moveable
+	return a
+}
+
+// WithAutoDismissAfter sets how long the alert stays up before dismissing
+// itself (client default: 20s). The wire field is in seconds; this takes a
+// time.Duration and converts, so 90*time.Second and 90.0 are the same
+// request.
+func (a *Appearance) WithAutoDismissAfter(d time.Duration) *Appearance {
+	a = a.ensure()
+	secs := d.Seconds()
+	a.AutoDismissAfter = &secs
+	return a
+}
+
+// WithScreenBlur turns the backdrop blur ON at the given intensity. It sets
+// BOTH ScreenBlurEnabled and ScreenBlurIntensity, because the client
+// ignores the intensity unless the flag is true — setting only the
+// intensity is the most common way to get no blur at all.
+func (a *Appearance) WithScreenBlur(intensity BlurIntensity) *Appearance {
+	a = a.ensure()
+	enabled := true
+	a.ScreenBlurEnabled, a.ScreenBlurIntensity = &enabled, &intensity
+	return a
+}
+
+// WithoutScreenBlur turns the backdrop blur explicitly OFF. Only needed to
+// override an appearance that had it on; the client's default is already
+// off.
+func (a *Appearance) WithoutScreenBlur() *Appearance {
+	a = a.ensure()
+	disabled := false
+	a.ScreenBlurEnabled = &disabled
+	a.ScreenBlurIntensity = nil
+	return a
+}
+
+// ensure makes the With… helpers safe to chain off a nil *Appearance, so
+// that a value threaded through optional configuration
+// (style = style.WithSize(…)) never panics on the path where nothing set it.
+func (a *Appearance) ensure() *Appearance {
+	if a == nil {
+		return &Appearance{}
+	}
+	return a
+}
+
+// IsEmpty reports whether no field is set. Such an appearance serialises to
+// `{}`, which the client REJECTS outright — it renders the plain default
+// banner — so an empty Appearance is never worth sending. Leave Alert.Style
+// nil instead.
+func (a *Appearance) IsEmpty() bool {
+	return a == nil || *a == Appearance{}
+}
+
+// Validate reports the first field whose value the client would silently
+// drop: a Position or BlurIntensity outside its documented set, or a
+// negative size or duration. Handle.Alert calls it, so a bad value fails
+// loudly at the call site instead of arriving as an alert that quietly
+// looks wrong.
+func (a *Appearance) Validate() error {
+	if a == nil {
+		return nil
+	}
+	if p := a.Position; p != nil {
+		switch *p {
+		case PositionCenter, PositionTopLeft, PositionTopRight, PositionBottomLeft, PositionBottomRight:
+		default:
+			return fmt.Errorf("vc: Appearance.Position %q is not one of %q, %q, %q, %q, %q",
+				*p, PositionCenter, PositionTopLeft, PositionTopRight, PositionBottomLeft, PositionBottomRight)
+		}
+	}
+	if b := a.ScreenBlurIntensity; b != nil {
+		switch *b {
+		case BlurLight, BlurMedium, BlurHeavy:
+		default:
+			return fmt.Errorf("vc: Appearance.ScreenBlurIntensity %q is not one of %q, %q, %q",
+				*b, BlurLight, BlurMedium, BlurHeavy)
+		}
+	}
+	for _, f := range []struct {
+		name string
+		v    *float64
+	}{
+		{"Width", a.Width}, {"Height", a.Height},
+		{"SVGWidth", a.SVGWidth}, {"SVGHeight", a.SVGHeight},
+		{"AutoDismissAfter", a.AutoDismissAfter},
+	} {
+		if f.v != nil && *f.v < 0 {
+			return fmt.Errorf("vc: Appearance.%s must not be negative, got %v", f.name, *f.v)
+		}
+	}
+	return nil
+}
+
+// JSON renders the appearance as the exact wire blob Alert.Appearance
+// carries: a JSON object holding only the fields that were set. Handle.Alert
+// does this for you; it is exported for plugins that persist an appearance
+// or build one somewhere other than at the call site.
+func (a *Appearance) JSON() (string, error) {
+	if a == nil {
+		return "", fmt.Errorf("vc: (*Appearance)(nil).JSON: nil means \"no opinion\", leave Alert.Style nil instead")
+	}
+	if err := a.Validate(); err != nil {
+		return "", err
+	}
+	b, err := json.Marshal(a)
+	if err != nil {
+		return "", fmt.Errorf("vc: encode Appearance: %w", err)
+	}
+	return string(b), nil
 }
 
 // Handle is a connected plugin.
@@ -327,8 +728,25 @@ func (h *Handle) PublishProto(topic string, m proto.Message) error {
 	return h.Publish(topic, b)
 }
 
+// Alert raises a native notification on the client.
+//
+// If a.Style is set it is validated and serialised, and the result REPLACES
+// a.Appearance — see Alert.Style for why the typed value wins. An invalid
+// Style (an out-of-set Position or BlurIntensity, a negative size) is an
+// error and no alert is sent, because the alternative is a notification
+// that quietly renders wrong. If a.Style is nil, a.Appearance is forwarded
+// verbatim exactly as it always has been.
 func (h *Handle) Alert(a Alert) error {
-	req := &pluginv1.AlertReq{Title: a.Title, Body: a.Body, Level: a.Level, Appearance: a.Appearance}
+	appearance := a.Appearance
+	if a.Style != nil {
+		blob, err := a.Style.JSON()
+		if err != nil {
+			return err
+		}
+		appearance = &blob
+	}
+
+	req := &pluginv1.AlertReq{Title: a.Title, Body: a.Body, Level: a.Level, Appearance: appearance}
 	for _, act := range a.Actions {
 		req.Actions = append(req.Actions, &pluginv1.AlertAction{Label: act.Label, Url: act.URL})
 	}

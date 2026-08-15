@@ -1,4 +1,5 @@
 import Foundation
+import VCPluginSDK
 
 // MARK: - Notification Position
 
@@ -122,6 +123,83 @@ public struct NotificationPreferences: Codable, Sendable, Equatable {
         p.screenBlurEnabled = true
         p.screenBlurIntensity = .light
         return p
+    }
+}
+
+// MARK: - Persisted config -> wire appearance
+
+/// The one place where vibecheck's persisted preferences become the SDK's
+/// alert-appearance schema.
+///
+/// These two types are deliberately separate. `NotificationPreferences` is
+/// this plugin's own config: it has an editor UI, an on-disk format in
+/// `alert-prefs.json`, and defaults (`base`, `default(for:)`) that are
+/// product decisions. `VCAlertAppearance` is the SDK's statement of what any
+/// plugin may say about any alert. They line up field-for-field today only
+/// because both were derived from the same client schema; keeping the
+/// translation explicit means a future config field — a per-behavior sound,
+/// say — can be added on one side without inventing a wire key on the other.
+///
+/// The enum translations are exhaustive `switch`es rather than
+/// `init(rawValue:)` lookups on purpose. Raw-value matching would compile
+/// forever and silently drop the field the day either enum grew a case the
+/// other lacks; a `switch` makes that divergence a build error at exactly
+/// the line that has to decide what to do about it.
+extension NotificationPosition {
+    var wire: VCAlertAppearance.Position {
+        switch self {
+        case .center: return .center
+        case .topLeft: return .topLeft
+        case .topRight: return .topRight
+        case .bottomLeft: return .bottomLeft
+        case .bottomRight: return .bottomRight
+        }
+    }
+}
+
+extension BlurIntensity {
+    var wire: VCAlertAppearance.BlurIntensity {
+        switch self {
+        case .light: return .light
+        case .medium: return .medium
+        case .heavy: return .heavy
+        }
+    }
+}
+
+extension NotificationPreferences {
+    /// This behavior's stored look, expressed in the SDK's schema.
+    ///
+    /// Optionals pass through as optionals — `nil` stays `nil` so the SDK
+    /// omits the key and the client applies its own default, rather than
+    /// this plugin asserting a value the user never chose. The four
+    /// non-optional stored properties (`position`, `moveable`,
+    /// `screenBlurEnabled`, `screenBlurIntensity`) are always asserted,
+    /// because this plugin genuinely does have an opinion about them:
+    /// `AlertPrefsStore` seeds every behavior with `default(for:)`, so they
+    /// always hold a real, user-visible value.
+    ///
+    /// `title`/`message` are forwarded exactly as stored, empty strings
+    /// included. The client accepts but does not apply them (the alert's own
+    /// title/body win), and `HostSink.fired` is what turns a stored title
+    /// into the alert's actual title — so filtering them here would only
+    /// change the bytes without changing anything a user can see.
+    var wireAppearance: VCAlertAppearance {
+        VCAlertAppearance(
+            bundledIconId: bundledIconId,
+            svgPath: svgPath,
+            svgWidth: svgWidth,
+            svgHeight: svgHeight,
+            position: position.wire,
+            width: width,
+            height: height,
+            moveable: moveable,
+            autoDismissAfter: autoDismissAfter,
+            screenBlurEnabled: screenBlurEnabled,
+            screenBlurIntensity: screenBlurIntensity.wire,
+            title: title,
+            message: message
+        )
     }
 }
 

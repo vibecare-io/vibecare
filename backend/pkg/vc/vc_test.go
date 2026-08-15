@@ -3,12 +3,14 @@ package vc
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strconv"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -631,6 +633,309 @@ func TestReconnectBackoffResetsAfterAStableSession(t *testing.T) {
 	if d3 >= d2 {
 		t.Fatalf("d3 (%s) >= d2 (%s): the backoff ladder did not reset after a stable session (reconnectStable=%s)", d3, d2, reconnectStable)
 	}
+}
+
+// --- Appearance -----------------------------------------------------------
+//
+// These tests pin the WIRE SCHEMA, not the Go API: the macOS client decodes
+// this JSON with its own hand-written keys (PluginAlertAppearance.swift), so
+// a renamed field or a changed enum spelling is a silent styling regression
+// no compiler on either side would catch. Everything here is asserted
+// against exact JSON text for that reason.
+
+// An absent key means "keep the client default"; a key present with a zero
+// value means that zero value. So a field nobody set must not appear at all.
+func TestAppearanceOmitsUnsetFields(t *testing.T) {
+	tests := []struct {
+		name  string
+		style *Appearance
+		want  string
+	}{
+		{"nothing set at all", NewAppearance(), `{}`},
+		{"one field set leaves the rest out", NewAppearance().WithSize(520, 260), `{"width":520,"height":260}`},
+		{"icon only", NewAppearance().WithBundledIcon("yoga"), `{"bundledIconId":"yoga"}`},
+		{
+			"blur helper sets the flag as well as the intensity",
+			NewAppearance().WithScreenBlur(BlurHeavy),
+			`{"screenBlurEnabled":true,"screenBlurIntensity":"heavy"}`,
+		},
+		{
+			"turning blur off drops the intensity that would be ignored anyway",
+			NewAppearance().WithScreenBlur(BlurHeavy).WithoutScreenBlur(),
+			`{"screenBlurEnabled":false}`,
+		},
+		// The zero-value cases: these must NOT be omitted, or "no border"
+		// and "default border" become the same request.
+		{"a zero size is a real request, not an omission", NewAppearance().WithSize(0, 0), `{"width":0,"height":0}`},
+		{"false is a real request", NewAppearance().WithMoveable(false), `{"moveable":false}`},
+		{"zero seconds is a real request", NewAppearance().WithAutoDismissAfter(0), `{"autoDismissAfter":0}`},
+		{"the empty string is a real request", NewAppearance().WithSVGPath(""), `{"svgPath":""}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got, err := tc.style.JSON()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("JSON() = %s, want %s", got, tc.want)
+			}
+		})
+	}
+}
+
+// Every field, set individually, must land on the key name the Swift client
+// actually reads.
+func TestAppearanceSerialisesToTheDocumentedKeyNames(t *testing.T) {
+	tests := []struct {
+		field string
+		style *Appearance
+		want  string
+	}{
+		{"bundledIconId", &Appearance{BundledIconID: Ptr("water-bottle")}, `{"bundledIconId":"water-bottle"}`},
+		{"svgPath", &Appearance{SVGPath: Ptr("assets/stretch.svg")}, `{"svgPath":"assets/stretch.svg"}`},
+		{"svgWidth", &Appearance{SVGWidth: Ptr(240.0)}, `{"svgWidth":240}`},
+		{"svgHeight", &Appearance{SVGHeight: Ptr(160.5)}, `{"svgHeight":160.5}`},
+		{"position", &Appearance{Position: Ptr(PositionTopRight)}, `{"position":"topRight"}`},
+		{"width", &Appearance{Width: Ptr(520.0)}, `{"width":520}`},
+		{"height", &Appearance{Height: Ptr(260.0)}, `{"height":260}`},
+		{"moveable", &Appearance{Moveable: Ptr(true)}, `{"moveable":true}`},
+		{"autoDismissAfter", &Appearance{AutoDismissAfter: Ptr(30.0)}, `{"autoDismissAfter":30}`},
+		{"screenBlurEnabled", &Appearance{ScreenBlurEnabled: Ptr(true)}, `{"screenBlurEnabled":true}`},
+		{"screenBlurIntensity", &Appearance{ScreenBlurIntensity: Ptr(BlurLight)}, `{"screenBlurIntensity":"light"}`},
+		{"title", &Appearance{Title: Ptr("ignored by the client")}, `{"title":"ignored by the client"}`},
+		{"message", &Appearance{Message: Ptr("also ignored")}, `{"message":"also ignored"}`},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.field, func(t *testing.T) {
+			got, err := tc.style.JSON()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got != tc.want {
+				t.Fatalf("JSON() = %s, want %s", got, tc.want)
+			}
+		})
+	}
+
+	// And all of them together, in the declared order, so the full blob a
+	// plugin sends is pinned too.
+	full := NewAppearance().
+		WithBundledIcon("yoga").
+		WithSVG("assets/stretch.svg", 240, 160).
+		WithPosition(PositionCenter).
+		WithSize(520, 260).
+		WithMoveable(false).
+		WithAutoDismissAfter(30 * time.Second).
+		WithScreenBlur(BlurHeavy)
+	want := `{"bundledIconId":"yoga","svgPath":"assets/stretch.svg","svgWidth":240,"svgHeight":160,` +
+		`"position":"center","width":520,"height":260,"moveable":false,"autoDismissAfter":30,` +
+		`"screenBlurEnabled":true,"screenBlurIntensity":"heavy"}`
+	got, err := full.JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("full appearance =\n%s\nwant\n%s", got, want)
+	}
+}
+
+// The enums are the two places where a wrong string is accepted by the JSON
+// encoder and then quietly discarded by the client, so their spellings are
+// pinned literally.
+func TestAppearanceEnumConstantsMatchTheWireStrings(t *testing.T) {
+	positions := []struct {
+		got  Position
+		want string
+	}{
+		{PositionCenter, "center"},
+		{PositionTopLeft, "topLeft"},
+		{PositionTopRight, "topRight"},
+		{PositionBottomLeft, "bottomLeft"},
+		{PositionBottomRight, "bottomRight"},
+	}
+	for _, tc := range positions {
+		if string(tc.got) != tc.want {
+			t.Errorf("Position = %q, want %q", tc.got, tc.want)
+		}
+	}
+
+	blurs := []struct {
+		got  BlurIntensity
+		want string
+	}{
+		{BlurLight, "light"},
+		{BlurMedium, "medium"},
+		{BlurHeavy, "heavy"},
+	}
+	for _, tc := range blurs {
+		if string(tc.got) != tc.want {
+			t.Errorf("BlurIntensity = %q, want %q", tc.got, tc.want)
+		}
+	}
+}
+
+func TestAppearanceValidateRejectsValuesTheClientWouldDrop(t *testing.T) {
+	tests := []struct {
+		name    string
+		style   *Appearance
+		wantErr bool
+	}{
+		{"nil is fine", nil, false},
+		{"empty is fine", NewAppearance(), false},
+		{"every legal enum", NewAppearance().WithPosition(PositionBottomLeft).WithScreenBlur(BlurMedium), false},
+		{"unknown position", &Appearance{Position: Ptr(Position("middle"))}, true},
+		{"case matters", &Appearance{Position: Ptr(Position("TopRight"))}, true},
+		{"unknown blur", &Appearance{ScreenBlurIntensity: Ptr(BlurIntensity("extreme"))}, true},
+		{"negative width", &Appearance{Width: Ptr(-1.0)}, true},
+		{"negative dismiss", &Appearance{AutoDismissAfter: Ptr(-5.0)}, true},
+		{"zero is not negative", &Appearance{Width: Ptr(0.0)}, false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := tc.style.Validate()
+			if (err != nil) != tc.wantErr {
+				t.Fatalf("Validate() = %v, wantErr = %v", err, tc.wantErr)
+			}
+		})
+	}
+}
+
+func TestAppearanceIsEmptyAndNilSafety(t *testing.T) {
+	var nilStyle *Appearance
+	if !nilStyle.IsEmpty() || !NewAppearance().IsEmpty() {
+		t.Fatal("a nil or field-less Appearance must report itself empty")
+	}
+	if NewAppearance().WithMoveable(false).IsEmpty() {
+		t.Fatal("moveable:false is a set field, not an empty appearance")
+	}
+
+	// Chaining off a nil pointer must not panic: a plugin that threads an
+	// appearance through optional configuration has a path where nothing
+	// set it yet.
+	got, err := nilStyle.WithPosition(PositionTopLeft).JSON()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != `{"position":"topLeft"}` {
+		t.Fatalf("JSON() = %s", got)
+	}
+}
+
+// The whole point of the typed path: it produces the same blob the raw
+// string always did, and it wins when both are set.
+func TestAlertStyleWinsOverRawAppearance(t *testing.T) {
+	raw := `{"width":111}`
+	typed := NewAppearance().WithSize(520, 260).WithPosition(PositionTopRight)
+
+	tests := []struct {
+		name  string
+		alert Alert
+		want  *string // nil = the SDK must not send an appearance at all
+	}{
+		{"neither set", Alert{Title: "a"}, nil},
+		{"raw only, forwarded verbatim", Alert{Title: "b", Appearance: &raw}, &raw},
+		{
+			"typed only",
+			Alert{Title: "c", Style: typed},
+			Ptr(`{"position":"topRight","width":520,"height":260}`),
+		},
+		{
+			"both set: typed wins and the raw blob is not sent, merged or appended",
+			Alert{Title: "d", Appearance: &raw, Style: typed},
+			Ptr(`{"position":"topRight","width":520,"height":260}`),
+		},
+		{
+			"an empty typed style still wins, and is the {} the client rejects",
+			Alert{Title: "e", Appearance: &raw, Style: NewAppearance()},
+			Ptr(`{}`),
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			core, _ := coreFixture(t, "alpha")
+			h, err := Connect()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer h.Close()
+
+			if err := h.Alert(tc.alert); err != nil {
+				t.Fatal(err)
+			}
+
+			core.mu.Lock()
+			defer core.mu.Unlock()
+			if len(core.alerts) != 1 {
+				t.Fatalf("alerts = %+v", core.alerts)
+			}
+			got := core.alerts[0].Appearance
+			switch {
+			case tc.want == nil && got != nil:
+				t.Fatalf("sent an appearance nobody asked for: %q", *got)
+			case tc.want != nil && got == nil:
+				t.Fatalf("sent no appearance, want %q", *tc.want)
+			case tc.want != nil && *got != *tc.want:
+				t.Fatalf("appearance = %s, want %s", *got, *tc.want)
+			}
+		})
+	}
+}
+
+// A Style the client would silently mangle fails at the call site instead,
+// and no alert goes out — a notification that renders wrong is worse than
+// an error the plugin author can see.
+func TestAlertRejectsAnInvalidStyleWithoutSending(t *testing.T) {
+	core, _ := coreFixture(t, "alpha")
+	h, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+
+	err = h.Alert(Alert{Title: "Break", Style: &Appearance{Position: Ptr(Position("middle"))}})
+	if err == nil {
+		t.Fatal("an out-of-set Position must be an error, not a silently dropped field")
+	}
+	if !strings.Contains(err.Error(), "middle") {
+		t.Errorf("the error must name the offending value, got: %v", err)
+	}
+
+	core.mu.Lock()
+	defer core.mu.Unlock()
+	if len(core.alerts) != 0 {
+		t.Fatalf("an invalid style must not send an alert: %+v", core.alerts)
+	}
+}
+
+// ExampleAppearance is the runnable form of the doc comment's example: it
+// proves the advertised chain compiles and prints the blob it produces.
+func ExampleAppearance() {
+	style := NewAppearance().
+		WithBundledIcon("yoga").
+		WithPosition(PositionCenter).
+		WithSize(520, 260).
+		WithSVGSize(240, 160).
+		WithScreenBlur(BlurHeavy).
+		WithAutoDismissAfter(30 * time.Second).
+		WithMoveable(false)
+
+	blob, err := style.JSON()
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(blob)
+
+	// This is what you would hand to Handle.Alert:
+	//
+	//	h.Alert(vc.Alert{Title: "Stretch break", Body: "Stand up.", Style: style})
+
+	// Output:
+	// {"bundledIconId":"yoga","svgWidth":240,"svgHeight":160,"position":"center","width":520,"height":260,"moveable":false,"autoDismissAfter":30,"screenBlurEnabled":true,"screenBlurIntensity":"heavy"}
 }
 
 func itoa(n int) string { return strconv.Itoa(n) }
