@@ -35,9 +35,6 @@ struct VibeCareApp: App {
                         await BackendManager.shared.ensureRunning()
                         await appState.loadInitialData()
 
-                        // Auto-resume VibeCheck detection if it was on at last quit.
-                        await VibeCheckViewModel.shared.resumeIfEnabled()
-
                         // VibeNotify requires no permission setup - ready to use!
                         logger.info("App loaded - VibeNotify ready for notifications")
                     }
