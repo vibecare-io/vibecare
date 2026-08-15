@@ -180,3 +180,65 @@ private func face() -> FaceGeometry {
     try #require(calls.count == 2)
     #expect(calls[1].1 == 2)
 }
+
+// MARK: - apply(_:generation:) — "the last request issued wins"
+//
+// Review round 3 finding A: `/api/config` PUT and `/api/config/disable`
+// respond before applying live, then run `engine.apply(saved, generation:)`
+// in a DETACHED `Task` (an earlier round's fix — awaiting `apply` inline
+// could block the HTTP response on a TCC prompt). Detaching removed the
+// ordering `VCHTTPServer`'s `lastRequestTask` chaining used to give for
+// free: two requests on one keep-alive connection now spawn two
+// INDEPENDENT `Task`s, and `apply(_:)` unconditionally overwrites
+// `cachedConfig` before checking for a transition — so if the two detached
+// calls reach the actor out of request order, the OLDER request finishing
+// LAST would clobber the newer one's config. Unlike the `startToken`/
+// `queuedStopToken` race (which needs a real in-flight `camera.start()`
+// suspension and has no mock seam — see that fix's own tests-not-written
+// note), THIS is pure integer bookkeeping with no camera involvement at
+// all: every config below uses `enabled: false`, so nothing here ever
+// reaches `startCameraOnly()`, and the ordering claim is fully,
+// deterministically testable by simply calling things in a chosen order.
+
+@Test func aStaleGenerationArrivingLastIsIgnoredNotAppliedInOrderOfArrival() async throws {
+    let (engine, _) = try await makeTestEngine()
+
+    // Reserve BOTH generations up front, exactly like two HTTP handlers
+    // would (each calls `nextApplyGeneration()` synchronously, before
+    // detaching) — genA is minted first (the earlier request), genB second
+    // (the later one).
+    let genA = await engine.nextApplyGeneration()
+    let genB = await engine.nextApplyGeneration()
+    #expect(genB > genA)
+
+    var configA = VibeCheckConfig.default
+    configA.sensitivity = 0.9
+    var configB = VibeCheckConfig.default
+    configB.sensitivity = 0.2
+
+    // Completion order is the INVERSE of request order — the later
+    // request's detached apply (genB) reaches the actor and commits
+    // FIRST, exactly the interleaving a slow TCC prompt on the earlier
+    // request would produce.
+    await engine.apply(configB, generation: genB)
+    await engine.apply(configA, generation: genA)   // stale — must be ignored
+
+    let snap = await engine.snapshot()
+    #expect(snap.config.sensitivity == 0.2)   // genB's value, not clobbered by stale genA
+}
+
+@Test func generationsCommittingInOrderApplyNormally() async throws {
+    let (engine, _) = try await makeTestEngine()
+
+    let gen1 = await engine.nextApplyGeneration()
+    var c1 = VibeCheckConfig.default
+    c1.sensitivity = 0.3
+    await engine.apply(c1, generation: gen1)
+    #expect(await engine.snapshot().config.sensitivity == 0.3)
+
+    let gen2 = await engine.nextApplyGeneration()
+    var c2 = VibeCheckConfig.default
+    c2.sensitivity = 0.7
+    await engine.apply(c2, generation: gen2)
+    #expect(await engine.snapshot().config.sensitivity == 0.7)
+}

@@ -235,7 +235,6 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
     await f.sink.attach(host: spyHost)
 
     let stream = await f.sink.events()
-    var iterator = stream.makeAsyncIterator()
 
     let snoozeHandler = try #require(await f.router.route("/api/snooze"))
     try await snoozeHandler(request("POST", "/api/snooze", query: ["minutes": "10"]), RecordingWriter())
@@ -246,8 +245,12 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
     await f.engine.ingestForTesting(hit, at: 0.2)   // dwell (0.15) satisfied -> fires
 
     // Still broadcast to SSE: snoozing suppresses the popup, not the fact
-    // that a detection happened.
-    let received = await iterator.next()
+    // that a detection happened. Bounded (not a bare `await iterator.next()`
+    // — that shape was review finding B, a same-round regression of the
+    // hang-instead-of-fail anti-pattern finding 5 had just removed from
+    // HostSinkTests.swift): a snooze or fan-out regression here now fails
+    // fast instead of hanging `swift test` forever.
+    let received = try await withTimeout { await firstDetectionEvent(from: stream) }
     #expect(received?.behavior == .nosePicking)
 
     // But the alert itself never reached the host — this is the one
@@ -396,18 +399,36 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
     }
 }
 
-/// Small helper: fails the test rather than hanging forever if `body` does
-/// not complete in time — used only to bound the one test above that awaits
-/// a background handler task's completion.
-private func withTimeout(seconds: Double, _ body: @escaping @Sendable () async -> Void) async throws {
-    try await withThrowingTaskGroup(of: Void.self) { group in
+/// Reads the first element off a `HostSink.events()` stream, for use inside
+/// `withTimeout` below — takes the STREAM (not a mutating `Iterator`)
+/// specifically so the read can run inside a `@Sendable` `Task` closure
+/// without capturing a mutable local var across the concurrency boundary.
+/// Same shape as `HostSinkTests.swift`'s own `firstEvent(from:)` —
+/// duplicated rather than shared because Swift's file-private access means
+/// the two test targets' files can't see each other's `private` helpers.
+private func firstDetectionEvent(from stream: AsyncStream<DetectionBroadcast>) async -> DetectionBroadcast? {
+    for await value in stream { return value }
+    return nil
+}
+
+/// Fails the test rather than hanging forever if `body` does not complete in
+/// time. Generic so it covers both this file's uses: waiting on a
+/// background handler `Task`'s completion (`T == Void`) and reading one
+/// element off an `AsyncStream` (`T == DetectionBroadcast?`).
+private func withTimeout<T: Sendable>(
+    seconds: Double = 3, _ body: @escaping @Sendable () async -> T
+) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
         group.addTask { await body() }
         group.addTask {
             try await Task.sleep(for: .seconds(seconds))
             throw TimeoutError.timedOut
         }
-        try await group.next()
+        guard let result = try await group.next() else {
+            throw TimeoutError.timedOut
+        }
         group.cancelAll()
+        return result
     }
 }
 

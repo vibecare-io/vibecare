@@ -64,21 +64,31 @@ public func registerVibeCheckRoutes(
             // wrote, so the engine's in-memory state can never diverge from
             // what's on disk.
             let saved = await config.load()
+            // Reserved HERE, synchronously, before responding or detaching
+            // — see `DetectionEngine.nextApplyGeneration()`'s doc comment
+            // for why this specific ordering (not inside the `Task` below)
+            // is what makes "the last request wins" hold even though the
+            // apply itself runs detached.
+            let generation = await engine.nextApplyGeneration()
             try await respondJSON(writer, status: 200, saved)
             // Applied AFTER responding, in a DETACHED Task — never awaited
-            // inline here. `engine.apply(_:)` can call `startCameraOnly()`
-            // -> `camera.start()` -> `AVCaptureDevice.requestAccess`, which
-            // does not return until a human answers a real system TCC
-            // dialog (or, in a display-less environment, may never resolve
-            // promptly at all). The HTTP response is already fully
-            // determined by `saved`, which is already persisted, by this
-            // point — nothing about it depends on the camera. Awaiting
-            // `apply` inline would hang this response on first run, and
-            // via `VCHTTPServer`'s `lastRequestTask` chaining (every
-            // request on one keep-alive connection awaits the previous
-            // one's `Task` before it can even start), every LATER request
-            // queued behind it on the same connection would hang too.
-            Task { await engine.apply(saved) }
+            // inline here. `engine.apply(_:generation:)` can call
+            // `startCameraOnly()` -> `camera.start()` ->
+            // `AVCaptureDevice.requestAccess`, which does not return until a
+            // human answers a real system TCC dialog (or, in a display-less
+            // environment, may never resolve promptly at all). The HTTP
+            // response is already fully determined by `saved`, which is
+            // already persisted, by this point — nothing about it depends
+            // on the camera. Awaiting `apply` inline would hang this
+            // response on first run, and via `VCHTTPServer`'s
+            // `lastRequestTask` chaining (every request on one keep-alive
+            // connection awaits the previous one's `Task` before it can
+            // even start), every LATER request queued behind it on the
+            // same connection would hang too. `generation` (not the plain
+            // `apply(_:)`) is what stops that same detaching from letting
+            // an older, slower request's config clobber a newer one's — see
+            // `DetectionEngine.apply(_:generation:)`.
+            Task { await engine.apply(saved, generation: generation) }
 
         default:
             try await respondMethodNotAllowed(writer, "GET, PUT")
@@ -103,16 +113,18 @@ public func registerVibeCheckRoutes(
             return
         }
         let saved = await config.load()
+        // Same "reserve a generation before responding/detaching" reasoning
+        // as `/api/config` PUT above — see `DetectionEngine
+        // .nextApplyGeneration()`. This route's own `apply` transitioning to
+        // `enabled: false` only ever calls the non-blocking `stop()` (no TCC
+        // prompt on the way down), but a PUT racing it on the same
+        // connection (this route disabling right after a PUT that just
+        // enabled) is exactly the ordering this guards against — the
+        // generation has to be reserved here regardless of which direction
+        // THIS route's own transition happens to be safe to block on.
+        let generation = await engine.nextApplyGeneration()
         try await respondJSON(writer, status: 200, saved)
-        // Same "respond first, apply in a detached Task" reasoning as
-        // `/api/config` PUT above. `apply` transitioning to `enabled: false`
-        // only ever calls the non-blocking `stop()` (no TCC prompt on the
-        // way down), so this specific call could safely be awaited inline
-        // today — but doing it the same way as PUT keeps this route from
-        // silently growing that risk if `apply`'s shape ever changes, and
-        // means neither route depends on reasoning about which direction
-        // is "safe" to block on.
-        Task { await engine.apply(saved) }
+        Task { await engine.apply(saved, generation: generation) }
     }
 
     // Ruling P4, same as above — "Snooze 10 min" is the other alert action.
