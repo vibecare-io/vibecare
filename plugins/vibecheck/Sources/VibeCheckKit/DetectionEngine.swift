@@ -748,10 +748,10 @@ public actor HostSink: DetectionSink {
         return s
     }
 
-    /// Encodes one behavior's `NotificationPreferences` into the opaque
-    /// blob that rides on `VCAlert.appearance`, so the client can render
-    /// this plugin's alert the way the user configured it — the icon,
-    /// position, size, blur and dismissal timing that the "Advanced: Alert
+    /// Encodes one behavior's `NotificationPreferences` into the blob that
+    /// rides on `VCAlert.appearance`, so the client can render this
+    /// plugin's alert the way the user configured it — the icon, position,
+    /// size, blur and dismissal timing that the "Advanced: Alert
     /// Appearance" editor writes — instead of a generic banner.
     ///
     /// Why the appearance travels ON the alert rather than the client
@@ -761,9 +761,14 @@ public actor HostSink: DetectionSink {
     /// per-plugin code. An opaque field on a message any plugin can send
     /// keeps that true.
     ///
-    /// `.sortedKeys` so the same preferences always produce the same bytes:
-    /// the blob ends up in logs and in test expectations, and a dictionary
-    /// order that shifts between runs would make both unreadable.
+    /// The bytes are produced by the SDK's `VCAlertAppearance`, not by this
+    /// package: the schema is the SDK's to state (and to keep sorted and
+    /// deterministic), and `NotificationPreferences` is this plugin's own
+    /// persisted config with its own on-disk format and editor UI. The two
+    /// coincide field-for-field today, which is exactly why they must not
+    /// be the same type — a change to what vibecheck persists would
+    /// otherwise silently become a change to what every client decodes.
+    /// `wireAppearance` below is the seam where the two meet.
     ///
     /// Returns `nil` if encoding somehow fails, which sends no appearance
     /// at all rather than a broken one — the client then renders its
@@ -771,13 +776,11 @@ public actor HostSink: DetectionSink {
     /// throws out to the caller: a presentation detail must never cost the
     /// user the alert itself.
     static func encodeAppearance(_ preference: NotificationPreferences) -> String? {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.sortedKeys]
-        guard let data = try? encoder.encode(preference) else {
+        guard let encoded = preference.wireAppearance.encoded() else {
             engineLog("could not encode alert appearance; sending the alert unstyled")
             return nil
         }
-        return String(decoding: data, as: UTF8.self)
+        return encoded
     }
 
     public func fired(_ event: BFRBEvent, count: Int, behavior: BFRBBehavior) async {

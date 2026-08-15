@@ -177,8 +177,125 @@ Levels are `"info"` and `"warn"` — nothing else exists, and anything unrecogni
 reusing the proxy rather than inventing a callback channel. **Action endpoints should accept both GET
 and POST**, since a client following an action URL issues a GET.
 
+### Alert appearance
+
 An alert may carry an optional `appearance` blob. The kernel forwards it opaquely and never looks
 inside — an alert's appearance is product semantics, and the kernel has none.
+
+That does **not** make the format yours. `appearance` is **the shell's alert vocabulary**, not a
+plugin-defined one: the client decodes a shape it already owns, and a plugin that invents its own
+gets the plain banner. What you gain is not freedom of schema — it is that speaking this one needs
+**no client release and no per-plugin code in the client**.
+
+The blob is a JSON object encoded as a string. Every field is optional. The authoritative definition
+is `clients/macos-swift/VibeCare/VibeCare/Models/PluginAlertAppearance.swift`.
+
+| key | type | notes |
+|---|---|---|
+| `bundledIconId` | string | id in the client's built-in icon catalog |
+| `svgPath` | string | absolute (`http(s)://`, `file://`, `/abs/path`) or **plugin-relative**, resolved against `/p/<id>/` |
+| `svgWidth` / `svgHeight` | number | illustration size in points |
+| `position` | string | `center` \| `topLeft` \| `topRight` \| `bottomLeft` \| `bottomRight` |
+| `width` / `height` | number | alert size; `height` is a floor, not a cap — a button row grows it |
+| `moveable` | bool | user can drag the alert |
+| `autoDismissAfter` | number | seconds |
+| `screenBlurEnabled` | bool | blur the screen behind the alert |
+| `screenBlurIntensity` | string | `light` \| `medium` \| `heavy` |
+| `title` / `message` | string | accepted but **not applied** — the alert's own `title`/`body` always win |
+
+Anything omitted falls back to the shell's defaults: centered, 450×220, a 220×150 illustration,
+moveable, dismissed after 20s, no blur. `title`/`message` are tolerated so a plugin can forward its
+stored preferences verbatim; they are dropped, because the sender already applied its wording and
+may have computed something at fire time (a running count) that a stored preference cannot contain.
+
+Five behaviours routinely surprise people:
+
+- **Absent is not zero.** An omitted field means "the client's default"; a present field means that
+  exact value. `"autoDismissAfter": 0` asks for an alert that dismisses immediately, not for 20s.
+- **A blob matching none of these keys is rejected outright** and the alert renders as the plain
+  banner. That is deliberate: since every field is optional, without the check any unrelated JSON —
+  another schema entirely, or `{}` — would "decode" into an all-nil appearance, which the renderer
+  would read as *restyle this alert with nothing*. A non-object, invalid JSON and `""` are rejected
+  the same way (though `""` is still a *present* appearance on the wire — presence and emptiness are
+  distinct).
+- **Lenient per field, strict overall.** One bad value — `"width": "wide"`, a `position` this client
+  has never heard of — costs that field only; the rest of the appearance still applies. Unknown
+  extra keys are ignored, but they do not count towards "did we understand any of this?".
+- **A relative `svgPath` that fails to load downgrades the whole alert to the plain banner**, rather
+  than rendering a rich alert with a hole where the picture should be — the banner still draws the
+  action buttons, and losing a "Turn off" button is a functional loss where losing an illustration
+  is a cosmetic one. A relative path is fetched through the proxy with the shell's session cookie
+  (2s timeout, cached per URL); an absolute one is loaded directly and bypasses the proxy entirely.
+  An appearance that never asked for an illustration is *not* this case and still renders rich.
+- **A rejected appearance never costs the interrupt.** A `warn` alert's sound and screen flash fire
+  before any renderer is chosen, so a blob the client cannot read degrades the look, not the nudge.
+
+Today the illustration is resolved from `svgPath` only; `bundledIconId` is decoded and carried but
+not turned into an image on the alert path. Ship the SVG with your plugin and point `svgPath` at it
+relatively — a plugin cannot know the port core assigned it, so a relative path is the only thing it
+can honestly send.
+
+**Sending one.** Both SDKs carry a typed builder for this exact shape — `vc.Appearance` (Go,
+`backend/pkg/vc`) and `VCAlertAppearance` (Swift, `plugins/vibecheck/Sources/VCPluginSDK`) — so you
+never hand-roll the string:
+
+```go
+style := vc.NewAppearance().
+	WithSVG("icons/nose-picking.svg", 220, 150).
+	WithPosition(vc.PositionCenter).
+	WithSize(450, 220).
+	WithMoveable(true).
+	WithAutoDismissAfter(20 * time.Second).
+	WithScreenBlur(vc.BlurLight)
+
+h.Alert(vc.Alert{
+	Title:   "Nose-picking",
+	Body:    "Ease off — 6th nudge today",
+	Level:   "warn",
+	Actions: []vc.AlertAction{{Label: "Snooze 10 min", URL: "api/snooze?minutes=10"}},
+	Style:   style,
+})
+```
+
+`Alert.Style` is the typed field; the older raw `Alert.Appearance *string` still works and is
+still what goes on the wire, but when both are set `Style` wins and the raw one is not merged.
+Every `Appearance` field is a pointer so that *unset* and *set to zero* stay distinguishable —
+use the `With…` builders, or `vc.Ptr` for struct-literal construction.
+
+```swift
+let style = VCAlertAppearance(
+    svgPath: "icons/nose-picking.svg", svgWidth: 220, svgHeight: 150,
+    position: .center, width: 450, height: 220, moveable: true,
+    autoDismissAfter: 20, screenBlurEnabled: true, screenBlurIntensity: .light
+)
+try await host.alert(VCAlert(
+    title: "Nose-picking",
+    body: "Ease off — 6th nudge today",
+    level: "warn",
+    actions: [VCAlertAction(label: "Snooze 10 min", url: "api/snooze?minutes=10")],
+    appearance: style
+))
+```
+
+The wire format is the thing of record; the builders are only the convenient path to it. Both of
+the above put the same keys and values on `AlertReq.appearance`:
+
+```json
+{"autoDismissAfter":20,"height":220,"moveable":true,"position":"center","screenBlurEnabled":true,"screenBlurIntensity":"light","svgHeight":150,"svgPath":"icons/nose-picking.svg","svgWidth":220,"width":450}
+```
+
+Key *order* is not part of the contract and differs by language — the Swift SDK sorts keys, Go
+emits them in declaration order. The client decodes by key, so both are equally valid; only a
+test that compares whole strings needs to care, and each language pins its own.
+
+Neither side can import the other's type, so those bytes are pinned as literals in both
+`plugins/vibecheck/Tests/VibeCheckKitTests/HostSinkTests.swift` and
+`clients/macos-swift/VibeCare/VibeCareTests/PluginAlertAppearanceTests.swift`. That pair **is** the
+cross-language contract: rename or retype a field on either side and exactly one of them goes red.
+Without them, drift shows up only as the user silently getting a plain banner again, every test
+still green. `plugins/vibecheck/Sources/VibeCheckKit/DetectionEngine.swift` (`fired`) is the live
+example — it sends an appearance on every detection alert, not only customized ones, so the
+out-of-the-box alert is the good-looking one rather than a hidden setting.
 
 ## Rules that bite
 
