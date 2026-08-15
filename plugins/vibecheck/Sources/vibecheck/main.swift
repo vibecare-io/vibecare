@@ -129,7 +129,7 @@ let snoozeGate = SnoozeGate()
 // — see the ordering comment below — so no live `VCHost` exists yet at this
 // point. `hostSink.attach(host:)` runs right after `connect()` returns.
 let hostSink = HostSink(prefs: alertPrefsStore, snooze: snoozeGate)
-let engine = DetectionEngine(config: configStore, counts: countsStore, prefs: alertPrefsStore,
+let engine = DetectionEngine(config: configStore, counts: countsStore,
                               sink: hostSink, previewStream: previewStream)
 
 let router = VCRouter()

@@ -85,6 +85,17 @@ private func withTimeout<T: Sendable>(
     #expect(received?.count == 1)
 }
 
+// Ruling T16c: `HostSink.fired` is the consumer `AlertPrefsStore.preferences(for:)`
+// was always waiting for — before this, nothing in the package ever called
+// it in production, so the "Advanced: Alert Appearance" editor persisted to
+// `alert-prefs.json` and did nothing. These two tests are written as a
+// PAIR deliberately: asserting only the fallback (as the version of
+// `firedAlertsThroughTheAttachedHostWhenNotSnoozed` below used to, before
+// this ruling) would pass just as happily against a `HostSink` that
+// ignored `prefs` entirely — that was the actual bug. Only
+// `firedUsesTheStoredAlertPreferencesWhenSet` can tell "reads prefs" apart
+// from "always uses the built-in copy."
+
 @Test func firedAlertsThroughTheAttachedHostWhenNotSnoozed() async throws {
     let prefs = try AlertPrefsStore(directory: try tempDir())
     let host = SpyAlertHost()
@@ -94,8 +105,36 @@ private func withTimeout<T: Sendable>(
     await sink.fired(BFRBEvent(behavior: .hairPulling, time: 1), count: 3, behavior: .hairPulling)
 
     #expect(await host.alerts.count == 1)
-    #expect(await host.alerts.first?.title == BFRBBehavior.hairPulling.label)
+    let alert = try #require(await host.alerts.first)
+    // A fresh `AlertPrefsStore` never had anything saved for this
+    // behavior — `NotificationPreferences.default(for:)` leaves
+    // `title`/`message` `nil` — so this is the FALLBACK path: the
+    // built-in `behavior.label`/`behavior.nudge`, not a blank alert.
+    #expect(alert.title == BFRBBehavior.hairPulling.label)
+    #expect(alert.body == "\(BFRBBehavior.hairPulling.nudge) — 3rd nudge today")
     #expect(await host.publishedTopics == ["vibecheck.behavior_detected.v1"])
+}
+
+@Test func firedUsesTheStoredAlertPreferencesWhenSet() async throws {
+    let prefs = try AlertPrefsStore(directory: try tempDir())
+    var all = await prefs.load()
+    all[BFRBBehavior.nailBiting.rawValue]?.title = "Hands down!"
+    all[BFRBBehavior.nailBiting.rawValue]?.message = "You've got this"
+    try await prefs.save(all)
+
+    let host = SpyAlertHost()
+    let sink = HostSink(prefs: prefs, snooze: SnoozeGate())
+    await sink.attach(host: host)
+
+    await sink.fired(BFRBEvent(behavior: .nailBiting, time: 1), count: 5, behavior: .nailBiting)
+
+    let alert = try #require(await host.alerts.first)
+    #expect(alert.title == "Hands down!")
+    // The `Ordinal.format(count)` suffix is appended to a user-authored
+    // message too, not only the built-in fallback — see `HostSink.fired`'s
+    // doc comment for why (the count is what makes the alert feel
+    // responsive rather than a static, repeated banner).
+    #expect(alert.body == "You've got this — 5th nudge today")
 }
 
 @Test func firedSkipsTheAlertWhileSnoozedButStillBroadcastsToEvents() async throws {
