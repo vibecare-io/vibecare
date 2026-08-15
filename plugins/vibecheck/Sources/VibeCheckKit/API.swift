@@ -255,6 +255,35 @@ private func sseMessage(event: String, dto: some Encodable) -> Data {
 // this plugin's internal, viewer-space-but-not-wire-format representation.
 // These are the wire shapes `/api/events` actually emits.
 
+/// `HairMask.cells` is 64x48 = 3072 booleans, recomputed by
+/// `VisionLandmarkExtractor` on EVERY frame. Encoded as a JSON bool array
+/// that would be ~15KB/frame — at any real frame rate that is hundreds of
+/// KB/s through the SSE stream and the kernel proxy, for what is ultimately
+/// just a coarse overlay. Packed as bits instead: 3072 bits is 384 bytes,
+/// ~512 base64 characters — about 30x smaller than the naive encoding.
+///
+/// Bit `i` (row-major, `i == row * cols + col`, matching `HairMask.cells`'s
+/// own indexing) lives in byte `i / 8`, bit position `7 - (i % 8)` (MSB
+/// first) — an arbitrary but fixed choice; `index.html`'s decoder must
+/// agree with it, which is the one thing that actually matters here.
+private struct HairMaskDTO: Encodable {
+    var cols: Int
+    var rows: Int
+    /// Base64 of the packed bits — see the type's doc comment for the exact
+    /// packing.
+    var bits: String
+
+    init(_ mask: HairMask) {
+        cols = mask.cols
+        rows = mask.rows
+        var bytes = [UInt8](repeating: 0, count: (mask.cells.count + 7) / 8)
+        for (i, isSet) in mask.cells.enumerated() where isSet {
+            bytes[i / 8] |= 1 << (7 - (i % 8))
+        }
+        bits = Data(bytes).base64EncodedString()
+    }
+}
+
 private struct FrameEventDTO: Encodable {
     struct Point: Encodable { var x: Double; var y: Double }
     struct Rect: Encodable { var x: Double; var y: Double; var width: Double; var height: Double }
@@ -267,6 +296,7 @@ private struct FrameEventDTO: Encodable {
     var imageHeight: Double
     var fingertips: [Point]
     var face: Face?
+    var hairMask: HairMaskDTO?
 
     init(_ frame: LandmarkFrame) {
         seq = frame.seq
@@ -281,6 +311,7 @@ private struct FrameEventDTO: Encodable {
                  nose: Point(x: Double($0.nose.x), y: Double($0.nose.y)),
                  mouth: Point(x: Double($0.mouth.x), y: Double($0.mouth.y)))
         }
+        hairMask = frame.hairMask.map(HairMaskDTO.init)
     }
 }
 
