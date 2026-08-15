@@ -81,10 +81,16 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// `AVCaptureSession` is only `@unchecked Sendable` there under a manual
     /// synchronization argument). `nonisolated(unsafe)` asserts only that
     /// *this* reference is safe to use across the actor boundary the way this
-    /// type uses it — `start()`/`stop()`/`apply()` call it sequentially,
-    /// never concurrently, and `didOutput` below (nonisolated, confined to
+    /// type uses it — `didOutput` below (nonisolated, confined to
     /// `frameQueue`) never touches `camera` itself, only receives callbacks
-    /// from it. Same reasoning, same annotation, as
+    /// from it, so there is no race there. It is NOT true that
+    /// `start()`/`stop()`/`apply()` can only reach `camera.start()`
+    /// sequentially: actor isolation is released across `await
+    /// camera.start()`'s suspension, so two of those calls CAN interleave.
+    /// What actually prevents a double `camera.start()` is
+    /// `startCameraOnly()`'s `cameraStartTask` coalescing guard, not this
+    /// property's annotation — see that method's doc comment. Same
+    /// `nonisolated(unsafe)` reasoning, same annotation, as
     /// `VibeCheckViewModel.camera` in the client this replaces.
     public nonisolated(unsafe) let camera = CameraSession()
 
@@ -92,8 +98,16 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// private serial `frameQueue`, via `didOutput`, never concurrently with
     /// itself and never from the actor.
     nonisolated(unsafe) private let extractor = VisionLandmarkExtractor()
-    /// Throttle timestamp. Same confinement as `extractor`.
-    nonisolated(unsafe) private var lastAnalysisUnsafe = Date.distantPast
+    /// Throttle reference point. A `ContinuousClock.Instant`, NOT `Date` —
+    /// `Date`/wall-clock comparison is exactly the defect this engine's
+    /// `monotonicSeconds()` was built to avoid for policy time, and it
+    /// applies here too: a backward wall-clock step of N seconds would make
+    /// `ts.timeIntervalSince(lastAnalysis)` negative for every frame until
+    /// real time caught back up, so the throttle's `>= minInterval` check
+    /// would never pass and every frame would be silently discarded for N
+    /// seconds — detection dead with no log line. `nil` until the first
+    /// frame. Same confinement as `extractor`.
+    nonisolated(unsafe) private var lastAnalysisInstant: ContinuousClock.Instant?
     /// Monotonic per-frame counter, incremented for every RAW camera frame —
     /// including ones the throttle below discards — so gaps in the sequence
     /// a downstream consumer sees are evidence of exactly which frames were
@@ -124,8 +138,11 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// Mirrors on-disk counts so `snapshot()` can stay synchronous (no
     /// `await` needed to read `CountsStore`, which is itself an actor).
     /// Seeded from disk in `start()`, kept current by `fire(_:)` on every
-    /// confirmed detection. NOT re-seeded on a bare day rollover with zero
-    /// detections since the last `start()` — see the task report.
+    /// confirmed detection. `snapshot()` itself compares `cachedDay` against
+    /// today before returning this, so a day rollover with zero detections
+    /// since the last `start()`/`fire()` — the common case for a long-running
+    /// daemon idle at midnight — reports zeros instead of yesterday's stale
+    /// counts; see `snapshot()`.
     private var todayCounts: [String: Int] = [:]
     private var cachedDay = ""
 
@@ -145,6 +162,22 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// pattern.
     private var frameContinuations: [UUID: AsyncStream<LandmarkFrame>.Continuation] = [:]
 
+    /// Coalesces overlapping `camera.start()` attempts — see
+    /// `startCameraOnly()`'s doc comment for why this exists at all. A plain
+    /// `Bool` (not a `Task` handle): wrapping `camera.start()` in a child
+    /// `Task` to hand out a shareable future would capture `camera` — a
+    /// non-`Sendable`, actor-stored `nonisolated(unsafe)` reference — into a
+    /// `@Sendable` closure, which the compiler correctly refuses even though
+    /// the manual-synchronization argument for `camera` holds; calling
+    /// `camera.start()` directly, in place, inside this already-`async`
+    /// actor method sidesteps that without needing a second unsafe
+    /// annotation to justify it.
+    private var cameraStartInFlight = false
+    /// Actor-isolated callers that arrived while `cameraStartInFlight` was
+    /// already `true`; released with the real result once the in-flight
+    /// call returns. Same shape as `VCShutdownLatch` in `VCPluginSDK`.
+    private var cameraStartWaiters: [CheckedContinuation<CameraStartResult, Never>] = []
+
     public init(config: ConfigStore, counts: CountsStore, prefs: AlertPrefsStore, sink: DetectionSink) {
         self.config = config
         self.counts = counts
@@ -154,18 +187,29 @@ public actor DetectionEngine: CameraFrameReceiver {
 
     // MARK: - Lifecycle
 
-    /// Full boot: loads the persisted config and today's counts, sets this
-    /// engine as the camera's receiver, and starts the camera unconditionally
-    /// — this method does not itself consult `config.enabled`. Whether to
-    /// call it at all based on `enabled` is the caller's decision (`main.swift`
-    /// at startup; `apply(_:)` below for a live enable/disable toggle). This
-    /// mirrors `VibeCheckViewModel.start()`, which likewise starts
-    /// unconditionally and leaves "should we start" to `setDetection`/
-    /// `resumeIfEnabled`.
+    /// Full boot: loads the persisted config and today's counts, then opens
+    /// the camera ONLY if the loaded config says `enabled`. This is the
+    /// affirmative half of "the camera is gated on `config.enabled` alone"
+    /// (the negative half — never gate on `_core.demand.v1` — is documented
+    /// on `apply(_:)`): a fresh install with detection off must never trigger
+    /// the TCC camera-permission prompt, and `camera.start()` is exactly what
+    /// triggers it. Safe to call again later (e.g. after the user enables
+    /// detection through some path other than `apply(_:)`) — it always
+    /// reloads `cachedConfig` from disk first, so it reflects whatever is
+    /// current, not whatever this engine last cached.
     @discardableResult
     public func start() async -> CameraStartResult {
         cachedConfig = await config.load()
         await loadTodayCounts()
+        guard cachedConfig.enabled else {
+            // `.denied` is repurposed here as "no camera access obtained" —
+            // it is what a caller checking only this return value needs, and
+            // is not distinguishable from a real TCC denial through this
+            // value alone. The distinction IS available via `snapshot()`:
+            // `config.enabled == false` with `permission` left at "unknown"
+            // (never asked) means "off by choice," not "asked and refused."
+            return .denied
+        }
         return await startCameraOnly()
     }
 
@@ -189,23 +233,67 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// reloads `cachedConfig` from disk, which would be redundant with (and,
     /// if the caller applies a config it hasn't persisted yet, would clobber)
     /// the config this very call just applied.
+    ///
+    /// Clamps `newConfig` before storing it: `ConfigStore.save` already
+    /// clamps, but `apply(_:)` can be called with a value that was never
+    /// routed through `save` (or was applied before being persisted), and
+    /// `DetectionPolicy`, unlike `BFRBDetector`, does not clamp its own
+    /// `dwell`/`cooldown` — an out-of-range value here would reach it as-is.
     public func apply(_ newConfig: VibeCheckConfig) async {
+        let clamped = newConfig.clamped()
         let wasEnabled = cachedConfig.enabled
-        cachedConfig = newConfig
-        guard wasEnabled != newConfig.enabled else { return }
-        if newConfig.enabled {
+        cachedConfig = clamped
+        guard wasEnabled != clamped.enabled else { return }
+        if clamped.enabled {
             await startCameraOnly()
         } else {
             await stop()
         }
     }
 
+    /// Coalesces overlapping attempts to start the camera onto a single
+    /// in-flight `camera.start()` call, instead of letting each caller issue
+    /// its own.
+    ///
+    /// Why this is needed at all: actor isolation does NOT prevent two
+    /// callers from both reaching `camera.start()`. `camera.start()` itself
+    /// suspends (it awaits `AVCaptureDevice.requestAccess`/an async
+    /// `configure()` path), and an actor releases isolation across a
+    /// suspension point — so a boot-time `start()` and an HTTP-driven
+    /// `apply(enabled: true)` arriving moments apart can both reach here
+    /// before either's underlying `camera.start()` call has returned. Two
+    /// overlapping `camera.start()` calls can both observe
+    /// `session.inputs.isEmpty` as true and both call `configure()`, which
+    /// double-adds inputs/outputs to one `AVCaptureSession` via overlapping
+    /// `beginConfiguration`/`commitConfiguration` pairs — that can raise an
+    /// uncatchable `NSException` and abort the process, which
+    /// `supervisor.go` charges as a failed start. This mirrors the client's
+    /// `isTransitioning` guard on `setDetection`, but coalesces onto the
+    /// real in-flight result rather than bailing out with a fabricated one,
+    /// so every caller — the owner and anyone who arrived while it was
+    /// already running — gets the same true `CameraStartResult`.
     @discardableResult
     private func startCameraOnly() async -> CameraStartResult {
         camera.receiver = self
+
+        if cameraStartInFlight {
+            return await withCheckedContinuation { (continuation: CheckedContinuation<CameraStartResult, Never>) in
+                cameraStartWaiters.append(continuation)
+            }
+        }
+
+        cameraStartInFlight = true
         let result = await camera.start()
+        cameraStartInFlight = false
+
         running = (result == .started)
         permission = Self.permissionString(for: result)
+
+        let waiters = cameraStartWaiters
+        cameraStartWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume(returning: result)
+        }
         return result
     }
 
@@ -217,8 +305,21 @@ public actor DetectionEngine: CameraFrameReceiver {
         }
     }
 
+    /// Synchronous by contract (no `await` inside), so it cannot re-fetch
+    /// `CountsStore` live. Instead it checks whether its own `cachedDay`
+    /// mirror is still today; if midnight has passed since the last
+    /// `start()`/`fire()`, the mirror is for yesterday and is NOT returned —
+    /// a zeroed dict is, with the same key set `loadTodayCounts` seeds (all
+    /// three behaviors), so a caller never sees the shape of `todayCounts`
+    /// change across midnight.
     public func snapshot() -> EngineSnapshot {
-        EngineSnapshot(running: running, permission: permission, config: cachedConfig, todayCounts: todayCounts)
+        let today = CountsStore.dayKey(Date())
+        let counts = (today == cachedDay) ? todayCounts : Self.zeroedCounts()
+        return EngineSnapshot(running: running, permission: permission, config: cachedConfig, todayCounts: counts)
+    }
+
+    private static func zeroedCounts() -> [String: Int] {
+        Dictionary(uniqueKeysWithValues: BFRBBehavior.allCases.map { ($0.rawValue, 0) })
     }
 
     /// Test-support entry point. Production code never calls this.
@@ -262,14 +363,20 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// `ts` is sampled here, at entry, before the throttle check and before
     /// Vision runs — the earliest point available (`CameraSession` discards
     /// the sample buffer's real presentation timestamp) and the only point
-    /// that doesn't fold inference latency into the timestamp.
+    /// that doesn't fold inference latency into the timestamp. `ts` is used
+    /// ONLY for `LandmarkFrame.ts` (an external timestamp) — the throttle
+    /// itself is measured against `ContinuousClock`, a monotonic source, so
+    /// a wall-clock adjustment cannot defeat it. See `lastAnalysisInstant`'s
+    /// doc comment for why a `Date`-based throttle would be exactly the bug
+    /// `monotonicSeconds()` exists to avoid for policy time.
     public nonisolated func didOutput(_ pixelBuffer: CVPixelBuffer, mirrored: Bool) {
         let ts = Date()
         seqUnsafe &+= 1
         let seq = seqUnsafe
 
-        guard ts.timeIntervalSince(lastAnalysisUnsafe) >= Self.minInterval else { return }
-        lastAnalysisUnsafe = ts
+        let now = ContinuousClock.now
+        if let last = lastAnalysisInstant, Self.seconds(now - last) < Self.minInterval { return }
+        lastAnalysisInstant = now
 
         let frame = extractor.analyze(pixelBuffer, mirrored: mirrored, seq: seq, ts: ts)
         Task { await self.consume(frame) }
@@ -305,8 +412,14 @@ public actor DetectionEngine: CameraFrameReceiver {
     }
 
     private func monotonicSeconds() -> TimeInterval {
-        let elapsed = ContinuousClock.now - clockEpoch
-        return Double(elapsed.components.seconds) + Double(elapsed.components.attoseconds) / 1e18
+        Self.seconds(ContinuousClock.now - clockEpoch)
+    }
+
+    /// `static` (not actor-isolated) and pure so `didOutput` — `nonisolated`,
+    /// confined to `frameQueue`, never on the actor — can share it with
+    /// `monotonicSeconds()` above.
+    private static func seconds(_ duration: Duration) -> TimeInterval {
+        Double(duration.components.seconds) + Double(duration.components.attoseconds) / 1e18
     }
 
     // MARK: - Confirmed detections
@@ -316,7 +429,8 @@ public actor DetectionEngine: CameraFrameReceiver {
         if cachedDay != day {
             // Crossed midnight (or this is the very first fire): the local
             // mirror is for a stale day and must not be blended with today's.
-            todayCounts = [:]
+            // Same zeroed shape as `loadTodayCounts`/`snapshot()`'s fallback.
+            todayCounts = Self.zeroedCounts()
             cachedDay = day
         }
 
