@@ -214,11 +214,16 @@ final class VCHTTPHandler: ChannelInboundHandler, @unchecked Sendable {
                 do {
                     try await matched(request, writer)
                 } catch {
+                    // vcLog, never FileHandle.standardError.write(_:) — see
+                    // VCLog.swift. This is the request ERROR path, so it runs
+                    // exactly when something has already gone wrong, and a
+                    // closed stderr would turn a handled 500 into an
+                    // uncatchable abort that core charges as a failed start.
                     if await writer.headWritten {
-                        FileHandle.standardError.write(Data("vibecheck: handler for \(path) threw after writing a response head, closing connection: \(error)\n".utf8))
+                        vcLog("handler for \(path) threw after writing a response head, closing connection: \(error)")
                         await writer.abortAfterPartialWrite()
                     } else {
-                        FileHandle.standardError.write(Data("vibecheck: handler for \(path) threw before writing anything: \(error)\n".utf8))
+                        vcLog("handler for \(path) threw before writing anything: \(error)")
                         await writer.sendBodylessStatus(500)
                     }
                 }
