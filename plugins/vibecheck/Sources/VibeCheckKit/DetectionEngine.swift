@@ -124,11 +124,6 @@ public actor DetectionEngine: CameraFrameReceiver {
 
     private let config: ConfigStore
     private let counts: CountsStore
-    /// Not read by this type today — held because it is part of the plugin's
-    /// alert-related dependency set (Task 15's `/api/alert-prefs` surface
-    /// reads/writes the same store) and future per-behavior alert gating
-    /// naturally lands here. Mirrors `HostSink.prefs` below for the same reason.
-    private let prefs: AlertPrefsStore
     private var sink: DetectionSink
 
     /// `/preview.mjpeg`'s whole frame source. `nil` in every existing test
@@ -236,11 +231,10 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// invalidates the earlier `queuedStopToken` recorded before it.
     private var queuedStopToken: Int?
 
-    public init(config: ConfigStore, counts: CountsStore, prefs: AlertPrefsStore, sink: DetectionSink,
+    public init(config: ConfigStore, counts: CountsStore, sink: DetectionSink,
                 previewStream: PreviewStream? = nil) {
         self.config = config
         self.counts = counts
-        self.prefs = prefs
         self.sink = sink
         self.previewStream = previewStream
     }
@@ -705,8 +699,12 @@ public struct DetectionBroadcast: Sendable {
 /// everything else in it.
 public actor HostSink: DetectionSink {
     private var host: (any AlertHost)?
-    /// Not read today — see `DetectionEngine.prefs`'s doc comment for why it
-    /// is still carried here.
+    /// The consumer `AlertPrefsStore` was always waiting for (ruling
+    /// T16c): `fired` reads `preferences(for:)` and prefers the stored
+    /// `title`/`message` over `behavior.label`/`behavior.nudge` when they
+    /// are non-empty. Before this, nothing in the package ever called
+    /// `preferences(for:)` in production — the "Advanced: Alert Appearance"
+    /// editor persisted to `alert-prefs.json` and did nothing.
     private let prefs: AlertPrefsStore
     private let snooze: SnoozeGate
     private var continuations: [UUID: AsyncStream<DetectionBroadcast>.Continuation] = [:]
@@ -742,6 +740,14 @@ public actor HostSink: DetectionSink {
         continuations.removeValue(forKey: key)
     }
 
+    /// `nil` for both a never-set preference (`nil`) and an explicitly
+    /// blanked one (`""`) — either way, the caller should fall back to the
+    /// built-in copy rather than send core a blank title or body.
+    private static func nonEmpty(_ s: String?) -> String? {
+        guard let s, !s.isEmpty else { return nil }
+        return s
+    }
+
     public func fired(_ event: BFRBEvent, count: Int, behavior: BFRBBehavior) async {
         // Broadcast first and unconditionally: a snooze suppresses the popup
         // alert, not the fact that a detection happened, and an SSE
@@ -757,11 +763,29 @@ public actor HostSink: DetectionSink {
             return
         }
 
+        // Stored preferences win when the user actually set them; an empty
+        // string (never explicitly cleared vs. never touched are
+        // indistinguishable through this API today) falls back to the
+        // built-in copy exactly like a `nil` does, rather than showing a
+        // blank title or body.
+        let preference = await prefs.preferences(for: behavior)
+        let title = Self.nonEmpty(preference.title) ?? behavior.label
+        let message = Self.nonEmpty(preference.message) ?? behavior.nudge
+
+        // The `Ordinal.format(count)` suffix is appended REGARDLESS of
+        // whether `message` came from the user or the built-in default —
+        // deliberately, not merely preserving old behavior for the
+        // fallback case. The count is what makes an alert feel responsive
+        // to what's actually happening ("3rd nudge today") rather than a
+        // static, repeated banner; a user who wrote their own encouraging
+        // message presumably still wants to know it's counting, not lose
+        // that context because they customized the wording around it.
+        //
         // "warn" (not "info") so the banner holds 8s instead of 3s — only
         // "info" and "warn" exist; anything else silently renders as info.
         let alert = VCAlert(
-            title: behavior.label,
-            body: "\(behavior.nudge) — \(Ordinal.format(count)) nudge today",
+            title: title,
+            body: "\(message) — \(Ordinal.format(count)) nudge today",
             level: "warn",
             actions: [
                 VCAlertAction(label: "Snooze 10 min", url: "api/snooze?minutes=10"),

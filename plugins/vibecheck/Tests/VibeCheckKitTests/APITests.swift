@@ -86,7 +86,7 @@ private struct Fixture {
         let counts = try CountsStore(directory: dir)
         let snooze = SnoozeGate()
         let sink = HostSink(prefs: prefs, snooze: snooze)
-        let engine = DetectionEngine(config: config, counts: counts, prefs: prefs, sink: sink)
+        let engine = DetectionEngine(config: config, counts: counts, sink: sink)
         let f = Fixture(config: config, prefs: prefs, counts: counts, snooze: snooze, sink: sink, engine: engine)
         await registerVibeCheckRoutes(
             router: f.router, engine: f.engine, config: f.config, prefs: f.prefs,

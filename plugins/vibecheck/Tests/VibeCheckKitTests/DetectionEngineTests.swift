@@ -44,8 +44,7 @@ private func makeTestEngine(
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     let config = try ConfigStore(directory: dir)
     let counts = try CountsStore(directory: dir)
-    let prefs = try AlertPrefsStore(directory: dir)
-    let engine = DetectionEngine(config: config, counts: counts, prefs: prefs, sink: NoopSink())
+    let engine = DetectionEngine(config: config, counts: counts, sink: NoopSink())
 
     var c = VibeCheckConfig.default
     c.sensitivity = sensitivity
