@@ -76,7 +76,8 @@ let package = Package(
       // reported "no tests found" — there was no testTarget at all.
       sources: [
         "PluginRosterTests.swift",
-        "PluginAlertAppearanceTests.swift"
+        "PluginAlertAppearanceTests.swift",
+        "PluginAlertPresentationTests.swift"
       ]
     ),
   ]
