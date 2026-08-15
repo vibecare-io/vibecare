@@ -36,6 +36,15 @@ public actor PreviewStream {
     /// was attempted) needs some way to observe the registry shrinking.
     var writerCount: Int { writers.count }
 
+    /// Test-support entry point: how many times `publish` has gotten PAST
+    /// the idle guard below and attempted an encode. Exists because "no
+    /// writers attached means `JPEGEncoder` is never touched" is otherwise
+    /// unobservable from outside this actor — `JPEGEncoder` is a stateless
+    /// `enum`, not something a test can inject a spy into — so without
+    /// this counter that guard could be deleted and every other test in
+    /// this file would still pass.
+    private(set) var framesEncoded = 0
+
     /// Sends the multipart response head and registers `writer` to receive
     /// every subsequently published frame, until its `write` throws (the
     /// client disconnected — see `publish`) or the process shuts down.
@@ -72,6 +81,7 @@ public actor PreviewStream {
         if let last = lastPublish, Self.seconds(now - last) < Self.minInterval { return }
         lastPublish = now
 
+        framesEncoded += 1
         guard let jpeg = JPEGEncoder.encode(buffer, quality: 0.6, mirrored: mirrored) else { return }
         let chunk = Self.multipartChunk(jpeg, boundary: Self.boundary)
 
