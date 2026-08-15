@@ -117,40 +117,49 @@ final class PluginShellService: ObservableObject {
 
         // A plugin may attach presentation hints to its own alert. The shell
         // still contains no plugin-specific code: it decodes a shape it
-        // already owns (`NotificationPreferences`, the same one the schedule
-        // notification editor writes) and ignores anything else, so a plugin
-        // opts into a styled alert without any client release.
+        // already owns (`PluginAlertAppearance`) and ignores anything else,
+        // so a plugin opts into a styled alert without any client release.
         //
         // Title and body come from the ALERT, never from the decoded
         // preferences: the sender already applied whatever custom wording it
         // has, plus anything it computed at fire time (a running count, say).
         // Re-reading `prefs.title` here would silently throw that away.
         guard let preferences = alert.appearancePreferences else {
-            // No appearance: byte-for-byte the behaviour that shipped before
-            // alerts could carry one.
-            switch alert.level {
-            case "warn":
-                NotificationManager.shared.showWarning(title: alert.title, message: alert.body, actions: buttons)
-            default:
-                NotificationManager.shared.showInfo(title: alert.title, message: alert.body, actions: buttons)
-            }
+            showPlain(alert, buttons: buttons)
             return
         }
 
-        // Resolving the icon means an HTTP fetch through the proxy, so the
-        // presentation is deferred by one hop. It is bounded (2s, below) and
-        // failure still shows the alert — just with the fallback icon.
+        // Resolving the illustration means an HTTP fetch through the proxy,
+        // so presentation is deferred by one hop. It is bounded (2s) and a
+        // failure falls back to the banner rather than dropping the alert.
         Task { [weak self] in
             guard let self else { return }
             let image = await self.resolveIcon(for: alert, preferences: preferences)
-            NotificationManager.shared.showStyledPluginAlert(
-                title: alert.title,
-                message: alert.body,
-                preferences: preferences,
-                level: alert.level,
-                actions: buttons,
-                iconImage: image
-            )
+            switch PluginAlertPresentation.route(preferences: preferences, iconLoaded: image != nil) {
+            case .plain:
+                self.showPlain(alert, buttons: buttons)
+            case .rich:
+                PluginAlertPresenter.show(
+                    presentation: PluginAlertPresentation(preferences: preferences),
+                    icon: image,
+                    title: alert.title,
+                    message: alert.body,
+                    actions: buttons
+                )
+            }
+        }
+    }
+
+    /// The rendering every plugin alert got before appearances existed: a
+    /// compact top banner. Still the fallback for an alert with no
+    /// appearance, and for one whose illustration could not be fetched — it
+    /// draws the action buttons, which is what actually matters.
+    private func showPlain(_ alert: PluginAlert, buttons: [NotificationAction]) {
+        switch alert.level {
+        case "warn":
+            NotificationManager.shared.showWarning(title: alert.title, message: alert.body, actions: buttons)
+        default:
+            NotificationManager.shared.showInfo(title: alert.title, message: alert.body, actions: buttons)
         }
     }
 

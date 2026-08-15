@@ -1,4 +1,3 @@
-import AppKit
 import Foundation
 import Logging
 import VibeNotify
@@ -83,37 +82,6 @@ class NotificationManager: NSObject, ObservableObject {
     func showInfo(title: String = "Info", message: String, actions: [NotificationAction] = []) -> UUID? {
         logger.info("Showing info notification: \(title)")
         return VibeNotifyConfig.showInfo(title: title, message: message, actions: actions)
-    }
-
-    /// Show a plugin alert that carried its own appearance, rendered through
-    /// the same builder schedule notifications use rather than as a compact
-    /// banner.
-    ///
-    /// `level` only picks the FALLBACK icon here — everything visual comes
-    /// from `preferences`. The shell has no idea what the plugin's alert
-    /// means, so "warn" is still the only signal it has about severity.
-    @discardableResult
-    func showStyledPluginAlert(
-        title: String,
-        message: String,
-        preferences: NotificationPreferences,
-        level: String,
-        actions: [NotificationAction] = [],
-        iconImage: NSImage? = nil
-    ) -> UUID? {
-        logger.info("Showing styled plugin alert: \(title)")
-        return VibeNotifyConfig.showNotification(
-            preferences: preferences,
-            title: title,
-            message: message,
-            defaultIcon: level == "warn" ? .warning : .info,
-            // Matches the priority the unstyled showWarning/showInfo path
-            // uses, so carrying an appearance cannot change whether an alert
-            // is allowed through the mute policy — only how it looks.
-            priority: .normal,
-            actions: actions,
-            iconImage: iconImage
-        )
     }
 
     /// Show a quick toast notification
