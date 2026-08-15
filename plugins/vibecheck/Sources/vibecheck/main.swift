@@ -1,4 +1,5 @@
 import Foundation
+import CoreVideo
 import VCPluginSDK
 import VibeCheckKit
 
@@ -43,6 +44,61 @@ func uiResourceURL(_ relative: String) -> URL? {
 
 func uiIndexHTML() -> Data? {
     uiResourceURL("ui/index.html").flatMap { try? Data(contentsOf: $0) }
+}
+
+// TEMPORARY, for Task 11/12 manual verification only. `AVCaptureSession` and
+// Vision need real hardware and cannot be unit-tested, so this starts a real
+// camera session, logs the first frame's dimensions and the per-frame
+// `mirrored` flag, and exits — without touching `VCEnvironment`, since a
+// manual `--probe-camera` run has none of core's spawn env vars set.
+// Deliberately left in past this task rather than deleted: a human still
+// needs to run it (the camera permission prompt, if any, needs a real click)
+// and confirm the observations in the task report. Remove once that's done.
+if CommandLine.arguments.contains("--probe-camera") {
+    final class ProbeReceiver: CameraFrameReceiver, @unchecked Sendable {
+        private let lock = NSLock()
+        private var done = false
+        private let continuation: CheckedContinuation<(Int, Int, Bool), Never>
+
+        init(_ continuation: CheckedContinuation<(Int, Int, Bool), Never>) {
+            self.continuation = continuation
+        }
+
+        func didOutput(_ pixelBuffer: CVPixelBuffer, mirrored: Bool) {
+            lock.lock()
+            defer { lock.unlock() }
+            guard !done else { return }
+            done = true
+            let width = CVPixelBufferGetWidth(pixelBuffer)
+            let height = CVPixelBufferGetHeight(pixelBuffer)
+            continuation.resume(returning: (width, height, mirrored))
+        }
+    }
+
+    log("--probe-camera: starting camera session")
+    let probeSession = CameraSession()
+    // Kept alive for the duration of the probe: `CameraSession.receiver` is
+    // `weak`, so nothing else retains this between assignment and the first
+    // frame arriving on the camera's background queue.
+    var probeReceiver: ProbeReceiver?
+
+    switch await probeSession.start() {
+    case .started:
+        log("--probe-camera: session started, waiting for first frame...")
+        let (width, height, mirrored) = await withCheckedContinuation { (k: CheckedContinuation<(Int, Int, Bool), Never>) in
+            let receiver = ProbeReceiver(k)
+            probeReceiver = receiver
+            probeSession.receiver = receiver
+        }
+        log("--probe-camera: first frame \(width)x\(height) mirrored=\(mirrored)")
+        _ = probeReceiver // keep the compiler from flagging the write-only retain above
+    case .denied:
+        log("--probe-camera: camera access denied")
+    case .noDevice:
+        log("--probe-camera: no camera device found")
+    }
+    probeSession.stop()
+    exit(0)
 }
 
 let env: VCEnvironment
