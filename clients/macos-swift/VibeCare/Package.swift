@@ -77,7 +77,8 @@ let package = Package(
       sources: [
         "PluginRosterTests.swift",
         "PluginAlertAppearanceTests.swift",
-        "PluginAlertPresentationTests.swift"
+        "PluginAlertPresentationTests.swift",
+        "PluginInterruptPolicyTests.swift"
       ]
     ),
   ]
