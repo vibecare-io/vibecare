@@ -4,3 +4,8 @@ icon: checklist
 exec: ./todo
 publishes: [todo.created.v1]
 ui: webview
+# How a development client rebuilds this plugin. Delegated to the just
+# recipe rather than spelled out here so there is one definition of the
+# build, and so a plugin whose build has real subtleties (vibecheck needs
+# linker flags and a signature) declares the same way this one does.
+build: just build-todo-plugin

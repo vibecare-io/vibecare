@@ -59,6 +59,9 @@ type Bus struct {
 	publishes  map[string][]string // plugin id -> topics it may publish
 	subs       map[string]*subscriber
 	byTopic    map[string]map[string]*subscriber // topic -> id -> subscriber
+	// taps observe every published event regardless of subscription. See
+	// tap.go.
+	taps map[chan TapEvent]struct{}
 
 	onDelivered func(pluginID string, n int)
 }
@@ -172,6 +175,13 @@ func (b *Bus) Publish(pluginID, topic string, payload []byte, ts time.Time) (int
 	if !declared {
 		return 0, fmt.Errorf("plugin %q publishes undeclared topic %q", pluginID, topic)
 	}
+	// Observers see the event even when nothing is subscribed to it, which
+	// is precisely the case worth watching: a plugin publishing into the
+	// void is indistinguishable from a broken plugin without this.
+	b.mu.Lock()
+	b.publishToTaps(TapEvent{Plugin: pluginID, Topic: topic, Payload: payload, TS: ts})
+	b.mu.Unlock()
+
 	return b.deliver(topic, BusEvent{Topic: topic, Payload: payload, TS: ts}), nil
 }
 

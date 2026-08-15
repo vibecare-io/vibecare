@@ -33,7 +33,7 @@ func statusFixture(t *testing.T) (*Registry, *fakeRestarter, http.Handler) {
 	reg.SetState("beta", StateFailed, "5 consecutive failed starts; last: exit status 3")
 
 	fr := &fakeRestarter{}
-	return reg, fr, NewStatusHandler(reg, fr)
+	return reg, fr, NewStatusHandler(reg, fr, nil)
 }
 
 func TestStatusJSONShape(t *testing.T) {
@@ -172,7 +172,7 @@ func TestStatusHTMLEscapesPluginSuppliedStrings(t *testing.T) {
 	reg.SetState("alpha", StateDown, `<script>alert(2)</script>`)
 
 	fr := &fakeRestarter{}
-	h := NewStatusHandler(reg, fr)
+	h := NewStatusHandler(reg, fr, nil)
 
 	rec := httptest.NewRecorder()
 	h.ServeHTTP(rec, httptest.NewRequest("GET", "/_core/status", nil))

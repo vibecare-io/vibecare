@@ -38,7 +38,8 @@ func newSup(t *testing.T, id, body string) (*Supervisor, *Registry, string) {
 	reg := NewRegistry(zap.NewNop())
 	reg.Add(Manifest{ID: id, Name: id, Exec: exec, UI: "webview", Dir: dir})
 
-	s := NewSupervisor(reg, filepath.Join(root, "core.sock"), filepath.Join(root, "data"), zap.NewNop())
+	s := NewSupervisor(reg, filepath.Join(root, "core.sock"),
+		filepath.Join(root, "data"), filepath.Join(root, "logs"), zap.NewNop())
 	return s, reg, dir
 }
 
@@ -446,7 +447,8 @@ func TestKillRefusesReapedPid(t *testing.T) {
 
 	reg := NewRegistry(zap.NewNop())
 	reg.Add(Manifest{ID: "alpha", Name: "alpha", Exec: "./plugin.sh", UI: "webview", Dir: dir})
-	s := NewSupervisor(reg, filepath.Join(root, "core.sock"), filepath.Join(root, "data"), zap.NewNop())
+	s := NewSupervisor(reg, filepath.Join(root, "core.sock"),
+		filepath.Join(root, "data"), filepath.Join(root, "logs"), zap.NewNop())
 
 	m, _ := reg.Manifest("alpha")
 	if err := s.runOnce(context.Background(), m); err != nil {
