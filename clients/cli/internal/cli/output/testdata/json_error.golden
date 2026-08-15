@@ -1,0 +1,7 @@
+{
+  "v": 1,
+  "error": {
+    "code": 2,
+    "message": "core unreachable at 127.0.0.1:50051: connection refused"
+  }
+}

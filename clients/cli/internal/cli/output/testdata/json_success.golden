@@ -1,0 +1,26 @@
+{
+  "v": 1,
+  "data": {
+    "plugins": [
+      {
+        "id": "vibecheck",
+        "name": "VibeCheck",
+        "icon": "eye",
+        "path": "/Users/x/.vibecare/plugins-v2/vibecheck",
+        "ui": "http",
+        "state": "UP",
+        "detail": "probe ok",
+        "pid": 40122,
+        "uptime_sec": 8041,
+        "restarts": 0,
+        "probe_latency_ms": 3,
+        "events_published": 128,
+        "events_delivered": 127,
+        "last_event_unix": 1786000000,
+        "log_path": "/Users/x/.vibecare/logs/vibecheck.log",
+        "stats": true
+      }
+    ],
+    "base_url": "http://127.0.0.1:53321"
+  }
+}

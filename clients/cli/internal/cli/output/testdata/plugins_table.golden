@@ -1,0 +1,4 @@
+ID         NAME       STATE     PID    UPTIME  RESTARTS
+vibecheck  VibeCheck  UP        40122  2h14m   0
+todo       Todo       DEGRADED  40123  11s     3
+notes      Notes      FAILED    -      -       5

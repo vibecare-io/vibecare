@@ -7,6 +7,7 @@ default:
 
 # Backend directory
 backend_dir := "backend"
+cli_dir := "clients/cli"
 proto_dir := "proto"
 data_dir := "~/.vibecare"
 
@@ -773,6 +774,8 @@ mcp-list-tools:
 test:
     @echo "{{GREEN}}Running tests...{{NC}}"
     cd {{backend_dir}} && go test -v ./...
+    cd {{cli_dir}} && go test ./...
+    cd {{cli_dir}} && go test -tags dev ./...
     cd plugins/todo && go test -v ./...
     # vibecheck is Swift: `swift test` covers VCPluginSDK, and `go test`
     # drives the built binary against a real kernel and a scripted core.
@@ -937,6 +940,69 @@ swift-reset-app-db:
 swift-test:
     @echo "{{GREEN}}Testing Swift client...{{NC}}"
     cd clients/macos-swift/VibeCare && swift test
+
+# The terminal client: `vibecare status`, `vibecare logs -f`, and the
+# full-screen TUI. It is its own Go module, so every recipe here runs from
+# clients/cli — `go build ./...` at the repo root does not reach it.
+
+# Build the CLI client
+[group('🖥️  CLI')]
+cli-build:
+    @echo "{{GREEN}}Building CLI client...{{NC}}"
+    cd {{cli_dir}} && go build -o ../../bin/vibecare .
+    @echo "{{GREEN}}✓ CLI built: bin/vibecare{{NC}}"
+
+# Arguments pass straight through, so `just cli-run status --json` is
+# `vibecare status --json`. With no arguments it opens the TUI.
+
+# Run the CLI client without installing it
+[group('🖥️  CLI')]
+cli-run *args:
+    cd {{cli_dir}} && go run . {{args}}
+
+# `-tags dev` compiles in `plugins rebuild`, which runs the build: command
+# from a plugin's manifest.yaml. That is deliberately absent from the normal
+# build — a shipped client should not execute a program named by a file on
+# disk — so this is the binary to use while working on a plugin.
+
+# Build the CLI client with dev-only commands (plugins rebuild)
+[group('🖥️  CLI')]
+cli-build-dev:
+    @echo "{{GREEN}}Building CLI client (dev)...{{NC}}"
+    cd {{cli_dir}} && go build -tags dev -o ../../bin/vibecare .
+    @echo "{{GREEN}}✓ CLI built with dev commands: bin/vibecare{{NC}}"
+
+# Open the TUI from a dev build, so `b` rebuilds the selected plugin
+[group('🖥️  CLI')]
+tui-dev *args: cli-build-dev
+    ./bin/vibecare {{args}}
+
+# Core does not have to be running first: the TUI comes up either way, says
+# what it cannot reach, and reconnects on its own with backoff — so `just tui`
+# in one pane and `just run` in another is a working order.
+#
+# It builds and execs the binary rather than using `go run`, which for a
+# full-screen program adds a compile pause before the first frame and sits
+# between the program and its signals, leaving the alt-screen behind on ^C.
+
+# Build and open the full-screen TUI
+[group('🖥️  CLI')]
+tui *args: cli-build
+    ./bin/vibecare {{args}}
+
+# Test the CLI client
+[group('🖥️  CLI')]
+cli-test:
+    @echo "{{GREEN}}Testing CLI client...{{NC}}"
+    cd {{cli_dir}} && go test ./...
+    cd {{cli_dir}} && go test -tags dev ./...
+
+# Install the CLI client into $GOBIN (or $GOPATH/bin)
+[group('🖥️  CLI')]
+cli-install:
+    @echo "{{GREEN}}Installing CLI client...{{NC}}"
+    cd {{cli_dir}} && go install
+    @echo "{{GREEN}}✓ vibecare installed to $(go env GOBIN || echo $(go env GOPATH)/bin){{NC}}"
 
 # Test the complete stack
 [group('🧪 Testing')]
