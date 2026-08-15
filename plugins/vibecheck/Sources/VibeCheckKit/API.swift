@@ -64,8 +64,21 @@ public func registerVibeCheckRoutes(
             // wrote, so the engine's in-memory state can never diverge from
             // what's on disk.
             let saved = await config.load()
-            await engine.apply(saved)
             try await respondJSON(writer, status: 200, saved)
+            // Applied AFTER responding, in a DETACHED Task — never awaited
+            // inline here. `engine.apply(_:)` can call `startCameraOnly()`
+            // -> `camera.start()` -> `AVCaptureDevice.requestAccess`, which
+            // does not return until a human answers a real system TCC
+            // dialog (or, in a display-less environment, may never resolve
+            // promptly at all). The HTTP response is already fully
+            // determined by `saved`, which is already persisted, by this
+            // point — nothing about it depends on the camera. Awaiting
+            // `apply` inline would hang this response on first run, and
+            // via `VCHTTPServer`'s `lastRequestTask` chaining (every
+            // request on one keep-alive connection awaits the previous
+            // one's `Task` before it can even start), every LATER request
+            // queued behind it on the same connection would hang too.
+            Task { await engine.apply(saved) }
 
         default:
             try await respondMethodNotAllowed(writer, "GET, PUT")
@@ -90,8 +103,16 @@ public func registerVibeCheckRoutes(
             return
         }
         let saved = await config.load()
-        await engine.apply(saved)   // stops the camera — see DetectionEngine.apply/stop
         try await respondJSON(writer, status: 200, saved)
+        // Same "respond first, apply in a detached Task" reasoning as
+        // `/api/config` PUT above. `apply` transitioning to `enabled: false`
+        // only ever calls the non-blocking `stop()` (no TCC prompt on the
+        // way down), so this specific call could safely be awaited inline
+        // today — but doing it the same way as PUT keeps this route from
+        // silently growing that risk if `apply`'s shape ever changes, and
+        // means neither route depends on reasoning about which direction
+        // is "safe" to block on.
+        Task { await engine.apply(saved) }
     }
 
     // Ruling P4, same as above — "Snooze 10 min" is the other alert action.
