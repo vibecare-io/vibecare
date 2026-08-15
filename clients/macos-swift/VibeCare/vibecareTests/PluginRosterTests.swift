@@ -61,6 +61,21 @@ final class PluginRosterTests: XCTestCase {
         XCTAssertEqual(url.absoluteString, "http://127.0.0.1:52341/p/todo/snooze")
     }
 
+    // The shell resolves an alert action by the plugin id string carried on
+    // the alert (`PluginAlert.plugin`), not an already-known `PluginEntry`.
+    func testActionURLResolvesByPluginID() throws {
+        let e = entry(id: "vibecheck", path: "/p/vibecheck/")
+        let url = try XCTUnwrap(roster([e]).url(for: "vibecheck", path: "api/snooze?minutes=10"))
+        XCTAssertEqual(url.absoluteString, "http://127.0.0.1:52341/p/vibecheck/api/snooze?minutes=10")
+    }
+
+    // A pressed action button for a plugin no longer in the roster (e.g. it
+    // died between the alert being sent and the button being pressed) must
+    // resolve to nil, never a malformed URL built from a guessed path.
+    func testActionURLForAnUnknownPluginResolvesToNil() {
+        XCTAssertNil(roster([entry()]).url(for: "ghost", path: "api/x"))
+    }
+
     // The path is stable across restarts by construction, so the shell must
     // use it verbatim rather than rebuilding it from the id.
     func testURLUsesTheServerSuppliedPath() throws {

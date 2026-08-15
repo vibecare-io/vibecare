@@ -3,6 +3,15 @@ import Logging
 import VibeNotify
 import VCStubs
 
+/// A button rendered on a notification — e.g. a plugin alert's "Snooze 10
+/// min" / "Turn off" actions. Kept separate from `StandardNotification.Button`
+/// (VibeNotify's own type) so callers like `PluginShellService` don't need
+/// to import VibeNotify just to build one.
+struct NotificationAction {
+    let label: String
+    let handler: () -> Void
+}
+
 @MainActor
 class NotificationManager: NSObject, ObservableObject {
     static let shared = NotificationManager()
@@ -59,18 +68,20 @@ class NotificationManager: NSObject, ObservableObject {
         return VibeNotifyConfig.showError(title: title, message: message)
     }
 
-    /// Show a warning notification
+    /// Show a warning notification, optionally with action buttons (e.g. a
+    /// plugin alert's actions).
     @discardableResult
-    func showWarning(title: String = "Warning", message: String) -> UUID? {
+    func showWarning(title: String = "Warning", message: String, actions: [NotificationAction] = []) -> UUID? {
         logger.warning("Showing warning notification: \(title)")
-        return VibeNotifyConfig.showWarning(title: title, message: message)
+        return VibeNotifyConfig.showWarning(title: title, message: message, actions: actions)
     }
 
-    /// Show an info notification
+    /// Show an info notification, optionally with action buttons (e.g. a
+    /// plugin alert's actions).
     @discardableResult
-    func showInfo(title: String = "Info", message: String) -> UUID? {
+    func showInfo(title: String = "Info", message: String, actions: [NotificationAction] = []) -> UUID? {
         logger.info("Showing info notification: \(title)")
-        return VibeNotifyConfig.showInfo(title: title, message: message)
+        return VibeNotifyConfig.showInfo(title: title, message: message, actions: actions)
     }
 
     /// Show a quick toast notification
