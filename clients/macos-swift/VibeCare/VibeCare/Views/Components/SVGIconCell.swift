@@ -30,6 +30,9 @@ struct SVGIconCell: View {
                     RoundedRectangle(cornerRadius: 6)
                         .stroke(borderColor, lineWidth: borderWidth)
                 )
+                // The SVG paths and the clear background leave most of the cell
+                // transparent; without this only the drawn strokes are hit-tested.
+                .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .onHover { hovering in
