@@ -266,63 +266,6 @@ enum VibeNotifyConfig {
       .show()
   }
 
-  // MARK: - VibeCheck Detection Alert
-
-  /// Shows the notification for a confirmed BFRB detection, rendered through
-  /// the same shared VibeNotify builder (`showNotification`) that schedule
-  /// notifications use, customized via `DetectionAlertPreferencesStore`.
-  ///
-  /// Title/message fall back to the behavior's default label/nudge when the
-  /// user hasn't customized them, and today's streak (e.g. "3rd nudge today")
-  /// is always appended to the message.
-  ///
-  /// Priority is `.critical` so it always shows regardless of the global mute
-  /// toggle — the detection sound and overlay flash already fire unconditionally.
-  @MainActor
-  @discardableResult
-  static func showBFRBAlert(
-    behavior: BFRBBehavior,
-    count: Int,
-    preferences: NotificationPreferences? = nil
-  ) -> UUID? {
-    // Swift default-parameter expressions can't reference another parameter
-    // (e.g. `= DetectionAlertPreferencesStore.shared.preferences(for: behavior)`
-    // is invalid because `behavior` isn't in scope there), so the default is
-    // resolved here instead. Behavior is identical: omitting `preferences`
-    // (as the sole caller, `VibeNotifyDetectionNotifier.notify`, does) still
-    // looks up the store's per-behavior preferences.
-    let prefs = preferences ?? DetectionAlertPreferencesStore.shared.preferences(for: behavior)
-    let title = prefs.title?.nonEmpty ?? behavior.label
-    let base = prefs.message?.nonEmpty ?? behavior.nudge
-    let message = "\(base)\n\(ordinal(count)) nudge today"
-    return showNotification(
-      preferences: prefs,
-      title: title,
-      message: message,
-      defaultSystemIcon: behavior.alertIcon,
-      priority: .critical
-    )
-  }
-
-  /// English ordinal for `n` (e.g. 1 -> "1st", 22 -> "22nd", 13 -> "13th").
-  /// 11/12/13 are the special-case exceptions that take "th" despite ending in
-  /// 1/2/3.
-  static func ordinal(_ n: Int) -> String {
-    let ones = n % 10
-    let tens = n % 100
-    let suffix: String
-    if (11...13).contains(tens) {
-      suffix = "th"
-    } else {
-      switch ones {
-      case 1: suffix = "st"
-      case 2: suffix = "nd"
-      case 3: suffix = "rd"
-      default: suffix = "th"
-      }
-    }
-    return "\(n)\(suffix)"
-  }
 }
 
 // MARK: - Notification Type Enum

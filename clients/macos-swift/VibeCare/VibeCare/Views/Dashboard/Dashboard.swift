@@ -8,7 +8,6 @@ public struct Dashboard: View {
   @StateObject private var scheduleViewModel = ScheduleViewModel()
   @StateObject private var actionViewModel = ActionViewModel()
   @StateObject private var notificationPolicy = NotificationPolicy.shared
-  @StateObject private var vibeCheckViewModel = VibeCheckViewModel.shared
   @StateObject private var pluginShell = PluginShellService()
 
   public init() {}
@@ -96,8 +95,6 @@ public struct Dashboard: View {
       scheduleContentView
     case .actions:
       actionContentView
-    case .vibecheck:
-      vibeCheckContentView
     case .plugins:
       pluginContentView
     case .settings:
@@ -132,10 +129,6 @@ public struct Dashboard: View {
     )
   }
 
-  private var vibeCheckContentView: some View {
-    VibeCheckScreen(viewModel: vibeCheckViewModel)
-  }
-
   private var pluginContentView: some View {
     PluginListView(shell: pluginShell, selectedId: $dashboardState.selectedPluginId)
   }
@@ -154,14 +147,6 @@ public struct Dashboard: View {
 
   @ViewBuilder
   private var toolbarButtons: some View {
-    // Detection toggle (always visible)
-    Button {
-      Task { await vibeCheckViewModel.toggleDetection() }
-    } label: {
-      Image(systemName: vibeCheckViewModel.isDetectionEnabled ? "eye.fill" : "eye.slash")
-    }
-    .help(vibeCheckViewModel.isDetectionEnabled ? "Stop VibeCheck detection" : "Start VibeCheck detection")
-
     // Notification toggle (always visible)
     Button {
       notificationPolicy.toggle()
@@ -194,8 +179,6 @@ public struct Dashboard: View {
       scheduleDetailView
     case .actions:
       actionDetailView
-    case .vibecheck:
-      VibeCheckControlsPanel(viewModel: vibeCheckViewModel)
     case .plugins:
       pluginDetailView
     case .settings:

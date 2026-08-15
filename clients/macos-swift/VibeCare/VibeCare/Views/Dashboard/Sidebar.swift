@@ -5,7 +5,6 @@ enum SidebarItem: String, CaseIterable, Identifiable {
     case schedules = "Schedules"
     case routines = "Routines"
     case actions = "Actions"
-    case vibecheck = "VibeCheck"
     case plugins = "Plugins"
     case settings = "Settings"
 
@@ -16,7 +15,6 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .routines: return "list.bullet"
         case .schedules: return "calendar.badge.clock"
         case .actions: return "bolt.circle"
-        case .vibecheck: return "eye.trianglebadge.exclamationmark"
         case .plugins: return "puzzlepiece.extension"
         case .settings: return "gearshape.fill"
         }
@@ -27,7 +25,6 @@ enum SidebarItem: String, CaseIterable, Identifiable {
         case .routines: return .blue
         case .schedules: return .orange
         case .actions: return .purple
-        case .vibecheck: return .pink
         case .plugins: return .teal
         case .settings: return .gray
         }
@@ -76,8 +73,6 @@ struct DashboardSidebar: View {
             return scheduleCount
         case .actions:
             return actionCount
-        case .vibecheck:
-            return nil
         case .plugins:
             return nil
         case .settings:

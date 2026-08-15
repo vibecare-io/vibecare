@@ -4,11 +4,11 @@ import SwiftUI
 import VibeNotify
 
 /// Fires the immediate sound + screen flash a `"warn"` plugin alert requests
-/// (ruling R1). Ported from the original in-client VibeCheck's
-/// `Services/Detection/InterruptPlayer.swift` (the beep) and
-/// `ViewModels/VibeCheckViewModel.swift`'s `flash` (the 250 ms overlay),
-/// both deleted along with the rest of VibeCheck's in-client detection code
-/// in a later task — this is where their behaviour lives now.
+/// (ruling R1). Ported from the original in-client VibeCheck's detection
+/// interrupt player (the beep) and its detection view model's `flash`
+/// property (the 250 ms overlay), both since deleted along with the rest of
+/// VibeCheck's in-client detection code — this is where their behaviour
+/// lives now.
 ///
 /// Two properties that matter, both inherited from the original and
 /// deliberately preserved:
