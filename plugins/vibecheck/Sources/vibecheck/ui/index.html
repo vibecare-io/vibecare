@@ -5,22 +5,972 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>VibeCheck</title>
     <style>
-      :root { color-scheme: light dark; }
-      body {
-        font: 15px/1.5 -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+      :root {
+        color-scheme: light dark;
+        --bg: #f5f5f7;
+        --pane-bg: #ffffff;
+        --surface: #eeeef1;
+        --surface-2: #e4e4e8;
+        --border: #d8d8dc;
+        --text: #1c1c1e;
+        --text-dim: #6b6b70;
+        --accent: #0a84ff;
+        --accent-contrast: #ffffff;
+        --danger: #ff453a;
+        --switch-off: #c7c7cc;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16161a;
+          --pane-bg: #1c1c1e;
+          --surface: #232326;
+          --surface-2: #2c2c2f;
+          --border: #38383c;
+          --text: #f2f2f3;
+          --text-dim: #9a9aa0;
+          --accent: #0a84ff;
+          --accent-contrast: #ffffff;
+          --danger: #ff6961;
+          --switch-off: #48484c;
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body {
+        height: 100%;
         margin: 0;
-        padding: 3rem 2rem;
+      }
+
+      body {
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .app {
+        display: flex;
+        flex-wrap: wrap;
+        min-height: 100vh;
+      }
+
+      /* ---------- Left: preview pane ---------- */
+
+      .preview-pane {
+        flex: 1 1 55%;
+        min-width: 320px;
+        min-height: 360px;
+        position: relative;
+        background: #000;
+        display: flex;
+        align-items: stretch;
+        justify-content: stretch;
+      }
+
+      .preview-stage {
+        position: relative;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      .preview-stage img#preview-img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .preview-stage canvas#overlay {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      .preview-off,
+      .preview-denied {
+        position: absolute;
+        inset: 0;
         display: flex;
         flex-direction: column;
         align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
         text-align: center;
+        padding: 2rem;
+        color: #f2f2f3;
+        background: linear-gradient(180deg, #0d0d0f, #1a1a1d);
       }
-      h1 { font-size: 1.25rem; margin: 0 0 0.5rem; }
-      p { margin: 0; opacity: 0.7; }
+
+      .preview-off svg,
+      .preview-denied svg {
+        width: 56px;
+        height: 56px;
+        opacity: 0.6;
+        margin-bottom: 0.25rem;
+      }
+
+      .preview-off h2,
+      .preview-denied h2 {
+        margin: 0;
+        font-size: 1.15rem;
+        font-weight: 600;
+      }
+
+      .preview-off p,
+      .preview-denied p {
+        margin: 0;
+        max-width: 26rem;
+        color: #b8b8bc;
+      }
+
+      .preview-denied p.path {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.85rem;
+        color: #e5c07b;
+        background: rgba(255, 255, 255, 0.06);
+        padding: 0.35rem 0.6rem;
+        border-radius: 6px;
+      }
+
+      .btn {
+        appearance: none;
+        border: none;
+        border-radius: 10px;
+        padding: 0.6rem 1.2rem;
+        font: inherit;
+        font-weight: 600;
+        cursor: pointer;
+        color: var(--accent-contrast);
+        background: var(--accent);
+      }
+      .btn:active { opacity: 0.85; }
+      .btn:disabled { opacity: 0.5; cursor: default; }
+
+      .btn.secondary {
+        background: rgba(255, 255, 255, 0.12);
+        color: #f2f2f3;
+      }
+
+      .preview-live-controls {
+        position: absolute;
+        top: 0.75rem;
+        right: 0.75rem;
+        z-index: 2;
+      }
+
+      /* ---------- Right: controls pane ---------- */
+
+      .controls-pane {
+        flex: 1 1 380px;
+        max-width: 460px;
+        min-width: 320px;
+        background: var(--pane-bg);
+        padding: 1.5rem;
+        overflow-y: auto;
+        max-height: 100vh;
+      }
+
+      .controls-pane h1 {
+        font-size: 1.2rem;
+        margin: 0 0 1.25rem;
+      }
+
+      section.group {
+        margin-bottom: 1.75rem;
+      }
+
+      section.group h2 {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-dim);
+        margin: 0 0 0.5rem 0.2rem;
+      }
+
+      .rows {
+        background: var(--surface);
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      .row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.75rem 0.9rem;
+      }
+
+      .row + .row {
+        border-top: 1px solid var(--border);
+      }
+
+      .row .label {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+      }
+
+      .row .icon {
+        width: 20px;
+        height: 20px;
+        flex: none;
+        opacity: 0.85;
+      }
+      .row .icon img { width: 100%; height: 100%; display: block; }
+
+      .row .count {
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+        color: var(--text-dim);
+      }
+
+      /* switch */
+      .switch {
+        position: relative;
+        display: inline-block;
+        width: 42px;
+        height: 25px;
+        flex: none;
+      }
+      .switch input {
+        opacity: 0;
+        width: 0;
+        height: 0;
+      }
+      .switch .track {
+        position: absolute;
+        inset: 0;
+        background: var(--switch-off);
+        border-radius: 999px;
+        transition: background 0.15s ease;
+      }
+      .switch .thumb {
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 21px;
+        height: 21px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+        transition: transform 0.15s ease;
+      }
+      .switch input:checked + .track {
+        background: var(--accent);
+      }
+      .switch input:checked + .track .thumb {
+        transform: translateX(17px);
+      }
+      .switch input:disabled + .track {
+        opacity: 0.5;
+      }
+
+      .slider-block {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.85rem 0.9rem;
+      }
+
+      .slider-block .slider-label {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 0.5rem;
+        color: var(--text-dim);
+        font-size: 0.85rem;
+      }
+
+      input[type="range"] {
+        width: 100%;
+        accent-color: var(--accent);
+      }
+
+      details.advanced {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.15rem 0.9rem 0.85rem;
+      }
+
+      details.advanced summary {
+        cursor: pointer;
+        padding: 0.75rem 0;
+        font-weight: 600;
+        list-style: none;
+      }
+      details.advanced summary::-webkit-details-marker { display: none; }
+      details.advanced summary::before {
+        content: "\25B8";
+        display: inline-block;
+        margin-right: 0.4rem;
+        transition: transform 0.15s ease;
+        color: var(--text-dim);
+      }
+      details.advanced[open] summary::before {
+        transform: rotate(90deg);
+      }
+
+      .pref-block {
+        padding: 0.6rem 0;
+        border-top: 1px solid var(--border);
+      }
+      .pref-block:first-of-type { border-top: none; }
+
+      .pref-block .pref-title {
+        font-weight: 600;
+        margin-bottom: 0.4rem;
+      }
+
+      .pref-block label {
+        display: block;
+        font-size: 0.8rem;
+        color: var(--text-dim);
+        margin: 0.4rem 0 0.2rem;
+      }
+
+      .pref-block input[type="text"] {
+        width: 100%;
+        font: inherit;
+        padding: 0.4rem 0.55rem;
+        border-radius: 8px;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text);
+      }
+
+      .hint {
+        font-size: 0.78rem;
+        color: var(--text-dim);
+        margin: 0.5rem 0.2rem 0;
+      }
     </style>
   </head>
   <body>
-    <h1>VibeCheck</h1>
-    <p>Registered with core. The detection UI arrives in Task&nbsp;16.</p>
+    <div class="app">
+      <div class="preview-pane">
+        <div class="preview-stage" id="preview-stage">
+          <img id="preview-img" alt="" />
+          <canvas id="overlay"></canvas>
+
+          <div class="preview-off" id="preview-off" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.5-7 10-7c2.06 0 3.83.55 5.29 1.31" />
+              <path d="M22 12s-.86 1.72-2.5 3.36" />
+              <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+              <path d="M6.1 6.1C3.6 7.8 2 12 2 12s3.5 7 10 7c1.83 0 3.4-.42 4.72-1.07" />
+              <line x1="2" y1="2" x2="22" y2="22" />
+            </svg>
+            <h2>Detection is off</h2>
+            <p>Turn it on to start monitoring</p>
+            <button class="btn" id="start-btn" type="button">Start Detection</button>
+          </div>
+
+          <div class="preview-denied" id="preview-denied" hidden>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.5-7 10-7c2.06 0 3.83.55 5.29 1.31" />
+              <path d="M22 12s-.86 1.72-2.5 3.36" />
+              <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+              <path d="M6.1 6.1C3.6 7.8 2 12 2 12s3.5 7 10 7c1.83 0 3.4-.42 4.72-1.07" />
+              <line x1="2" y1="2" x2="22" y2="22" />
+            </svg>
+            <h2 id="preview-denied-title">Camera access was denied</h2>
+            <p id="preview-denied-text">
+              VibeCheck can't see the camera. Grant access in System Settings.
+            </p>
+            <p class="path">System Settings &rsaquo; Privacy &amp; Security &rsaquo; Camera</p>
+          </div>
+
+          <div class="preview-live-controls" id="preview-live-controls" hidden>
+            <button class="btn secondary" id="stop-btn" type="button">Turn Off</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls-pane">
+        <h1>VibeCheck</h1>
+
+        <section class="group">
+          <h2>Detection</h2>
+          <div class="rows" id="behavior-rows"></div>
+        </section>
+
+        <section class="group">
+          <h2>Sensitivity</h2>
+          <div class="slider-block">
+            <div class="slider-label">
+              <span>Trigger sensitivity</span>
+              <span id="sensitivity-value">50%</span>
+            </div>
+            <input type="range" id="sensitivity-slider" min="0" max="1" step="0.01" value="0.5" />
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Alerts</h2>
+          <div class="slider-block">
+            <div class="slider-label">
+              <span id="cooldown-label">Alert interval: 5s</span>
+            </div>
+            <input type="range" id="cooldown-slider" min="1" max="30" step="1" value="5" />
+          </div>
+        </section>
+
+        <section class="group">
+          <h2>Session</h2>
+          <div class="rows" id="session-rows"></div>
+        </section>
+
+        <section class="group">
+          <details class="advanced">
+            <summary>Advanced: Alert Appearance</summary>
+            <div id="alert-prefs-form"></div>
+            <p class="hint">Title and message shown on a confirmed detection. Icon, position, and screen-blur editing are not available here yet.</p>
+          </details>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      "use strict";
+
+      // Every URL in this file is relative — this page is mounted at
+      // /p/vibecheck/ by core's reverse proxy and must not know that.
+
+      var BEHAVIORS = [
+        { id: "nailBiting", label: "Nail-biting" },
+        { id: "nosePicking", label: "Nose-picking" },
+        { id: "hairPulling", label: "Hair-pulling" }
+      ];
+
+      // ---- local mirror of server state; every control write is a full
+      // PUT of one of these objects, never a client-only mutation. ----
+      var config = null;       // VibeCheckConfig
+      var alertPrefs = null;   // [String: NotificationPreferences]
+      var lastSnapshot = null; // EngineSnapshot
+
+      var eventSource = null;
+      var pollTimer = null;
+
+      // ============================================================
+      // Fetch helpers
+      // ============================================================
+
+      function getJSON(path) {
+        return fetch(path).then(function (r) {
+          if (!r.ok) throw new Error(path + ": " + r.status);
+          return r.json();
+        });
+      }
+
+      function putJSON(path, body) {
+        return fetch(path, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        }).then(function (r) {
+          if (!r.ok) throw new Error(path + ": " + r.status);
+          return r.json();
+        });
+      }
+
+      // ============================================================
+      // Debounce (sliders write on a trailing edge, not per pixel)
+      // ============================================================
+
+      function debounce(fn, wait) {
+        var t = null;
+        return function () {
+          var args = arguments;
+          var self = this;
+          clearTimeout(t);
+          t = setTimeout(function () {
+            fn.apply(self, args);
+          }, wait);
+        };
+      }
+
+      // ============================================================
+      // Config writes
+      // ============================================================
+
+      function saveConfig() {
+        return putJSON("api/config", config).then(function (saved) {
+          config = saved;
+          return saved;
+        });
+      }
+
+      var saveConfigDebounced = debounce(function () {
+        saveConfig().catch(function (e) { console.error(e); });
+      }, 300);
+
+      function setEnabled(enabled) {
+        config.enabled = enabled;
+        var btn = document.getElementById("start-btn");
+        var stopBtn = document.getElementById("stop-btn");
+        if (btn) btn.disabled = true;
+        if (stopBtn) stopBtn.disabled = true;
+        saveConfig()
+          .then(function () { return refreshState(); })
+          .catch(function (e) { console.error(e); })
+          .finally(function () {
+            if (btn) btn.disabled = false;
+            if (stopBtn) stopBtn.disabled = false;
+          });
+      }
+
+      // ============================================================
+      // Behavior toggle rows
+      // ============================================================
+
+      function renderBehaviorRows() {
+        var container = document.getElementById("behavior-rows");
+        container.innerHTML = "";
+        BEHAVIORS.forEach(function (b) {
+          var row = document.createElement("div");
+          row.className = "row";
+
+          var label = document.createElement("div");
+          label.className = "label";
+
+          var icon = document.createElement("span");
+          icon.className = "icon";
+          var img = document.createElement("img");
+          // BFRBBehavior.defaultIconId (API.swift's /icons/<id>.svg) is
+          // kebab-case; mapped explicitly rather than derived from the raw
+          // value so it stays correct regardless of naming convention.
+          var iconIds = { nailBiting: "nail-biting", nosePicking: "nose-picking", hairPulling: "hair-pulling" };
+          img.src = "icons/" + iconIds[b.id] + ".svg";
+          img.alt = "";
+          icon.appendChild(img);
+
+          var span = document.createElement("span");
+          span.textContent = b.label;
+
+          label.appendChild(icon);
+          label.appendChild(span);
+
+          var sw = document.createElement("label");
+          sw.className = "switch";
+          var input = document.createElement("input");
+          input.type = "checkbox";
+          input.checked = config.enabledBehaviors.indexOf(b.id) !== -1;
+          input.addEventListener("change", function () {
+            var idx = config.enabledBehaviors.indexOf(b.id);
+            if (input.checked && idx === -1) {
+              config.enabledBehaviors.push(b.id);
+            } else if (!input.checked && idx !== -1) {
+              config.enabledBehaviors.splice(idx, 1);
+            }
+            saveConfig().catch(function (e) { console.error(e); });
+          });
+          var track = document.createElement("span");
+          track.className = "track";
+          var thumb = document.createElement("span");
+          thumb.className = "thumb";
+          track.appendChild(thumb);
+          sw.appendChild(input);
+          sw.appendChild(track);
+
+          row.appendChild(label);
+          row.appendChild(sw);
+          container.appendChild(row);
+        });
+      }
+
+      // ============================================================
+      // Sensitivity / cooldown sliders
+      // ============================================================
+
+      function initSliders() {
+        var sensSlider = document.getElementById("sensitivity-slider");
+        var sensValue = document.getElementById("sensitivity-value");
+        sensSlider.value = config.sensitivity;
+        sensValue.textContent = Math.round(config.sensitivity * 100) + "%";
+        sensSlider.addEventListener("input", function () {
+          var v = parseFloat(sensSlider.value);
+          sensValue.textContent = Math.round(v * 100) + "%";
+          config.sensitivity = v;
+          saveConfigDebounced();
+        });
+
+        var coolSlider = document.getElementById("cooldown-slider");
+        var coolLabel = document.getElementById("cooldown-label");
+        coolSlider.value = config.cooldown;
+        coolLabel.textContent = "Alert interval: " + Math.round(config.cooldown) + "s";
+        coolSlider.addEventListener("input", function () {
+          var v = parseInt(coolSlider.value, 10);
+          coolLabel.textContent = "Alert interval: " + v + "s";
+          config.cooldown = v;
+          saveConfigDebounced();
+        });
+      }
+
+      // ============================================================
+      // Session counts
+      // ============================================================
+
+      function renderSessionRows(todayCounts) {
+        var container = document.getElementById("session-rows");
+        container.innerHTML = "";
+        BEHAVIORS.forEach(function (b) {
+          var row = document.createElement("div");
+          row.className = "row";
+          var label = document.createElement("span");
+          label.textContent = b.label;
+          var count = document.createElement("span");
+          count.className = "count";
+          count.textContent = String((todayCounts && todayCounts[b.id]) || 0);
+          count.id = "count-" + b.id;
+          row.appendChild(label);
+          row.appendChild(count);
+          container.appendChild(row);
+        });
+      }
+
+      function bumpSessionCount(behavior, count) {
+        var el = document.getElementById("count-" + behavior);
+        if (el) el.textContent = String(count);
+      }
+
+      // ============================================================
+      // Advanced: alert appearance (title/message only — v1 scope)
+      // ============================================================
+
+      function renderAlertPrefsForm() {
+        var container = document.getElementById("alert-prefs-form");
+        container.innerHTML = "";
+        BEHAVIORS.forEach(function (b) {
+          var prefs = alertPrefs[b.id] || {};
+          var block = document.createElement("div");
+          block.className = "pref-block";
+
+          var title = document.createElement("div");
+          title.className = "pref-title";
+          title.textContent = b.label;
+          block.appendChild(title);
+
+          var titleLabel = document.createElement("label");
+          titleLabel.textContent = "Title";
+          var titleInput = document.createElement("input");
+          titleInput.type = "text";
+          titleInput.value = prefs.title || "";
+          titleInput.placeholder = b.label;
+
+          var msgLabel = document.createElement("label");
+          msgLabel.textContent = "Message";
+          var msgInput = document.createElement("input");
+          msgInput.type = "text";
+          msgInput.value = prefs.message || "";
+          msgInput.placeholder = "Take a breath — hands down";
+
+          var saveDebounced = debounce(function () {
+            alertPrefs[b.id] = Object.assign({}, alertPrefs[b.id], {
+              title: titleInput.value,
+              message: msgInput.value
+            });
+            putJSON("api/alert-prefs", alertPrefs)
+              .then(function (saved) { alertPrefs = saved; })
+              .catch(function (e) { console.error(e); });
+          }, 400);
+
+          titleInput.addEventListener("input", saveDebounced);
+          msgInput.addEventListener("input", saveDebounced);
+
+          block.appendChild(titleLabel);
+          block.appendChild(titleInput);
+          block.appendChild(msgLabel);
+          block.appendChild(msgInput);
+          container.appendChild(block);
+        });
+      }
+
+      // ============================================================
+      // Preview pane state machine
+      // ============================================================
+
+      var currentPaneMode = null; // "off" | "denied" | "noDevice" | "live"
+
+      function setPaneMode(mode) {
+        if (mode === currentPaneMode) return;
+        currentPaneMode = mode;
+
+        var off = document.getElementById("preview-off");
+        var denied = document.getElementById("preview-denied");
+        var liveControls = document.getElementById("preview-live-controls");
+        var img = document.getElementById("preview-img");
+
+        off.hidden = mode !== "off";
+        denied.hidden = mode !== "denied" && mode !== "noDevice";
+        liveControls.hidden = mode !== "live";
+
+        if (mode === "noDevice") {
+          document.getElementById("preview-denied-title").textContent = "No camera found";
+          document.getElementById("preview-denied-text").textContent =
+            "VibeCheck couldn't find a camera on this Mac. Connect one and turn detection on again.";
+        } else if (mode === "denied") {
+          document.getElementById("preview-denied-title").textContent = "Camera access was denied";
+          document.getElementById("preview-denied-text").textContent =
+            "VibeCheck can't see the camera. It cannot open System Settings itself — grant access from:";
+        }
+
+        if (mode === "live") {
+          img.src = "preview.mjpeg";
+          connectEvents();
+        } else {
+          // Detach so the stream idles and the plugin stops encoding.
+          img.src = "";
+          disconnectEvents();
+          clearOverlay();
+        }
+      }
+
+      // ============================================================
+      // Overlay: aspect-FILL mapping, canvas-based (never SVG — the
+      // hair mask is 64x48 = 3072 cells/frame, far too many DOM nodes
+      // to hold frame rate).
+      // ============================================================
+
+      var overlayCanvas = document.getElementById("overlay");
+      var overlayCtx = overlayCanvas.getContext("2d");
+      var overlayDPR = window.devicePixelRatio || 1;
+
+      function resizeOverlay() {
+        var stage = document.getElementById("preview-stage");
+        var w = stage.clientWidth;
+        var h = stage.clientHeight;
+        overlayDPR = window.devicePixelRatio || 1;
+        overlayCanvas.width = Math.round(w * overlayDPR);
+        overlayCanvas.height = Math.round(h * overlayDPR);
+        overlayCanvas.style.width = w + "px";
+        overlayCanvas.style.height = h + "px";
+      }
+
+      if (window.ResizeObserver) {
+        var ro = new ResizeObserver(function () { resizeOverlay(); });
+        ro.observe(document.getElementById("preview-stage"));
+      } else {
+        window.addEventListener("resize", resizeOverlay);
+      }
+      resizeOverlay();
+
+      function clearOverlay() {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      }
+
+      // Aspect-FILL (cover) mapping, matching the <img>'s object-fit.
+      // Landmarks arrive already in viewer space (origin top-left, y DOWN)
+      // and already mirrored — this is a direct scale, with NO flip of
+      // either axis. A previous version of this codebase flipped y here;
+      // that is now done upstream (see ViewerSpace in Geometry.swift), and
+      // re-flipping puts the marker on the forehead instead of the nose.
+      function mapPoint(p, w, h, imageSize) {
+        var fa = imageSize.height > 0 ? imageSize.width / imageSize.height : 16 / 9;
+        var viewAspect = w / h;
+        var dispW = viewAspect > fa ? w : h * fa;
+        var dispH = viewAspect > fa ? w / fa : h;
+        var ox = (w - dispW) / 2;
+        var oy = (h - dispH) / 2;
+        return { x: ox + p.x * dispW, y: oy + p.y * dispH };
+      }
+
+      // Same transform applied to a rect's origin AND its extent (width and
+      // height scale by the same factors as a point's coordinates do; only
+      // the origin gets the ox/oy offset).
+      function mapRect(r, w, h, imageSize) {
+        var fa = imageSize.height > 0 ? imageSize.width / imageSize.height : 16 / 9;
+        var viewAspect = w / h;
+        var dispW = viewAspect > fa ? w : h * fa;
+        var dispH = viewAspect > fa ? w / fa : h;
+        var ox = (w - dispW) / 2;
+        var oy = (h - dispH) / 2;
+        return {
+          x: ox + r.x * dispW,
+          y: oy + r.y * dispH,
+          width: r.width * dispW,
+          height: r.height * dispH
+        };
+      }
+
+      function drawFrame(frame) {
+        var w = overlayCanvas.width / overlayDPR;
+        var h = overlayCanvas.height / overlayDPR;
+        clearOverlay();
+        overlayCtx.save();
+        overlayCtx.scale(overlayDPR, overlayDPR);
+
+        var imageSize = { width: frame.imageWidth, height: frame.imageHeight };
+
+        // Hair mask (coarse person-segmentation grid), drawn as filled
+        // canvas cells — never as individual SVG rects. NOTE: as of the
+        // current /api/events wire format, FrameEventDTO does not include
+        // a hairMask field, so `frame.hairMask` is always undefined today
+        // and this branch never runs. It is written defensively so the
+        // overlay lights up immediately if/when that field is added to the
+        // DTO, with no further UI change required. See the task report for
+        // the full account of this gap.
+        if (frame.hairMask && frame.hairMask.cols > 0 && frame.hairMask.rows > 0) {
+          var mask = frame.hairMask;
+          overlayCtx.fillStyle = "rgba(10, 132, 255, 0.28)";
+          for (var row = 0; row < mask.rows; row++) {
+            for (var col = 0; col < mask.cols; col++) {
+              if (!mask.cells[row * mask.cols + col]) continue;
+              var cellRect = mapRect(
+                { x: col / mask.cols, y: row / mask.rows, width: 1 / mask.cols, height: 1 / mask.rows },
+                w, h, imageSize
+              );
+              overlayCtx.fillRect(cellRect.x, cellRect.y, cellRect.width, cellRect.height);
+            }
+          }
+        }
+
+        // Face box + nose/mouth markers.
+        if (frame.face) {
+          var box = mapRect(frame.face.box, w, h, imageSize);
+          overlayCtx.strokeStyle = "rgba(255, 255, 255, 0.55)";
+          overlayCtx.lineWidth = 1.5;
+          overlayCtx.strokeRect(box.x, box.y, box.width, box.height);
+
+          var nose = mapPoint(frame.face.nose, w, h, imageSize);
+          var mouth = mapPoint(frame.face.mouth, w, h, imageSize);
+          drawDot(nose, "#30d158");
+          drawDot(mouth, "#ff9f0a");
+        }
+
+        // Fingertips.
+        (frame.fingertips || []).forEach(function (p) {
+          drawDot(mapPoint(p, w, h, imageSize), "#0a84ff");
+        });
+
+        overlayCtx.restore();
+      }
+
+      function drawDot(p, color) {
+        overlayCtx.beginPath();
+        overlayCtx.arc(p.x, p.y, 5, 0, Math.PI * 2);
+        overlayCtx.fillStyle = color;
+        overlayCtx.fill();
+        overlayCtx.strokeStyle = "rgba(0,0,0,0.4)";
+        overlayCtx.lineWidth = 1;
+        overlayCtx.stroke();
+      }
+
+      // ============================================================
+      // SSE: /api/events (frame + detection)
+      // ============================================================
+
+      function connectEvents() {
+        if (eventSource) return;
+        eventSource = new EventSource("api/events");
+        eventSource.addEventListener("frame", function (evt) {
+          try {
+            drawFrame(JSON.parse(evt.data));
+          } catch (e) {
+            console.error(e);
+          }
+        });
+        eventSource.addEventListener("detection", function (evt) {
+          try {
+            var d = JSON.parse(evt.data);
+            bumpSessionCount(d.behavior, d.count);
+          } catch (e) {
+            console.error(e);
+          }
+        });
+        eventSource.onerror = function () {
+          // EventSource retries transient errors on its own; nothing to do
+          // here besides letting the next /api/state poll reconcile
+          // `running` if the engine actually stopped.
+        };
+      }
+
+      function disconnectEvents() {
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+      }
+
+      // ============================================================
+      // State polling — self-heals the pane if detection is turned off
+      // from outside this page (e.g. an alert's "Turn off" action).
+      // ============================================================
+
+      function applySnapshot(snapshot) {
+        lastSnapshot = snapshot;
+        renderSessionRows(snapshot.todayCounts);
+
+        if (snapshot.permission === "denied") {
+          setPaneMode("denied");
+        } else if (snapshot.permission === "noDevice") {
+          setPaneMode("noDevice");
+        } else if (snapshot.running) {
+          setPaneMode("live");
+        } else {
+          setPaneMode("off");
+        }
+
+        // Reconcile local config mirror with the server's, but don't clobber
+        // a slider mid-drag: only overwrite when nothing here is focused
+        // inside the controls pane.
+        var active = document.activeElement;
+        var isEditingControls = active && (active.tagName === "INPUT") &&
+          document.querySelector(".controls-pane").contains(active);
+        if (!isEditingControls && snapshot.config) {
+          config = snapshot.config;
+          renderBehaviorRows();
+          initSliders();
+        }
+      }
+
+      function refreshState() {
+        return getJSON("api/state").then(applySnapshot).catch(function (e) {
+          console.error(e);
+        });
+      }
+
+      function startPolling() {
+        if (pollTimer) return;
+        pollTimer = setInterval(refreshState, 4000);
+      }
+
+      // ============================================================
+      // Boot
+      // ============================================================
+
+      function boot() {
+        Promise.all([
+          getJSON("api/state"),
+          getJSON("api/config"),
+          getJSON("api/alert-prefs")
+        ]).then(function (results) {
+          var snapshot = results[0];
+          config = results[1];
+          alertPrefs = results[2];
+
+          renderBehaviorRows();
+          initSliders();
+          renderAlertPrefsForm();
+          applySnapshot(snapshot);
+          startPolling();
+
+          document.getElementById("start-btn").addEventListener("click", function () {
+            setEnabled(true);
+          });
+          document.getElementById("stop-btn").addEventListener("click", function () {
+            setEnabled(false);
+          });
+        }).catch(function (e) {
+          console.error("VibeCheck UI failed to load initial state", e);
+        });
+      }
+
+      boot();
+    </script>
   </body>
 </html>
