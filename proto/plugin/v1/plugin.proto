@@ -50,6 +50,17 @@ message AlertReq {
   string body  = 2;
   string level = 3;                  // "info" | "warn"
   repeated AlertAction actions = 4;  // rendered as buttons
+
+  // Opaque, plugin-defined presentation hints for this one alert, forwarded
+  // to the client verbatim. Core never parses it: an alert's appearance is
+  // product semantics, and core has none (D10).
+  //
+  // This is what lets a plugin ship a richly-styled alert with no client
+  // release and no per-plugin code in any client — the client applies a
+  // blob it can decode and ignores one it cannot. Optional in the wire
+  // sense (explicit presence), so "no opinion on appearance" is
+  // distinguishable from "deliberately blank".
+  optional string appearance = 5;
 }
 
 // url is plugin-relative; the client navigates to /p/<plugin>/<url>.

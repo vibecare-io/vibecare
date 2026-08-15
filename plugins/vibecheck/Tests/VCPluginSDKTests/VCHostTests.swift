@@ -78,3 +78,32 @@ import Foundation
     #expect(d.subscribers == 2)
     #expect(VCTopicDemand == "_core.demand.v1")
 }
+
+// `appearance` is optional in the WIRE sense, not merely "may be empty".
+// These two pin both halves of that, because the difference is invisible in
+// the encoded bytes of a happy-path alert and only shows up as a client
+// silently restyling every alert that never asked to be styled.
+
+@Test func alertOmitsAppearanceWhenTheCallerSetNone() {
+    let req = VCHost.makeAlertReq(VCAlert(title: "T", body: "B", level: "warn",
+                                         actions: [VCAlertAction(label: "Off", url: "api/off")]))
+    #expect(req.hasAppearance == false)
+    #expect(req.title == "T")
+    #expect(req.actions.map(\.url) == ["api/off"])
+}
+
+@Test func alertCarriesAppearanceVerbatimWhenSet() {
+    // Nested quotes and a multi-byte character: anything that re-encoded
+    // the blob rather than passing it through would change these bytes.
+    let blob = #"{"width":450,"title":"say \"hi\" 💛"}"#
+    let req = VCHost.makeAlertReq(VCAlert(title: "T", body: "B", appearance: blob))
+    #expect(req.hasAppearance)
+    #expect(req.appearance == blob)
+}
+
+// An explicitly-empty appearance is still an appearance. A `!isEmpty` guard
+// in the mapping would pass every other test in this file.
+@Test func alertKeepsAnExplicitlyEmptyAppearance() {
+    let req = VCHost.makeAlertReq(VCAlert(title: "T", body: "B", appearance: ""))
+    #expect(req.hasAppearance)
+}

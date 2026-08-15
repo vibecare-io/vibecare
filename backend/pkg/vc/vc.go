@@ -82,6 +82,13 @@ type Alert struct {
 	Body    string
 	Level   string // "info" | "warn"
 	Actions []AlertAction
+
+	// Appearance is an opaque, plugin-defined presentation hint forwarded
+	// to the client verbatim; core never parses it. Nil means "no opinion"
+	// and the client renders its own default alert — which is a different
+	// thing from a pointer to "", so this is a *string rather than a
+	// string.
+	Appearance *string
 }
 
 // Handle is a connected plugin.
@@ -321,7 +328,7 @@ func (h *Handle) PublishProto(topic string, m proto.Message) error {
 }
 
 func (h *Handle) Alert(a Alert) error {
-	req := &pluginv1.AlertReq{Title: a.Title, Body: a.Body, Level: a.Level}
+	req := &pluginv1.AlertReq{Title: a.Title, Body: a.Body, Level: a.Level, Appearance: a.Appearance}
 	for _, act := range a.Actions {
 		req.Actions = append(req.Actions, &pluginv1.AlertAction{Label: act.Label, Url: act.URL})
 	}

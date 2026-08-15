@@ -357,6 +357,34 @@ func TestAlertAttachesPluginIDAndActions(t *testing.T) {
 	if a.Title != "Break" || len(a.Actions) != 1 || a.Actions[0].Url != "snooze" {
 		t.Fatalf("alert = %+v", a)
 	}
+	if a.Appearance != nil {
+		t.Fatalf("an alert with no Appearance must not send one: %q", a.GetAppearance())
+	}
+}
+
+// Appearance is opaque and optional: the SDK forwards exactly what the
+// plugin set, without inspecting it and without inventing one.
+func TestAlertCarriesAppearanceWhenSet(t *testing.T) {
+	core, _ := coreFixture(t, "alpha")
+	h, err := Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer h.Close()
+
+	blob := `{"width":450,"quote":"say \"hi\""}`
+	if err := h.Alert(Alert{Title: "Break", Appearance: &blob}); err != nil {
+		t.Fatal(err)
+	}
+
+	core.mu.Lock()
+	defer core.mu.Unlock()
+	if len(core.alerts) != 1 {
+		t.Fatalf("alerts = %+v", core.alerts)
+	}
+	if got := core.alerts[0]; got.Appearance == nil || got.GetAppearance() != blob {
+		t.Fatalf("appearance = %v, want %q", got.Appearance, blob)
+	}
 }
 
 func TestEventsArriveOnTheChannel(t *testing.T) {

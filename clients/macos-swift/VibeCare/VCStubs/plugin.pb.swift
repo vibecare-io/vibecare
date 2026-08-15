@@ -143,9 +143,29 @@ public struct VCKAlertReq: Sendable {
   /// rendered as buttons
   public var actions: [VCKAlertAction] = []
 
+  /// Opaque, plugin-defined presentation hints for this one alert, forwarded
+  /// to the client verbatim. Core never parses it: an alert's appearance is
+  /// product semantics, and core has none (D10).
+  ///
+  /// This is what lets a plugin ship a richly-styled alert with no client
+  /// release and no per-plugin code in any client — the client applies a
+  /// blob it can decode and ignores one it cannot. Optional in the wire
+  /// sense (explicit presence), so "no opinion on appearance" is
+  /// distinguishable from "deliberately blank".
+  public var appearance: String {
+    get {return _appearance ?? String()}
+    set {_appearance = newValue}
+  }
+  /// Returns true if `appearance` has been explicitly set.
+  public var hasAppearance: Bool {return self._appearance != nil}
+  /// Clears the value of `appearance`. Subsequent reads from it will return its default value.
+  public mutating func clearAppearance() {self._appearance = nil}
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
+
+  fileprivate var _appearance: String? = nil
 }
 
 /// url is plugin-relative; the client navigates to /p/<plugin>/<url>.
@@ -381,7 +401,7 @@ extension VCKShutdown: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
 
 extension VCKAlertReq: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".AlertReq"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}title\0\u{1}body\0\u{1}level\0\u{1}actions\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}title\0\u{1}body\0\u{1}level\0\u{1}actions\0\u{1}appearance\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -393,12 +413,17 @@ extension VCKAlertReq: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
       case 2: try { try decoder.decodeSingularStringField(value: &self.body) }()
       case 3: try { try decoder.decodeSingularStringField(value: &self.level) }()
       case 4: try { try decoder.decodeRepeatedMessageField(value: &self.actions) }()
+      case 5: try { try decoder.decodeSingularStringField(value: &self._appearance) }()
       default: break
       }
     }
   }
 
   public func traverse<V: SwiftProtobuf.Visitor>(visitor: inout V) throws {
+    // The use of inline closures is to circumvent an issue where the compiler
+    // allocates stack space for every if/case branch local when no optimizations
+    // are enabled. https://github.com/apple/swift-protobuf/issues/1034 and
+    // https://github.com/apple/swift-protobuf/issues/1182
     if !self.title.isEmpty {
       try visitor.visitSingularStringField(value: self.title, fieldNumber: 1)
     }
@@ -411,6 +436,9 @@ extension VCKAlertReq: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
     if !self.actions.isEmpty {
       try visitor.visitRepeatedMessageField(value: self.actions, fieldNumber: 4)
     }
+    try { if let v = self._appearance {
+      try visitor.visitSingularStringField(value: v, fieldNumber: 5)
+    } }()
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -419,6 +447,7 @@ extension VCKAlertReq: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementati
     if lhs.body != rhs.body {return false}
     if lhs.level != rhs.level {return false}
     if lhs.actions != rhs.actions {return false}
+    if lhs._appearance != rhs._appearance {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }

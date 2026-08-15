@@ -30,15 +30,24 @@ public enum BlurIntensity: String, Codable, CaseIterable, Sendable, Equatable {
 /// A local, value-type copy of the client's `NotificationPreferences`
 /// (`clients/macos-swift/VibeCare/vibecare/Models/NotificationPreferences.swift`).
 ///
-/// Field names and types are kept byte-compatible on purpose: an existing
-/// user's `vibecheck.alert.preferences` blob — `[String: NotificationPreferences]`
-/// keyed by `BFRBBehavior.rawValue` — must decode here without migration.
-/// The client's version is a `@Observable` reference type with synthesized
-/// Codable (no custom `CodingKeys`); this is a plain `Struct` with the same
-/// stored properties in the same order, which the JSON coders treat
-/// identically since Codable dictionaries and structs are keyed, not
-/// positional. `CGFloat` fields become `Double` — `CGFloat: Codable` itself
-/// encodes as a single `Double` container, so the wire shape is unchanged.
+/// Field names and types match the client's property names on purpose, and
+/// THIS encoding — plain `{"width":450,...}` — is the one that matters: it
+/// is what rides on `VCAlert.appearance` and what the client's
+/// `PluginAlertAppearance` decodes.
+///
+/// Correction to an earlier claim in this comment: these two types are NOT
+/// byte-compatible, and an exported client blob canNOT be dropped in
+/// verbatim. The client's version is `@Observable`, and that macro rewrites
+/// its stored properties into an underscored backing store, so its
+/// synthesized Codable emits
+/// `{"_$observationRegistrar":{},"_width":450,...}` rather than
+/// `{"width":450,...}`. Measured, not assumed — see
+/// `theObservableTypesOwnEncodingIsNotTheWireSchema` in the client's
+/// `PluginAlertAppearanceTests`. The client owns an explicit schema type for
+/// the wire precisely so this asymmetry cannot bite again.
+///
+/// `CGFloat` fields become `Double` here — `CGFloat: Codable` encodes as a
+/// single `Double` container, so that part of the shape is unchanged.
 public struct NotificationPreferences: Codable, Sendable, Equatable {
     public var bundledIconId: String?
     public var svgPath: String?
@@ -119,9 +128,9 @@ public struct NotificationPreferences: Codable, Sendable, Equatable {
 // MARK: - Store
 
 /// Per-behavior alert preferences, file-backed the same way `ConfigStore` is.
-/// Keyed by `BFRBBehavior.rawValue`, matching the client's
-/// `DetectionAlertPreferencesStore.byBehavior` shape exactly so an exported
-/// blob can be dropped in verbatim.
+/// Keyed by `BFRBBehavior.rawValue`, the same keying the client's
+/// `DetectionAlertPreferencesStore.byBehavior` uses. (The per-behavior VALUES
+/// are not interchangeable with that store's — see the type comment above.)
 public actor AlertPrefsStore {
     private let url: URL
     private var cached: [String: NotificationPreferences]

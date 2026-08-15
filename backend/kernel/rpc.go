@@ -199,12 +199,19 @@ func (h *Host) Alert(ctx context.Context, r *pluginv1.AlertReq) (*emptypb.Empty,
 		return nil, status.Errorf(codes.PermissionDenied, "unknown plugin %q", id)
 	}
 
+	// Appearance is copied as a pointer, not through GetAppearance(): the
+	// field carries explicit presence, and flattening it to a string here
+	// would turn "sent nothing" and "sent an empty blob" into the same
+	// thing on the client's side. Core never reads what is inside it —
+	// whatever a plugin means by it is between that plugin and whoever
+	// renders the alert (D10).
 	h.intents.Broadcast(&clientv1.Alert{
-		Plugin:  id,
-		Title:   r.GetTitle(),
-		Body:    r.GetBody(),
-		Level:   r.GetLevel(),
-		Actions: r.GetActions(),
+		Plugin:     id,
+		Title:      r.GetTitle(),
+		Body:       r.GetBody(),
+		Level:      r.GetLevel(),
+		Actions:    r.GetActions(),
+		Appearance: r.Appearance,
 	})
 	return &emptypb.Empty{}, nil
 }

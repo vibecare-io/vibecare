@@ -48,4 +48,10 @@ message Alert {
   string body   = 3;
   string level  = 4;
   repeated vibecare.kernel.plugin.v1.AlertAction actions = 5;
+
+  // Forwarded verbatim from AlertReq.appearance. Opaque to core; a client
+  // that understands the blob styles the alert with it, a client that does
+  // not renders its default alert. Adding it is wire-compatible, so the
+  // two-RPC shape of this contract is unchanged.
+  optional string appearance = 6;
 }
