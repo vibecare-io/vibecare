@@ -197,12 +197,17 @@ enum VibeNotifyConfig {
 
   @MainActor
   @discardableResult
-  static func showWarning(title: String = "Warning", message: String, priority: NotificationPriority = .normal) -> UUID? {
+  static func showWarning(
+    title: String = "Warning",
+    message: String,
+    priority: NotificationPriority = .normal,
+    actions: [NotificationAction] = []
+  ) -> UUID? {
     guard NotificationPolicy.shared.isNotificationAllowed(priority: priority) else {
       return nil
     }
 
-    return VibeNotify.builder()
+    var builder = VibeNotify.builder()
       .title(title)
       .message(message)
       .icon(.warning)
@@ -210,17 +215,25 @@ enum VibeNotifyConfig {
       .alwaysOnTop(true)
       .transparent(true, material: .hudWindow)
       .autoDismiss(after: defaultDismissDelay, showProgress: true)
-      .show()
+    for action in actions {
+      builder = builder.button(StandardNotification.Button(title: action.label, style: .secondary, action: action.handler))
+    }
+    return builder.show()
   }
 
   @MainActor
   @discardableResult
-  static func showInfo(title: String = "Info", message: String, priority: NotificationPriority = .normal) -> UUID? {
+  static func showInfo(
+    title: String = "Info",
+    message: String,
+    priority: NotificationPriority = .normal,
+    actions: [NotificationAction] = []
+  ) -> UUID? {
     guard NotificationPolicy.shared.isNotificationAllowed(priority: priority) else {
       return nil
     }
 
-    return VibeNotify.builder()
+    var builder = VibeNotify.builder()
       .title(title)
       .message(message)
       .icon(.info)
@@ -228,7 +241,10 @@ enum VibeNotifyConfig {
       .alwaysOnTop(true)
       .transparent(true, material: .hudWindow)
       .autoDismiss(after: quickDismissDelay, showProgress: true)
-      .show()
+    for action in actions {
+      builder = builder.button(StandardNotification.Button(title: action.label, style: .secondary, action: action.handler))
+    }
+    return builder.show()
   }
 
   // MARK: - Toast Notifications (Quick Updates)

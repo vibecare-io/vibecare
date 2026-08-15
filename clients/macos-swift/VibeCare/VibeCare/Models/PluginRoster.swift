@@ -71,10 +71,20 @@ struct PluginRoster: Equatable, Sendable {
 
     /// A URL for a plugin-relative path — e.g. an alert action, which
     /// reuses the proxy rather than inventing a callback channel.
+    ///
+    /// `path` may carry its own query string (action URLs like
+    /// `api/snooze?minutes=10` do) — that part must go through
+    /// `URLComponents.query`, not `.path`, or the `?` gets percent-encoded
+    /// into a literal path character instead of starting a query.
     func url(for entry: PluginEntry, path: String) -> URL? {
         guard var comps = URLComponents(string: baseURL), !baseURL.isEmpty else { return nil }
         let suffix = path.hasPrefix("/") ? String(path.dropFirst()) : path
-        comps.path = entry.path + suffix
+        if let qIndex = suffix.firstIndex(of: "?") {
+            comps.path = entry.path + suffix[suffix.startIndex..<qIndex]
+            comps.query = String(suffix[suffix.index(after: qIndex)...])
+        } else {
+            comps.path = entry.path + suffix
+        }
         return comps.url
     }
 
@@ -93,6 +103,18 @@ struct PluginRoster: Equatable, Sendable {
     }
 
     func entry(id: String) -> PluginEntry? { plugins.first { $0.id == id } }
+
+    /// A URL for a plugin-relative path, resolved by plugin id rather than
+    /// an already-known `PluginEntry` — what an alert action has (`alert.plugin`
+    /// is a bare string), not what the sidebar has. Unlike `url(for:path:)`,
+    /// this can genuinely fail: the plugin named on the alert may no longer
+    /// be in the roster (e.g. it died between sending the alert and the
+    /// button being pressed), and that must resolve to nil rather than a
+    /// malformed URL.
+    func url(for pluginID: String, path: String) -> URL? {
+        guard let entry = entry(id: pluginID) else { return nil }
+        return url(for: entry, path: path)
+    }
 }
 
 /// A transient, native notification originating from a plugin.

@@ -102,19 +102,60 @@ final class PluginShellService: ObservableObject {
 
     private func deliver(_ alert: PluginAlert) {
         lastAlert = alert
+        let buttons = alert.actions.map { action in
+            NotificationAction(label: action.label) { [weak self] in
+                // The button's `action` closure is VibeNotify's own type
+                // (`() -> Void`, not `@MainActor`), so hop back onto the
+                // main actor explicitly rather than assuming the call site
+                // is already isolated.
+                Task { @MainActor in
+                    self?.performAction(action, plugin: alert.plugin)
+                }
+            }
+        }
         // Alerts are the one UI path that is not HTML, because they must
         // render with no window open and with the webview never loaded.
         switch alert.level {
         case "warn":
-            NotificationManager.shared.showWarning(title: alert.title, message: alert.body)
+            NotificationManager.shared.showWarning(title: alert.title, message: alert.body, actions: buttons)
         default:
-            NotificationManager.shared.showInfo(title: alert.title, message: alert.body)
+            NotificationManager.shared.showInfo(title: alert.title, message: alert.body, actions: buttons)
         }
-        if !alert.actions.isEmpty {
-            // Rendering action buttons needs a notification API this shell
-            // does not yet have; the actions are carried on the model so
-            // adding it later touches nothing else.
-            logger.info("Alert from \(alert.plugin) carried \(alert.actions.count) unrendered action(s)")
+    }
+
+    /// Runs a pressed alert action: a plain HTTP GET to the action's
+    /// resolved URL through core's reverse proxy, carrying the same
+    /// session cookie (`vc_session`) the shell's webviews authenticate
+    /// with. No new callback channel and no core change — the plugin's
+    /// action endpoints accept both GET and POST for exactly this reason.
+    ///
+    /// A failure here is logged and never surfaced as a second
+    /// notification: an error banner because a snooze failed is worse than
+    /// a silent failure — the user asked for less interruption, not more.
+    private func performAction(_ action: PluginAlertAction, plugin: String) {
+        guard let url = roster.url(for: plugin, path: action.url) else {
+            logger.error("Cannot resolve URL for action '\(action.label)' from plugin \(plugin) (not in the current roster)")
+            return
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        // Same cookie value core hands the webview via Set-Cookie on the
+        // ?vc= handoff (`vc_session`, backend/kernel/auth.go) — the shell
+        // already holds it as `roster.token` regardless of whether any
+        // webview for this plugin has ever loaded.
+        request.setValue("vc_session=\(roster.token)", forHTTPHeaderField: "Cookie")
+        Task {
+            do {
+                let (_, response) = try await URLSession.shared.data(for: request)
+                guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+                    let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+                    logger.error("Alert action '\(action.label)' for \(plugin) returned HTTP \(status)")
+                    return
+                }
+                logger.info("Alert action '\(action.label)' for \(plugin) succeeded")
+            } catch {
+                logger.error("Alert action '\(action.label)' for \(plugin) failed: \(error)")
+            }
         }
     }
 }
