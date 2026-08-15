@@ -53,17 +53,30 @@ public actor VCHost {
     /// rate would pile up tasks until the process dies.
     private static let callDeadline: Duration = .seconds(5)
 
-    /// How long one session waits for `CoreMsg.ready`. Deliberately half of
-    /// `supervisor.go`'s 10 s `registrationTimeout` (measured from spawn), so
-    /// a first attempt that raced a core restart still leaves room for a
-    /// second one to land before core SIGKILLs us.
-    private static let readyBudget: Duration = .seconds(5)
+    /// How long one session waits for `CoreMsg.ready` before abandoning the
+    /// attempt and re-dialling.
+    ///
+    /// This must sit just *inside* `supervisor.go`'s 10 s `registrationTimeout`
+    /// (measured from spawn, after which core SIGKILLs a plugin that has not
+    /// registered) — and nowhere near it. Do not tighten this. Any budget
+    /// shorter than core's own patience is a self-imposed livelock: if core
+    /// ever takes longer than the budget to answer, every attempt is torn down
+    /// at the budget and the plugin can never register at all, even though
+    /// core would have accepted the registration it just threw away.
+    private static let readyBudget: Duration = .seconds(8)
 
     /// Sessions that never reach `Ready` before the whole gRPC client is torn
     /// down and rebuilt. The channel is supposed to re-dial the socket by
     /// itself, but this transport is new to this repo; this is the escape
     /// hatch if it ever wedges rather than reconnecting.
     private static let rebuildClientAfterDeadSessions = 5
+
+    /// Total budget for running every shutdown hook, shared across all of
+    /// them. Comfortably inside `supervisor.go`'s 5 s `shutdownGrace` — the
+    /// window between core's SIGTERM and its SIGKILL — so the listener still
+    /// gets stopped and `waitForShutdown()` still returns even if a hook
+    /// wedges.
+    private static let shutdownHookBudget: Duration = .seconds(2)
 
     private init(env: VCEnvironment, router: VCRouter) {
         self.id = env.pluginID
@@ -255,10 +268,9 @@ public actor VCHost {
         didRunShutdown = true
         stopped = true
 
-        for hook in shutdownHooks {
-            await hook()
-        }
+        let hooks = shutdownHooks
         shutdownHooks.removeAll()
+        await drainShutdownHooks(hooks)
 
         await server?.stop()
         server = nil
@@ -274,6 +286,46 @@ public actor VCHost {
             waiter.resume()
         }
         shutdownWaiters.removeAll()
+    }
+
+    /// Starts every hook at once and waits for all of them under ONE shared
+    /// deadline.
+    ///
+    /// Unbounded is not an option: a hook that never returns would hold
+    /// shutdown open until core's SIGKILL lands, which is exactly the failure
+    /// this SDK's shutdown design exists to avoid. Spec §5.3 names "flat sleep
+    /// rather than drain-or-deadline" as a Go SDK gap; this is the deadline
+    /// half.
+    ///
+    /// Concurrently rather than in registration order, which is the whole
+    /// point of bounding: run them serially under a shared budget and one
+    /// wedged hook eats the entire budget and starves every hook behind it —
+    /// so a plugin's state flush gets silently skipped because some unrelated
+    /// subsystem hung. (Measured: a 600 s hook registered first left the
+    /// second hook unrun.) Hooks are independent registrations from
+    /// independent subsystems and this SDK has never promised them an order,
+    /// so parallel is both safe and the only shape that bounds each hook
+    /// rather than the queue.
+    ///
+    /// A hook that overruns is cancelled, logged by index (it is a closure, it
+    /// has no name), and abandoned — still running, but no longer waited on.
+    private func drainShutdownHooks(_ hooks: [@Sendable () async -> Void]) async {
+        guard !hooks.isEmpty else { return }
+
+        let latches = hooks.map { _ in VCShutdownLatch() }
+        let tasks = zip(hooks, latches).map { hook, latch in
+            Task { await hook(); await latch.complete() }
+        }
+
+        let deadline = ContinuousClock.now + Self.shutdownHookBudget
+        for (index, latch) in latches.enumerated() {
+            // Never negative: a zero budget still reports a hook that already
+            // finished as completed, and only flags one that has not.
+            let remaining = max(.zero, deadline - ContinuousClock.now)
+            if await latch.waitForCompletion(upTo: remaining) { continue }
+            log("shutdown hook #\(index) overran the \(Self.shutdownHookBudget) drain budget; abandoning it")
+            tasks[index].cancel()
+        }
     }
 
     /// SIGTERM is the *only* guaranteed shutdown notice: `BroadcastShutdown`
@@ -449,9 +501,18 @@ public actor VCHost {
         }
     }
 
+    /// Note what is deliberately absent: `Ready` does NOT reset the reconnect
+    /// ladder. `sessionEnded(lastedSeconds:)` already resets it for sessions
+    /// that lasted `stableAfter`, so resetting here could only ever change
+    /// behaviour for SHORT sessions — precisely the ones backoff exists to
+    /// damp. A core that accepts, sends `Ready`, then drops the stream a
+    /// couple of seconds later would otherwise pin the delay at the bottom
+    /// rung forever: re-register, `Ready`, drop, sleep 1 s, repeat, one full
+    /// registration and one `announceDemand` burst per second, indefinitely.
+    /// It would also zero `deadSessions` on that same path and so disarm the
+    /// client-rebuild valve below.
     private func markReady() {
         sawReady = true
-        ladder.reset()
         log("registered with core, serving on port \(httpPort)")
     }
 
@@ -465,7 +526,64 @@ public actor VCHost {
             : error
     }
 
+    /// `fputs`, not `FileHandle.standardError.write(_:)`.
+    ///
+    /// The `FileHandle` overload raises an **uncatchable** `NSException` — an
+    /// abort, not a Swift error — when the descriptor is closed or the pipe
+    /// has no reader. Core closes the plugin's stderr pipe during its own
+    /// shutdown, so a single log line from the reconnect loop after that point
+    /// would kill the process, and `supervisor.go` would charge it as a failed
+    /// start. This file carries the "nothing terminates the process"
+    /// guarantee; it must not be the one holding an abort path. `fputs` just
+    /// returns `EOF`.
     private nonisolated func log(_ message: String) {
-        FileHandle.standardError.write(Data("vibecheck/sdk: \(message)\n".utf8))
+        fputs("vibecheck/sdk: \(message)\n", stderr)
+    }
+}
+
+/// A one-shot completion signal with a bounded wait.
+///
+/// This exists because a structured task group awaits every child before it
+/// returns, so it cannot abandon work that ignores cancellation — which is
+/// exactly the shutdown hook the drain budget exists to survive. The hook runs
+/// in an unstructured `Task` and reports back through the latch instead.
+actor VCShutdownLatch {
+    private var completed = false
+    private var released = false
+    private var waiter: CheckedContinuation<Void, Never>?
+
+    /// Called by the work itself when it finishes.
+    func complete() {
+        completed = true
+        release()
+    }
+
+    /// Returns `true` if the work completed within `budget`, `false` if the
+    /// budget ran out first — in which case the work is still running and the
+    /// caller has decided to stop waiting for it.
+    func waitForCompletion(upTo budget: Duration) async -> Bool {
+        guard !completed else { return true }
+        let timer = Task { [weak self] in
+            try? await Task.sleep(for: budget)
+            await self?.release()
+        }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            // Both branches run on this actor, so `release()` can never land
+            // between the check and the store.
+            if released {
+                continuation.resume()
+            } else {
+                waiter = continuation
+            }
+        }
+        timer.cancel()
+        return completed
+    }
+
+    private func release() {
+        guard !released else { return }
+        released = true
+        waiter?.resume()
+        waiter = nil
     }
 }
