@@ -58,6 +58,7 @@ export default defineConfig({
         },
         { label: 'Specs', collapsed: true, autogenerate: { directory: 'superpowers/specs' } },
         { label: 'Plans', collapsed: true, autogenerate: { directory: 'superpowers/plans' } },
+        { label: 'SDD Progress', collapsed: true, autogenerate: { directory: 'superpowers/sdd' } },
       ],
     }),
   ],

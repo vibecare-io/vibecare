@@ -108,11 +108,35 @@ export function rewriteLinks(content, srcRelPath, docSet) {
   });
 }
 
+// Astro's content loader ignores files/directories whose names start with `.`
+// or `_`. Docs may live under a dot-directory (e.g. the `.superpowers`
+// symlink), so strip a single leading dot from each path segment to make them
+// routable: `.superpowers/sdd/x.md` -> `superpowers/sdd/x.md` (merging with the
+// real `superpowers/` docs). Applied to both the doc set and output paths so
+// intra-docs links stay consistent.
+export function normalizeDocsRel(rel) {
+  return rel
+    .split('/')
+    .map((seg) => (seg.startsWith('.') ? seg.slice(1) : seg))
+    .join('/');
+}
+
 function walk(dir) {
   const out = [];
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) out.push(...walk(full));
+    // Follow symlinked directories (e.g. docs/.superpowers -> repo-root
+    // .superpowers) so their docs are synced too. Dirent.isDirectory() is
+    // false for symlinks, so resolve the target with statSync.
+    let isDir = entry.isDirectory();
+    if (entry.isSymbolicLink()) {
+      try {
+        isDir = fs.statSync(full).isDirectory();
+      } catch {
+        continue; // skip broken symlinks
+      }
+    }
+    if (isDir) out.push(...walk(full));
     else out.push(full);
   }
   return out;
@@ -174,13 +198,13 @@ export function main() {
 
   const docSet = new Set(
     files
-      .map((f) => path.relative(DOCS_SRC, f).split(path.sep).join('/'))
+      .map((f) => normalizeDocsRel(path.relative(DOCS_SRC, f).split(path.sep).join('/')))
       .filter((f) => /\.(md|org)$/i.test(f))
   );
 
   cleanContentDir();
   for (const abs of files) {
-    const rel = path.relative(DOCS_SRC, abs).split(path.sep).join('/');
+    const rel = normalizeDocsRel(path.relative(DOCS_SRC, abs).split(path.sep).join('/'));
     const ext = path.extname(abs).toLowerCase();
     if (ext === '.md') {
       const raw = fs.readFileSync(abs, 'utf8');
