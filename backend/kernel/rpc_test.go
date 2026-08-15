@@ -35,7 +35,7 @@ func newHostFixture(t *testing.T, manifests ...Manifest) *hostFixture {
 		reg.Add(m)
 		bus.Declare(m.ID, m.Subscribes, m.Publishes)
 	}
-	sup := NewSupervisor(reg, "/tmp/unused.sock", t.TempDir(), zap.NewNop())
+	sup := NewSupervisor(reg, "/tmp/unused.sock", t.TempDir(), t.TempDir(), zap.NewNop())
 	health := NewHealth(reg, zap.NewNop())
 	intents := NewIntents(zap.NewNop())
 

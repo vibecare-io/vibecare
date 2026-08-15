@@ -3,6 +3,7 @@ package kernel
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -63,6 +64,11 @@ type procState struct {
 	// intentional marks a kill this supervisor asked for (Stop or Restart),
 	// so the loop can tell it apart from a crash.
 	intentional bool
+	// logw is this spawn's output file, closed once the process is reaped.
+	// It is per-spawn rather than per-plugin so a plugin that restarts a
+	// hundred times does not hold a hundred descriptors open. It is nil
+	// whenever the log could not be opened; every use is nil-safe.
+	logw *pluginLog
 	// pid is cmd.Process.Pid, copied here under Supervisor.mu once Start
 	// succeeds and zeroed again once Wait returns. Every reader (Stop,
 	// Restart, the registration watchdog) goes through this field instead
@@ -82,6 +88,7 @@ type Supervisor struct {
 	reg        *Registry
 	socketPath string
 	dataRoot   string
+	logsDir    string
 	log        *zap.Logger
 
 	mu       sync.Mutex
@@ -93,11 +100,12 @@ type Supervisor struct {
 	cancel context.CancelFunc
 }
 
-func NewSupervisor(reg *Registry, socketPath, dataRoot string, log *zap.Logger) *Supervisor {
+func NewSupervisor(reg *Registry, socketPath, dataRoot, logsDir string, log *zap.Logger) *Supervisor {
 	return &Supervisor{
 		reg:        reg,
 		socketPath: socketPath,
 		dataRoot:   dataRoot,
+		logsDir:    logsDir,
 		log:        log,
 		procs:      map[string]*procState{},
 		restartC:   map[string]chan struct{}{},
@@ -231,18 +239,37 @@ func (s *Supervisor) runOnce(ctx context.Context, m Manifest) error {
 		"VIBECARE_PLUGIN_ID="+m.ID,
 		"VIBECARE_DATA_DIR="+dataDir,
 	)
-	cmd.Stdout = os.Stderr // plugin stdout is diagnostic only; never parsed
-	cmd.Stderr = os.Stderr
+	// Plugin output is diagnostic only and never parsed, but it is also the
+	// only record a crashed plugin leaves behind, and core's stderr is gone
+	// the moment the terminal that started it is. So it goes to a file as
+	// well — teed, not moved: `just run` must keep showing what it showed.
+	//
+	// A log that will not open costs the record, not the plugin: the spawn
+	// continues with stderr alone.
+	logw, err := newPluginLog(s.logsDir, m.ID)
+	if err != nil {
+		s.log.Warn("plugin log unavailable; output goes to core stderr only",
+			zap.String("plugin", m.ID), zap.Error(err))
+	}
+	out := io.Writer(os.Stderr)
+	if logw != nil {
+		out = io.MultiWriter(logw, os.Stderr)
+	}
+	cmd.Stdout = out
+	cmd.Stderr = out
 	// Own process group, so SIGKILL reaches children the plugin spawned.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
-	ps := &procState{cmd: cmd, registered: make(chan struct{}), exited: make(chan struct{})}
+	ps := &procState{cmd: cmd, logw: logw, registered: make(chan struct{}), exited: make(chan struct{})}
 	s.mu.Lock()
 	s.procs[m.ID] = ps
 	s.mu.Unlock()
 
 	s.reg.SetState(m.ID, StateStarting, "")
 	if err := cmd.Start(); err != nil {
+		// The only exit that does not run through waitAndCleanup, so it is
+		// the only one that has to close the log itself.
+		_ = ps.logw.Close()
 		s.reg.SetState(m.ID, StateDown, "spawn: "+err.Error())
 		return err
 	}
@@ -307,6 +334,12 @@ func (s *Supervisor) runOnce(ctx context.Context, m Manifest) error {
 // refuses to signal — belt and braces against ever signaling a reused pid.
 func (s *Supervisor) waitAndCleanup(ps *procState) error {
 	err := ps.cmd.Wait()
+	// After Wait, never before: Wait is what blocks on the copier goroutines
+	// exec spawned for a non-*os.File Stdout, and closing the log out from
+	// under one would truncate the plugin's final lines — the ones anyone
+	// reading this file came for. Closing here also keeps a crash-looping
+	// plugin from accumulating one descriptor per restart.
+	_ = ps.logw.Close()
 	s.mu.Lock()
 	ps.pid = 0
 	s.mu.Unlock()

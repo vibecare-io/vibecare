@@ -49,6 +49,19 @@ type PluginStat struct {
 	State  State
 	Detail string
 
+	// LogPath is where this plugin's output is being persisted. It is
+	// published rather than left for readers to rebuild from a documented
+	// convention, so the convention can change without breaking any of them.
+	// Empty when no logs directory is configured.
+	LogPath string
+
+	// Dir is the directory the manifest was loaded from, and Build is the
+	// command it declares for rebuilding. Both are published for the same
+	// reason LogPath is: a client that needs them should read what core
+	// knows rather than reconstruct it from a convention.
+	Dir   string
+	Build string
+
 	PID             int
 	UptimeSec       int64
 	Restarts        int
@@ -90,6 +103,7 @@ type Registry struct {
 	plugins  map[string]*plugin
 	order    []string // sorted ids, maintained on Add
 	watchers map[*watcher]struct{}
+	logsDir  string
 }
 
 func NewRegistry(log *zap.Logger) *Registry {
@@ -98,6 +112,17 @@ func NewRegistry(log *zap.Logger) *Registry {
 		plugins:  map[string]*plugin{},
 		watchers: map[*watcher]struct{}{},
 	}
+}
+
+// SetLogsDir tells the registry where plugin output is persisted, so every
+// snapshot can carry the path without the reader knowing the layout. It is
+// a setter rather than a constructor argument because the registry is built
+// before the kernel resolves its directories, and a registry that was never
+// told simply reports no path — the roster does not depend on this.
+func (r *Registry) SetLogsDir(dir string) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.logsDir = dir
 }
 
 // Add registers a discovered manifest. New plugins start in StateStarting:
@@ -263,6 +288,9 @@ func (r *Registry) snapshotLocked() []PluginStat {
 			Icon:            p.manifest.Icon,
 			UI:              p.manifest.UI,
 			Path:            "/p/" + p.manifest.ID + "/",
+			LogPath:         pluginLogPath(r.logsDir, p.manifest.ID),
+			Dir:             p.manifest.Dir,
+			Build:           p.manifest.Build,
 			State:           p.state,
 			Detail:          p.detail,
 			PID:             p.pid,

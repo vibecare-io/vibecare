@@ -4,3 +4,8 @@ icon: eye.trianglebadge.exclamationmark
 exec: ./vibecheck
 publishes: [vibecheck.behavior_detected.v1]
 ui: webview
+# See plugins/todo/manifest.yaml. This one especially must not be inferred:
+# the build embeds Info.plist via -sectcreate and the codesign step is what
+# seals it, without which macOS shows no camera prompt and the TCC grant is
+# lost.
+build: just build-vibecheck-plugin

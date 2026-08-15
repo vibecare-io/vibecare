@@ -36,6 +36,14 @@ type Manifest struct {
 	Subscribes []string `yaml:"subscribes"`
 	Publishes  []string `yaml:"publishes"`
 	UI         string   `yaml:"ui"`
+	// Build is how this plugin rebuilds itself from source, as an argv
+	// (split on whitespace, quotes respected) run in Dir. It is optional
+	// and purely informational to the kernel — nothing here ever executes
+	// it. A development client reads it so that "rebuild this plugin" does
+	// not have to be guessed from the source tree, which is a guess that
+	// gets binaries subtly wrong: a plugin may need linker flags or a
+	// signature that a bare `go build` would silently omit.
+	Build string `yaml:"build"`
 	// Dir is the absolute directory the manifest was loaded from. It is the
 	// plugin's working directory at spawn and the base for resolving Exec.
 	Dir string `yaml:"-"`

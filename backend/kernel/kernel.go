@@ -24,6 +24,9 @@ type Config struct {
 	DataRoot    string
 	SocketPath  string
 	SessionPath string
+	// LogsDir is where plugin output is persisted. Left empty, plugin
+	// output goes only to core's stderr, exactly as it did before.
+	LogsDir string
 }
 
 // DefaultConfig places the kernel's runtime state under the user's
@@ -35,6 +38,9 @@ func DefaultConfig(home, pluginsDir string) Config {
 		DataRoot:    filepath.Join(base, "data"),
 		SocketPath:  filepath.Join(base, "core.sock"),
 		SessionPath: filepath.Join(base, "session"),
+		// Alongside core's own server.log, so one directory answers "where
+		// are the logs" for the whole process tree.
+		LogsDir: filepath.Join(base, "logs"),
 	}
 }
 
@@ -76,12 +82,13 @@ func New(cfg Config, log *zap.Logger) (*Kernel, error) {
 	}
 
 	reg := NewRegistry(log)
+	reg.SetLogsDir(cfg.LogsDir)
 	bus := NewBus(log)
 	// Attribute deliveries to the receiving plugin without the bus needing
 	// to know the registry exists.
 	bus.OnDelivered(func(id string, n int) { reg.CountDelivered(id, n) })
 
-	sup := NewSupervisor(reg, cfg.SocketPath, cfg.DataRoot, log)
+	sup := NewSupervisor(reg, cfg.SocketPath, cfg.DataRoot, cfg.LogsDir, log)
 	health := NewHealth(reg, log)
 	intents := NewIntents(log)
 
@@ -178,7 +185,7 @@ func (k *Kernel) Start(ctx context.Context) error {
 	// Loopback HTTP: the proxy and the dashboard, both behind one auth
 	// check. /_core/* is matched first and is never proxied.
 	mux := http.NewServeMux()
-	mux.Handle(corePrefix, NewStatusHandler(k.reg, k.sup))
+	mux.Handle(corePrefix, NewStatusHandler(k.reg, k.sup, k.bus))
 	mux.Handle(proxyPrefix, NewProxy(k.reg, k.log))
 
 	lis, err := net.Listen("tcp", "127.0.0.1:0")

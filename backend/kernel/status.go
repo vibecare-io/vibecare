@@ -32,6 +32,9 @@ type statusPluginJSON struct {
 	Name            string `json:"name"`
 	Path            string `json:"path"`
 	UI              string `json:"ui"`
+	LogPath         string `json:"log_path"`
+	Dir             string `json:"dir"`
+	Build           string `json:"build"`
 	State           string `json:"state"`
 	Detail          string `json:"detail"`
 	PID             int    `json:"pid"`
@@ -64,6 +67,9 @@ func toStatusJSON(stats []PluginStat) statusJSON {
 			Name:            s.Name,
 			Path:            s.Path,
 			UI:              s.UI,
+			LogPath:         s.LogPath,
+			Dir:             s.Dir,
+			Build:           s.Build,
 			State:           s.State.String(),
 			Detail:          s.Detail,
 			PID:             s.PID,
@@ -125,8 +131,15 @@ var dashboardTmpl = template.Must(template.New("status").Parse(`<!doctype html>
 // split core asks of plugins (§7.2): /_core/status renders, and
 // /_core/api/plugins returns the identical data for anything that isn't a
 // browser.
-func NewStatusHandler(reg *Registry, r Restarter) http.Handler {
+func NewStatusHandler(reg *Registry, r Restarter, bus *Bus) http.Handler {
 	mux := http.NewServeMux()
+
+	// The event firehose. It is part of core's diagnostic surface for the
+	// same reason the plugins JSON is: it answers a question about how core
+	// is behaving, which no product client should have to know how to ask.
+	if bus != nil {
+		mux.Handle(apiEventsPath, NewEventsHandler(bus))
+	}
 
 	mux.HandleFunc(statusPath, func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "text/html; charset=utf-8")
