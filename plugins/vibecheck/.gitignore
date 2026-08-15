@@ -1,19 +1,9 @@
 .build/
+# Build output. `just build-vibecheck-plugin` stages the binary and its
+# SwiftPM resource bundle here, in a directory that holds nothing else —
+# see that recipe for why the plugin root cannot hold the binary itself.
+/dist/
+# Pre-dist build output. Nothing writes these any more; still ignored so a
+# stale copy from an older checkout doesn't surface as untracked noise.
 /vibecheck
-# The SwiftPM resource bundle `just build-vibecheck-plugin` copies next to
-# the binary. Build output, same as the binary — the source of truth is
-# Sources/vibecheck/ui/.
-/vibecheck_vibecheck.bundle/
-# codesign treats this directory as a bundle root once the binary and its
-# resource bundle sit here side by side, so re-signing the copied binary
-# (needed — see below) writes a resource manifest here. Build output.
-#
-# `just build-plugins` copies .build/release/vibecheck into this directory,
-# and the copy lands with a signature that no longer verifies here:
-#   "code has no resources but signature indicates they must be present"
-# AMFI then SIGKILLs it on spawn, and core reports `signal: killed`. The
-# same binary copied into an otherwise-empty directory verifies fine, which
-# is why ~/.vibecare/plugins-v2/vibecheck works. Until the recipe stages
-# into a clean directory, `codesign -f -s - plugins/vibecheck/vibecheck`
-# after a build makes `just run` work.
-/_CodeSignature/
+/vibecheck_vibecheck.bundle

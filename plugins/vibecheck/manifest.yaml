@@ -1,7 +1,7 @@
 id: vibecheck
 name: VibeCheck
 icon: eye.trianglebadge.exclamationmark
-exec: ./vibecheck
+exec: ./dist/vibecheck
 publishes: [vibecheck.behavior_detected.v1]
 ui: webview
 # See plugins/todo/manifest.yaml. This one especially must not be inferred:
