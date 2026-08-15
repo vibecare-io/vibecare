@@ -150,6 +150,12 @@ public actor DetectionEngine: CameraFrameReceiver {
     /// own `@Published` `sensitivity`/`alertInterval` every call.
     private var cachedConfig: VibeCheckConfig = .default
 
+    /// See `nextApplyGeneration()`/`apply(_:generation:)`: `applyGeneration`
+    /// is the counter those mint from; `latestAppliedGeneration` is the
+    /// highest generation `apply(_:generation:)` has actually committed.
+    private var applyGeneration = 0
+    private var latestAppliedGeneration = 0
+
     private var running = false
     private var permission = "unknown"   // "granted" | "denied" | "noDevice" | "unknown"
 
@@ -326,6 +332,69 @@ public actor DetectionEngine: CameraFrameReceiver {
         } else {
             await stop()
         }
+    }
+
+    /// Reserves the next generation number for a live-apply that will
+    /// happen LATER, from a detached `Task` — see `apply(_:generation:)`'s
+    /// doc comment for the whole reason this pair exists. MUST be called
+    /// synchronously at the HTTP handler call site, before that handler
+    /// spawns the detached `Task`, and NOT from inside the detached
+    /// `Task`'s own body: capturing it there, before detaching, is what
+    /// ties the number to REQUEST ARRIVAL order rather than to whatever
+    /// order the detached `Task`s happen to be scheduled in. Handlers on
+    /// one keep-alive connection are already strictly ordered up to the
+    /// point each one RETURNS (`VCHTTPServer`'s `lastRequestTask`
+    /// chaining), so calling this before a handler returns — regardless of
+    /// exactly where in its body — is enough to make the minted numbers
+    /// match request order for same-connection requests.
+    public func nextApplyGeneration() -> Int {
+        applyGeneration += 1
+        return applyGeneration
+    }
+
+    /// Same effect as `apply(_:)`, but ignores this call entirely if a
+    /// NEWER generation has already been committed — i.e. if a later
+    /// request's `apply` reached this actor first.
+    ///
+    /// Why this exists: `/api/config` PUT and `/api/config/disable` respond
+    /// before applying live, then run `engine.apply(saved, generation:)` in
+    /// a DETACHED `Task` (fixed in an earlier review round — see
+    /// `API.swift` — because `apply` can block on a real TCC prompt via
+    /// `startCameraOnly()`, and that must never hang the HTTP response).
+    /// Detaching removed an ordering guarantee that used to hold for free:
+    /// two requests on one keep-alive connection — `PUT {enabled:true}`
+    /// immediately followed by `POST /api/config/disable`, say — now spawn
+    /// two INDEPENDENT `Task`s with no ordering relative to each other.
+    /// `apply(_:)` unconditionally overwrites `cachedConfig = clamped`
+    /// before even checking for a transition, so if the two detached calls
+    /// reach this actor out of request order — entirely plausible, since
+    /// the enabling one can be stuck behind a slow TCC prompt while the
+    /// disabling one sails through instantly — the OLDER request finishing
+    /// LAST would clobber the newer one's config back to a stale value:
+    /// disk says `enabled:false` (the disable's write, which always
+    /// persists synchronously and correctly) while the engine ends up with
+    /// `cachedConfig.enabled == true` and the camera actually started.
+    ///
+    /// The guard `generation >= latestAppliedGeneration` closes that: only
+    /// the highest generation seen so far is ever allowed to commit, so a
+    /// stale, out-of-order call is a silent no-op instead of a clobber.
+    ///
+    /// This is a DIFFERENT race from the one `startToken`/`queuedStopToken`
+    /// (see `stop()`/`startCameraOnly()`) guards: that pair orders a
+    /// `stop()` against ONE `startCameraOnly()` call already in flight on
+    /// THIS actor. This guards which of TWO separately-detached `apply(_:)`
+    /// calls' config value is allowed to commit at all, regardless of
+    /// whether either has even reached `startCameraOnly()` yet. Both are
+    /// needed: this guard alone wouldn't stop a stop() that arrives WHILE
+    /// the winning generation's `startCameraOnly()` is already in flight —
+    /// that's still `queuedStopToken`'s job.
+    public func apply(_ newConfig: VibeCheckConfig, generation: Int) async {
+        guard generation >= latestAppliedGeneration else {
+            engineLog("apply(generation: \(generation)) superseded by generation \(latestAppliedGeneration); ignored")
+            return
+        }
+        latestAppliedGeneration = generation
+        await apply(newConfig)
     }
 
     /// Coalesces overlapping attempts to start the camera onto a single
