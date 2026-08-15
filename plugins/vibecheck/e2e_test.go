@@ -360,3 +360,91 @@ func TestConfigPersistsToTheDataDir(t *testing.T) {
 		t.Fatalf("sensitivity on disk = %v, want 0.7", saved.Sensitivity)
 	}
 }
+
+// Required assertion for Task 14 (PreviewStream/JPEGEncoder): the proxy
+// must genuinely STREAM /preview.mjpeg, not buffer it until the response
+// completes — which for this endpoint never happens at all, since the
+// multipart response is intentionally never-ending. A single boundary
+// marker would pass even if proxy.go's `FlushInterval: -1` were deleted
+// and the whole thing only flushed once at close; at least two markers,
+// observed while the read loop below has NOT yet seen EOF, is the only
+// assertion that actually tells "streaming" apart from
+// "buffered-then-sent-once". See proxy.go's own comment for why
+// FlushInterval: -1 is there at all.
+//
+// Route wiring note: `/preview.mjpeg` itself is registered by Task 15's
+// main.swift (this plugin's route table, per the plan, lists it as
+// "Task 14" only in the sense that PreviewStream — the type this test's
+// sibling Swift suite exercises directly — is what Task 14 delivers).
+// Until that wiring lands this test is expected to fail with 404, which is
+// a real and correctly-reported failure, not a flake to silence.
+func TestPreviewStreamsThroughTheProxy(t *testing.T) {
+	client, base, _, _ := liveKernel(t)
+
+	req, err := http.NewRequest("GET", base+"/p/vibecheck/preview.mjpeg", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resp, err := client.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		t.Fatalf("code = %d body = %.200s", resp.StatusCode, body)
+	}
+	ct := resp.Header.Get("Content-Type")
+	if !strings.Contains(ct, "multipart/x-mixed-replace") || !strings.Contains(ct, "boundary=vcframe") {
+		t.Fatalf("Content-Type = %q, want multipart/x-mixed-replace with boundary=vcframe", ct)
+	}
+
+	// Read continuously in the background so the main loop below can poll
+	// what has arrived so far without itself blocking on Read — the
+	// response is 5s+ from ever hitting EOF if streaming is actually
+	// working, so a single blocking Read is not an option here.
+	var mu sync.Mutex
+	var received bytes.Buffer
+	readEnded := make(chan error, 1)
+	go func() {
+		buf := make([]byte, 4096)
+		for {
+			n, err := resp.Body.Read(buf)
+			if n > 0 {
+				mu.Lock()
+				received.Write(buf[:n])
+				mu.Unlock()
+			}
+			if err != nil {
+				readEnded <- err
+				return
+			}
+		}
+	}()
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		mu.Lock()
+		count := bytes.Count(received.Bytes(), []byte("--vcframe"))
+		mu.Unlock()
+		if count >= 2 {
+			// PASS: at least two frames arrived, and — because this branch
+			// races the read goroutine's `readEnded` send below only via
+			// the deadline loop, never via a second receive — the response
+			// was never observed to close first.
+			return
+		}
+		select {
+		case err := <-readEnded:
+			mu.Lock()
+			body := received.String()
+			mu.Unlock()
+			t.Fatalf("response body ended (err=%v) before two boundary markers arrived: %.300s", err, body)
+		case <-time.After(50 * time.Millisecond):
+		}
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	t.Fatalf("only %d boundary markers arrived within 5s (want >= 2); got %.300s",
+		bytes.Count(received.Bytes(), []byte("--vcframe")), received.String())
+}
