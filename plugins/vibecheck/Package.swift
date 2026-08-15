@@ -30,6 +30,8 @@ let package = Package(
         "VCKStubs",
         .product(name: "GRPCCore", package: "grpc-swift-2"),
         .product(name: "GRPCNIOTransportHTTP2Posix", package: "grpc-swift-nio-transport"),
+        // For Google_Protobuf_Timestamp on plugin.v1.Event.ts.
+        .product(name: "SwiftProtobuf", package: "swift-protobuf"),
         .product(name: "NIOCore", package: "swift-nio"),
         .product(name: "NIOPosix", package: "swift-nio"),
         .product(name: "NIOHTTP1", package: "swift-nio"),
