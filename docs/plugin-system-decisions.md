@@ -1,5 +1,11 @@
 # Plugin System — Discussion & Decision Log
 
+> **⚠️ Superseded — describes plugin system v1, which no longer exists.**
+> v1 plugins were stateless and stored data through Core; v2 plugins own their own data
+> directory, and Core never calls into a plugin. See
+> [`docs/plugin-architecture.md`](plugin-architecture.md) for the current architecture.
+> Kept as a historical record of how the design got here.
+
 > Summary of the brainstorming session that led to the plugin architecture.
 > Date: 2026-08-06. Captures *why* the decisions were made, for future reference.
 > Companions: [findings](plugin-architecture-findings.md) · [Spec 1](superpowers/specs/2026-08-06-plugin-system-v1-design.md).

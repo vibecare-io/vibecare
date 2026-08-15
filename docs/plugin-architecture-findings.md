@@ -1,5 +1,11 @@
 # VibeCare Architecture Findings — Toward a Plugin System
 
+> **⚠️ Superseded — describes plugin system v1, which no longer exists.**
+> v1 plugins were stateless and stored data through Core; v2 plugins own their own data
+> directory, and Core never calls into a plugin. See
+> [`docs/plugin-architecture.md`](plugin-architecture.md) for the current architecture.
+> Kept as a historical record of how the design got here.
+
 > Snapshot of the current architecture as it exists on `feat/system-power-actions`,
 > written to inform the design of a plugin system. Date: 2026-08-06.
 > This is a *findings* doc (what is), not a design doc (what will be).
