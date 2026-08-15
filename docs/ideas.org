@@ -1,0 +1,14 @@
+
+
+* December
+- silences notification for next X minutes
+- detects meetings
+  - 
+- has snooze options 
+- is interactive with games/videos
+- missed notifications 
+
+  
+- tracks your focus and get you analytics
+- tracks your focus and get you analytics
+- tracks your focus and get you analytics

@@ -77,7 +77,7 @@ Lets
 - Feature Listing
 
 Working In front of coumputer/devices leads to:
-*** INPROGRESS Physical issues:
+*** INPROGRESS Vibecare Notes on Physical issues
 :LOGBOOK:
 :END:
   - Digital eye strain(dry eyes, headaches)
@@ -166,3 +166,5 @@ Advance:
 - read certain courses daily
   - missed something yesterday ? 
   - tracking of yesterday.
+* Self
+- stress relief actions (dance, laugh, workout, jump, run around)
