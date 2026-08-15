@@ -185,6 +185,21 @@ Migrating the convention inverts five call sites, and their tests move with them
 
 ### 4.1 The mirroring invariant
 
+> **AMENDED 2026-08-14, after direct measurement.** The premise below — that the front-camera
+> buffer arrives already mirrored — is **false on macOS**. Measured with the session running and
+> both connections active: the built-in camera reports `position = .unspecified` (not `.front`),
+> `automaticallyAdjustsVideoMirroring` therefore never engages, and **neither** the data output
+> **nor** the preview layer is mirrored. The client's comments asserting otherwise are wrong; no
+> visible bug resulted only because its preview and its landmarks are both un-mirrored and so agree.
+>
+> **What the plugin does instead:** it owns both surfaces, so it applies mirroring itself —
+> horizontally flipping the JPEG preview **and** the landmark x together, from one source-of-truth
+> flag. Viewer space is thus genuinely the mirrored selfie §10.1 defines. This is a deliberate,
+> user-visible change from the client's non-mirrored self-view.
+>
+> The original text is retained below because its *conclusions* about where the flip must live, and
+> about reading `isVideoMirrored` per frame rather than caching it, remain correct.
+
 Confirmed against four independent sites in the current code. The front-camera buffer is
 already x-mirrored by `automaticallyAdjustsVideoMirroring`, so **x passes through
 untouched and only y is flipped**. Re-mirroring x draws everything on the wrong
