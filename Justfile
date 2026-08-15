@@ -306,6 +306,13 @@ build-vibecheck-plugin:
     # bundle. The signature lives inside the Mach-O, so the copy preserves it.
     codesign -f -s - plugins/vibecheck/.build/release/vibecheck
     cp plugins/vibecheck/.build/release/vibecheck plugins/vibecheck/vibecheck
+    # The UI is a SwiftPM resource (Sources/vibecheck/ui, declared as
+    # `resources: [.copy("ui")]`), so it ships as a .bundle directory that
+    # must sit NEXT TO the binary — that is the only place the generated
+    # Bundle.module accessor looks in a real install. Copy the binary alone
+    # and GET /p/vibecheck/ serves a 500 with no UI.
+    rm -rf plugins/vibecheck/vibecheck_vibecheck.bundle
+    cp -R plugins/vibecheck/.build/release/vibecheck_vibecheck.bundle plugins/vibecheck/
     @echo "{{GREEN}}✓ vibecheck plugin built: plugins/vibecheck/vibecheck{{NC}}"
 
 # Copies each built plugin into the directory core scans by default
@@ -326,6 +333,14 @@ install-plugins: build-plugins
         [ -x "$dir/$id" ] || { echo -e "${YELLOW}skipping $id: no binary${NC}"; continue; }
         mkdir -p "$dest/$id"
         cp "$dir/$id" "$dir/manifest.yaml" "$dest/$id/"
+        # SwiftPM plugins ship their resources as a .bundle beside the
+        # binary, and the generated Bundle.module accessor resolves it
+        # relative to the executable — so it has to travel with it.
+        for bundle in "$dir"*.bundle; do
+            [ -d "$bundle" ] || continue
+            rm -rf "$dest/$id/$(basename "$bundle")"
+            cp -R "$bundle" "$dest/$id/"
+        done
         echo -e "${GREEN}✓ installed $id -> $dest/$id{{NC}}"
     done
 
@@ -759,6 +774,12 @@ test:
     @echo "{{GREEN}}Running tests...{{NC}}"
     cd {{backend_dir}} && go test -v ./...
     cd plugins/todo && go test -v ./...
+    # vibecheck is Swift: `swift test` covers VCPluginSDK, and `go test`
+    # drives the built binary against a real kernel and a scripted core.
+    # The Go side builds the Swift binary itself, so it is slow on a cold
+    # cache — that is the price of testing the actual two-process loop.
+    cd plugins/vibecheck && swift test
+    cd plugins/vibecheck && go test ./...
 
 # Run tests with coverage
 [group('🧪 Testing')]

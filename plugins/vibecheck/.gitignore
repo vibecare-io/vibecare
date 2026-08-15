@@ -1,2 +1,6 @@
 .build/
 /vibecheck
+# The SwiftPM resource bundle `just build-vibecheck-plugin` copies next to
+# the binary. Build output, same as the binary — the source of truth is
+# Sources/vibecheck/ui/.
+/vibecheck_vibecheck.bundle/
