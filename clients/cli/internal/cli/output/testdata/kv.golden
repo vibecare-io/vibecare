@@ -1,0 +1,5 @@
+addr       127.0.0.1:50051
+reachable  true
+version    0.4.2
+kernel     http://127.0.0.1:53321
+scheduler  running

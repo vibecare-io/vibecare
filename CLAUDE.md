@@ -5,6 +5,7 @@
 VibeCare is a wellness and routine management mono-repo:
 - **Backend**: Go + gRPC + SQLite + RRule scheduling (`backend/`)
 - **Client**: Native SwiftUI macOS app (`clients/macos-swift/VibeCare/`)
+- **CLI/TUI**: Go terminal client for debugging and scripting (`clients/cli/`)
 - **Protocol**: Protobuf definitions in `proto/vibecare.proto` (source of truth for API contract)
 - **Build Tool**: [Just](https://github.com/casey/just) command runner
 
@@ -18,6 +19,10 @@ just proto-gen          # Regenerate protobuf for backend + Swift
 just swift-build        # Build Swift client
 just swift-run          # Run Swift client
 just swift-test         # Swift tests
+just cli-build          # Build CLI client -> bin/vibecare
+just cli-run ARGS       # Run CLI client (no args = TUI)
+just cli-test           # CLI tests
+just cli-install        # Install vibecare into $GOBIN
 just migrate            # Run DB migrations
 just new-migration NAME # Create new migration
 just inspect-db         # Open litecli for ~/.vibecare/vibecare.db
@@ -68,12 +73,15 @@ client release** — see
 - Swift client requires macOS 15+
 - Swift client has **no local persistence** — all data comes from backend via gRPC
 - Actions are linked to schedules via a join table (`schedule_actions`), not embedded
+- `clients/cli/` is its own Go module (like `plugins/vibecheck/`), so the backend's `go build ./...` does not reach it — use `just cli-build` / `just cli-test`
+- The CLI's `--json` output is a versioned contract, not pretty-printing: the struct tags in `clients/cli/internal/vc/types.go` **are** the schema, and renaming a field means bumping `ContractVersion`
 
 ## Component Documentation
 
 Each component has its own CLAUDE.md with conventions and patterns:
 - [`backend/CLAUDE.md`](backend/CLAUDE.md) — Go backend specifics
 - [`clients/macos-swift/VibeCare/CLAUDE.md`](clients/macos-swift/VibeCare/CLAUDE.md) — Swift client specifics
+- [`clients/cli/README.md`](clients/cli/README.md) — CLI/TUI client: command surface, `--json` contract, exit codes, TUI keys
 
 For deeper architecture details, see [`docs/architecture.md`](docs/architecture.md).
 For MCP server setup, see [`docs/MCP_SETUP.md`](docs/MCP_SETUP.md).
