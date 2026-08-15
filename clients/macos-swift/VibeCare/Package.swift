@@ -62,7 +62,11 @@ let package = Package(
     ),
     .testTarget(
       name: "vibecareTests",
-      dependencies: ["VibeCare"],
+      // VCStubs so a test can build a real `VCKAlert` and drive
+      // `PluginAlert(proto:)` — the one place wire presence
+      // (`hasAppearance`) is turned into the model's `String?`, which no
+      // test using the in-memory initializer can reach.
+      dependencies: ["VibeCare", "VCStubs"],
       path: "vibecareTests",
       // Scoped to the SwiftPM-buildable subset. The rest of vibecareTests/
       // uses `@testable import vibecare` (lowercase) to match the Xcode
@@ -71,7 +75,8 @@ let package = Package(
       // exercised there, not via `swift test`. `swift test` previously
       // reported "no tests found" — there was no testTarget at all.
       sources: [
-        "PluginRosterTests.swift"
+        "PluginRosterTests.swift",
+        "PluginAlertAppearanceTests.swift"
       ]
     ),
   ]

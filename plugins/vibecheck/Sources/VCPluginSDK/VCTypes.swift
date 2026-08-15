@@ -11,9 +11,24 @@ public struct VCAlert: Sendable, Equatable {
     public var body: String
     public var level: String        // "info" | "warn" — nothing else exists
     public var actions: [VCAlertAction]
+
+    /// Opaque, plugin-defined presentation hints, forwarded to the client
+    /// verbatim (`AlertReq.appearance`). Core never parses it — an alert's
+    /// appearance is product semantics and core has none (D10) — so the
+    /// schema is entirely between this plugin and whoever renders the
+    /// alert.
+    ///
+    /// `nil` means "no opinion": the client renders its own default alert,
+    /// exactly as it did before this field existed. That is a genuinely
+    /// different statement from an empty blob, which is why the wire field
+    /// carries explicit presence and this is an `Optional` rather than a
+    /// defaulted `""`.
+    public var appearance: String?
+
     public init(title: String, body: String, level: String = "info",
-                actions: [VCAlertAction] = []) {
-        self.title = title; self.body = body; self.level = level; self.actions = actions
+                actions: [VCAlertAction] = [], appearance: String? = nil) {
+        self.title = title; self.body = body; self.level = level
+        self.actions = actions; self.appearance = appearance
     }
 }
 

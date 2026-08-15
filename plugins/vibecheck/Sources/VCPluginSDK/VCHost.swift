@@ -204,6 +204,25 @@ public actor VCHost {
 
     public func alert(_ a: VCAlert) async throws {
         guard let client else { throw VCHostError.notConnected }
+        _ = try await client.alert(
+            Self.makeAlertReq(a),
+            metadata: Self.attribution(id),
+            options: Self.deadlinedOptions
+        )
+    }
+
+    /// The whole `VCAlert` -> wire mapping, as a pure function so the one
+    /// part of `alert(_:)` that has a decision in it is assertable without
+    /// a gRPC socket (`VCHost` can only be built by `connect()`, which
+    /// dials one).
+    ///
+    /// The decision: `appearance` is set ONLY when the caller supplied one.
+    /// Assigning `req.appearance = a.appearance ?? ""` would look
+    /// equivalent and is not — the wire field carries explicit presence, so
+    /// that would send "style me with nothing" on every alert that meant to
+    /// say nothing at all, and every client would have to guess which was
+    /// meant.
+    static func makeAlertReq(_ a: VCAlert) -> VCKAlertReq {
         var req = VCKAlertReq()
         req.title = a.title
         req.body = a.body
@@ -214,11 +233,10 @@ public actor VCHost {
             action.url = $0.url
             return action
         }
-        _ = try await client.alert(
-            req,
-            metadata: Self.attribution(id),
-            options: Self.deadlinedOptions
-        )
+        if let appearance = a.appearance {
+            req.appearance = appearance
+        }
+        return req
     }
 
     /// Core's `callerID` (rpc.go:247-256) answers `Unauthenticated` to any

@@ -179,3 +179,111 @@ private func withTimeout<T: Sendable>(
     #expect(a?.behavior == .nailBiting)
     #expect(b?.behavior == .nailBiting)
 }
+
+// Ruling U1: the alert carries its own appearance, so the client can render
+// this plugin's detection alert the way the user configured it without
+// containing a line of vibecheck-specific code.
+//
+// The assertions below decode the blob back into `NotificationPreferences`
+// and compare it to what the store holds. Asserting merely that
+// `appearance != nil` would pass against a `HostSink` that sent a constant,
+// or the wrong behavior's preferences, or an empty object — which are
+// exactly the regressions that would leave the user staring at a plain
+// banner again.
+
+private func decodeAppearance(_ alert: VCAlert) throws -> NotificationPreferences {
+    let raw = try #require(alert.appearance)
+    return try JSONDecoder().decode(NotificationPreferences.self, from: Data(raw.utf8))
+}
+
+@Test func firedSendsTheStoredAppearanceForThatBehavior() async throws {
+    let prefs = try AlertPrefsStore(directory: try tempDir())
+    var all = await prefs.load()
+    all[BFRBBehavior.nailBiting.rawValue]?.width = 512
+    all[BFRBBehavior.nailBiting.rawValue]?.screenBlurIntensity = .heavy
+    all[BFRBBehavior.nailBiting.rawValue]?.autoDismissAfter = 42
+    try await prefs.save(all)
+
+    let host = SpyAlertHost()
+    let sink = HostSink(prefs: prefs, snooze: SnoozeGate())
+    await sink.attach(host: host)
+
+    await sink.fired(BFRBEvent(behavior: .nailBiting, time: 1), count: 1, behavior: .nailBiting)
+
+    let decoded = try decodeAppearance(try #require(await host.alerts.first))
+    #expect(decoded == (await prefs.preferences(for: .nailBiting)))
+    #expect(decoded.width == 512)
+    #expect(decoded.screenBlurIntensity == .heavy)
+    #expect(decoded.autoDismissAfter == 42)
+}
+
+// Per-behavior, not per-plugin: the appearance sent must be the one for the
+// behavior that actually fired. A `HostSink` that encoded a fixed default,
+// or always read the first entry in the store, would pass the test above
+// and fail this one.
+@Test func firedSendsAPerBehaviorAppearance() async throws {
+    let prefs = try AlertPrefsStore(directory: try tempDir())
+    var all = await prefs.load()
+    all[BFRBBehavior.nailBiting.rawValue]?.width = 100
+    all[BFRBBehavior.nosePicking.rawValue]?.width = 900
+    try await prefs.save(all)
+
+    let host = SpyAlertHost()
+    let sink = HostSink(prefs: prefs, snooze: SnoozeGate())
+    await sink.attach(host: host)
+
+    await sink.fired(BFRBEvent(behavior: .nailBiting, time: 1), count: 1, behavior: .nailBiting)
+    await sink.fired(BFRBEvent(behavior: .nosePicking, time: 2), count: 1, behavior: .nosePicking)
+
+    let alerts = await host.alerts
+    #expect(alerts.count == 2)
+    #expect(try decodeAppearance(alerts[0]).width == 100)
+    #expect(try decodeAppearance(alerts[1]).width == 900)
+}
+
+// Out of the box — no visit to the appearance editor — the alert must still
+// carry the rich look, because that is what `AlertPrefsStore` seeds. If this
+// regressed to "appearance only once customized", the default experience
+// would be the plain banner this ruling exists to replace.
+@Test func firedSendsTheDefaultAppearanceWithoutAnyCustomization() async throws {
+    let prefs = try AlertPrefsStore(directory: try tempDir())
+    let host = SpyAlertHost()
+    let sink = HostSink(prefs: prefs, snooze: SnoozeGate())
+    await sink.attach(host: host)
+
+    await sink.fired(BFRBEvent(behavior: .nosePicking, time: 1), count: 1, behavior: .nosePicking)
+
+    let decoded = try decodeAppearance(try #require(await host.alerts.first))
+    #expect(decoded == NotificationPreferences.default(for: .nosePicking))
+    #expect(decoded.svgPath == "icons/\(BFRBBehavior.nosePicking.defaultIconId).svg")
+    #expect(decoded.position == .center)
+    #expect(decoded.screenBlurEnabled)
+}
+
+// The appearance must never displace the action buttons: the "Turn off"
+// button is the user's way out of a camera they want stopped, and a
+// prettier alert is not worth losing it.
+@Test func firedKeepsItsActionsAlongsideTheAppearance() async throws {
+    let prefs = try AlertPrefsStore(directory: try tempDir())
+    let host = SpyAlertHost()
+    let sink = HostSink(prefs: prefs, snooze: SnoozeGate())
+    await sink.attach(host: host)
+
+    await sink.fired(BFRBEvent(behavior: .hairPulling, time: 1), count: 1, behavior: .hairPulling)
+
+    let alert = try #require(await host.alerts.first)
+    #expect(alert.appearance != nil)
+    #expect(alert.actions.map(\.url) == ["api/snooze?minutes=10", "api/config/disable"])
+}
+
+// The exact bytes on the wire, pinned. The macOS client pins the SAME
+// literal in `PluginAlertAppearanceTests.swift` and asserts that it decodes
+// into its own `NotificationPreferences`. Neither side can see the other's
+// type, so these two literals ARE the cross-language contract: rename or
+// retype a field on either side and exactly one of the two tests fails,
+// which is the signal. Without them the failure mode is silent — the client
+// decodes nothing, falls back to a plain banner, and nothing is red.
+@Test func theEncodedAppearanceHasTheShapeTheClientDecodes() {
+    let encoded = HostSink.encodeAppearance(.default(for: .nosePicking))
+    #expect(encoded == #"{"autoDismissAfter":20,"height":220,"moveable":true,"position":"center","screenBlurEnabled":true,"screenBlurIntensity":"light","svgHeight":150,"svgPath":"icons\/nose-picking.svg","svgWidth":220,"width":450}"#)
+}

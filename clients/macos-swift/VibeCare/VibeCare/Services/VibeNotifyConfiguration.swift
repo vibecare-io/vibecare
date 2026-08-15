@@ -76,7 +76,7 @@ enum VibeNotifyConfig {
       preferences: prefs,
       title: title,
       message: message,
-      defaultSystemIcon: "bell.badge.fill",
+      defaultIcon: .system("bell.badge.fill"),
       priority: priority
     )
     logger.debug("🔍 showScheduleNotification - END", metadata: ["notificationId": "\(notificationId?.uuidString ?? "nil")"])
@@ -85,17 +85,44 @@ enum VibeNotifyConfig {
 
   // MARK: - Shared Notification Renderer
 
-  /// The shared VibeNotify builder core used by both schedule notifications
-  /// and the VibeCheck detection alert. Takes already-resolved `title`/`message`
-  /// and a `defaultSystemIcon` fallback for when no SVG icon is configured.
+  /// The shared VibeNotify builder core used by schedule notifications, the
+  /// VibeCheck detection alert, and any plugin alert that carries its own
+  /// appearance. Takes already-resolved `title`/`message` and a
+  /// `defaultIcon` fallback for when no SVG icon is configured.
+  ///
+  /// ## Why `actions` changes which VibeNotify path is taken
+  ///
+  /// VibeNotify (0.0.5) has two disjoint renderers and only one of them
+  /// draws buttons. `showSVG` — the path `builder.svg`/`builder.svgURL`
+  /// selects — builds an `SVGNotification`, which has no `buttons` property
+  /// at all; the builder's accumulated buttons are silently discarded on
+  /// the way there. The standard path (`StandardNotificationView`) draws
+  /// buttons, but renders `IconType.svg`/`.url` as `EmptyView()`, so it
+  /// cannot draw a remote SVG.
+  ///
+  /// So an alert cannot have both a full-size SVG illustration and
+  /// pressable buttons. When a caller supplies actions we take the standard
+  /// path and keep the buttons, because a "Turn off" button the user cannot
+  /// press is a functional loss and a smaller icon is a cosmetic one. The
+  /// icon is not abandoned in that case: `iconImage` (an `NSImage` the
+  /// caller already resolved — `NSImage` decodes SVG natively) is rendered
+  /// through `IconType.image`, which the standard view *does* draw, just at
+  /// its fixed 48x48 rather than `prefs.svgSize`.
+  ///
+  /// Everything else from `prefs` — position, window size, screen blur,
+  /// moveability, auto-dismiss delay — applies identically on both paths,
+  /// so a plugin alert with actions still renders as the large centered,
+  /// blurred card rather than a banner.
   @MainActor
   @discardableResult
-  private static func showNotification(
+  static func showNotification(
     preferences prefs: NotificationPreferences,
     title: String,
     message: String,
-    defaultSystemIcon: String,
-    priority: NotificationPriority
+    defaultIcon: StandardNotification.IconType,
+    priority: NotificationPriority,
+    actions: [NotificationAction] = [],
+    iconImage: NSImage? = nil
   ) -> UUID? {
     guard NotificationPolicy.shared.isNotificationAllowed(priority: priority) else {
       return nil
@@ -103,19 +130,29 @@ enum VibeNotifyConfig {
 
     var builder = VibeNotify.builder()
 
-    // Icon: SVG (url/file) if configured, else the caller's default system icon.
-    if let svgPath = prefs.resolvedSVGPath, let svgSize = prefs.svgSize {
+    // Icon: SVG (url/file) if configured AND no buttons are needed, else a
+    // pre-resolved image, else the caller's default icon. See the doc
+    // comment above for why buttons force this choice.
+    if actions.isEmpty, let svgPath = prefs.resolvedSVGPath, let svgSize = prefs.svgSize {
       if svgPath.hasPrefix("http://") || svgPath.hasPrefix("https://") {
         if let url = URL(string: svgPath) {
           builder = builder.svgURL(url, size: svgSize)
         } else {
-          builder = builder.icon(.system(defaultSystemIcon))
+          builder = builder.icon(defaultIcon)
         }
       } else {
         builder = builder.svg(svgPath, size: svgSize)
       }
+    } else if let iconImage {
+      builder = builder.icon(.image(iconImage))
     } else {
-      builder = builder.icon(.system(defaultSystemIcon))
+      builder = builder.icon(defaultIcon)
+    }
+
+    for action in actions {
+      builder = builder.button(
+        StandardNotification.Button(title: action.label, style: .secondary, action: action.handler)
+      )
     }
 
     builder = builder
@@ -299,7 +336,7 @@ enum VibeNotifyConfig {
       preferences: prefs,
       title: title,
       message: message,
-      defaultSystemIcon: behavior.alertIcon,
+      defaultIcon: .system(behavior.alertIcon),
       priority: .critical
     )
   }

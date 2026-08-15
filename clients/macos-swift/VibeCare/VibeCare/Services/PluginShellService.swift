@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Logging
 import SwiftProtobuf
@@ -113,13 +114,104 @@ final class PluginShellService: ObservableObject {
                 }
             }
         }
-        // Alerts are the one UI path that is not HTML, because they must
-        // render with no window open and with the webview never loaded.
-        switch alert.level {
-        case "warn":
-            NotificationManager.shared.showWarning(title: alert.title, message: alert.body, actions: buttons)
-        default:
-            NotificationManager.shared.showInfo(title: alert.title, message: alert.body, actions: buttons)
+
+        // A plugin may attach presentation hints to its own alert. The shell
+        // still contains no plugin-specific code: it decodes a shape it
+        // already owns (`NotificationPreferences`, the same one the schedule
+        // notification editor writes) and ignores anything else, so a plugin
+        // opts into a styled alert without any client release.
+        //
+        // Title and body come from the ALERT, never from the decoded
+        // preferences: the sender already applied whatever custom wording it
+        // has, plus anything it computed at fire time (a running count, say).
+        // Re-reading `prefs.title` here would silently throw that away.
+        guard let preferences = alert.appearancePreferences else {
+            // No appearance: byte-for-byte the behaviour that shipped before
+            // alerts could carry one.
+            switch alert.level {
+            case "warn":
+                NotificationManager.shared.showWarning(title: alert.title, message: alert.body, actions: buttons)
+            default:
+                NotificationManager.shared.showInfo(title: alert.title, message: alert.body, actions: buttons)
+            }
+            return
+        }
+
+        // Resolving the icon means an HTTP fetch through the proxy, so the
+        // presentation is deferred by one hop. It is bounded (2s, below) and
+        // failure still shows the alert — just with the fallback icon.
+        Task { [weak self] in
+            guard let self else { return }
+            let image = await self.resolveIcon(for: alert, preferences: preferences)
+            NotificationManager.shared.showStyledPluginAlert(
+                title: alert.title,
+                message: alert.body,
+                preferences: preferences,
+                level: alert.level,
+                actions: buttons,
+                iconImage: image
+            )
+        }
+    }
+
+    /// Bounded cache of already-fetched alert icons, keyed by absolute URL.
+    /// Detection-style alerts reuse one icon over and over, and refetching a
+    /// few KB through the proxy on every single alert would add latency to
+    /// the one UI path that is supposed to appear instantly.
+    private var iconCache: [String: NSImage] = [:]
+    private static let iconCacheLimit = 16
+    private static let iconFetchTimeout: TimeInterval = 2
+
+    /// Materializes the appearance's icon as an `NSImage` — `NSImage`
+    /// decodes SVG natively — so the alert can show it on VibeNotify's
+    /// standard renderer, the only one that also draws buttons. See
+    /// `VibeNotifyConfig.showNotification`'s doc comment for that trade.
+    ///
+    /// A relative `svgPath` is resolved against the SENDING plugin's own
+    /// mount. That rule is generic, not plugin knowledge: everything a
+    /// plugin serves lives under `/p/<id>/`, which is the same resolution
+    /// `performAction` already does for action URLs.
+    private func resolveIcon(for alert: PluginAlert, preferences: NotificationPreferences) async -> NSImage? {
+        guard let path = preferences.resolvedSVGPath, !path.isEmpty else { return nil }
+
+        // Local files never go through the proxy.
+        if path.hasPrefix("file://") {
+            return URL(string: path).flatMap { NSImage(contentsOf: $0) }
+        }
+        if path.hasPrefix("/") {
+            return NSImage(contentsOfFile: path)
+        }
+
+        let resolved: URL?
+        if path.hasPrefix("http://") || path.hasPrefix("https://") {
+            resolved = URL(string: path)
+        } else {
+            resolved = roster.url(for: alert.plugin, path: path)
+        }
+        guard let url = resolved else {
+            logger.error("Cannot resolve alert icon '\(path)' for plugin \(alert.plugin)")
+            return nil
+        }
+        if let cached = iconCache[url.absoluteString] { return cached }
+
+        var request = URLRequest(url: url)
+        request.timeoutInterval = Self.iconFetchTimeout
+        // Same session cookie the webviews and alert actions authenticate
+        // with; core's proxy rejects an unauthenticated /p/<id>/ request.
+        request.setValue("vc_session=\(roster.token)", forHTTPHeaderField: "Cookie")
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode),
+                  let image = NSImage(data: data) else {
+                logger.error("Alert icon \(url.absoluteString) did not decode; falling back to the default icon")
+                return nil
+            }
+            if iconCache.count >= Self.iconCacheLimit { iconCache.removeAll() }
+            iconCache[url.absoluteString] = image
+            return image
+        } catch {
+            logger.error("Alert icon \(url.absoluteString) failed to load: \(error)")
+            return nil
         }
     }
 

@@ -131,6 +131,20 @@ struct PluginAlert: Identifiable, Equatable, Sendable {
     let level: String  // "info" | "warn"
     let actions: [PluginAlertAction]
 
+    /// Opaque presentation hints the sending plugin attached to THIS alert,
+    /// or nil when it expressed no opinion.
+    ///
+    /// This is deliberately a raw `String` and not a decoded type: the shell
+    /// contains no plugin-specific code, so it cannot know a plugin's
+    /// schema. What it does know is its own `NotificationPreferences` shape
+    /// — the same one the schedule-notification editor already writes — so
+    /// it *tries* that decode (see `appearancePreferences`) and silently
+    /// keeps its default rendering when the blob turns out to be something
+    /// else. A plugin that wants a styled alert opts in by speaking a
+    /// format the shell already understands; a plugin that doesn't is
+    /// unaffected, and neither needs a client release.
+    let appearance: String?
+
     init(proto: VCKAlert) {
         self.id = UUID()
         self.plugin = proto.plugin
@@ -138,5 +152,41 @@ struct PluginAlert: Identifiable, Equatable, Sendable {
         self.body = proto.body
         self.level = proto.level
         self.actions = proto.actions.map { PluginAlertAction(label: $0.label, url: $0.url) }
+        // `hasAppearance`, not `!appearance.isEmpty`: the field carries
+        // explicit presence precisely so "sent nothing" stays
+        // distinguishable from "sent an empty blob".
+        self.appearance = proto.hasAppearance ? proto.appearance : nil
+    }
+
+    /// Test seam: builds an alert without a protobuf. Production code always
+    /// goes through `init(proto:)`.
+    init(plugin: String, title: String, body: String, level: String,
+         actions: [PluginAlertAction] = [], appearance: String? = nil) {
+        self.id = UUID()
+        self.plugin = plugin
+        self.title = title
+        self.body = body
+        self.level = level
+        self.actions = actions
+        self.appearance = appearance
+    }
+
+    /// The appearance blob decoded into the shell's own notification
+    /// preferences, or nil when there is none or it isn't in that shape.
+    ///
+    /// Failure here is not an error condition and is not surfaced: an
+    /// undecodable blob means "this plugin styles its alerts in a way this
+    /// client doesn't speak," and the correct response is the plain alert,
+    /// not a dropped one.
+    ///
+    /// The decode goes through `PluginAlertAppearance`, NOT straight into
+    /// `NotificationPreferences` — see that type for why the latter cannot
+    /// work.
+    var appearancePreferences: NotificationPreferences? {
+        guard let appearance else { return nil }
+        guard let decoded = try? JSONDecoder().decode(
+            PluginAlertAppearance.self, from: Data(appearance.utf8)
+        ) else { return nil }
+        return decoded.preferences()
     }
 }

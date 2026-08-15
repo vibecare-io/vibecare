@@ -748,6 +748,38 @@ public actor HostSink: DetectionSink {
         return s
     }
 
+    /// Encodes one behavior's `NotificationPreferences` into the opaque
+    /// blob that rides on `VCAlert.appearance`, so the client can render
+    /// this plugin's alert the way the user configured it — the icon,
+    /// position, size, blur and dismissal timing that the "Advanced: Alert
+    /// Appearance" editor writes — instead of a generic banner.
+    ///
+    /// Why the appearance travels ON the alert rather than the client
+    /// fetching `/api/alert-prefs`: a client that knew to fetch that URL
+    /// would contain vibecheck-specific code, and the whole reason a plugin
+    /// can ship without a client release is that no client contains
+    /// per-plugin code. An opaque field on a message any plugin can send
+    /// keeps that true.
+    ///
+    /// `.sortedKeys` so the same preferences always produce the same bytes:
+    /// the blob ends up in logs and in test expectations, and a dictionary
+    /// order that shifts between runs would make both unreadable.
+    ///
+    /// Returns `nil` if encoding somehow fails, which sends no appearance
+    /// at all rather than a broken one — the client then renders its
+    /// default alert, which is worse-looking but correct. Nothing here
+    /// throws out to the caller: a presentation detail must never cost the
+    /// user the alert itself.
+    static func encodeAppearance(_ preference: NotificationPreferences) -> String? {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let data = try? encoder.encode(preference) else {
+            engineLog("could not encode alert appearance; sending the alert unstyled")
+            return nil
+        }
+        return String(decoding: data, as: UTF8.self)
+    }
+
     public func fired(_ event: BFRBEvent, count: Int, behavior: BFRBBehavior) async {
         // Broadcast first and unconditionally: a snooze suppresses the popup
         // alert, not the fact that a detection happened, and an SSE
@@ -783,6 +815,17 @@ public actor HostSink: DetectionSink {
         //
         // "warn" (not "info") so the banner holds 8s instead of 3s — only
         // "info" and "warn" exist; anything else silently renders as info.
+        //
+        // The SAME `preference` also rides along as `appearance`, so the
+        // client renders this alert with the user's configured icon,
+        // position, size and blur rather than a generic banner. Sent on
+        // every detection alert, not only customized ones:
+        // `AlertPrefsStore` seeds every behavior with
+        // `NotificationPreferences.default(for:)`, which IS the rich look
+        // (centered, 450x220, light screen blur, the behavior's own icon).
+        // Withholding it until the user visits the editor would mean the
+        // out-of-the-box alert is the plain one and the good-looking alert
+        // is a hidden setting.
         let alert = VCAlert(
             title: title,
             body: "\(message) — \(Ordinal.format(count)) nudge today",
@@ -790,7 +833,8 @@ public actor HostSink: DetectionSink {
             actions: [
                 VCAlertAction(label: "Snooze 10 min", url: "api/snooze?minutes=10"),
                 VCAlertAction(label: "Turn off", url: "api/config/disable"),
-            ]
+            ],
+            appearance: Self.encodeAppearance(preference)
         )
         // Neither failure is fatal: core may be mid-reconnect. Log and
         // continue — a dropped alert is not a reason to crash the detector.
