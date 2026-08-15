@@ -70,7 +70,13 @@ public enum ViewerSpace {
 
 /// All points are normalized [0,1] in VIEWER space: origin top-left,
 /// x increases right, y increases DOWN. Consumers never re-convert.
-public struct HandGeometry: Sendable { public var fingertips: [CGPoint] }
+public struct HandGeometry: Sendable {
+    public var fingertips: [CGPoint]
+
+    public init(fingertips: [CGPoint]) {
+        self.fingertips = fingertips
+    }
+}
 public struct FaceGeometry: Sendable {
     public var box: CGRect
     public var nose: CGPoint
