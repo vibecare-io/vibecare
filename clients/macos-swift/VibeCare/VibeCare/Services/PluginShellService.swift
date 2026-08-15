@@ -125,6 +125,16 @@ final class PluginShellService: ObservableObject {
         // has, plus anything it computed at fire time (a running count, say).
         // Re-reading `prefs.title` here would silently throw that away.
         guard let preferences = alert.appearancePreferences else {
+            // Logged at info, not debug: "why did I get the plain banner?"
+            // has exactly three answers and they are otherwise
+            // indistinguishable from the outside. This one usually means the
+            // sending plugin predates appearances, or is a build that does
+            // not send them — which looks identical to a broken client.
+            logger.info("""
+                Alert from \(alert.plugin) carried no appearance\
+                \(alert.appearance == nil ? "" : " this client could understand")\
+                ; showing the standard banner
+                """)
             showPlain(alert, buttons: buttons)
             return
         }
@@ -137,8 +147,14 @@ final class PluginShellService: ObservableObject {
             let image = await self.resolveIcon(for: alert, preferences: preferences)
             switch PluginAlertPresentation.route(preferences: preferences, iconLoaded: image != nil) {
             case .plain:
+                self.logger.info("""
+                    Alert from \(alert.plugin) asked for illustration \
+                    '\(preferences.svgPath ?? "?")' which could not be loaded; \
+                    showing the standard banner so its buttons survive
+                    """)
                 self.showPlain(alert, buttons: buttons)
             case .rich:
+                self.logger.info("Showing styled alert from \(alert.plugin)")
                 PluginAlertPresenter.show(
                     presentation: PluginAlertPresentation(preferences: preferences),
                     icon: image,
