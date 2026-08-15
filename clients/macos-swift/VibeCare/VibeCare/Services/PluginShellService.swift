@@ -103,6 +103,14 @@ final class PluginShellService: ObservableObject {
 
     private func deliver(_ alert: PluginAlert) {
         lastAlert = alert
+
+        // Ruling R1: the immediate sound + screen flash a "warn" alert gets
+        // is presentation, not policy — it runs unconditionally here,
+        // before any renderer is chosen, so a suppressed banner or a failed
+        // icon fetch below never costs the user the interrupt. See
+        // `PluginInterrupt` and `PluginInterruptPolicy`.
+        PluginInterrupt.fire(alertLevel: alert.level)
+
         let buttons = alert.actions.map { action in
             NotificationAction(label: action.label) { [weak self] in
                 // The button's `action` closure is VibeNotify's own type
