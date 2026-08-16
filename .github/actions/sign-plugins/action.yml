@@ -30,6 +30,27 @@ runs:
           exit 1
         fi
 
+        ENTDIR=".github/scripts/plugin-entitlements"
+
+        # Validate every entitlements file with a STRICT parser first.
+        #
+        # codesign hands these to AMFIUnserializeXML, which is far less
+        # forgiving than the CoreFoundation parser behind `plutil -lint` — and
+        # when it refuses, it says only "syntax error near line N". The
+        # v0.8.16.26 release died that way: a `--` inside an XML comment, which
+        # the spec forbids and plutil happily accepted. xmllint agrees with
+        # AMFI and says which rule was broken, so check here and fail readably
+        # rather than mid-signing.
+        if [ -d "$ENTDIR" ]; then
+          for f in "$ENTDIR"/*.entitlements; do
+            [ -f "$f" ] || continue
+            if ! xmllint --noout "$f"; then
+              echo "Error: $f is not valid XML; codesign will reject it" >&2
+              exit 1
+            fi
+          done
+        fi
+
         # Signing must go inside-out: each nested executable first, the app
         # bundle last. The outer signature then seals children that are
         # already valid. Done the other way round, re-signing the app
@@ -54,10 +75,11 @@ runs:
           # com.apple.security.device.camera because the hardened runtime
           # denies capture without it — and denies it silently, which reads
           # as "the camera plugin is broken" rather than as a signing problem.
-          ents=".github/scripts/plugin-entitlements/${id}.entitlements"
+          ents="$ENTDIR/${id}.entitlements"
           entflags=()
           if [ -f "$ents" ]; then
             entflags=(--entitlements "$ents")
+            used_ents="${used_ents-} ${id}"
             echo "  using entitlements $ents"
           fi
 
@@ -75,6 +97,21 @@ runs:
             "$bin"
 
           codesign --verify --strict --verbose=2 "$bin"
+
+          # Read the entitlements back off the binary. A signature that
+          # succeeded without them is the dangerous case: vision would ship
+          # with the hardened runtime and no camera entitlement, and the
+          # runtime denies capture SILENTLY — surfacing as a dead camera on a
+          # user's machine rather than as a red build here.
+          if [ -f "$ents" ]; then
+            if ! codesign -d --entitlements - --xml "$bin" 2>/dev/null \
+                 | grep -q "com.apple.security"; then
+              echo "Error: $id was signed but carries no entitlements" >&2
+              exit 1
+            fi
+            echo "  ✓ entitlements verified on $id"
+          fi
+
           signed=$((signed + 1))
         done < <(
           find "$PLUGINS" -type f -perm -u+x -exec sh -c \
@@ -85,6 +122,24 @@ runs:
         if [ "$signed" -eq 0 ]; then
           echo "Error: found no plugin executables to sign under $PLUGINS" >&2
           exit 1
+        fi
+
+        # Every entitlements file must have matched a plugin. Because the
+        # mapping is by filename, a typo or a plugin rename would otherwise
+        # skip the entitlements in complete silence — the build stays green
+        # and the camera dies in production.
+        if [ -d "$ENTDIR" ]; then
+          for f in "$ENTDIR"/*.entitlements; do
+            [ -f "$f" ] || continue
+            want="$(basename "$f" .entitlements)"
+            case " ${used_ents-} " in
+              *" $want "*) ;;
+              *)
+                echo "Error: $f matched no signed plugin" >&2
+                echo "       Expected a plugin with id '$want'. Renamed or misspelled?" >&2
+                exit 1 ;;
+            esac
+          done
         fi
 
         echo "✓ Signed $signed plugin executable(s)"
