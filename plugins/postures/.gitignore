@@ -1,0 +1,6 @@
+.build/
+# Build output. The plugin's just recipe stages the binary and its SwiftPM
+# resource bundle here, in a directory that holds nothing else — same layout
+# as every other plugin, so `exec: ./dist/<id>` resolves identically in the
+# repo and in ~/.vibecare/plugins-v2/.
+/dist/
