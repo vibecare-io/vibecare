@@ -61,8 +61,14 @@ for the rationale.
 
 - Plugin↔core contract: `proto/plugin/v1/plugin.proto` (3 RPCs, plugin is always the client)
 - Client↔core contract: `proto/client/v1/client.proto` (2 RPCs, frozen)
-- SDK: `backend/pkg/vc` — `vc.Connect()` is the whole entry point
-- Reference plugin: `plugins/todo/`
+- Go SDK: `backend/pkg/vc` — `vc.Connect()` is the whole entry point
+- Swift SDK: `sdk/swift/VCPluginSDK` — a standalone SwiftPM package every Swift plugin takes as a
+  local path dependency; `VCHost.connect()` is the entry point. One shared copy on purpose: a
+  second one is how two disagreeing `Package.resolved` files got into this tree.
+- Reference plugins: `plugins/todo/` (Go), `plugins/vibecheck/` (Swift)
+- The camera lives in exactly one process, `plugins/vision/`, which publishes the `vision.*`
+  topics every camera-derived feature consumes — see
+  [the design](docs/superpowers/specs/2026-08-15-vision-provider-design.md)
 - Kernel: `backend/kernel/` — contains zero product semantics, enforced by `TestKernelContainsNoProductNouns`
 - Plugin state lives in `~/.vibecare/data/<id>/`; cross-plugin communication is bus topics only, never the filesystem
 - Default plugins directory: `~/.vibecare/plugins-v2/` in production; `just run` overrides it with `--plugins-dir ../plugins`, scanning this repo's own `plugins/` instead — deliberately not the v1 `~/.vibecare/plugins/` directory, whose manifests use ids the v2 regex rejects
