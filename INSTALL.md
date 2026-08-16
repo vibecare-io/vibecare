@@ -108,10 +108,12 @@ cd vibecare
 # Setup development environment
 just setup
 
-# Build backend
+# Build everything (backend, CLI, plugins, Swift client)
 just build
 
-# Build Swift client
+# Or build one piece at a time
+just build-backend
+just build-plugins
 just swift-build
 
 # Run backend

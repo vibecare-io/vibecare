@@ -13,6 +13,8 @@ VibeCare is a wellness and routine management mono-repo:
 
 ```bash
 just setup              # First-time: install deps, proto-gen, migrate
+just build              # Build everything: backend, CLI, plugins, Swift client
+just build-backend      # Build only the backend server -> bin/vibecare-server
 just run                # Start backend (gRPC :50051 + HTTP :8080)
 just test               # Backend tests
 just proto-gen          # Regenerate protobuf for backend + Swift

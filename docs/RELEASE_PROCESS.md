@@ -41,9 +41,8 @@ git pull origin main
 just test
 just swift-test
 
-# Build and test locally
+# Build and test locally (backend, CLI, plugins, Swift client)
 just build
-just swift-build
 
 # Optional: Test PKG creation locally
 ./scripts/build-release.sh

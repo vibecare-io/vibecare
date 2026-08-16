@@ -90,9 +90,24 @@ new-migration name:
     @echo "{{GREEN}}Creating new migration: {{name}}{{NC}}"
     cd {{backend_dir}} && goose -dir internal/storage/migrations create {{name}} sql
 
+# Debug builds — `install-binaries` is the release path.
+#
+# Order is deliberate. The backend is the fastest thing here and the most
+# likely to be broken by a proto change, so it fails first; the two Swift
+# trees (plugins, then the client) are the slow tail and go last.
+#
+# Not included: proto-gen (generated stubs are committed — run `just
+# proto-gen` yourself after editing a .proto) and install-plugins (this
+# builds into the repo's plugins/, which is what `just run` scans).
+#
+# Build everything: backend, CLI, every plugin, macOS client
+[group('📦 Build & Run')]
+build: build-backend cli-build build-plugins swift-build
+    @echo "{{GREEN}}✓ Everything built: backend, CLI, plugins, macOS client{{NC}}"
+
 # Build the backend server
 [group('📦 Build & Run')]
-build:
+build-backend:
     @echo "{{GREEN}}Building VibeCare server...{{NC}}"
     cd {{backend_dir}} && go build -o ../bin/vibecare-server cmd/server/main.go
     @echo "{{GREEN}}✓ Server built: bin/vibecare-server{{NC}}"
@@ -286,6 +301,8 @@ build-mcp-standalone:
 # Build the kernel's todo reference plugin into its own directory — core
 # discovers plugins by scanning plugins/<id>/manifest.yaml, so the binary
 # lives alongside the manifest rather than under ~/.vibecare.
+#
+# Build the todo reference plugin (Go)
 [group('🧩 Plugins')]
 build-todo-plugin:
     @echo "{{GREEN}}Building todo plugin...{{NC}}"
@@ -304,6 +321,8 @@ build-todo-plugin:
 # to install): the TCC grant is keyed to the spawning process
 # (vibecare-server), not to this binary, so an ad-hoc signature is fine
 # and the grant survives rebuilds.
+#
+# Build the vibecheck plugin (Swift)
 [group('🧩 Plugins')]
 build-vibecheck-plugin:
     @echo "{{GREEN}}Building vibecheck plugin...{{NC}}"
@@ -505,6 +524,8 @@ build-plugins-dev:
 # vision goes first: it is the camera provider every other Swift plugin here
 # consumes, so a failure in it is the one worth seeing before the rest of the
 # output scrolls past.
+#
+# Build every plugin binary into its own directory
 [group('🧩 Plugins')]
 build-plugins: build-todo-plugin build-vision-plugin build-vibecheck-plugin build-postures-plugin build-blink-jump-plugin
     @echo "{{GREEN}}✓ All plugins built{{NC}}"
@@ -1195,10 +1216,12 @@ macos-build:
 xcode:
     open clients/macos-swift/VibeCare.xcodeproj
 
-# Full build: backend and macOS client
+# Kept as an alias: `build` used to be backend-only and this was the
+# everything recipe. `build` is now the everything recipe.
+#
+# Alias for `just build`
 [group('📦 Build & Run')]
-build-all: build swift-build
-    @echo "{{GREEN}}✓ All components built{{NC}}"
+build-all: build
 
 # Trigger GitHub release workflow
 [group('🚀 Release')]
