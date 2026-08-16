@@ -21,7 +21,11 @@ TARGET="all"
 TARGET_DIR=""
 BACKEND_DEFAULT_DIR="$PROJECT_ROOT/backend/pkg/proto"
 MACOS_DEFAULT_DIR="$PROJECT_ROOT/clients/macos-swift/VibeCare/VCStubs"
-PLUGIN_SWIFT_DEFAULT_DIR="$PROJECT_ROOT/plugins/vibecheck/Sources/VCKStubs"
+# Swift plugins share ONE copy of the stubs, in the shared Swift SDK. There
+# was a per-plugin copy under plugins/vibecheck/Sources/VCKStubs; a second
+# copy is how the two disagreeing Package.resolved files in this tree came to
+# exist, so there is deliberately only one output directory here.
+PLUGIN_SWIFT_DEFAULT_DIR="$PROJECT_ROOT/sdk/swift/VCPluginSDK/Sources/VCKStubs"
 
 # Function to display usage
 usage() {
@@ -108,9 +112,10 @@ generate_backend() {
     echo -e "${GREEN}Output directory: $output_dir${NC}"
 
     # Protos now live both at the root and under versioned subdirectories
-    # (plugin/v1, client/v1). paths=source_relative mirrors that tree into
-    # the output dir, so proto/plugin/v1/plugin.proto lands at
-    # backend/pkg/proto/plugin/v1/plugin.pb.go.
+    # (plugin/v1, client/v1, topics/v1). paths=source_relative mirrors that
+    # tree into the output dir, so proto/plugin/v1/plugin.proto lands at
+    # backend/pkg/proto/plugin/v1/plugin.pb.go and proto/topics/v1/vision.proto
+    # at backend/pkg/proto/topics/v1/vision.pb.go.
     local proto_files
     proto_files=$(cd "$PROTO_DIR" && find . -name '*.proto' | sed 's|^\./||' | sort)
 
@@ -208,8 +213,12 @@ generate_macos() {
 
     echo -e "${GREEN}Output directory: $output_dir${NC}"
 
+    # topics/ holds BUS payloads exchanged between plugins. The client has no
+    # per-plugin code and never touches the bus — it knows "a URL", never a
+    # topic schema — so those protos are excluded here rather than shipped as
+    # dead Swift in the app target. Swift plugins get them via plugin-swift.
     local proto_files
-    proto_files=$(cd "$PROTO_DIR" && find . -name '*.proto' | sed 's|^\./||' | sort)
+    proto_files=$(cd "$PROTO_DIR" && find . -name '*.proto' | sed 's|^\./||' | grep -v '^topics/' | sort)
 
     # Generate protobuf messages
     echo -e "${GREEN}Generating Swift protobuf messages...${NC}"
@@ -237,11 +246,15 @@ generate_macos() {
     echo -e "${GREEN}✓ Swift macOS client protobuf code generated successfully${NC}"
 }
 
-# Generate Swift stubs for the plugin<->core contract only (plugin/v1). Used
-# by Swift plugins (e.g. plugins/vibecheck) — unlike generate_macos, this
-# does not walk the whole proto/ tree, and it is deliberately excluded from
-# the `all` target: `all` is the release path, this is plugin-local codegen
-# run from within a plugin's own build.
+# Generate the Swift stubs every Swift plugin needs: the plugin<->core
+# contract (plugin/v1) plus the bus payload contracts (topics/v1). Unlike
+# generate_macos this does not walk the whole proto/ tree — no plugin has any
+# business with vibecare.proto or client/v1 — and it is deliberately excluded
+# from the `all` target: `all` is the release path, this is plugin codegen run
+# from within a plugin's own build.
+#
+# Output is the SHARED Swift SDK's stub target, not a per-plugin directory:
+# vision, vibecheck and blink-jump all link the same copy.
 generate_plugin_swift() {
     local output_dir="${TARGET_DIR:-$PLUGIN_SWIFT_DEFAULT_DIR}"
 
@@ -251,16 +264,30 @@ generate_plugin_swift() {
 
     mkdir -p "$output_dir"
     echo -e "${BLUE}Generating Swift plugin stubs -> $output_dir${NC}"
+
+    # Messages: plugin/v1 and every topics/v1 payload.
+    local topic_protos
+    topic_protos=$(find "$PROTO_DIR/topics" -name '*.proto' | sort)
+
     protoc \
         --proto_path="$PROTO_DIR" \
         --swift_opt=Visibility=Public \
         --swift_opt=FileNaming=DropPath \
         --swift_out="$output_dir" \
+        "$PROTO_DIR/plugin/v1/plugin.proto" \
+        $topic_protos
+
+    # Service stubs: plugin/v1 only. The topic protos declare no service —
+    # they are bus payloads, and a plugin is always the gRPC client (D2), so
+    # there is nothing for grpc-swift to emit.
+    protoc \
+        --proto_path="$PROTO_DIR" \
         --plugin=protoc-gen-grpc-swift="$grpc_plugin" \
         --grpc-swift_opt=Visibility=Public \
         --grpc-swift_opt=FileNaming=DropPath \
         --grpc-swift_out="$output_dir" \
         "$PROTO_DIR/plugin/v1/plugin.proto"
+
     echo -e "${GREEN}✓ Swift plugin stubs generated${NC}"
 }
 

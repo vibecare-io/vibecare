@@ -1,0 +1,384 @@
+syntax = "proto3";
+package vibecare.topics.v1;
+
+option go_package = "github.com/vibecare-io/vibecare/backend/pkg/proto/topics/v1;topicsv1";
+option swift_prefix = "VCT";
+
+import "google/protobuf/timestamp.proto";
+
+// Bus payloads for the `vision.*` topic family, produced by the `vision`
+// provider plugin and consumed by every camera-derived feature.
+//
+// These are BUS PAYLOADS, not an RPC surface: there is no service here and
+// there never will be. A plugin is always the gRPC client (D2), so the only
+// way one plugin reaches another is `Publish` → topic → `Event.payload`,
+// carrying the bytes of one of the messages below.
+//
+// | Topic                     | Payload             | Vision request                    |
+// |---------------------------|---------------------|-----------------------------------|
+// | vision.face.v1            | FaceFrame           | VNDetectFaceLandmarksRequest      |
+// | vision.hands.v1           | HandsFrame          | VNDetectHumanHandPoseRequest      |
+// | vision.body_pose.v1       | BodyPoseFrame       | VNDetectHumanBodyPoseRequest      |
+// | vision.segmentation.v1    | SegmentationFrame   | VNGeneratePersonSegmentationRequest |
+// | vision.signals.v1         | Signals             | none — pure math over the above   |
+// | vision.request.v1         | Request             | published BY consumers            |
+//
+// One topic per Vision request, because ANE cost is per-request, not per
+// landmark: splitting "eyes" and "nose" out of the face constellation would
+// save a few bytes and exactly zero compute. Matching topics to requests is
+// what makes the kernel's demand refcount a truthful cost model.
+//
+// THE RULE THAT KEEPS THIS GENERIC: vision may publish anything that is a
+// measurable property of the body, and may never publish a judgement about
+// behaviour. `ear_l = 0.11` belongs here; "blinked" does not.
+//
+// EMPTY FRAME vs NO MESSAGE — consumers MUST treat these differently:
+//
+//   * An empty frame (FaceFrame with no points, HandsFrame with no hands) is
+//     a valid published message meaning "the model ran and detected nothing".
+//   * NO message at all means the model is not running — nobody asked for
+//     that topic, or the capture session is closed and the LED is off.
+//
+// A consumer that collapses the two reads "camera off" as "user absent", or
+// stalls forever waiting for a frame that will never come.
+//
+// Payloads evolve by bumping the version in the TOPIC NAME, not by breaking
+// a message in place: `vision.face.v2` is a new topic that a consumer opts
+// into by editing its manifest.
+
+// Point is a normalized landmark in VIEWER SPACE.
+//
+//   origin top-left · x → right · y → DOWN · both normalized to 0..1
+//
+// This is the frame as the user sees themselves in a mirrored selfie
+// preview, and it is NOT Vision's own convention (normalized, origin
+// bottom-left, y UP). The provider converts once, at the edge, and mirrors
+// BEFORE publishing. Consumers never mirror and never see a Vision-space
+// coordinate.
+//
+// Mirroring is read from `connection.isVideoMirrored` per frame — never
+// cached, never inferred. The built-in Mac camera reports
+// `position = .unspecified`, so `automaticallyAdjustsVideoMirroring` never
+// engages and nothing arrives pre-mirrored; the provider flips the JPEG
+// preview and the landmark x together from that one source-of-truth flag.
+//
+// Values may fall slightly outside 0..1 when a landmark is extrapolated past
+// the frame edge. Clamp if your math needs it; the provider does not.
+message Point {
+  float x = 1;
+  float y = 2;
+}
+
+// Rect is a normalized bounding box in viewer space (see Point). `x`,`y` is
+// the TOP-LEFT corner, which is the corner nearest the origin in this
+// convention — not Vision's bottom-left.
+message Rect {
+  float x = 1;
+  float y = 2;
+  float w = 3;
+  float h = 4;
+}
+
+// Size is a pixel dimension, not a normalized one.
+message Size {
+  uint32 w = 1;
+  uint32 h = 2;
+}
+
+// Header opens every vision payload so tiers can be joined.
+//
+// A consumer needing face + hands + segmentation from the SAME frame joins
+// the three topics by `seq` and evaluates only on a complete set — a frame
+// whose segmentation was dropped for a slow subscriber is skipped, not
+// evaluated against stale data from an earlier frame.
+message Header {
+  // Capture time, sampled when the frame left the camera — NOT when
+  // inference finished. Sampling after the model ran would fold inference
+  // latency into the timestamp and blow any downstream conformance window.
+  google.protobuf.Timestamp ts = 1;
+
+  // Monotonic per provider, and SHARED by every topic derived from one
+  // frame — that sharing is what makes the join above possible. Gaps mean
+  // dropped frames (a slow subscriber, or a topic sampled at a lower rate
+  // than the capture session), never a protocol error.
+  uint64 seq = 2;
+
+  // Which camera produced this, when several exist. Stable for the life of
+  // a capture session; it changes when the user picks a different device.
+  string device_id = 3;
+
+  // Source pixel dimensions. Every coordinate in the payload is normalized
+  // against this, so a consumer that wants pixels multiplies by it — and a
+  // consumer that wants aspect-correct distances needs it, since normalized
+  // x and y are scaled by different amounts on a non-square frame.
+  Size frame = 4;
+}
+
+// FaceFrame is published on `vision.face.v1`.
+//
+// An empty `points` with a zero `bounds` is the valid "no face detected"
+// message. Only the highest-confidence face is published: multi-face is
+// deliberately deferred, and adding it later means a repeated field on a
+// `vision.face.v2` topic, not a break here.
+message FaceFrame {
+  Header header = 1;
+
+  // Face bounding box in viewer space.
+  Rect bounds = 2;
+
+  // `VNFaceLandmarks2D.allPoints` for the 76-point constellation, already
+  // converted to viewer space, with the regions concatenated in Vision's own
+  // order:
+  //
+  //   faceContour · leftEye · rightEye · leftEyebrow · rightEyebrow ·
+  //   nose · noseCrest · medianLine · outerLips · innerLips ·
+  //   leftPupil · rightPupil
+  //
+  // The per-region point COUNTS are a property of Apple's constellation, not
+  // of this contract, and they differ between the 65- and 76-point ones. A
+  // consumer that indexes a specific region must therefore check
+  // `points.size()` first and must not hard-code an offset derived from a
+  // different constellation — the provider pins the offsets it publishes in
+  // its own tests, which is the only place they can be checked against a
+  // real model.
+  //
+  // Most consumers should not be in here at all: the derived geometry they
+  // actually want (eye aspect ratio, head pose) is already computed once on
+  // `vision.signals.v1`. Dropping to this tier is the documented escape
+  // hatch for a consumer whose math genuinely differs, not the default.
+  repeated Point points = 3;
+
+  // Detector confidence, 0..1, for the face as a whole.
+  float confidence = 4;
+}
+
+// Handedness is Vision's chirality call for one hand. UNSPECIFIED is what a
+// provider publishes when the model declined to choose — it is a real,
+// expected value, not a wire error.
+enum Handedness {
+  HANDEDNESS_UNSPECIFIED = 0;
+  HANDEDNESS_LEFT = 1;
+  HANDEDNESS_RIGHT = 2;
+}
+
+// Hand carries one detected hand's 21 joints.
+message Hand {
+  // Exactly 21 joints, in this order — this ordering is NORMATIVE and is
+  // defined by this file, unlike the face constellation which is Apple's:
+  //
+  //    0  wrist
+  //    1  thumb CMC      2  thumb MP     3  thumb IP     4  thumb tip
+  //    5  index MCP      6  index PIP    7  index DIP    8  index tip
+  //    9  middle MCP    10  middle PIP  11  middle DIP  12  middle tip
+  //   13  ring MCP      14  ring PIP    15  ring DIP    16  ring tip
+  //   17  little MCP    18  little PIP  19  little DIP  20  little tip
+  //
+  // A joint the model could not locate is still published, at its last
+  // estimate, with a low entry in `joint_confidence` — the array is never
+  // short and never sparse, so index 8 is always the index fingertip.
+  repeated Point joints = 1;
+
+  Handedness handedness = 2;
+
+  // Confidence for the hand as a whole, 0..1.
+  float confidence = 3;
+
+  // Per-joint confidence, 0..1, parallel to `joints`. Either EMPTY — the
+  // provider does not report per-joint confidence — or exactly as long as
+  // `joints`; never any other length.
+  //
+  // Consumers doing fingertip math should gate on this when it is present
+  // rather than trusting every joint equally: a fingertip occluded behind
+  // the palm still has coordinates, and they are fiction. Empty means
+  // "unknown", NOT "zero confidence" — falling back to the frame-level
+  // `confidence` is the correct read, not discarding the hand.
+  repeated float joint_confidence = 4;
+}
+
+// HandsFrame is published on `vision.hands.v1`.
+//
+// `hands` holds 0, 1 or 2 entries. Zero is the valid "no hands in frame"
+// message. Order is by descending `confidence`, not by handedness — a
+// consumer wanting "the left hand" must look at `Handedness`, never at
+// `hands[0]`.
+message HandsFrame {
+  Header header = 1;
+  repeated Hand hands = 2;
+}
+
+// Joint is one body-pose point with its own confidence. Body pose is far
+// more prone to per-joint dropouts than hand pose (occlusion by a desk, by
+// the frame edge), so confidence rides on the joint rather than only on the
+// frame.
+message Joint {
+  Point point = 1;
+  float confidence = 2;
+}
+
+// BodyPoseFrame is published on `vision.body_pose.v1`.
+//
+// An empty `joints` is the valid "no body detected" message.
+message BodyPoseFrame {
+  Header header = 1;
+
+  // Exactly 19 joints when a body is detected, in this order — NORMATIVE,
+  // defined by this file:
+  //
+  //    0  nose
+  //    1  left eye        2  right eye
+  //    3  left ear        4  right ear
+  //    5  neck
+  //    6  left shoulder   7  right shoulder
+  //    8  left elbow      9  right elbow
+  //   10  left wrist     11  right wrist
+  //   12  root            (hip centre)
+  //   13  left hip       14  right hip
+  //   15  left knee      16  right knee
+  //   17  left ankle     18  right ankle
+  //
+  // "left" and "right" are the SUBJECT's left and right, which in viewer
+  // space appear on the mirrored side of the image from where a naive read
+  // would put them. Undetected joints are present with a low `confidence`,
+  // so index 6 is always the left shoulder.
+  repeated Joint joints = 2;
+}
+
+// SegmentationFrame is published on `vision.segmentation.v1`.
+//
+// This replaces the polyline `scalp_line` that earlier designs put on the
+// face message: the shipping implementation produces a boolean grid, the two
+// are not interconvertible, and a 3072-cell grid never belonged inside a
+// face payload. Splitting topics by Vision request dissolves the conflict.
+//
+// A frame with `w == 0 && h == 0` and an empty `mask` is the valid "no
+// person segmented" message.
+message SegmentationFrame {
+  Header header = 1;
+
+  // Grid dimensions in cells, NOT pixels. The provider downsamples the
+  // person-segmentation buffer to a fixed grid (64x48 today) that is coarse
+  // enough to sample per frame and fine enough for a head silhouette.
+  uint32 w = 2;
+  uint32 h = 3;
+
+  // Row-major PACKED bitmask, one bit per cell, row 0 = TOP of the frame
+  // (viewer space — the same y-down convention as Point, so no flip).
+  // Columns are already mirrored to viewer space alongside every landmark.
+  //
+  // Bit for cell (col, row) is:
+  //
+  //   index = row * w + col
+  //   set   = (mask[index / 8] >> (7 - (index % 8))) & 1     // MSB first
+  //
+  // A set bit means "person". Length is ceil(w * h / 8) bytes; trailing bits
+  // in the final byte are zero and must be ignored. 64x48 packs to 384
+  // bytes, which is why this is a perfectly ordinary bus payload rather than
+  // something needing a side channel.
+  bytes mask = 4;
+}
+
+// Signals is published on `vision.signals.v1` — derived geometry, computed
+// once by the provider so that every consumer does not re-derive it and
+// drift. Free to produce: pure math over landmarks another consumer already
+// paid for.
+//
+// EVERY FIELD IS `optional`, AND ABSENT IS NOT ZERO. A field is absent when
+// the model that feeds it is not running — `ear_l` is missing whenever
+// nobody has asked for faces, and `shoulder_angle` is missing whenever
+// nobody has asked for body pose. A consumer that reads absent as 0.0 sees a
+// permanently closed eye and a perfectly level pair of shoulders. Check
+// presence before every read: `s.EarL != nil` in Go — `GetEarL()` returns 0
+// for both absent and zero and is the exact trap described above — and
+// `s.hasEarL` in Swift.
+//
+// A signal only ships here if it is (1) a measurable property of the body
+// rather than a judgement about behaviour, (2) derivable from landmarks the
+// provider already computed for someone else, and (3) has a right answer on
+// a recorded clip so a test can fail. `is_blinking`, `is_slouching` and
+// `nail_biting` each fail (1) and (3), which is what keeps this tier from
+// rotting into a junk drawer.
+message Signals {
+  Header header = 1;
+
+  // Eye aspect ratio, per eye, dimensionless. Small means closed. Present
+  // only while `vision.face.v1`'s model is running. A consumer wanting a
+  // different EAR formula (6-point rather than 3-point) subscribes to
+  // `vision.face.v1` and derives its own — the points were already computed,
+  // so the lower rung costs the provider nothing.
+  optional float ear_l = 2;
+  optional float ear_r = 3;
+
+  // Head pose in DEGREES. Present only while the face model is running.
+  optional float yaw = 4;
+  optional float pitch = 5;
+  optional float roll = 6;
+
+  // Shoulder line, degrees off horizontal. Present only while
+  // `vision.body_pose.v1`'s model is running.
+  optional float shoulder_angle = 7;
+
+  // Forward-head distance, normalized against `Header.frame`. Present only
+  // while the body-pose model is running.
+  optional float neck_forward = 8;
+
+  // Minimum distance from any fingertip to the nose / mouth, normalized.
+  // Present only while BOTH the hand and face models are running, since
+  // either one missing makes the distance undefined rather than large.
+  optional float fingertip_to_nose = 9;
+  optional float fingertip_to_mouth = 10;
+}
+
+// Request is published on `vision.request.v1` BY CONSUMERS and subscribed by
+// the provider. It is the intent half of the control plane; the kernel's
+// demand refcount is the liveness half, and the provider runs the union of
+// live requests gated by demand.
+//
+// Demand is truthful about liveness — zero subscribers closes the camera,
+// always, which is the privacy floor — but it cannot know INTENT: a user who
+// switches a detector off in that detector's own UI leaves the process up
+// and still subscribed, so demand stays at 1 and the LED stays on. This
+// message covers exactly that gap, with no kernel change: it is an ordinary
+// declared topic on both sides.
+//
+// Desired state, latest-wins per `requester`. Re-assert on every reconnect
+// and on a heartbeat well inside the TTL (10s against a 30s TTL), because
+// events are ephemeral — there is no replay, and a request published while
+// the provider was restarting is simply gone.
+//
+// EVERY CONSUMER MUST DECLARE `vision.request.v1` IN ITS MANIFEST'S
+// `publishes`. Publishing an undeclared topic is a logged error and a
+// dropped message, which here means the provider silently never runs the
+// model you need. Subscribing without requesting yields no events at all and
+// is indistinguishable from a broken bus, so the provider logs
+// `subscriber with no request` and surfaces it in `/api/state`.
+//
+// This is not request/response tunnelled through pub/sub: nothing here
+// expects a reply, and if the provider is down, consumers publish into the
+// void and nothing breaks. It is a consumer broadcasting its own desired
+// state, which is what an event is.
+message Request {
+  // The requesting plugin's id. SELF-ASSERTED and NOT AUTHENTICATED: the
+  // bus event carries no publisher identity, so this is what the requester
+  // claims to be. Acceptable because the channel cannot grant capability —
+  // it can only ask for work the demand floor still gates — but it is a real
+  // limitation, recorded here rather than discovered later.
+  string requester = 1;
+
+  // Desired `vision.*` topics, by full topic name. An EMPTY LIST is
+  // meaningful: it retracts this requester's demand entirely, which is how a
+  // detector switched off in its own UI stops the models it was driving
+  // without exiting its process. Unknown topic names are ignored.
+  repeated string topics = 2;
+
+  // Desired frame rate. The provider runs max() across live requesters per
+  // topic and caps the capture session at 30. 0 or absent means the default,
+  // 15. Per-topic rates are independent: a 2 fps posture consumer must not
+  // drag body-pose inference to 60 because a game wants faces fast.
+  uint32 fps = 3;
+
+  // Seconds this request stays live without re-assertion. 0 means the
+  // default, 30. The TTL is what stops a wedged consumer from pinning the
+  // camera open forever; a consumer that dies outright is handled sooner by
+  // the demand floor.
+  uint32 ttl_s = 4;
+}
