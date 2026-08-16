@@ -16,12 +16,19 @@
 # Info.plist beside a same-named executable reads as a flat bundle to
 # codesign, and AMFI then SIGKILLs the plugin the instant core spawns it).
 #
-# Usage: embed-plugins.sh <app-bundle> [plugins-src-dir]
+# Usage: embed-plugins.sh <app-bundle> [plugins-src-dir] [expected-count]
+#
+# expected-count, when given, is how many plugins the caller believes should
+# land. CI passes the number of manifests in the repo, so a plugin whose build
+# job failed — or one added without a matching row in the release workflow's
+# build matrix — fails the release instead of shipping an app quietly missing
+# a feature. That silent-omission bug is the whole reason this script exists.
 
 set -euo pipefail
 
 APP_BUNDLE="${1:?App bundle path required}"
 SRC="${2:-plugins}"
+EXPECTED="${3:-}"
 DEST="${APP_BUNDLE}/Contents/Resources/plugins"
 
 if [ ! -d "$APP_BUNDLE" ]; then
@@ -76,6 +83,13 @@ done
 # build instead.
 if [ "$embedded" -eq 0 ]; then
     echo "Error: no plugins embedded from $SRC" >&2
+    exit 1
+fi
+
+if [ -n "$EXPECTED" ] && [ "$embedded" -ne "$EXPECTED" ]; then
+    echo "Error: embedded $embedded plugin(s), expected $EXPECTED" >&2
+    echo "       A plugin's build job failed, or a plugin was added without a" >&2
+    echo "       matching row in the release workflow's build-plugin matrix." >&2
     exit 1
 fi
 
