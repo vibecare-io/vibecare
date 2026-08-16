@@ -20,5 +20,24 @@ import Foundation
 ///
 /// `fputs` returns `EOF` and moves on.
 func vcLog(_ message: String) {
-    fputs("vibecheck: \(message)\n", stderr)
+    fputs("\(vcLogPrefix): \(message)\n", stderr)
 }
+
+/// The plugin's own id, so a line the SDK emits from inside the `postures`
+/// process says `postures:` and not the id of whichever plugin the SDK was
+/// extracted from.
+///
+/// This used to be the literal `"vibecheck"`, which was harmless while
+/// vibecheck was the only Swift plugin and actively misleading the moment
+/// there were four — core captures every plugin's stderr into one log, so
+/// `vibecheck: sdk: register session ended` coming out of `blink-jump` sends
+/// whoever is debugging to the wrong process.
+///
+/// Read once from the spawn environment rather than threaded through
+/// `connect()`: `vcLog` is called from `VCHTTPServer` and the reconnect loop,
+/// neither of which has a `VCHost` to ask, and the variable is set by
+/// `supervisor.go` before the process starts and never changes. `"plugin"` is
+/// the fallback for a binary run by hand outside a spawn — a case where there
+/// is no id to be right about.
+let vcLogPrefix: String = ProcessInfo.processInfo.environment["VIBECARE_PLUGIN_ID"]
+    .flatMap { $0.isEmpty ? nil : $0 } ?? "plugin"
