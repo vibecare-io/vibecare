@@ -361,6 +361,16 @@
         window.addEventListener("resize", resize);
 
         var GRAVITY = 2400, JUMP_V = -700, PLAYER_X = 80, PW = 30, PH = 32;
+
+        // Pickups. Deliberately generous, because this control has ~80 ms of
+        // detection latency and no sub-frame precision — a game balanced like
+        // a keyboard one would just feel broken.
+        //   heart   +1 life, up to MAX_LIVES
+        //   shield  SHIELD_S of immunity
+        //   freeze  FREEZE_S with the world stopped — a breather, not a bonus
+        var SHIELD_S = 5, FREEZE_S = 10, IFRAME_S = 1.2;
+        var START_LIVES = 3, MAX_LIVES = 5;
+        var KINDS = ["heart", "shield", "freeze"];
         var g = null;
         var keyboardMode = false;
 
@@ -371,6 +381,8 @@
             t: 0, speed: 300, dist: 0, cleared: 0, score: 0, jumps: 0,
             y: 0, vy: 0, onGround: true, buffered: 0,
             obstacles: [], spawnIn: 320,
+            lives: START_LIVES, shield: 0, freeze: 0, iframes: 0,
+            pickups: [], pickupIn: 900, got: null, gotAt: 0,
             over: false, overAt: 0, submitted: false, flash: 0
           };
         }
@@ -416,11 +428,59 @@
           g.spawnIn = 230 + Math.random() * 200 + g.speed * 0.30;
         }
 
+        function spawnPickup() {
+          // Never on the ground line. A pickup you cannot help walking into
+          // is not a choice — these sit at jump height, so taking one costs a
+          // blink and risks the obstacle behind it.
+          g.pickups.push({
+            x: W + 30,
+            above: 54 + Math.random() * 38,
+            kind: KINDS[Math.floor(Math.random() * KINDS.length)],
+            spin: 0
+          });
+          g.pickupIn = 1500 + Math.random() * 2400;
+        }
+
+        function take(p) {
+          if (p.kind === "heart") {
+            g.lives = Math.min(MAX_LIVES, g.lives + 1);
+            g.got = g.lives === MAX_LIVES ? "hearts full" : "+1 life";
+          } else if (p.kind === "shield") {
+            g.shield = SHIELD_S;
+            g.got = "immune " + SHIELD_S + "s";
+          } else {
+            g.freeze = FREEZE_S;
+            g.got = "world paused " + FREEZE_S + "s";
+          }
+          g.gotAt = performance.now();
+        }
+
+        function hit() {
+          // Immunity and post-hit invulnerability are separate on purpose: one
+          // is earned, the other is owed. Without the second, a single cactus
+          // takes every heart you have in consecutive frames.
+          if (g.shield > 0 || g.iframes > 0) return;
+          g.lives -= 1;
+          g.flash = 0.3;
+          if (g.lives <= 0) { g.lives = 0; gameOver(); return; }
+          g.iframes = IFRAME_S;
+        }
+
         function update(dt) {
           if (!g || g.over || paused()) return;
-          g.t += dt;
+
+          if (g.shield > 0) g.shield = Math.max(0, g.shield - dt);
+          if (g.iframes > 0) g.iframes = Math.max(0, g.iframes - dt);
+          if (g.freeze > 0) g.freeze = Math.max(0, g.freeze - dt);
+          // A freeze stops the WORLD, not the player: jumping still works, but
+          // nothing scrolls, nothing spawns, no distance is scored and the
+          // difficulty clock does not tick. Otherwise "10 free seconds" would
+          // hand you a faster game than you had before you took it.
+          var frozen = g.freeze > 0;
+
+          if (!frozen) g.t += dt;
           g.speed = Math.min(660, 300 + g.t * 11);
-          var dx = g.speed * dt;
+          var dx = frozen ? 0 : g.speed * dt;
           g.dist += dx;
 
           if (g.buffered > 0) {
@@ -433,8 +493,12 @@
             if (g.y >= 0) { g.y = 0; g.vy = 0; g.onGround = true; }
           }
 
-          g.spawnIn -= dx;
-          if (g.spawnIn <= 0) spawn();
+          if (!frozen) {
+            g.spawnIn -= dx;
+            if (g.spawnIn <= 0) spawn();
+            g.pickupIn -= dx;
+            if (g.pickupIn <= 0) spawnPickup();
+          }
 
           // `g.y` is an offset from the ground line and is <= 0 in the air, so
           // the clearance the collision cares about is simply -g.y.
@@ -448,7 +512,22 @@
             // A few forgiving pixels on every edge: a pixel-exact hitbox on a
             // control with ~80 ms of detection latency is not a fair game.
             if (px1 > o.x + 3 && px0 < o.x + o.w - 3 && clearance < o.h - 4) {
-              gameOver();
+              hit();
+              if (g.over) return;
+            }
+          }
+
+          // Pickups. A circle against the player box, forgiving by a couple of
+          // pixels the same way the obstacles are.
+          var pcx = PLAYER_X + PW / 2, ptop = clearance, pbot = clearance + PH;
+          for (var k = g.pickups.length - 1; k >= 0; k--) {
+            var p = g.pickups[k];
+            p.x -= dx;
+            p.spin += dt * 2.2;
+            if (p.x < -40) { g.pickups.splice(k, 1); continue; }
+            if (Math.abs(p.x - pcx) < PW / 2 + 12 && p.above > ptop - 12 && p.above < pbot + 12) {
+              take(p);
+              g.pickups.splice(k, 1);
             }
           }
           g.score = Math.floor(g.dist / 12) + g.cleared * 10;
@@ -479,6 +558,65 @@
           ctx.arcTo(x, y + h, x, y, r);
           ctx.arcTo(x, y, x + w, y, r);
           ctx.closePath();
+        }
+
+        // Pickup icons are drawn, not typed. An emoji would be a system font
+        // deciding what a heart looks like, and it would sit wrong against
+        // shapes the rest of the canvas draws by hand.
+        function heartPath(cx, cy, s) {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy + s * 0.75);
+          ctx.bezierCurveTo(cx - s * 1.4, cy - s * 0.25, cx - s * 0.55, cy - s * 1.1, cx, cy - s * 0.35);
+          ctx.bezierCurveTo(cx + s * 0.55, cy - s * 1.1, cx + s * 1.4, cy - s * 0.25, cx, cy + s * 0.75);
+          ctx.closePath();
+        }
+
+        function shieldPath(cx, cy, s) {
+          ctx.beginPath();
+          ctx.moveTo(cx, cy - s);
+          ctx.lineTo(cx + s * 0.8, cy - s * 0.55);
+          ctx.lineTo(cx + s * 0.8, cy + s * 0.2);
+          ctx.quadraticCurveTo(cx + s * 0.8, cy + s * 0.85, cx, cy + s);
+          ctx.quadraticCurveTo(cx - s * 0.8, cy + s * 0.85, cx - s * 0.8, cy + s * 0.2);
+          ctx.lineTo(cx - s * 0.8, cy - s * 0.55);
+          ctx.closePath();
+        }
+
+        function drawPickup(p, gy) {
+          var cy = gy - p.above;
+          // A slow bob, so a pickup reads as collectible rather than as scenery.
+          cy += Math.sin(p.spin) * 3;
+          var good = css("--good"), accent = css("--accent"), pane = css("--pane-bg"), text = css("--text");
+
+          ctx.globalAlpha = 0.16;
+          ctx.fillStyle = p.kind === "heart" ? good : p.kind === "shield" ? accent : text;
+          ctx.beginPath();
+          ctx.arc(p.x, cy, 15, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+
+          if (p.kind === "heart") {
+            ctx.fillStyle = good;
+            heartPath(p.x, cy - 1, 9);
+            ctx.fill();
+          } else if (p.kind === "shield") {
+            ctx.fillStyle = accent;
+            shieldPath(p.x, cy, 10);
+            ctx.fill();
+            ctx.strokeStyle = pane;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(p.x - 3.5, cy);
+            ctx.lineTo(p.x - 0.5, cy + 3.5);
+            ctx.lineTo(p.x + 4, cy - 3);
+            ctx.stroke();
+          } else {
+            ctx.fillStyle = text;
+            roundRect(p.x - 6, cy - 8, 4.5, 16, 1.5);
+            ctx.fill();
+            roundRect(p.x + 1.5, cy - 8, 4.5, 16, 1.5);
+            ctx.fill();
+          }
         }
 
         function draw() {
@@ -528,12 +666,31 @@
           }
           ctx.globalAlpha = 1;
 
+          for (var k = 0; k < g.pickups.length; k++) drawPickup(g.pickups[k], gy);
+
           // The player, with an eye that shuts when yours does.
           var py = gy - PH + g.y;
           var squash = g.onGround ? 0 : Math.min(6, Math.abs(g.vy) / 140);
+          // Invulnerable frames blink the player. Without a visible tell,
+          // surviving a cactus reads as the collision having failed.
+          var blinking = g.iframes > 0 && Math.floor(g.iframes * 12) % 2 === 0;
+          ctx.globalAlpha = blinking ? 0.35 : 1;
           ctx.fillStyle = g.over ? css("--bad") : accent;
           roundRect(PLAYER_X, py - squash * 0.5, PW, PH + squash, 9);
           ctx.fill();
+          ctx.globalAlpha = 1;
+
+          if (g.shield > 0) {
+            // The ring thins as the immunity runs out, so the last second is
+            // visible without reading the number.
+            ctx.strokeStyle = accent;
+            ctx.globalAlpha = 0.55 + 0.35 * Math.sin(performance.now() / 90);
+            ctx.lineWidth = 1 + 2.5 * (g.shield / SHIELD_S);
+            ctx.beginPath();
+            ctx.arc(PLAYER_X + PW / 2, py + PH / 2, PW * 0.92, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.globalAlpha = 1;
+          }
 
           var shut = !live.tracking || live.phase === "closed" || live.phase === "held";
           ctx.fillStyle = pane;
@@ -559,6 +716,46 @@
           ctx.fillText("best " + best, 14, 44);
           ctx.textAlign = "right";
           ctx.fillText(g.jumps + " jumps", W - 14, 26);
+          ctx.textAlign = "left";
+
+          // Hearts. Spent ones stay on screen as outlines, so you can see what
+          // you had as well as what is left.
+          for (var h = 0; h < Math.max(g.lives, START_LIVES); h++) {
+            var hx = W - 20 - h * 20, hy = 44;
+            heartPath(hx, hy, 7);
+            if (h < g.lives) {
+              ctx.fillStyle = css("--good");
+              ctx.fill();
+            } else {
+              ctx.strokeStyle = dim;
+              ctx.globalAlpha = 0.5;
+              ctx.lineWidth = 1.5;
+              ctx.stroke();
+              ctx.globalAlpha = 1;
+            }
+          }
+
+          // Active-effect timers, centred so they are readable while you are
+          // watching the player rather than the corners.
+          var timers = [];
+          if (g.shield > 0) timers.push({ c: accent, label: "immune " + g.shield.toFixed(1) + "s" });
+          if (g.freeze > 0) timers.push({ c: text, label: "paused " + g.freeze.toFixed(1) + "s" });
+          ctx.textAlign = "center";
+          ctx.font = "600 13px -apple-system, system-ui, sans-serif";
+          for (var t = 0; t < timers.length; t++) {
+            ctx.fillStyle = timers[t].c;
+            ctx.fillText(timers[t].label, W / 2, 26 + t * 19);
+          }
+
+          // What the last pickup did, for a moment. A power-up you cannot tell
+          // you collected may as well not have spawned.
+          if (g.got && performance.now() - g.gotAt < 1300) {
+            ctx.globalAlpha = 1 - (performance.now() - g.gotAt) / 1300;
+            ctx.fillStyle = css("--good");
+            ctx.font = "600 15px -apple-system, system-ui, sans-serif";
+            ctx.fillText(g.got, W / 2, groundY() - 96);
+            ctx.globalAlpha = 1;
+          }
           ctx.textAlign = "left";
         }
 
