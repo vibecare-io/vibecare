@@ -150,6 +150,25 @@ message FaceFrame {
 
   // Detector confidence, 0..1, for the face as a whole.
   float confidence = 4;
+
+  // How many points each region contributed to `points`, in exactly the
+  // region order listed above. Sums to `points.size()`, so a consumer slices
+  // a region as `points[sum(counts[0..i]) .. +counts[i]]` and never guesses.
+  //
+  // This field exists because guessing does not work. The counts are a
+  // property of Apple's constellation, they differ between the 65- and
+  // 76-point ones, and a consumer that hard-codes a table it believes matches
+  // does not fail loudly — it indexes an eyebrow, calls it an eye, and
+  // publishes a plausible number. That happened here: a consumer carrying its
+  // own 76-entry table read `allPoints` through it for a full release before
+  // anyone noticed the nose anchor was not on the nose.
+  //
+  // A region the model did not return takes 0 and simply has an empty range;
+  // pupils routinely do. An EMPTY `region_point_counts` means the provider
+  // could not determine the layout, and a consumer must then treat every
+  // region-indexed value as unavailable rather than falling back to a table
+  // of its own — that fallback IS the bug.
+  repeated uint32 region_point_counts = 5;
 }
 
 // Handedness is Vision's chirality call for one hand. UNSPECIFIED is what a

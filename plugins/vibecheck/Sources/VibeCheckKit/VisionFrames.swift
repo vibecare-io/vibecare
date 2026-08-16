@@ -74,7 +74,7 @@ public struct FaceAnchors: Sendable, Equatable {
         let box = viewerRect(frame.bounds)
         guard box.width > 0, box.height > 0 else { return nil }
 
-        if let layout = FaceLandmarkLayout.forPointCount(frame.points.count),
+        if let layout = FaceLandmarkLayout.fromWire(frame),
            let nose = centroid(of: frame.points, in: layout.nose),
            let mouth = centroid(of: frame.points, in: layout.outerLips),
            plausible(nose: nose, mouth: mouth, in: box) {
@@ -159,18 +159,25 @@ enum FaceLandmarkLayout {
     ///   nose · noseCrest · medianLine · outerLips · innerLips ·
     ///   leftPupil · rightPupil
     ///
-    /// The counts below are the 76-point constellation's, which is the one
-    /// §4 tells the provider to request. They sum to 76 — `total` asserts
-    /// that in `FaceLandmarkLayoutTests` rather than trusting the arithmetic
-    /// by eye — and any other `points.count` matches no layout at all, which
-    /// is the honest answer for a constellation this plugin has never seen.
-    static let regions76: [(name: String, count: Int)] = [
-        ("faceContour", 11),
-        ("leftEye", 8), ("rightEye", 8),
-        ("leftEyebrow", 6), ("rightEyebrow", 6),
-        ("nose", 9), ("noseCrest", 5), ("medianLine", 5),
-        ("outerLips", 10), ("innerLips", 6),
-        ("leftPupil", 1), ("rightPupil", 1),
+    /// The counts are NOT stated here. They arrive on the wire, in
+    /// `FaceFrame.region_point_counts`.
+    ///
+    /// This plugin used to carry its own table for the 76-point
+    /// constellation — 11, 8, 8, 6, 6, 9, 5, 5, 10, 6, 1, 1 — and index
+    /// `allPoints` through it. Measured against a real camera on macOS 26 the
+    /// regions are 17, 6, 6, 6, 6, 8, 6, 10, 14, 6, 1, 1: every offset after
+    /// the face contour was wrong, and the "nose" centroid was being taken
+    /// from somewhere in the eyes. It did not crash and it did not look
+    /// broken; it produced a plausible point in the wrong place, which is why
+    /// `plausible(nose:mouth:in:)` below exists and why a guessed table is
+    /// never coming back.
+    static let regionOrder = [
+        "faceContour",
+        "leftEye", "rightEye",
+        "leftEyebrow", "rightEyebrow",
+        "nose", "noseCrest", "medianLine",
+        "outerLips", "innerLips",
+        "leftPupil", "rightPupil",
     ]
 
     static func offsets(_ regions: [(name: String, count: Int)]) -> [String: Range<Int>] {
@@ -183,13 +190,25 @@ enum FaceLandmarkLayout {
         return result
     }
 
-    static let layout76: Layout = {
-        let o = offsets(regions76)
-        return Layout(nose: o["nose"]!, outerLips: o["outerLips"]!)
-    }()
+    /// Builds the layout from the counts the provider published alongside the
+    /// points, refusing anything that does not describe exactly this array.
+    ///
+    /// Every rejection returns `nil`, which sends the caller to the bounding
+    /// box — the honest degraded answer. Guessing a table would be the
+    /// dishonest one, because a wrong table cannot be detected downstream.
+    static func fromWire(_ frame: VCTFaceFrame) -> Layout? {
+        let counts = frame.regionPointCounts.map(Int.init)
+        // Empty means the provider could not determine its own layout. Any
+        // other length means it is describing a different region list than
+        // the one the contract pins.
+        guard counts.count == regionOrder.count else { return nil }
+        // The counts must describe THIS array, not merely be well formed.
+        guard counts.reduce(0, +) == frame.points.count else { return nil }
 
-    static func forPointCount(_ count: Int) -> Layout? {
-        count == regions76.reduce(0) { $0 + $1.count } ? layout76 : nil
+        let o = offsets(zip(regionOrder, counts).map { (name: $0, count: $1) })
+        guard let nose = o["nose"], let lips = o["outerLips"],
+              !nose.isEmpty, !lips.isEmpty else { return nil }
+        return Layout(nose: nose, outerLips: lips)
     }
 }
 

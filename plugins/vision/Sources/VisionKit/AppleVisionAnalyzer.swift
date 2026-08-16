@@ -162,34 +162,30 @@ public final class AppleVisionAnalyzer: VisionAnalyzing, @unchecked Sendable {
         }
         frame.bounds = ViewerSpaceMapping.protoRect(face.boundingBox, mirrored: mirrored)
         frame.confidence = face.confidence
-        guard let landmarks = face.landmarks, let all = landmarks.allPoints else {
+        guard let landmarks = face.landmarks else {
             return (frame, nil)
         }
-        // `pointsInImage(imageSize: 1x1)` yields whole-image normalized
-        // Vision-space coordinates; the region's own `normalizedPoints`
-        // are relative to the bounding box and would land the whole
-        // constellation inside a tiny square in the corner.
-        frame.points = all.pointsInImage(imageSize: CGSize(width: 1, height: 1))
-            .map { ViewerSpaceMapping.protoPoint($0, mirrored: mirrored) }
-        return (frame, layout(of: landmarks, publishedPointCount: frame.points.count))
+        // Built from the regions themselves rather than from `allPoints`, so
+        // the array and the layout that indexes it agree by construction. See
+        // `FaceConstellation` for the measurement that forced this.
+        let built = FaceConstellation.build(regions: Self.regions(of: landmarks), mirrored: mirrored)
+        frame.points = built.points
+        // The layout travels WITH the points. Without it every consumer has to
+        // carry its own constellation table, and a table that silently stops
+        // matching indexes an eyebrow as an eye.
+        frame.regionPointCounts = (built.layout?.pointCounts ?? []).map(UInt32.init)
+        if let layout = built.layout {
+            logFaceLayoutOnce("face constellation layout measured: \(layout.pointCounts) "
+                              + "(total \(layout.totalPointCount)); regions in "
+                              + "FaceRegion.allCases order")
+        }
+        return (frame, built.layout)
     }
 
-    /// The per-region point counts of the constellation this frame actually
-    /// carried, in `FaceRegion.allCases` order — which the wire contract pins
-    /// as the order `allPoints` concatenates.
-    ///
-    /// **Measured, never assumed.** Apple documents neither the counts nor,
-    /// strictly, that `allPoints` is that concatenation, and both differ
-    /// between the 65- and 76-point constellations. So the sum is checked
-    /// against the array that was actually published: a disagreement means the
-    /// concatenation assumption is wrong on this OS, and the honest answer is
-    /// `nil` (every face-derived signal absent) rather than an offset table
-    /// that reports an eyebrow as an eye. The mismatch is logged once, with
-    /// both numbers, because it is the one thing a person running this against
-    /// a real camera can check and nobody can check from source.
-    private func layout(of landmarks: VNFaceLandmarks2D,
-                        publishedPointCount: Int) -> FaceLandmarkLayout? {
-        let regions: [VNFaceLandmarkRegion2D?] = [
+    /// The twelve regions in `FaceRegion.allCases` order — the order the wire
+    /// contract pins and the order `FaceConstellation` concatenates.
+    private static func regions(of landmarks: VNFaceLandmarks2D) -> [FaceRegionPoints?] {
+        [
             landmarks.faceContour,
             landmarks.leftEye, landmarks.rightEye,
             landmarks.leftEyebrow, landmarks.rightEyebrow,
@@ -197,18 +193,6 @@ public final class AppleVisionAnalyzer: VisionAnalyzing, @unchecked Sendable {
             landmarks.outerLips, landmarks.innerLips,
             landmarks.leftPupil, landmarks.rightPupil,
         ]
-        let counts = regions.map { $0?.pointCount ?? 0 }
-        guard let layout = FaceLandmarkLayout(pointCounts: counts),
-              layout.totalPointCount == publishedPointCount else {
-            logFaceLayoutOnce("face regions sum to \(counts.reduce(0, +)) but allPoints "
-                              + "published \(publishedPointCount) — signals derived from the "
-                              + "face constellation stay absent (counts=\(counts))")
-            return nil
-        }
-        logFaceLayoutOnce("face constellation layout measured: \(counts) "
-                          + "(total \(layout.totalPointCount)); regions in "
-                          + "FaceRegion.allCases order")
-        return layout
     }
 
     /// The layout is stable for the life of a request object, so logging it
@@ -375,3 +359,7 @@ public final class AppleVisionAnalyzer: VisionAnalyzing, @unchecked Sendable {
         return Data(bytes)
     }
 }
+
+/// `VNFaceLandmarkRegion2D` already provides everything `FaceConstellation`
+/// needs; this conformance is what keeps the concatenation free of Vision.
+extension VNFaceLandmarkRegion2D: FaceRegionPoints {}
