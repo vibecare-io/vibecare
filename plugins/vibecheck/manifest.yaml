@@ -2,10 +2,18 @@ id: vibecheck
 name: VibeCheck
 icon: eye.trianglebadge.exclamationmark
 exec: ./dist/vibecheck
-publishes: [vibecheck.behavior_detected.v1]
+# Post-cutover shape from the vision design §5.5: vibecheck no longer opens a
+# camera, it consumes vision's topics and joins the three by Header.seq so a
+# detection is only ever evaluated on a complete frame.
+#
+# vision.request.v1 MUST be declared here, not just published at runtime:
+# publishing an undeclared topic is a logged error and a dropped message,
+# which would silently mean "vision never runs the model I need".
+subscribes: [vision.face.v1, vision.hands.v1, vision.segmentation.v1]
+publishes:  [vision.request.v1, vibecheck.behavior_detected.v1]
 ui: webview
-# See plugins/todo/manifest.yaml. This one especially must not be inferred:
-# the build embeds Info.plist via -sectcreate and the codesign step is what
-# seals it, without which macOS shows no camera prompt and the TCC grant is
-# lost.
+# See plugins/todo/manifest.yaml. Still not inferable: the recipe stages the
+# binary and its SwiftPM resource bundle into dist/, which is what `exec`
+# above points at. The -sectcreate/codesign pair this used to carry is gone
+# with the camera (design §8.1) — plugins/vision holds it now.
 build: just build-vibecheck-plugin

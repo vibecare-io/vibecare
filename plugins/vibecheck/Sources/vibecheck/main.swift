@@ -1,5 +1,4 @@
 import Foundation
-import CoreVideo
 import VCPluginSDK
 import VibeCheckKit
 
@@ -46,60 +45,11 @@ func uiIndexHTML() -> Data? {
     uiResourceURL("ui/index.html").flatMap { try? Data(contentsOf: $0) }
 }
 
-// TEMPORARY, for Task 11/12 manual verification only. `AVCaptureSession` and
-// Vision need real hardware and cannot be unit-tested, so this starts a real
-// camera session, logs the first frame's dimensions and the per-frame
-// `mirrored` flag, and exits — without touching `VCEnvironment`, since a
-// manual `--probe-camera` run has none of core's spawn env vars set.
-// Deliberately left in past this task rather than deleted: a human still
-// needs to run it (the camera permission prompt, if any, needs a real click)
-// and confirm the observations in the task report. Remove once that's done.
-if CommandLine.arguments.contains("--probe-camera") {
-    final class ProbeReceiver: CameraFrameReceiver, @unchecked Sendable {
-        private let lock = NSLock()
-        private var done = false
-        private let continuation: CheckedContinuation<(Int, Int, Bool), Never>
-
-        init(_ continuation: CheckedContinuation<(Int, Int, Bool), Never>) {
-            self.continuation = continuation
-        }
-
-        func didOutput(_ pixelBuffer: CVPixelBuffer, mirrored: Bool) {
-            lock.lock()
-            defer { lock.unlock() }
-            guard !done else { return }
-            done = true
-            let width = CVPixelBufferGetWidth(pixelBuffer)
-            let height = CVPixelBufferGetHeight(pixelBuffer)
-            continuation.resume(returning: (width, height, mirrored))
-        }
-    }
-
-    log("--probe-camera: starting camera session")
-    let probeSession = CameraSession()
-    // Kept alive for the duration of the probe: `CameraSession.receiver` is
-    // `weak`, so nothing else retains this between assignment and the first
-    // frame arriving on the camera's background queue.
-    var probeReceiver: ProbeReceiver?
-
-    switch await probeSession.start() {
-    case .started:
-        log("--probe-camera: session started, waiting for first frame...")
-        let (width, height, mirrored) = await withCheckedContinuation { (k: CheckedContinuation<(Int, Int, Bool), Never>) in
-            let receiver = ProbeReceiver(k)
-            probeReceiver = receiver
-            probeSession.receiver = receiver
-        }
-        log("--probe-camera: first frame \(width)x\(height) mirrored=\(mirrored)")
-        _ = probeReceiver // keep the compiler from flagging the write-only retain above
-    case .denied:
-        log("--probe-camera: camera access denied")
-    case .noDevice:
-        log("--probe-camera: no camera device found")
-    }
-    probeSession.stop()
-    exit(0)
-}
+// The `--probe-camera` mode that used to live here is gone with the camera
+// it probed. Its whole purpose was to answer, on real hardware, whether
+// `AVCaptureConnection.isVideoMirrored` came back true for the built-in
+// camera — a question that now belongs to `plugins/vision/`, which is the
+// only process in this tree that opens a capture session.
 
 let env: VCEnvironment
 switch VCEnvironment.fromProcess() {
@@ -122,15 +72,22 @@ let configStore = try ConfigStore(directory: env.dataDir)
 let alertPrefsStore = try AlertPrefsStore(directory: env.dataDir)
 let countsStore = try CountsStore(directory: env.dataDir)
 
-let previewStream = PreviewStream()
 let snoozeGate = SnoozeGate()
 // Constructed hostless: routes (and the `DetectionEngine` they need to
 // exist) must be registered before `VCHost.connect()` can be called at all
 // — see the ordering comment below — so no live `VCHost` exists yet at this
-// point. `hostSink.attach(host:)` runs right after `connect()` returns.
+// point. `hostSink.attach(host:)` and `visionRequest.attach(host:)` both run
+// right after `connect()` returns.
 let hostSink = HostSink(prefs: alertPrefsStore, snooze: snoozeGate)
-let engine = DetectionEngine(config: configStore, counts: countsStore,
-                              sink: hostSink, previewStream: previewStream)
+let engine = DetectionEngine(config: configStore, counts: countsStore, sink: hostSink)
+
+// The bus side: the joiner holds the seq join and the subscription rule,
+// `visionRequest` decides what that rule is and tells the provider, and
+// `intake` is the one loop that reads core's event stream.
+let joiner = VisionFrameJoiner()
+let visionRequest = VisionRequest(joiner: joiner)
+let intake = VisionIntake(joiner: joiner, engine: engine, request: visionRequest)
+await engine.attach(demand: visionRequest)
 
 let router = VCRouter()
 
@@ -152,17 +109,17 @@ await router.handle("/") { _, writer in
 }
 
 // The whole `/api/*` surface — state, config, alert-prefs, snooze, disable,
-// the SSE event feed, the MJPEG preview, and the bundled behavior icons.
-// Registered before `VCHost.connect()` below, same reasoning as `/` above:
-// core's proxy targets this plugin's port the instant `connect()` marks it
-// up, and `/api/state` in particular is what the e2e harness (and any real
-// client) polls first to decide the plugin is reachable at all.
+// the SSE detection feed, and the bundled behavior icons. Registered before
+// `VCHost.connect()` below, same reasoning as `/` above: core's proxy
+// targets this plugin's port the instant `connect()` marks it up, and
+// `/api/state` in particular is what the e2e harness (and any real client)
+// polls first to decide the plugin is reachable at all.
 await registerVibeCheckRoutes(
     router: router,
     engine: engine,
     config: configStore,
     prefs: alertPrefsStore,
-    preview: previewStream,
+    joiner: joiner,
     sink: hostSink,
     snooze: snoozeGate,
     loadIcon: { id in uiResourceURL("ui/icons/\(id).svg").flatMap { try? Data(contentsOf: $0) } }
@@ -171,29 +128,40 @@ await registerVibeCheckRoutes(
 let host = try await VCHost.connect(env: env, router: router)
 
 // Only now does a live `VCHost` exist for `HostSink.fired` to alert/publish
-// through — see `HostSink`'s and `hostSink`'s own doc comments for why this
-// can't happen any earlier.
+// through, or for `VisionRequest` to publish `vision.request.v1` on — see
+// their own doc comments for why this can't happen any earlier.
 await hostSink.attach(host: host)
+await visionRequest.attach(host: host)
 
 // Registered immediately after connecting, not later: SIGTERM can land in
 // the gap, and a hook registered after shutdown has already run is executed
-// rather than dropped (the Go SDK's sync.Once silently loses it). Stops the
-// camera on the way down — privacy-adjacent, same as every other path that
-// turns detection off — via the same `stop()` this task's wiring fixed to
-// coordinate with an in-flight camera start.
+// rather than dropped (the Go SDK's sync.Once silently loses it).
+//
+// Two hooks, in the order that matters to a user: retract the vision
+// request first, so the provider tears down the models — and, if we were
+// the last consumer, closes the camera and the LED — at once instead of
+// 30 s later when our request's TTL lapses; then stop the engine so a frame
+// still in flight cannot fire an alert on the way down. They run
+// CONCURRENTLY under one shared budget (see `VCHost.drainShutdownHooks`),
+// which is fine: neither depends on the other, and `stop()` makes the
+// engine refuse frames regardless of whether the retraction landed.
+await host.onShutdown { await visionRequest.retract() }
 await host.onShutdown { await engine.stop() }
 
-// Fire-and-forget, NOT awaited inline: `engine.start()` may await a TCC
-// permission prompt (or, per `CameraSession.start()`, `AVCaptureDevice.
-// requestAccess`) that can take arbitrarily long — or in a display-less
-// environment, may not resolve promptly at all. Awaiting it here would
-// block this script from ever reaching `waitForShutdown()` below, and
-// `waitForShutdown()` returning is the ONLY way this process exits (see its
-// own doc comment) — SIGTERM handling is independent (trapped inside
-// `VCHost.connect()` already), but the process itself would never fall off
-// the end and never actually terminate. `start()` internally loads
-// `cachedConfig` from disk and only opens the camera if it says `enabled`,
-// so a fresh/disabled install returns near-instantly regardless.
+// The single reader of core's event stream: bus payloads into the join and
+// on to the detector, `_core.demand.v1` into a re-assertion of our vision
+// request. Started before `engine.start()` so that a frame arriving in
+// response to the very first request has somewhere to land.
+let events = await host.events()
+Task { await intake.run(events) }
+
+// Fire-and-forget, NOT awaited inline: `start()` reads config and counts off
+// disk and then publishes `vision.request.v1`, and that publish is a
+// deadlined RPC that can take up to 5 s against a core that is not answering
+// yet. Awaiting it here would block this script from reaching
+// `waitForShutdown()` below, and `waitForShutdown()` returning is the ONLY
+// way this process exits (see its own doc comment) — the process would never
+// fall off the end and never actually terminate.
 Task { await engine.start() }
 
 // This — not a sleep, and not exit() — is how the process ends. VCHost's

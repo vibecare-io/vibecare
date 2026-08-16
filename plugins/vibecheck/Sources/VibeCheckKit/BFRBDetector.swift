@@ -1,4 +1,5 @@
 import CoreGraphics
+import VCKStubs
 
 public struct DetectionResult: Sendable, Equatable {
     public let behavior: BFRBBehavior
@@ -13,6 +14,15 @@ public struct DetectionResult: Sendable, Equatable {
 /// Pure fingertip-to-face-region geometry. All points normalized, VIEWER
 /// coords (origin top-left, y down). No Vision/camera dependency → fully
 /// unit-testable.
+///
+/// Post-cutover its input is a `VisionFrame` — one capture frame joined
+/// across `vision.face.v1`, `vision.hands.v1` and `vision.segmentation.v1`
+/// by `Header.seq` — instead of a locally-produced `LandmarkFrame`. The
+/// arithmetic below is byte-for-byte what shipped before that change: the
+/// radius formula, the per-fingertip first-match-wins order (nose → mouth →
+/// hair) and the above-the-forehead guard are all unchanged, because the
+/// coordinates arriving over the bus are in the same space the extractor
+/// used to emit.
 public struct BFRBDetector {
     /// 0…1. Trigger radius scales from 0.04 (low) to 0.12 (high) of frame size.
     public var sensitivity: Double
@@ -21,18 +31,18 @@ public struct BFRBDetector {
         self.sensitivity = sensitivity
     }
 
-    public func detect(_ frame: LandmarkFrame, enabled: Set<BFRBBehavior>) -> DetectionResult? {
-        guard let hand = frame.hand, let face = frame.face else { return nil }
+    public func detect(_ frame: VisionFrame, enabled: Set<BFRBBehavior>) -> DetectionResult? {
+        guard let face = frame.face, !frame.fingertips.isEmpty else { return nil }
         let radius = 0.04 + 0.08 * max(0, min(1, sensitivity))
 
-        for tip in hand.fingertips {
+        for tip in frame.fingertips {
             if enabled.contains(.nosePicking), distance(tip, face.nose) <= radius {
                 return DetectionResult(behavior: .nosePicking, point: tip)
             }
             if enabled.contains(.nailBiting), distance(tip, face.mouth) <= radius {
                 return DetectionResult(behavior: .nailBiting, point: tip)
             }
-            if enabled.contains(.hairPulling), isHairContact(tip, face: face, mask: frame.hairMask) {
+            if enabled.contains(.hairPulling), isHairContact(tip, face: face, mask: frame.segmentation) {
                 return DetectionResult(behavior: .hairPulling, point: tip)
             }
         }
@@ -54,10 +64,14 @@ public struct BFRBDetector {
     /// A fingertip counts as hair-pulling when it's above the forehead
     /// (excludes the face itself) AND lands on the person/hair silhouette.
     /// Prefers the segmentation mask; falls back to the geometric hair zone
-    /// when no mask is available (segmentation unsupported/failed).
-    private func isHairContact(_ p: CGPoint, face: FaceGeometry, mask: HairMask?) -> Bool {
+    /// when no mask is available — which post-cutover means either that
+    /// nobody requested `vision.segmentation.v1` or that the provider
+    /// published the empty "no person segmented" frame. Both read the same
+    /// way here, and both did before: an unavailable mask must not silently
+    /// disable hair-pulling detection.
+    private func isHairContact(_ p: CGPoint, face: FaceAnchors, mask: VCTSegmentationFrame?) -> Bool {
         guard p.y < face.box.minY else { return false }   // above the forehead (viewer space)
-        if let mask, mask.cols > 0 {
+        if let mask, mask.hasGrid {
             return mask.isPerson(atNormalized: p)                 // on the head/hair silhouette
         }
         return Self.hairZone(for: face.box).contains(p)           // graceful fallback (no mask)
