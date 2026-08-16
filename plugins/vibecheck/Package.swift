@@ -1,6 +1,12 @@
 // swift-tools-version: 6.0
 import PackageDescription
 
+// VCPluginSDK and its generated VCKStubs used to be targets of this package.
+// They now live in sdk/swift/VCPluginSDK/ and are shared by every Swift
+// plugin — see sdk/swift/README.md. This package therefore declares NO
+// grpc-swift / swift-nio / swift-protobuf requirement of its own: those are
+// declared once in the SDK and inherited, which is what keeps a second,
+// disagreeing Package.resolved from appearing.
 let package = Package(
   name: "vibecheck",
   platforms: [.macOS(.v15)],
@@ -8,48 +14,25 @@ let package = Package(
     .executable(name: "vibecheck", targets: ["vibecheck"]),
   ],
   dependencies: [
-    .package(url: "https://github.com/grpc/grpc-swift-2.git", from: "2.2.0"),
-    .package(url: "https://github.com/grpc/grpc-swift-protobuf.git", from: "2.1.1"),
-    .package(url: "https://github.com/grpc/grpc-swift-nio-transport.git", from: "2.3.1"),
-    .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.31.0"),
-    .package(url: "https://github.com/apple/swift-nio.git", from: "2.65.0"),
+    .package(path: "../../sdk/swift/VCPluginSDK"),
   ],
   targets: [
     .target(
-      name: "VCKStubs",
-      dependencies: [
-        .product(name: "GRPCCore", package: "grpc-swift-2"),
-        .product(name: "GRPCProtobuf", package: "grpc-swift-protobuf"),
-        .product(name: "SwiftProtobuf", package: "swift-protobuf"),
-      ],
-      path: "Sources/VCKStubs"
-    ),
-    .target(
-      name: "VCPluginSDK",
-      dependencies: [
-        "VCKStubs",
-        .product(name: "GRPCCore", package: "grpc-swift-2"),
-        .product(name: "GRPCNIOTransportHTTP2Posix", package: "grpc-swift-nio-transport"),
-        // For Google_Protobuf_Timestamp on plugin.v1.Event.ts.
-        .product(name: "SwiftProtobuf", package: "swift-protobuf"),
-        .product(name: "NIOCore", package: "swift-nio"),
-        .product(name: "NIOPosix", package: "swift-nio"),
-        .product(name: "NIOHTTP1", package: "swift-nio"),
-      ],
-      path: "Sources/VCPluginSDK"
-    ),
-    .target(
       name: "VibeCheckKit",
-      dependencies: ["VCPluginSDK"],
+      dependencies: [
+        .product(name: "VCPluginSDK", package: "VCPluginSDK"),
+      ],
       path: "Sources/VibeCheckKit"
     ),
     .executableTarget(
       name: "vibecheck",
-      dependencies: ["VCPluginSDK", "VibeCheckKit"],
+      dependencies: [
+        .product(name: "VCPluginSDK", package: "VCPluginSDK"),
+        "VibeCheckKit",
+      ],
       path: "Sources/vibecheck",
       resources: [.copy("ui")]
     ),
-    .testTarget(name: "VCPluginSDKTests", dependencies: ["VCPluginSDK"], path: "Tests/VCPluginSDKTests"),
     .testTarget(name: "VibeCheckKitTests", dependencies: ["VibeCheckKit"], path: "Tests/VibeCheckKitTests"),
   ]
 )
