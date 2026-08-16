@@ -239,6 +239,25 @@ public struct VCTFaceFrame: Sendable {
   /// Detector confidence, 0..1, for the face as a whole.
   public var confidence: Float = 0
 
+  /// How many points each region contributed to `points`, in exactly the
+  /// region order listed above. Sums to `points.size()`, so a consumer slices
+  /// a region as `points[sum(counts[0..i]) .. +counts[i]]` and never guesses.
+  ///
+  /// This field exists because guessing does not work. The counts are a
+  /// property of Apple's constellation, they differ between the 65- and
+  /// 76-point ones, and a consumer that hard-codes a table it believes matches
+  /// does not fail loudly — it indexes an eyebrow, calls it an eye, and
+  /// publishes a plausible number. That happened here: a consumer carrying its
+  /// own 76-entry table read `allPoints` through it for a full release before
+  /// anyone noticed the nose anchor was not on the nose.
+  ///
+  /// A region the model did not return takes 0 and simply has an empty range;
+  /// pupils routinely do. An EMPTY `region_point_counts` means the provider
+  /// could not determine the layout, and a consumer must then treat every
+  /// region-indexed value as unavailable rather than falling back to a table
+  /// of its own — that fallback IS the bug.
+  public var regionPointCounts: [UInt32] = []
+
   public var unknownFields = SwiftProtobuf.UnknownStorage()
 
   public init() {}
@@ -823,7 +842,7 @@ extension VCTHeader: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementation
 
 extension VCTFaceFrame: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementationBase, SwiftProtobuf._ProtoNameProviding {
   public static let protoMessageName: String = _protobuf_package + ".FaceFrame"
-  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}header\0\u{1}bounds\0\u{1}points\0\u{1}confidence\0")
+  public static let _protobuf_nameMap = SwiftProtobuf._NameMap(bytecode: "\0\u{1}header\0\u{1}bounds\0\u{1}points\0\u{1}confidence\0\u{3}region_point_counts\0")
 
   public mutating func decodeMessage<D: SwiftProtobuf.Decoder>(decoder: inout D) throws {
     while let fieldNumber = try decoder.nextFieldNumber() {
@@ -835,6 +854,7 @@ extension VCTFaceFrame: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
       case 2: try { try decoder.decodeSingularMessageField(value: &self._bounds) }()
       case 3: try { try decoder.decodeRepeatedMessageField(value: &self.points) }()
       case 4: try { try decoder.decodeSingularFloatField(value: &self.confidence) }()
+      case 5: try { try decoder.decodeRepeatedUInt32Field(value: &self.regionPointCounts) }()
       default: break
       }
     }
@@ -857,6 +877,9 @@ extension VCTFaceFrame: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     if self.confidence.bitPattern != 0 {
       try visitor.visitSingularFloatField(value: self.confidence, fieldNumber: 4)
     }
+    if !self.regionPointCounts.isEmpty {
+      try visitor.visitPackedUInt32Field(value: self.regionPointCounts, fieldNumber: 5)
+    }
     try unknownFields.traverse(visitor: &visitor)
   }
 
@@ -865,6 +888,7 @@ extension VCTFaceFrame: SwiftProtobuf.Message, SwiftProtobuf._MessageImplementat
     if lhs._bounds != rhs._bounds {return false}
     if lhs.points != rhs.points {return false}
     if lhs.confidence != rhs.confidence {return false}
+    if lhs.regionPointCounts != rhs.regionPointCounts {return false}
     if lhs.unknownFields != rhs.unknownFields {return false}
     return true
   }
