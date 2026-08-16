@@ -1,0 +1,14 @@
+id: blink-jump
+name: Blink Jump
+icon: eye.circle
+exec: ./dist/blink-jump
+# Subscribing is only half of it: vision runs a model when demand is non-zero
+# AND some live vision.request.v1 names the topic, so blink-jump MUST declare
+# vision.request.v1 under `publishes` and keep publishing one. Publishing an
+# undeclared topic is a logged error and a dropped message, which here would
+# silently mean "vision never runs the model I need".
+subscribes: [vision.signals.v1]
+publishes:  [vision.request.v1]
+ui: webview
+# No Info.plist, no -sectcreate, no codesign: blink-jump never opens a camera.
+build: just build-blink-jump-plugin

@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Blink Jump</title>
+    <!--
+      Two rules this page must keep:
+        * every URL relative — the plugin is mounted at /p/blink-jump/ and must
+          not know it;
+        * no localStorage, sessionStorage or cookies — all plugins share one
+          web origin in v1, and depending on browser storage is what would make
+          origin isolation expensive to add later. The high score and the
+          calibration live in $VIBECARE_DATA_DIR, reached over /api/*.
+
+      No external anything: no CDN, no font, no image. Everything is drawn.
+    -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f5f5f7;
+        --pane-bg: #ffffff;
+        --border: #d8d8dc;
+        --text: #1c1c1e;
+        --text-dim: #6b6b70;
+        --accent: #2f7ef7;
+        --good: #2aa76a;
+        --bad: #d9534f;
+        --track: #e6e6ea;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16161a;
+          --pane-bg: #1c1c1e;
+          --border: #38383c;
+          --text: #f2f2f3;
+          --text-dim: #9a9aa0;
+          --accent: #5c9dff;
+          --good: #43c98a;
+          --bad: #ff6b64;
+          --track: #2a2a2f;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+        padding: 16px;
+      }
+      .wrap { max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px; }
+      header { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+      h1 { font-size: 16px; margin: 0; letter-spacing: -0.01em; }
+      .sub { color: var(--text-dim); }
+      .pill {
+        margin-left: auto; font-size: 11px; padding: 3px 9px; border-radius: 999px;
+        border: 1px solid var(--border); color: var(--text-dim); white-space: nowrap;
+      }
+      .pill.live { color: var(--good); border-color: color-mix(in srgb, var(--good) 45%, transparent); }
+      .pill.warn { color: var(--bad); border-color: color-mix(in srgb, var(--bad) 45%, transparent); }
+
+      .stage-wrap {
+        position: relative; background: var(--pane-bg);
+        border: 1px solid var(--border); border-radius: 12px; overflow: hidden;
+      }
+      canvas { display: block; width: 100%; height: 300px; }
+      .overlay {
+        position: absolute; inset: 0; display: none;
+        align-items: center; justify-content: center; text-align: center;
+        background: color-mix(in srgb, var(--pane-bg) 78%, transparent);
+        backdrop-filter: blur(2px);
+      }
+      .overlay.show { display: flex; }
+      .overlay .card { padding: 16px 22px; }
+      .overlay h2 { margin: 0 0 6px; font-size: 20px; }
+      .overlay p { margin: 2px 0; color: var(--text-dim); }
+
+      .panel {
+        background: var(--pane-bg); border: 1px solid var(--border);
+        border-radius: 12px; padding: 14px 16px;
+      }
+      .meter-head { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+      .meter-head strong { font-size: 13px; font-weight: 600; }
+      .track {
+        position: relative; height: 26px; border-radius: 7px;
+        background: var(--track); overflow: hidden;
+      }
+      .fill { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--good); transition: width 60ms linear; }
+      .fill.shut { background: var(--accent); }
+      .fill.blind { background: var(--border); }
+      .mark { position: absolute; top: 0; bottom: 0; width: 2px; background: var(--text); opacity: 0.55; }
+      .mark.open { opacity: 0.28; }
+      .scale { display: flex; justify-content: space-between; color: var(--text-dim); font-size: 11px; margin-top: 4px; }
+      .readouts {
+        display: flex; gap: 18px; flex-wrap: wrap; margin-top: 10px;
+        font-variant-numeric: tabular-nums;
+      }
+      .readouts div span { color: var(--text-dim); }
+      .actions { display: flex; gap: 8px; align-items: center; margin-top: 12px; flex-wrap: wrap; }
+      button {
+        font: inherit; padding: 5px 12px; border-radius: 7px; cursor: pointer;
+        border: 1px solid var(--border); background: transparent; color: var(--text);
+      }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .note { color: var(--text-dim); font-size: 12px; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <h1>Blink Jump</h1>
+        <span class="sub">blink to jump &mdash; no camera of its own, just <code>vision.signals.v1</code></span>
+        <span class="pill" id="link">connecting&hellip;</span>
+      </header>
+
+      <div class="stage-wrap">
+        <canvas id="stage"></canvas>
+        <div class="overlay" id="overlay"><div class="card" id="overlay-card"></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="meter-head">
+          <strong>Calibration</strong>
+          <span class="sub" id="eye-state">no measurement</span>
+          <span class="pill" id="mode">blink control</span>
+        </div>
+        <div class="track">
+          <div class="fill" id="fill"></div>
+          <div class="mark" id="mark-close"></div>
+          <div class="mark open" id="mark-open"></div>
+        </div>
+        <div class="scale"><span>0.00</span><span>eye aspect ratio</span><span>0.45</span></div>
+        <div class="readouts">
+          <div><span>ear</span> <b id="r-ear">&mdash;</b></div>
+          <div><span>left</span> <b id="r-l">&mdash;</b></div>
+          <div><span>right</span> <b id="r-r">&mdash;</b></div>
+          <div><span>shut below</span> <b id="r-close">&mdash;</b></div>
+          <div><span>open above</span> <b id="r-open">&mdash;</b></div>
+          <div><span>blinks</span> <b id="r-blinks">0</b></div>
+        </div>
+        <div class="actions">
+          <button class="primary" id="calibrate">Calibrate</button>
+          <button id="looser">Easier</button>
+          <button id="tighter">Stricter</button>
+          <span class="note" id="cal-status">Sit as you normally would, eyes open, then hit Calibrate.</span>
+        </div>
+      </div>
+
+      <p class="note" id="note">&nbsp;</p>
+    </div>
+
+    <script>
+      (function () {
+        "use strict";
+
+        // ---------------------------------------------------------------
+        // Detector feed. `meter` is throttled by the plugin and may be
+        // dropped under load; `blink` never is — it is the input the game is
+        // played with.
+        // ---------------------------------------------------------------
+        var live = {
+          tracking: false, phase: "absent",
+          ear: null, earL: null, earR: null,
+          close: 0.2, open: 0.25, blinks: 0
+        };
+        var config = null;
+        var best = 0;
+        var connected = false;
+
+        var el = function (id) { return document.getElementById(id); };
+        var fmt = function (v) { return v === null || v === undefined ? "—" : v.toFixed(3); };
+
+        function applyMeter(m) {
+          live.tracking = !!m.tracking;
+          live.phase = m.phase;
+          // null means ABSENT — no measurement at all. Never render it as a
+          // shut eye: that is the difference between "pause, we lost you" and
+          // "jump forever".
+          live.ear = (typeof m.ear === "number") ? m.ear : null;
+          live.earL = (typeof m.earL === "number") ? m.earL : null;
+          live.earR = (typeof m.earR === "number") ? m.earR : null;
+          live.close = m.closeThreshold;
+          live.open = m.openThreshold;
+          live.blinks = m.blinks;
+          paintMeter();
+          if (collecting && live.ear !== null) calSamples.push(live.ear);
+        }
+
+        function paintMeter() {
+          var span = 0.45;
+          var fill = el("fill");
+          var pct = live.ear === null ? 0 : Math.max(0, Math.min(1, live.ear / span)) * 100;
+          fill.style.width = pct + "%";
+          fill.className = "fill" + (!live.tracking ? " blind" : (live.ear < live.close ? " shut" : ""));
+          el("mark-close").style.left = (live.close / span * 100) + "%";
+          el("mark-open").style.left = (live.open / span * 100) + "%";
+          el("r-ear").textContent = fmt(live.ear);
+          el("r-l").textContent = fmt(live.earL);
+          el("r-r").textContent = fmt(live.earR);
+          el("r-close").textContent = fmt(live.close);
+          el("r-open").textContent = fmt(live.open);
+          el("r-blinks").textContent = live.blinks;
+          el("eye-state").textContent =
+            !live.tracking ? "no measurement — the face model is not running"
+            : live.phase === "closed" ? "shut"
+            : live.phase === "held" ? "shut (resting — will not fire)"
+            : "open";
+        }
+
+        var es = null;
+        function connect() {
+          es = new EventSource("api/events");
+          es.addEventListener("meter", function (e) {
+            connected = true;
+            setLink();
+            applyMeter(JSON.parse(e.data));
+          });
+          es.addEventListener("blink", function (e) {
+            onBlink(JSON.parse(e.data));
+          });
+          es.onerror = function () {
+            // EventSource reconnects on its own; nothing to do but say so.
+            connected = false;
+            setLink();
+          };
+        }
+        // Closing the stream is what releases the camera: the plugin counts
+        // attached clients and retracts its vision.request.v1 when the last
+        // one goes. Browsers do this on unload anyway; being explicit means it
+        // happens promptly rather than whenever the socket is reaped.
+        window.addEventListener("pagehide", function () { if (es) es.close(); });
+
+        function setLink() {
+          var pill = el("link");
+          pill.textContent = connected ? "receiving signals" : "waiting for the vision plugin";
+          pill.className = "pill " + (connected ? "live" : "warn");
+        }
+
+        // ---------------------------------------------------------------
+        // State from /api/*
+        // ---------------------------------------------------------------
+        function refreshState() {
+          fetch("api/state").then(function (r) { return r.json(); }).then(function (s) {
+            config = s.config;
+            best = s.scores.highScore;
+            el("note").textContent = s.note;
+            // So the band is drawn correctly before the first meter frame —
+            // which may never arrive if nothing is publishing.
+            live.close = s.config.thresholds.close;
+            live.open = s.config.thresholds.close + s.config.thresholds.hysteresis;
+            paintMeter();
+          }).catch(function () { /* a poll that misses is a poll that retries */ });
+        }
+
+        function putConfig(next) {
+          return fetch("api/config", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(next)
+          }).then(function (r) {
+            if (!r.ok) throw new Error("config rejected");
+            return r.json();
+          }).then(function (saved) {
+            // The plugin clamps; take back what it actually stored so this
+            // page can never show a threshold the detector is not using.
+            config = saved;
+            live.close = saved.thresholds.close;
+            live.open = saved.thresholds.close + saved.thresholds.hysteresis;
+            paintMeter();
+            return saved;
+          });
+        }
+
+        function postScore(score, jumps) {
+          fetch("api/score", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ score: score, jumps: jumps })
+          }).then(function (r) { return r.json(); }).then(function (board) {
+            best = board.highScore;
+          }).catch(function () {});
+        }
+
+        // ---------------------------------------------------------------
+        // Calibration
+        // ---------------------------------------------------------------
+        var collecting = false;
+        var calSamples = [];
+
+        el("calibrate").onclick = function () {
+          if (collecting || !config) return;
+          collecting = true;
+          calSamples = [];
+          el("calibrate").disabled = true;
+          var left = 3;
+          el("cal-status").textContent = "Hold still with your eyes open… 3";
+          var tick = setInterval(function () {
+            left -= 1;
+            if (left > 0) { el("cal-status").textContent = "Hold still with your eyes open… " + left; return; }
+            clearInterval(tick);
+            collecting = false;
+            el("calibrate").disabled = false;
+            finishCalibration();
+          }, 1000);
+        };
+
+        function finishCalibration() {
+          if (calSamples.length < 10) {
+            el("cal-status").textContent = "Not enough measurements — is the vision plugin running?";
+            return;
+          }
+          var sorted = calSamples.slice().sort(function (a, b) { return a - b; });
+          var median = sorted[Math.floor(sorted.length / 2)];
+          var next = JSON.parse(JSON.stringify(config));
+          // 72% of a relaxed open eye is comfortably below any resting wobble
+          // and comfortably above a real blink's trough.
+          next.thresholds.close = Math.round(median * 0.72 * 1000) / 1000;
+          next.thresholds.hysteresis = Math.round(Math.max(0.02, Math.min(0.12, median * 0.18)) * 1000) / 1000;
+          next.baselineOpenEar = Math.round(median * 1000) / 1000;
+          // Seconds precision on purpose: the plugin accepts fractional
+          // seconds too, but the plain form is what its own files contain.
+          next.calibratedAt = new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
+          putConfig(next).then(function (saved) {
+            el("cal-status").textContent =
+              "Calibrated: open eye ≈ " + fmt(saved.baselineOpenEar) +
+              ", shut below " + fmt(saved.thresholds.close) + ".";
+          }).catch(function () {
+            el("cal-status").textContent = "Could not save the calibration.";
+          });
+        }
+
+        function nudgeThreshold(delta) {
+          if (!config) return;
+          var next = JSON.parse(JSON.stringify(config));
+          next.thresholds.close = Math.round((next.thresholds.close + delta) * 1000) / 1000;
+          putConfig(next).then(function (saved) {
+            el("cal-status").textContent = "Shut below " + fmt(saved.thresholds.close) + ".";
+          }).catch(function () {});
+        }
+        el("looser").onclick = function () { nudgeThreshold(+0.01); };
+        el("tighter").onclick = function () { nudgeThreshold(-0.01); };
+
+        // ---------------------------------------------------------------
+        // The game
+        // ---------------------------------------------------------------
+        var canvas = el("stage");
+        var ctx = canvas.getContext("2d");
+        var W = 0, H = 0;
+
+        function resize() {
+          var dpr = window.devicePixelRatio || 1;
+          var rect = canvas.getBoundingClientRect();
+          W = rect.width; H = rect.height;
+          canvas.width = Math.round(W * dpr);
+          canvas.height = Math.round(H * dpr);
+          ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        }
+        window.addEventListener("resize", resize);
+
+        var GRAVITY = 2400, JUMP_V = -700, PLAYER_X = 80, PW = 30, PH = 32;
+        var g = null;
+        var keyboardMode = false;
+
+        function groundY() { return H - 52; }
+
+        function newGame() {
+          g = {
+            t: 0, speed: 300, dist: 0, cleared: 0, score: 0, jumps: 0,
+            y: 0, vy: 0, onGround: true, buffered: 0,
+            obstacles: [], spawnIn: 320,
+            over: false, overAt: 0, submitted: false, flash: 0
+          };
+        }
+
+        function jump() {
+          if (!g || g.over) return;
+          if (!g.onGround) { g.buffered = 0.16; return; }
+          g.vy = JUMP_V;
+          g.onGround = false;
+          g.jumps += 1;
+        }
+
+        function onBlink(b) {
+          live.blinks = b.index;
+          el("r-blinks").textContent = b.index;
+          if (g && g.over) {
+            // A short grace so the blink that ended the run cannot instantly
+            // start the next one.
+            if (performance.now() - g.overAt > 1200) newGame();
+            return;
+          }
+          jump();
+        }
+
+        function paused() {
+          // Absent measurement pauses the world instead of ending the run —
+          // getting up for coffee is not a game over. Keyboard players opt out
+          // of this, since they were never being measured in the first place.
+          return !keyboardMode && !live.tracking;
+        }
+
+        function spawn() {
+          var tall = Math.random() < 0.32;
+          var wide = Math.random() < 0.22;
+          g.obstacles.push({
+            x: W + 20,
+            w: wide ? 42 : 22,
+            h: tall ? 54 : 34,
+            scored: false
+          });
+          // Scales with speed so the window to react stays roughly constant
+          // while the game still gets harder.
+          g.spawnIn = 230 + Math.random() * 200 + g.speed * 0.30;
+        }
+
+        function update(dt) {
+          if (!g || g.over || paused()) return;
+          g.t += dt;
+          g.speed = Math.min(660, 300 + g.t * 11);
+          var dx = g.speed * dt;
+          g.dist += dx;
+
+          if (g.buffered > 0) {
+            g.buffered -= dt;
+            if (g.onGround) { g.buffered = 0; jump(); }
+          }
+          if (!g.onGround) {
+            g.vy += GRAVITY * dt;
+            g.y += g.vy * dt;
+            if (g.y >= 0) { g.y = 0; g.vy = 0; g.onGround = true; }
+          }
+
+          g.spawnIn -= dx;
+          if (g.spawnIn <= 0) spawn();
+
+          // `g.y` is an offset from the ground line and is <= 0 in the air, so
+          // the clearance the collision cares about is simply -g.y.
+          var px0 = PLAYER_X + 5, px1 = PLAYER_X + PW - 5;
+          var clearance = -g.y;
+          for (var i = g.obstacles.length - 1; i >= 0; i--) {
+            var o = g.obstacles[i];
+            o.x -= dx;
+            if (!o.scored && o.x + o.w < PLAYER_X) { o.scored = true; g.cleared += 1; }
+            if (o.x + o.w < -60) { g.obstacles.splice(i, 1); continue; }
+            // A few forgiving pixels on every edge: a pixel-exact hitbox on a
+            // control with ~80 ms of detection latency is not a fair game.
+            if (px1 > o.x + 3 && px0 < o.x + o.w - 3 && clearance < o.h - 4) {
+              gameOver();
+            }
+          }
+          g.score = Math.floor(g.dist / 12) + g.cleared * 10;
+          if (g.flash > 0) g.flash -= dt;
+        }
+
+        function gameOver() {
+          g.over = true;
+          g.overAt = performance.now();
+          g.flash = 0.3;
+          if (!g.submitted) {
+            g.submitted = true;
+            postScore(g.score, g.jumps);
+            if (g.score > best) best = g.score;
+          }
+        }
+
+        // ---- drawing -------------------------------------------------
+        function css(name) {
+          return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+        }
+
+        function roundRect(x, y, w, h, r) {
+          ctx.beginPath();
+          ctx.moveTo(x + r, y);
+          ctx.arcTo(x + w, y, x + w, y + h, r);
+          ctx.arcTo(x + w, y + h, x, y + h, r);
+          ctx.arcTo(x, y + h, x, y, r);
+          ctx.arcTo(x, y, x + w, y, r);
+          ctx.closePath();
+        }
+
+        function draw() {
+          var text = css("--text"), dim = css("--text-dim"), accent = css("--accent"), pane = css("--pane-bg");
+          ctx.clearRect(0, 0, W, H);
+          var gy = groundY();
+
+          // Parallax hills.
+          ctx.fillStyle = dim;
+          ctx.globalAlpha = 0.16;
+          var off = g ? (g.dist * 0.18) % 260 : 0;
+          for (var hx = -off; hx < W + 260; hx += 260) {
+            ctx.beginPath();
+            ctx.moveTo(hx, gy);
+            ctx.quadraticCurveTo(hx + 65, gy - 78, hx + 130, gy);
+            ctx.closePath();
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+
+          // Ground.
+          ctx.strokeStyle = dim;
+          ctx.globalAlpha = 0.5;
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(0, gy + 0.5);
+          ctx.lineTo(W, gy + 0.5);
+          ctx.stroke();
+          var tickOff = g ? (g.dist % 48) : 0;
+          for (var tx = -tickOff; tx < W; tx += 48) {
+            ctx.beginPath();
+            ctx.moveTo(tx, gy + 8);
+            ctx.lineTo(tx + 18, gy + 8);
+            ctx.stroke();
+          }
+          ctx.globalAlpha = 1;
+
+          if (!g) return;
+
+          // Obstacles.
+          ctx.fillStyle = text;
+          ctx.globalAlpha = 0.82;
+          for (var i = 0; i < g.obstacles.length; i++) {
+            var o = g.obstacles[i];
+            roundRect(o.x, gy - o.h, o.w, o.h, 5);
+            ctx.fill();
+          }
+          ctx.globalAlpha = 1;
+
+          // The player, with an eye that shuts when yours does.
+          var py = gy - PH + g.y;
+          var squash = g.onGround ? 0 : Math.min(6, Math.abs(g.vy) / 140);
+          ctx.fillStyle = g.over ? css("--bad") : accent;
+          roundRect(PLAYER_X, py - squash * 0.5, PW, PH + squash, 9);
+          ctx.fill();
+
+          var shut = !live.tracking || live.phase === "closed" || live.phase === "held";
+          ctx.fillStyle = pane;
+          if (shut) {
+            ctx.fillRect(PLAYER_X + 16, py + 12, 9, 2.5);
+          } else {
+            ctx.beginPath();
+            ctx.arc(PLAYER_X + 20, py + 12, 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = text;
+            ctx.beginPath();
+            ctx.arc(PLAYER_X + 21.5, py + 12, 1.8, 0, Math.PI * 2);
+            ctx.fill();
+          }
+
+          // HUD.
+          ctx.fillStyle = text;
+          ctx.font = "600 15px -apple-system, system-ui, sans-serif";
+          ctx.textAlign = "left";
+          ctx.fillText(String(g.score), 14, 26);
+          ctx.fillStyle = dim;
+          ctx.font = "12px -apple-system, system-ui, sans-serif";
+          ctx.fillText("best " + best, 14, 44);
+          ctx.textAlign = "right";
+          ctx.fillText(g.jumps + " jumps", W - 14, 26);
+          ctx.textAlign = "left";
+        }
+
+        function showOverlay(html) {
+          var o = el("overlay");
+          if (!html) { o.className = "overlay"; return; }
+          el("overlay-card").innerHTML = html;
+          o.className = "overlay show";
+        }
+
+        function syncOverlay() {
+          if (!g) return;
+          if (g.over) {
+            showOverlay(
+              "<h2>Game over</h2>" +
+              "<p>score <b>" + g.score + "</b> &middot; best <b>" + best + "</b></p>" +
+              "<p>blink to play again, or press space</p>"
+            );
+          } else if (paused()) {
+            showOverlay(
+              "<h2>Looking for your face</h2>" +
+              "<p>No eye measurement is arriving, so the game is paused &mdash; " +
+              "an absent reading is not a shut eye.</p>" +
+              "<p>Press space to play with the keyboard instead.</p>"
+            );
+          } else {
+            showOverlay(null);
+          }
+        }
+
+        var lastFrame = 0;
+        function frame(now) {
+          if (!lastFrame) lastFrame = now;
+          // Clamped: a backgrounded tab resumes with a huge delta, which would
+          // teleport the player through an obstacle.
+          var dt = Math.min(0.05, (now - lastFrame) / 1000);
+          lastFrame = now;
+          update(dt);
+          draw();
+          syncOverlay();
+          requestAnimationFrame(frame);
+        }
+
+        // Keyboard is a labelled fallback, not the point: it is what makes the
+        // game debuggable with the vision plugin stopped.
+        window.addEventListener("keydown", function (e) {
+          if (e.code !== "Space" && e.key !== " ") return;
+          e.preventDefault();
+          if (!keyboardMode) {
+            keyboardMode = true;
+            el("mode").textContent = "keyboard fallback";
+            el("mode").className = "pill warn";
+          }
+          if (g && g.over) { if (performance.now() - g.overAt > 400) newGame(); return; }
+          jump();
+        });
+        // On the wrapper, not the canvas: the game-over and paused overlays sit
+        // on top of the canvas and would swallow the tap.
+        document.querySelector(".stage-wrap").addEventListener("pointerdown", function () {
+          if (g && g.over) { if (performance.now() - g.overAt > 400) newGame(); return; }
+          jump();
+        });
+
+        resize();
+        newGame();
+        paintMeter();
+        setLink();
+        connect();
+        refreshState();
+        setInterval(refreshState, 5000);
+        requestAnimationFrame(frame);
+      })();
+    </script>
+  </body>
+</html>
