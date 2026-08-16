@@ -67,10 +67,125 @@ jobs:
           path: backend-binary.tar
           retention-days: 1
 
+  # Just the client binary. Bundle creation, embedding and signing all moved
+  # to assemble-app: while this job also assembled the bundle it had to wait
+  # for the backend, which serialised three builds that share nothing but
+  # their output directory.
   build-macos-client:
     name: Build macOS Swift Client
     runs-on: macos-latest
-    needs: build-backend
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Swift client environment
+        uses: ./.github/actions/setup-swift-client
+
+      - name: Build Swift client
+        run: |
+          cd clients/macos-swift/VibeCare
+          swift build -c release --product VibeCare --jobs $(sysctl -n hw.ncpu)
+          cp .build/release/VibeCare ../../../vibecare-client
+          chmod +x ../../../vibecare-client
+
+      - name: Tar client binary (preserve permissions)
+        run: tar -cvf client-binary.tar vibecare-client
+
+      - name: Upload client binary artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: client-binary
+          path: client-binary.tar
+          retention-days: 1
+
+  # One job per plugin, in parallel. Plugins are where every feature actually
+  # lives, so a release without them installs cleanly and does nothing.
+  #
+  # The stack is declared per plugin rather than inferred, because the two
+  # differ in what they need and neither need is guessable from the directory:
+  #
+  #   * go    — needs protoc and a proto-gen run, not merely a Go toolchain.
+  #     backend/pkg/proto/ is generated and NOT committed, and plugins/todo
+  #     has `replace ... => ../../backend`, so its build reaches straight into
+  #     stubs that do not exist until setup-go-backend has run.
+  #   * swift — needs nothing but the runner's Xcode toolchain. These plugins'
+  #     stubs ARE committed (sdk/swift/VCPluginSDK/Sources/VCKStubs), so no
+  #     generation step applies.
+  #
+  # Adding a plugin means adding a row here. Forgetting to is caught at
+  # assembly, which fails when fewer plugins are embedded than the repo has
+  # manifests — silently shipping without one is the bug this all fixes.
+  build-plugin:
+    name: Build Plugin (${{ matrix.id }})
+    runs-on: macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { id: todo, stack: go }
+          - { id: vision, stack: swift }
+          - { id: vibecheck, stack: swift }
+          - { id: postures, stack: swift }
+          - { id: blink-jump, stack: swift }
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Go backend environment
+        if: matrix.stack == 'go'
+        uses: ./.github/actions/setup-go-backend
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      # Per-plugin SwiftPM cache. Deliberately not setup-swift-client, whose
+      # cache is keyed to the client's Package.resolved and would thrash
+      # against five unrelated dependency graphs.
+      - name: Cache SwiftPM build
+        if: matrix.stack == 'swift'
+        uses: actions/cache@v4
+        with:
+          path: |
+            plugins/${{ matrix.id }}/.build
+            ~/Library/Caches/org.swift.swiftpm
+          key: ${{ runner.os }}-plugin-${{ matrix.id }}-${{ hashFiles(format('plugins/{0}/Package.resolved', matrix.id)) }}
+          restore-keys: |
+            ${{ runner.os }}-plugin-${{ matrix.id }}-
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      # Via just, not inline: the Justfile is the single definition of every
+      # plugin's build, and some have subtleties that fail SILENTLY when
+      # guessed — vision's -sectcreate Info.plist and the signature that seals
+      # it, and the staged dist/ layout that stops codesign resolving a plugin
+      # directory as a flat bundle.
+      - name: Build plugin
+        run: just build-${{ matrix.id }}-plugin
+
+      # Ship the plugin directory minus its build tree. assemble-app extracts
+      # these and hands the result to embed-plugins.sh, so the per-plugin
+      # layout rules (dist/ as dist/, resource bundle beside the binary) stay
+      # defined in exactly one place rather than being re-encoded here.
+      - name: Tar plugin (preserve permissions)
+        run: tar -cvf plugin-${{ matrix.id }}.tar --exclude='.build' -C plugins ${{ matrix.id }}
+
+      - name: Upload plugin artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-${{ matrix.id }}
+          path: plugin-${{ matrix.id }}.tar
+          retention-days: 1
+
+  # Everything signed happens here, in one job with one certificate import,
+  # so the inside-out order is visible in a single file: plugins first, then
+  # the bundle. (The server arrives already signed from build-backend; the
+  # bundle's signature seals it rather than re-signing it.)
+  assemble-app:
+    name: Assemble and Sign App Bundle
+    runs-on: macos-latest
+    needs: [build-backend, build-macos-client, build-plugin]
 
     steps:
       - name: Checkout code
@@ -85,9 +200,6 @@ jobs:
           event-name: ${{ github.event_name }}
           manual-version: ${{ github.event.inputs.version }}
 
-      - name: Setup Swift client environment
-        uses: ./.github/actions/setup-swift-client
-
       - name: Import certificates
         id: certs
         uses: ./.github/actions/import-certificates
@@ -95,26 +207,33 @@ jobs:
           certificate-app-base64: ${{ secrets.APPLE_CERTIFICATE_APP_BASE64 }}
           certificate-password: ${{ secrets.APPLE_CERT_PASSWORD }}
 
-      - name: Build Swift client
-        run: |
-          cd clients/macos-swift/VibeCare
-          swift build -c release --product VibeCare --jobs $(sysctl -n hw.ncpu)
-          cp .build/release/VibeCare ../../../vibecare-client
-          chmod +x ../../../vibecare-client
+      - name: Download client binary
+        uses: actions/download-artifact@v4
+        with:
+          name: client-binary
+          path: .
+
+      - name: Download backend binary
+        uses: actions/download-artifact@v4
+        with:
+          name: backend-binary
+          path: .
+
+      - name: Download plugin artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: plugin-*
+          merge-multiple: true
+          path: plugin-tars
 
       - name: Create app bundle
         run: |
+          tar -xvf client-binary.tar
           ./.github/scripts/create-app-bundle.sh \
             "VibeCare" \
             "vibecare-client" \
             "${{ steps.version.outputs.version }}" \
             "io.vibecare.app"
-
-      - name: Download backend artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: backend-binary
-          path: .
 
       - name: Embed server + LaunchAgent into app bundle
         run: |
@@ -125,27 +244,29 @@ jobs:
           cp .github/scripts/io.vibecare.server.plist \
              VibeCare.app/Contents/Library/LaunchAgents/io.vibecare.server.plist
 
-      # Plugins are where every feature actually lives, so a release without
-      # them installs cleanly and does nothing. They ship inside the bundle
-      # beside the server, which finds them from its own path — no plugins
-      # directory has to be named in the LaunchAgent plist. See
-      # resolvePluginsDirs in backend/cmd/server/main.go.
-      - name: Install just
-        uses: extractions/setup-just@v3
+      # Into a clean directory, NOT over the checked-out plugins/. Extracting
+      # over the source tree would leave a failed plugin's manifest in place
+      # with no binary beside it, which is exactly the state the expected-count
+      # check below exists to catch.
+      - name: Unpack built plugins
+        run: |
+          mkdir -p built-plugins
+          for t in plugin-tars/*.tar; do
+            echo "unpacking $t"
+            tar -xf "$t" -C built-plugins
+          done
+          ls -la built-plugins
 
-      # Via just, not inline: the Justfile is the single definition of the
-      # per-plugin build, and two of them have subtleties that fail silently
-      # when guessed (vision's -sectcreate Info.plist and the signature that
-      # seals it, and the staged dist/ layout that keeps codesign from
-      # resolving a plugin directory as a flat bundle).
-      - name: Build plugins
-        run: just build-plugins
-
+      # Third argument is how many plugins the repo declares. Fewer embedded
+      # than that fails the release rather than shipping an app quietly
+      # missing a feature.
       - name: Embed plugins into app bundle
-        run: ./.github/scripts/embed-plugins.sh VibeCare.app
+        run: |
+          expected=$(ls -d plugins/*/manifest.yaml 2>/dev/null | wc -l | tr -d ' ')
+          ./.github/scripts/embed-plugins.sh VibeCare.app built-plugins "$expected"
 
-      # Inside-out: every plugin executable first, the app bundle last, so
-      # the bundle's signature seals children that are already valid.
+      # Inside-out: every plugin executable first, the app bundle last, so the
+      # bundle's signature seals children that are already valid.
       - name: Sign embedded plugins
         uses: ./.github/actions/sign-plugins
         with:
@@ -172,7 +293,7 @@ jobs:
   create-release:
     name: Create Release Package
     runs-on: macos-latest
-    needs: [build-backend, build-macos-client]
+    needs: [assemble-app]
     permissions:
       contents: write
 
