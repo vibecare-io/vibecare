@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Entitlements for plugins/vision, the one process that opens the camera.
+
+  Required because the release build signs plugins with the hardened runtime
+  (--options runtime), which denies camera access to a process that does not
+  hold com.apple.security.device.camera. It denies it silently, so the
+  symptom is "vision publishes no frames" rather than anything naming a
+  signature — which is why this file exists rather than the entitlement being
+  left to the app bundle's.
+
+  Separate from the TCC grant. That grant is keyed to the SPAWNING process
+  (vibecare-server), not to this binary, so nothing here re-prompts the user;
+  this only stops the runtime from refusing the capture the grant allows.
+
+  Picked up by .github/actions/sign-plugins purely by filename: <id>.entitlements.
+-->
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.device.camera</key>
+	<true/>
+</dict>
+</plist>

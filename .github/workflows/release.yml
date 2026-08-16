@@ -125,6 +125,33 @@ jobs:
           cp .github/scripts/io.vibecare.server.plist \
              VibeCare.app/Contents/Library/LaunchAgents/io.vibecare.server.plist
 
+      # Plugins are where every feature actually lives, so a release without
+      # them installs cleanly and does nothing. They ship inside the bundle
+      # beside the server, which finds them from its own path — no plugins
+      # directory has to be named in the LaunchAgent plist. See
+      # resolvePluginsDirs in backend/cmd/server/main.go.
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      # Via just, not inline: the Justfile is the single definition of the
+      # per-plugin build, and two of them have subtleties that fail silently
+      # when guessed (vision's -sectcreate Info.plist and the signature that
+      # seals it, and the staged dist/ layout that keeps codesign from
+      # resolving a plugin directory as a flat bundle).
+      - name: Build plugins
+        run: just build-plugins
+
+      - name: Embed plugins into app bundle
+        run: ./.github/scripts/embed-plugins.sh VibeCare.app
+
+      # Inside-out: every plugin executable first, the app bundle last, so
+      # the bundle's signature seals children that are already valid.
+      - name: Sign embedded plugins
+        uses: ./.github/actions/sign-plugins
+        with:
+          bundle-path: VibeCare.app
+          identity: ${{ steps.certs.outputs.app-identity }}
+
       - name: Sign app bundle
         uses: ./.github/actions/sign-app-bundle
         with:

@@ -27,12 +27,20 @@ runs:
 
         echo "Signing app bundle: $BUNDLE_PATH with identity: $IDENTITY"
 
-        # Sign the app bundle with hardened runtime, entitlements, and deep signing
+        # Sign the app bundle with hardened runtime and entitlements.
+        #
+        # No --deep, deliberately. Everything nested — the embedded server and
+        # every plugin executable — is signed before this step runs, so this
+        # signature only has to seal children that are already valid. --deep
+        # would re-sign all of them with THIS bundle's entitlements, which is
+        # wrong on both counts: it would grant five plugins the app's full
+        # entitlement set, and it would strip vision's camera entitlement,
+        # whose absence the hardened runtime punishes silently.
+        # (Apple deprecated --deep for signing for exactly this reason.)
         /usr/bin/codesign --force --sign "$IDENTITY" \
           --entitlements "$ENTITLEMENTS_PATH" \
           --options runtime \
           --timestamp \
-          --deep \
           --verbose \
           "$BUNDLE_PATH"
 

@@ -20,10 +20,19 @@ import (
 // absent: no ports. Every listener binds 127.0.0.1:0 and the kernel reports
 // what it got, so there is nothing to configure and nothing to collide with.
 type Config struct {
-	PluginsDir  string
-	DataRoot    string
-	SocketPath  string
-	SessionPath string
+	// PluginsDir is the writable plugins directory. It is created if absent
+	// and is the only one anything may install into.
+	PluginsDir string
+	// BundledPluginsDir is an optional read-only directory of plugins that
+	// shipped with the application — inside the .app bundle in a packaged
+	// build, empty in a source checkout. Never created and never written to:
+	// writing into a signed bundle breaks its signature. PluginsDir takes
+	// precedence, so a plugin installed there shadows the bundled copy of
+	// the same id and an update is never masked by what shipped.
+	BundledPluginsDir string
+	DataRoot          string
+	SocketPath        string
+	SessionPath       string
 	// LogsDir is where plugin output is persisted. Left empty, plugin
 	// output goes only to core's stderr, exactly as it did before.
 	LogsDir string
@@ -167,11 +176,17 @@ func (k *Kernel) Start(ctx context.Context) error {
 	// and restart" is the whole premise, and it is not an instruction anyone
 	// can follow if the directory they would drop it into does not exist.
 	// A fresh install has no plugins dir until something makes one.
+	//
+	// Only PluginsDir. BundledPluginsDir is read-only by definition and
+	// either already exists or the application bundle is broken — creating
+	// it would paper over that.
 	if err := os.MkdirAll(k.cfg.PluginsDir, 0o700); err != nil {
 		return fmt.Errorf("create plugins dir: %w", err)
 	}
 
-	manifests, err := Discover(k.cfg.PluginsDir, k.log)
+	// Precedence order, writable first: see DiscoverAll.
+	roots := []string{k.cfg.PluginsDir, k.cfg.BundledPluginsDir}
+	manifests, err := DiscoverAll(roots, k.log)
 	if err != nil {
 		return err
 	}
@@ -180,7 +195,9 @@ func (k *Kernel) Start(ctx context.Context) error {
 		k.bus.Declare(m.ID, m.Subscribes, m.Publishes)
 	}
 	k.log.Info("discovered plugins",
-		zap.String("dir", k.cfg.PluginsDir), zap.Int("count", len(manifests)))
+		zap.String("dir", k.cfg.PluginsDir),
+		zap.String("bundled_dir", k.cfg.BundledPluginsDir),
+		zap.Int("count", len(manifests)))
 
 	// Loopback HTTP: the proxy and the dashboard, both behind one auth
 	// check. /_core/* is matched first and is never proxied.

@@ -71,7 +71,8 @@ for the rationale.
   [the design](docs/superpowers/specs/2026-08-15-vision-provider-design.md)
 - Kernel: `backend/kernel/` — contains zero product semantics, enforced by `TestKernelContainsNoProductNouns`
 - Plugin state lives in `~/.vibecare/data/<id>/`; cross-plugin communication is bus topics only, never the filesystem
-- Default plugins directory: `~/.vibecare/plugins-v2/` in production; `just run` overrides it with `--plugins-dir ../plugins`, scanning this repo's own `plugins/` instead — deliberately not the v1 `~/.vibecare/plugins/` directory, whose manifests use ids the v2 regex rejects
+- Plugins are discovered from a **two-directory search path**, writable first: `~/.vibecare/plugins-v2/`, then any `plugins/` directory sitting beside the server binary — which in a packaged build is `VibeCare.app/Contents/Resources/plugins/`, where the release ships every first-party plugin. Same id in both, the writable one wins, so an installed plugin can supersede a shipped one. The bundled half is read-only on purpose: writing into a signed `.app` breaks its signature. See `resolvePluginsDirs` in `backend/cmd/server/main.go` and `kernel.DiscoverAll`.
+- `--plugins-dir` suppresses the bundled directory entirely; `just run` uses it to scan this repo's own `plugins/`. Deliberately not the v1 `~/.vibecare/plugins/` directory, whose manifests use ids the v2 regex rejects.
 
 ## Gotchas
 

@@ -1,0 +1,90 @@
+name: Sign Plugins
+description: Sign every plugin executable embedded in an app bundle, inside-out
+inputs:
+  bundle-path:
+    description: Path to the app bundle containing Contents/Resources/plugins
+    required: true
+  identity:
+    description: Signing identity (SHA-1 hash)
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Sign embedded plugin executables
+      shell: bash
+      env:
+        BUNDLE_PATH: ${{ inputs.bundle-path }}
+        IDENTITY: ${{ inputs.identity }}
+      run: |
+        set -euo pipefail
+
+        if [ -z "$IDENTITY" ]; then
+          echo "Error: No signing identity provided" >&2
+          exit 1
+        fi
+
+        PLUGINS="${BUNDLE_PATH}/Contents/Resources/plugins"
+        if [ ! -d "$PLUGINS" ]; then
+          echo "Error: no embedded plugins at $PLUGINS" >&2
+          echo "       embed-plugins.sh must run before this action." >&2
+          exit 1
+        fi
+
+        # Signing must go inside-out: each nested executable first, the app
+        # bundle last. The outer signature then seals children that are
+        # already valid. Done the other way round, re-signing the app
+        # invalidates nothing but leaves the plugins unsigned, and the
+        # bundle's own seal breaks the moment they are signed afterwards.
+        #
+        # Find real Mach-O executables rather than assuming paths: Go plugins
+        # keep their binary beside the manifest, Swift plugins stage theirs
+        # into dist/, and the SwiftPM .bundle directories beside them hold
+        # only resources and must NOT be signed as code.
+        #
+        # Deepest path first, so anything nested is signed before whatever
+        # contains it.
+        signed=0
+        while IFS= read -r bin; do
+          id="$(basename "$(dirname "$bin")")"
+          [ "$id" = "dist" ] && id="$(basename "$(dirname "$(dirname "$bin")")")"
+
+          # Per-plugin entitlements, by convention rather than a hard-coded
+          # list: drop <id>.entitlements in .github/scripts/plugin-entitlements/
+          # and it is picked up with no change here. vision needs
+          # com.apple.security.device.camera because the hardened runtime
+          # denies capture without it — and denies it silently, which reads
+          # as "the camera plugin is broken" rather than as a signing problem.
+          ents=".github/scripts/plugin-entitlements/${id}.entitlements"
+          entflags=()
+          if [ -f "$ents" ]; then
+            entflags=(--entitlements "$ents")
+            echo "  using entitlements $ents"
+          fi
+
+          echo "Signing plugin executable: $bin (plugin: $id)"
+          # No --deep: this signs one Mach-O file, deliberately. --deep on a
+          # plugin directory would try to treat it as a bundle, and for
+          # vision that is the failure mode documented in
+          # just build-vision-plugin — codesign resolves the directory as a
+          # flat bundle and AMFI SIGKILLs the process at spawn while
+          # `codesign --verify` still calls the file valid.
+          /usr/bin/codesign --force --sign "$IDENTITY" \
+            --options runtime \
+            --timestamp \
+            "${entflags[@]}" \
+            "$bin"
+
+          codesign --verify --strict --verbose=2 "$bin"
+          signed=$((signed + 1))
+        done < <(
+          find "$PLUGINS" -type f -perm -u+x -exec sh -c \
+            'file -b "$1" | grep -q "Mach-O" && echo "$1"' _ {} \; \
+          | awk -F/ '{print NF"\t"$0}' | sort -rn | cut -f2-
+        )
+
+        if [ "$signed" -eq 0 ]; then
+          echo "Error: found no plugin executables to sign under $PLUGINS" >&2
+          exit 1
+        fi
+
+        echo "✓ Signed $signed plugin executable(s)"

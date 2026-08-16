@@ -262,3 +262,90 @@ func TestDiscoverDoesNotWarnWhenPluginsExist(t *testing.T) {
 		t.Fatalf("got %d warn entries on a populated scan: %+v", n, logs.All())
 	}
 }
+
+// --- DiscoverAll: the two-root search path -------------------------------
+//
+// A packaged VibeCare ships its first-party plugins read-only inside the
+// application bundle while the user's own directory stays writable, so
+// discovery has to span both. These tests pin the precedence rule, because
+// getting it backwards means an installed update is silently ignored in
+// favour of the copy that shipped months ago.
+
+func TestDiscoverAllMergesRoots(t *testing.T) {
+	user, bundled := t.TempDir(), t.TempDir()
+	writePlugin(t, user, "zeta", "id: zeta\nname: Z\nexec: ./z\n")
+	writePlugin(t, bundled, "alpha", "id: alpha\nname: A\nexec: ./a\n")
+
+	got, err := DiscoverAll([]string{user, bundled}, zap.NewNop())
+	if err != nil {
+		t.Fatalf("DiscoverAll: %v", err)
+	}
+	if len(got) != 2 || got[0].ID != "alpha" || got[1].ID != "zeta" {
+		t.Fatalf("got %+v, want [alpha zeta] across both roots", got)
+	}
+}
+
+// The whole point of a writable directory beside a read-only bundle: an
+// installed copy must be able to supersede the one that shipped. Roots are
+// in precedence order, so the FIRST root claiming an id wins.
+func TestDiscoverAllEarlierRootShadowsLater(t *testing.T) {
+	user, bundled := t.TempDir(), t.TempDir()
+	writePlugin(t, user, "widget", "id: widget\nname: Updated\nexec: ./w\n")
+	writePlugin(t, bundled, "widget", "id: widget\nname: Shipped\nexec: ./w\n")
+
+	got, err := DiscoverAll([]string{user, bundled}, zap.NewNop())
+	if err != nil {
+		t.Fatalf("DiscoverAll: %v", err)
+	}
+	if len(got) != 1 {
+		t.Fatalf("shadowing must yield one plugin, got %+v", got)
+	}
+	if got[0].Name != "Updated" || got[0].Dir != filepath.Join(user, "widget") {
+		t.Fatalf("earlier root must win, got %+v", got[0])
+	}
+}
+
+// Shadowing is deliberate and expected; a duplicate id WITHIN one root is
+// still genuinely ambiguous and must stay a hard error.
+func TestDiscoverAllStillRejectsDuplicatesWithinARoot(t *testing.T) {
+	user := t.TempDir()
+	writePlugin(t, user, "one", "id: dup\nname: One\nexec: ./x\n")
+	writePlugin(t, user, "two", "id: dup\nname: Two\nexec: ./x\n")
+
+	if _, err := DiscoverAll([]string{user, t.TempDir()}, zap.NewNop()); err == nil {
+		t.Fatal("expected duplicate-id error within a single root")
+	}
+}
+
+// An empty root is the normal case for the bundled directory in a dev
+// checkout and for the user directory on a fresh install. Neither is an
+// error, and an empty string root is skipped entirely so callers can pass
+// "no bundled dir" without a branch.
+func TestDiscoverAllToleratesEmptyAndMissingRoots(t *testing.T) {
+	user := t.TempDir()
+	writePlugin(t, user, "widget", goodManifest)
+
+	got, err := DiscoverAll([]string{"", user, filepath.Join(t.TempDir(), "nope")}, zap.NewNop())
+	if err != nil || len(got) != 1 || got[0].ID != "widget" {
+		t.Fatalf("got %+v, %v", got, err)
+	}
+}
+
+// The "no plugins found" warning is the one that answers "why is my plugin
+// list empty" — with a search path it has to name every root that was
+// searched, or it sends the reader to the wrong directory.
+func TestDiscoverAllWarnsNamingEveryRoot(t *testing.T) {
+	user, bundled := t.TempDir(), t.TempDir()
+	core, logs := observer.New(zapcore.WarnLevel)
+
+	if _, err := DiscoverAll([]string{user, bundled}, zap.New(core)); err != nil {
+		t.Fatalf("DiscoverAll: %v", err)
+	}
+	if logs.Len() != 1 {
+		t.Fatalf("want exactly one warning, got %d", logs.Len())
+	}
+	msg := logs.All()[0].ContextMap()["dirs"]
+	if !strings.Contains(msg.(string), user) || !strings.Contains(msg.(string), bundled) {
+		t.Fatalf("warning must name both roots, got %v", msg)
+	}
+}

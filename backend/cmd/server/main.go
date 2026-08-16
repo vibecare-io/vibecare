@@ -88,6 +88,44 @@ func initLogger(levelFlag, formatFlag string) (*zap.Logger, error) {
 	return config.Build()
 }
 
+// resolvePluginsDirs decides where the kernel looks for plugins, returning
+// the writable directory and the optional read-only bundled one in that
+// precedence order.
+//
+// A packaged VibeCare ships its first-party plugins inside the application
+// bundle, at VibeCare.app/Contents/Resources/plugins/, beside this binary at
+// .../Resources/vibecare-server. Finding them from the binary's OWN path is
+// what keeps the install location out of the LaunchAgent plist: the cask is
+// free to move the .app, and nothing has to agree on an absolute path. The
+// bundle is read-only — writing into it would break the app's code
+// signature — so ~/.vibecare/plugins-v2 stays the writable half and takes
+// precedence, which is what lets an updated plugin supersede a shipped one.
+//
+// An explicit --plugins-dir suppresses the bundled directory entirely. `just
+// run` points it at this repo's plugins/, and a developer debugging one tree
+// should get that tree alone, not that tree merged with whatever a packaged
+// build left beside the binary.
+//
+// exeDir may be empty when os.Executable fails; that just means no bundled
+// directory. Refusing to start because an OPTIONAL directory could not be
+// located would be a worse failure than running without it.
+func resolvePluginsDirs(flagValue, exeDir, home string) (user, bundled string) {
+	if flagValue != "" {
+		return flagValue, ""
+	}
+	user = filepath.Join(home, ".vibecare", "plugins-v2")
+	if exeDir == "" {
+		return user, ""
+	}
+	// Must be a directory: a stray file named `plugins` beside the binary
+	// would otherwise be handed to discovery as a scan root and fail startup.
+	candidate := filepath.Join(exeDir, "plugins")
+	if fi, err := os.Stat(candidate); err == nil && fi.IsDir() {
+		return user, candidate
+	}
+	return user, ""
+}
+
 func main() {
 	var (
 		port          = flag.Int("port", 50051, "The gRPC server port")
@@ -99,7 +137,7 @@ func main() {
 		mcpProfileID  = flag.String("mcp-profile-id", "", "Profile ID for MCP server (required if --with-mcp is set)")
 		logLevel      = flag.String("log-level", "info", "Log level (debug, info, warn, error)")
 		logFormat     = flag.String("log-format", "console", "Log format (console, json)")
-		pluginsDir    = flag.String("plugins-dir", "", "Directory scanned for <id>/manifest.yaml plugins (default ~/.vibecare/plugins-v2)")
+		pluginsDir    = flag.String("plugins-dir", "", "Directory scanned for <id>/manifest.yaml plugins; suppresses the bundled directory (default ~/.vibecare/plugins-v2 plus any plugins/ beside this binary)")
 	)
 	flag.Parse()
 
@@ -202,13 +240,15 @@ func main() {
 
 	// Plugin kernel: discovers, launches, and supervises plugin subprocesses.
 	// Its HTTP origin and unix socket are independent of Core's gRPC and web
-	// ports — the kernel binds 127.0.0.1:0 for both. Default directory is
-	// ~/.vibecare/plugins-v2 unless --plugins-dir overrides it.
-	kernelPluginsDir := *pluginsDir
-	if kernelPluginsDir == "" {
-		kernelPluginsDir = filepath.Join(homeDir, ".vibecare", "plugins-v2")
+	// ports — the kernel binds 127.0.0.1:0 for both. Where it looks for
+	// plugins is resolvePluginsDirs' business.
+	exeDir := ""
+	if exe, err := os.Executable(); err == nil {
+		exeDir = filepath.Dir(exe)
 	}
-	kernelCfg := kernel.DefaultConfig(homeDir, kernelPluginsDir)
+	userPluginsDir, bundledPluginsDir := resolvePluginsDirs(*pluginsDir, exeDir, homeDir)
+	kernelCfg := kernel.DefaultConfig(homeDir, userPluginsDir)
+	kernelCfg.BundledPluginsDir = bundledPluginsDir
 	k, err := kernel.New(kernelCfg, logger)
 	if err != nil {
 		logger.Warn("Failed to create plugin kernel; continuing without it", zap.Error(err))

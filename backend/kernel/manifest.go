@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
 
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
@@ -101,6 +102,77 @@ func LoadManifest(path string) (Manifest, error) {
 // id is genuinely ambiguous rather than merely broken, and there is no
 // safe way to pick a winner.
 func Discover(root string, log *zap.Logger) ([]Manifest, error) {
+	out, err := scanRoot(root, log)
+	if err != nil {
+		return nil, err
+	}
+	// An empty scan is almost always the wrong directory rather than a
+	// deliberately empty one, and the symptom — a client that lists no
+	// plugins — looks identical either way. Say so at warn, naming the path,
+	// so the log answers the question instead of restating it.
+	if len(out) == 0 {
+		log.Warn("no plugins found; drop a <id>/manifest.yaml directory here and restart",
+			zap.String("dir", root))
+	}
+	return out, nil
+}
+
+// DiscoverAll scans several roots as one search path and returns the merged
+// set sorted by id. Roots are in PRECEDENCE ORDER: the first root claiming
+// an id wins, and later roots claiming it are shadowed.
+//
+// That rule is the whole reason this exists. A packaged VibeCare ships its
+// first-party plugins read-only inside the application bundle, where nothing
+// may write without breaking the app's code signature, while the user's own
+// ~/.vibecare/plugins-v2 stays writable. Passing the writable root first is
+// what lets an installed copy supersede the one that shipped; reversed, an
+// update would be silently ignored in favour of a months-old binary.
+//
+// Shadowing across roots is deliberate and expected, so it is logged at info
+// rather than refused. A duplicate id WITHIN a single root stays a hard
+// error — there, which plugin should win is genuinely ambiguous. Empty
+// strings are skipped, so a caller with no bundled directory passes "" and
+// needs no branch.
+func DiscoverAll(roots []string, log *zap.Logger) ([]Manifest, error) {
+	var out []Manifest
+	seen := map[string]string{} // id -> dir of the root that claimed it first
+	for _, root := range roots {
+		if root == "" {
+			continue
+		}
+		found, err := scanRoot(root, log)
+		if err != nil {
+			return nil, err
+		}
+		for _, m := range found {
+			if prev, dup := seen[m.ID]; dup {
+				log.Info("plugin shadowed by a higher-precedence copy",
+					zap.String("plugin", m.ID),
+					zap.String("using", prev),
+					zap.String("ignoring", m.Dir))
+				continue
+			}
+			seen[m.ID] = m.Dir
+			out = append(out, m)
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
+
+	// Same warning as Discover, and for the same reason — but it must name
+	// every root searched. Naming one of two sends the reader to look in the
+	// directory that was never the problem.
+	if len(out) == 0 {
+		log.Warn("no plugins found; drop a <id>/manifest.yaml directory here and restart",
+			zap.String("dirs", strings.Join(roots, ", ")))
+	}
+	return out, nil
+}
+
+// scanRoot is Discover's single-directory scan, without the empty-result
+// warning: with a search path, "this root is empty" is the normal case for
+// every root but one, and warning per root would bury the one message that
+// matters under noise.
+func scanRoot(root string, log *zap.Logger) ([]Manifest, error) {
 	entries, err := os.ReadDir(root)
 	if os.IsNotExist(err) {
 		return nil, nil
@@ -132,14 +204,5 @@ func Discover(root string, log *zap.Logger) ([]Manifest, error) {
 		out = append(out, m)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].ID < out[j].ID })
-
-	// An empty scan is almost always the wrong directory rather than a
-	// deliberately empty one, and the symptom — a client that lists no
-	// plugins — looks identical either way. Say so at warn, naming the path,
-	// so the log answers the question instead of restating it.
-	if len(out) == 0 {
-		log.Warn("no plugins found; drop a <id>/manifest.yaml directory here and restart",
-			zap.String("dir", root))
-	}
 	return out, nil
 }
