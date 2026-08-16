@@ -50,6 +50,18 @@ proto-gen-macos:
     @chmod +x scripts/generate_proto.sh
     @scripts/generate_proto.sh -t client-macos
 
+# Regenerates sdk/swift/VCPluginSDK/Sources/VCKStubs/ — the plugin↔core RPCs
+# and the topic payload messages every Swift plugin decodes. `just proto-gen`
+# covers this too; this is the narrow one to run while iterating on
+# proto/topics/v1/.
+#
+# Generate protobuf code for the Swift plugin SDK only
+[group('🧬 Protocol Buffers')]
+proto-gen-plugin-swift:
+    @echo "{{GREEN}}Generating protobuf code for the Swift plugin SDK...{{NC}}"
+    @chmod +x scripts/generate_proto.sh
+    @scripts/generate_proto.sh -t plugin-swift
+
 # Alias for generating all protobuf code
 [group('🧬 Protocol Buffers')]
 proto-gen-all: proto-gen
@@ -295,27 +307,19 @@ build-todo-plugin:
 [group('🧩 Plugins')]
 build-vibecheck-plugin:
     @echo "{{GREEN}}Building vibecheck plugin...{{NC}}"
-    cd plugins/vibecheck && swift build -c release \
-        -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist
-    # Sign BEFORE copying, and specifically in .build/release/. The signature
-    # lives inside the Mach-O, so the copy preserves it, and signing where no
-    # Info.plist sits beside the binary produces the same signature anyway
-    # (the __info_plist section is linked in above, so Identifier and
-    # Info.plist entries are identical).
-    codesign -f -s - plugins/vibecheck/.build/release/vibecheck
+    # No -sectcreate and no codesign here any more. The vision cutover
+    # (design §8.1) moved every capture call into plugins/vision, and this
+    # binary now imports neither AVFoundation nor Vision — so there is no
+    # camera prompt for an NSCameraUsageDescription to supply text for, and
+    # nothing for an ad-hoc signature to seal. `plugins/vision` carries both,
+    # and the TCC grant is keyed to core (the spawner) either way, so nothing
+    # re-prompts. The linker ad-hoc signs arm64 binaries on its own, which is
+    # all macOS requires of a plain Mach-O.
+    cd plugins/vibecheck && swift build -c release
     # Stage into plugins/vibecheck/dist/ — a directory that holds ONLY the
-    # binary and its resource bundle.
-    #
-    # NOT plugins/vibecheck/ itself. That directory contains Info.plist, and
-    # a directory holding an Info.plist beside an executable named after the
-    # directory IS a flat bundle to codesign. It then resolves the plugin
-    # root as a bundle and rejects the binary — "code has no resources but
-    # signature indicates they must be present" — which AMFI turns into a
-    # SIGKILL the instant core spawns it (`plugin state {"state":"down",
-    # "detail":"signal: killed"}`). That made `just run`, which points
-    # --plugins-dir at this very directory, unable to start vibecheck at all.
-    # dist/ holds no Info.plist and its name differs from the binary's, so
-    # the staged copy stays a plain Mach-O and verifies.
+    # binary and its resource bundle. KEPT, and still load-bearing: core
+    # spawns ./dist/vibecheck per the manifest, and install-plugins copies
+    # from here.
     rm -rf plugins/vibecheck/dist
     mkdir -p plugins/vibecheck/dist
     cp plugins/vibecheck/.build/release/vibecheck plugins/vibecheck/dist/vibecheck
@@ -326,6 +330,93 @@ build-vibecheck-plugin:
     # and GET /p/vibecheck/ serves a 500 with no UI.
     cp -R plugins/vibecheck/.build/release/vibecheck_vibecheck.bundle plugins/vibecheck/dist/
     @echo "{{GREEN}}✓ vibecheck plugin built: plugins/vibecheck/dist/vibecheck{{NC}}"
+
+# Build the vision plugin — the one process that opens the camera. Same
+# treatment as vibecheck and for the same reasons, which are worth repeating
+# because getting either half wrong fails silently:
+#
+#   * -sectcreate embeds Info.plist into the Mach-O so macOS has an
+#     NSCameraUsageDescription to show. A bare binary has no bundle and would
+#     otherwise get no prompt text at all.
+#   * codesign is REQUIRED, not cleanup: the section is inert until a
+#     signature seals it, and the binary has no CFBundleIdentifier until then
+#     either. Ad-hoc (`-s -`) is enough — the TCC grant is keyed to the
+#     SPAWNING process (vibecare-server), not to this binary, so the grant
+#     survives rebuilds and needs no certificate from a contributor.
+#
+# Because the grant follows the spawner, moving capture out of vibecheck into
+# this plugin does not re-prompt and does not invalidate anything.
+#
+# Build the vision camera-provider plugin (embeds + seals Info.plist)
+[group('🧩 Plugins')]
+build-vision-plugin:
+    @echo "{{GREEN}}Building vision plugin...{{NC}}"
+    cd plugins/vision && swift build -c release \
+        -Xlinker -sectcreate -Xlinker __TEXT -Xlinker __info_plist -Xlinker Info.plist
+    # Sign BEFORE copying, and specifically in .build/release/. The signature
+    # lives inside the Mach-O so the copy preserves it, and signing where no
+    # Info.plist sits beside the binary produces the same signature anyway.
+    codesign -f -s - plugins/vision/.build/release/vision
+    # Stage into plugins/vision/dist/ — a directory that holds ONLY the binary
+    # and its resource bundle.
+    #
+    # NOT plugins/vision/ itself. That directory contains Info.plist, and a
+    # directory holding an Info.plist beside an executable named after the
+    # directory IS a flat bundle to codesign. It then resolves the plugin root
+    # as a bundle and rejects the binary — "code has no resources but
+    # signature indicates they must be present" — which AMFI turns into a
+    # SIGKILL the instant core spawns it (`plugin state {"state":"down",
+    # "detail":"signal: killed"}`), while `codesign --verify` still calls the
+    # file valid. dist/ holds no Info.plist and its name differs from the
+    # binary's, so the staged copy stays a plain Mach-O and verifies.
+    rm -rf plugins/vision/dist
+    mkdir -p plugins/vision/dist
+    cp plugins/vision/.build/release/vision plugins/vision/dist/vision
+    # The UI is a SwiftPM resource of the VisionAPI target (declared
+    # `resources: [.copy("ui")]`), so it ships as a .bundle directory that
+    # must sit NEXT TO the binary — the only place a resource lookup finds it
+    # in a real install. Note the name is vision_VisionAPI, not
+    # vision_vision: it is <package>_<target>, and the ui/ lives in VisionAPI.
+    cp -R plugins/vision/.build/release/vision_VisionAPI.bundle plugins/vision/dist/
+    @echo "{{GREEN}}✓ vision plugin built: plugins/vision/dist/vision{{NC}}"
+
+# Build the postures plugin. Swift, but a pure consumer: it reads body pose
+# off the bus and never opens a camera, so there is no Info.plist to embed and
+# nothing for a signature to seal. It still stages into dist/ so its
+# `exec: ./dist/postures` resolves the same way in the repo and in
+# ~/.vibecare/plugins-v2/, and so install-plugins takes the same branch for
+# every Swift plugin.
+#
+# Build the postures plugin (a bus consumer — no camera)
+[group('🧩 Plugins')]
+build-postures-plugin:
+    @echo "{{GREEN}}Building postures plugin...{{NC}}"
+    cd plugins/postures && swift build -c release
+    rm -rf plugins/postures/dist
+    mkdir -p plugins/postures/dist
+    cp plugins/postures/.build/release/postures plugins/postures/dist/postures
+    # The resource bundle must sit next to the binary — see
+    # build-vibecheck-plugin. Copy the binary alone and GET /p/postures/
+    # serves a 500 with no UI.
+    cp -R plugins/postures/.build/release/postures_postures.bundle plugins/postures/dist/
+    @echo "{{GREEN}}✓ postures plugin built: plugins/postures/dist/postures{{NC}}"
+
+# Build the blink-jump plugin. Same shape as postures: a pure consumer of
+# vision.signals.v1, no camera, no Info.plist, no signature.
+#
+# Build the blink-jump plugin (a bus consumer — no camera)
+[group('🧩 Plugins')]
+build-blink-jump-plugin:
+    @echo "{{GREEN}}Building blink-jump plugin...{{NC}}"
+    cd plugins/blink-jump && swift build -c release
+    rm -rf plugins/blink-jump/dist
+    mkdir -p plugins/blink-jump/dist
+    cp plugins/blink-jump/.build/release/blink-jump plugins/blink-jump/dist/blink-jump
+    # SwiftPM sanitises the module name to blink_jump but keeps the hyphen in
+    # the product and in the resource bundle, so this really is
+    # blink-jump_blink-jump.bundle.
+    cp -R plugins/blink-jump/.build/release/blink-jump_blink-jump.bundle plugins/blink-jump/dist/
+    @echo "{{GREEN}}✓ blink-jump plugin built: plugins/blink-jump/dist/blink-jump{{NC}}"
 
 # Copies each built plugin into the directory core scans by default
 # (~/.vibecare/plugins-v2/<id>/), so an installed VibeCare finds them with
@@ -410,8 +501,12 @@ build-plugins-dev:
     @echo "{{GREEN}}✓ Plugins built with live reload{{NC}}"
 
 # Build every plugin binary into its own directory.
+#
+# vision goes first: it is the camera provider every other Swift plugin here
+# consumes, so a failure in it is the one worth seeing before the rest of the
+# output scrolls past.
 [group('🧩 Plugins')]
-build-plugins: build-todo-plugin build-vibecheck-plugin
+build-plugins: build-todo-plugin build-vision-plugin build-vibecheck-plugin build-postures-plugin build-blink-jump-plugin
     @echo "{{GREEN}}✓ All plugins built{{NC}}"
 
 # Picks a profile, builds vibecare-mcp-server, bakes it into the io.vibecare.mcp service
@@ -831,12 +926,19 @@ test:
     cd {{cli_dir}} && go test ./...
     cd {{cli_dir}} && go test -tags dev ./...
     cd plugins/todo && go test -v ./...
-    # vibecheck is Swift: `swift test` covers VCPluginSDK, and `go test`
+    # The Swift plugin SDK is its own package now (sdk/swift/VCPluginSDK), so
+    # its tests no longer ride along with vibecheck's — run them explicitly or
+    # VCPluginSDKTests silently stops running for everyone.
+    cd sdk/swift/VCPluginSDK && swift test
+    # vibecheck is Swift: `swift test` covers VibeCheckKit, and `go test`
     # drives the built binary against a real kernel and a scripted core.
     # The Go side builds the Swift binary itself, so it is slow on a cold
     # cache — that is the price of testing the actual two-process loop.
     cd plugins/vibecheck && swift test
     cd plugins/vibecheck && go test ./...
+    cd plugins/vision && swift test
+    cd plugins/postures && swift test
+    cd plugins/blink-jump && swift test
 
 # Run tests with coverage
 [group('🧪 Testing')]

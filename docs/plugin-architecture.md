@@ -236,7 +236,7 @@ relatively — a plugin cannot know the port core assigned it, so a relative pat
 can honestly send.
 
 **Sending one.** Both SDKs carry a typed builder for this exact shape — `vc.Appearance` (Go,
-`backend/pkg/vc`) and `VCAlertAppearance` (Swift, `plugins/vibecheck/Sources/VCPluginSDK`) — so you
+`backend/pkg/vc`) and `VCAlertAppearance` (Swift, `sdk/swift/VCPluginSDK`) — so you
 never hand-roll the string:
 
 ```go
@@ -293,7 +293,7 @@ Neither side can import the other's type, so those bytes are pinned as literals 
 `clients/macos-swift/VibeCare/VibeCareTests/PluginAlertAppearanceTests.swift`. That pair **is** the
 cross-language contract: rename or retype a field on either side and exactly one of them goes red.
 Without them, drift shows up only as the user silently getting a plain banner again, every test
-still green. `plugins/vibecheck/Sources/VibeCheckKit/DetectionEngine.swift` (`fired`) is the live
+still green. `plugins/vibecheck/Sources/VibeCheckKit/HostSink.swift` (`fired`) is the live
 example — it sends an appearance on every detection alert, not only customized ones, so the
 out-of-the-box alert is the good-looking one rather than a hidden setting.
 
@@ -364,9 +364,12 @@ plugins/<id>/
   dist/<binary>        # staged build output — see the flat-bundle rule above
 ```
 
-The Go SDK is `backend/pkg/vc`; `vc.Connect()` is the whole entry point. There is no shared Swift
-SDK — `vibecheck` carries its own under `Sources/VCPluginSDK/`, which is the reference if you write
-another Swift plugin.
+The Go SDK is `backend/pkg/vc`; `vc.Connect()` is the whole entry point. The Swift SDK is
+`sdk/swift/VCPluginSDK`, a standalone SwiftPM package that every Swift plugin here takes as a
+local path dependency — `VCHost.connect()` is its entry point. It used to live inside `vibecheck`;
+the second copy that grew alongside it is how two disagreeing `Package.resolved` files appeared in
+this tree, which is why it is shared now. `plugins/todo/` (Go) and `plugins/vibecheck/` (Swift) are
+the references if you write another one.
 
 Build and install:
 
