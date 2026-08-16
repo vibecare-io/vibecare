@@ -41,16 +41,17 @@ var (
 )
 
 // buildVibeCheckOnce compiles the Swift plugin exactly once per test binary.
-// The -sectcreate flags embed Info.plist so macOS has an
-// NSCameraUsageDescription to show; without them a bare binary gets no
-// camera prompt at all. They are carried here (rather than left to the
-// Justfile) so the artifact under test is the same Mach-O shape that ships.
+//
+// Plain `swift build`, with no -sectcreate: the vision cutover (design §8.1)
+// moved every capture call out of this plugin, so there is no camera prompt
+// for an embedded NSCameraUsageDescription to supply text for. The flags are
+// mirrored from `just build-vibecheck-plugin` deliberately — the artifact
+// under test must be the same Mach-O shape that ships — so if that recipe
+// ever grows a link flag again, this must too.
 func buildVibeCheckOnce(t *testing.T) string {
 	t.Helper()
 	buildOnce.Do(func() {
-		cmd := exec.Command("swift", "build", "-c", "release",
-			"-Xlinker", "-sectcreate", "-Xlinker", "__TEXT",
-			"-Xlinker", "__info_plist", "-Xlinker", "Info.plist")
+		cmd := exec.Command("swift", "build", "-c", "release")
 		cmd.Dir = "."
 		if out, err := cmd.CombinedOutput(); err != nil {
 			buildErr = err
@@ -240,13 +241,20 @@ func TestPluginServesUIAndAPIThroughTheProxy(t *testing.T) {
 	// the Task 6 placeholder page it replaced — both carry that identical
 	// title (a ninth can't-fail guard, caught when Task 16's implementer
 	// tried to consume this contract). Two-sided instead: require a
-	// structural marker unique to the real UI (`id="preview-off"`, the
-	// element `index.html`'s own JS toggles when the live preview is off)
-	// AND require the placeholder's distinctive string to be absent — so
-	// neither a stale/pre-Task-16 bundle nor some future gutted page can
-	// slip through either half alone.
-	if !bytes.Contains(body, []byte(`id="preview-off"`)) {
-		t.Fatalf("body is missing id=\"preview-off\" — not the real vibecheck UI: %.300s", body)
+	// structural marker unique to the real UI AND require the placeholder's
+	// distinctive string to be absent — so neither a stale bundle nor some
+	// future gutted page can slip through either half alone.
+	//
+	// The marker used to be `id="preview-off"`, the element the page toggled
+	// when the live preview was off. The vision cutover deleted the preview
+	// pane from this plugin entirely — the design's §7 puts the one preview
+	// in vision's tab, because a detector cannot embed
+	// `/p/vision/preview.mjpeg` without an absolute cross-plugin URL and the
+	// plugin HTTP contract forbids those. `id="detection-status"` is the
+	// equivalent structural marker on the page that replaced it: the row
+	// carrying the on/off state, which is what this tab is now about.
+	if !bytes.Contains(body, []byte(`id="detection-status"`)) {
+		t.Fatalf("body is missing id=\"detection-status\" — not the real vibecheck UI: %.300s", body)
 	}
 	if bytes.Contains(body, []byte("arrives in Task")) {
 		t.Fatalf("body still contains the Task 6 placeholder's text: %.300s", body)
@@ -454,11 +462,20 @@ func TestConfigClampsOutOfRangeValues(t *testing.T) {
 	}
 }
 
-// `permission` must always be reported — even before the camera has ever
-// been asked to start — so the UI (or a future TUI client) can explain
-// itself ("off by choice" vs. "asked and refused") without a special case
-// for "never asked yet".
-func TestStateReportsPermissionAndConfig(t *testing.T) {
+// The state readout must always explain WHY nothing is being detected,
+// even before anything has been detected — so the UI (or a future TUI
+// client) can tell "off by choice" apart from "waiting on the provider"
+// without a special case for "nothing has happened yet".
+//
+// This used to assert on `permission`. The vision cutover removed that
+// field rather than leaving one that can only lie: this process no longer
+// opens a capture session, so any camera-permission value it reported would
+// be an invention. What replaced it is the bus-side equivalent —
+// `vision.requiredTopics` (what this plugin has asked the provider to run)
+// with `joined` (how many complete same-`seq` sets have actually arrived).
+// `requiredTopics` non-empty with `joined == 0` is precisely the "asked and
+// got nothing" case the old `permission` field existed to name.
+func TestStateReportsVisionIntakeAndConfig(t *testing.T) {
 	client, base, _, _ := liveKernel(t)
 	resp, err := client.Get(base + "/p/vibecheck/api/state")
 	if err != nil {
@@ -466,14 +483,28 @@ func TestStateReportsPermissionAndConfig(t *testing.T) {
 	}
 	defer resp.Body.Close()
 	var s struct {
-		Running    bool   `json:"running"`
-		Permission string `json:"permission"`
+		Running bool `json:"running"`
+		Vision  *struct {
+			RequiredTopics []string `json:"requiredTopics"`
+			// A pointer so "absent" and "zero" are distinguishable: a
+			// missing counter must fail this test, and `0` is the correct
+			// and expected value on a freshly booted plugin that has
+			// received no frames.
+			Joined  *int `json:"joined"`
+			Skipped *int `json:"skipped"`
+		} `json:"vision"`
 	}
 	if err := json.NewDecoder(resp.Body).Decode(&s); err != nil {
 		t.Fatal(err)
 	}
-	if s.Permission == "" {
-		t.Fatal("permission must always be reported so the UI can explain itself")
+	if s.Vision == nil {
+		t.Fatal("state must report the vision intake so the UI can explain itself")
+	}
+	if s.Vision.RequiredTopics == nil {
+		t.Fatal("requiredTopics must always be reported, even when empty")
+	}
+	if s.Vision.Joined == nil || s.Vision.Skipped == nil {
+		t.Fatalf("joined/skipped must always be reported: %+v", s.Vision)
 	}
 }
 
@@ -603,129 +634,22 @@ func TestIconRouteServesTheBundledIcons(t *testing.T) {
 	}
 }
 
-// Required assertion for Task 14 (PreviewStream/JPEGEncoder): the proxy
-// must genuinely STREAM /preview.mjpeg, not buffer it until the response
-// completes — which for this endpoint never happens at all, since the
-// multipart response is intentionally never-ending. A single boundary
-// marker would pass even if proxy.go's `FlushInterval: -1` were deleted
-// and the whole thing only flushed once at close; at least two markers,
-// observed while the read loop below has NOT yet seen EOF, is the only
-// assertion that actually tells "streaming" apart from
-// "buffered-then-sent-once". See proxy.go's own comment for why
-// FlushInterval: -1 is there at all.
+// `/preview.mjpeg` used to live here, and `TestPreviewStreamsThroughTheProxy`
+// used to assert that core's proxy genuinely STREAMED it rather than
+// buffering it until the response completed. Both are gone with the camera.
 //
-// Route wiring note: `/preview.mjpeg` itself is registered by Task 15's
-// main.swift (this plugin's route table, per the plan, lists it as
-// "Task 14" only in the sense that PreviewStream — the type this test's
-// sibling Swift suite exercises directly — is what Task 14 delivers).
-// Task 15 wires the route (`registerVibeCheckRoutes` -> `preview.attach`),
-// so the t.Skip that gated this on Task 15 landing is gone.
+// The design's §7 gives this tree exactly one preview, in the vision plugin's
+// tab: a detector cannot embed `/p/vision/preview.mjpeg` without an absolute
+// cross-plugin URL, and the plugin HTTP contract forbids those because a
+// plugin must not know where it is mounted. This plugin no longer registers
+// the route, so the test could only have asserted a 404.
 //
-// Deviation from the brief's literal Step 5 claim ("Task 15 deletes the
-// t.Skip line...the assertion body needs no further changes"): the camera
-// is gated on `config.enabled` alone, deliberately and repeatedly
-// documented that way throughout DetectionEngine.swift/CameraSession.swift
-// ("a fresh install with detection off must never trigger the TCC
-// camera-permission prompt") — a URL fetch must not be what turns the
-// camera on behind a user's back. `PreviewStream.publish` is only ever
-// called from `DetectionEngine.didOutput`, which the camera never invokes
-// unless `apply(enabled: true)` has run. So a PUT enabling detection is
-// added here as test SETUP (not a weakening of the assertion that follows,
-// which is unchanged): without it, `liveKernel`'s freshly-booted plugin
-// (default config: `enabled: false`) attaches a writer to an idle
-// `PreviewStream` that never receives a single frame, and the test fails
-// with 0 boundary markers for a reason that has nothing to do with
-// streaming — confirmed by first running this test unmodified against the
-// real Task 15 wiring and observing exactly that failure.
-func TestPreviewStreamsThroughTheProxy(t *testing.T) {
-	client, base, _, _ := liveKernel(t)
-
-	putBody := `{"enabled":true,"sensitivity":0.5,"dwell":0.15,"cooldown":5,"enabledBehaviors":["nailBiting","nosePicking","hairPulling"]}`
-	putReq, err := http.NewRequest("PUT", base+"/p/vibecheck/api/config", strings.NewReader(putBody))
-	if err != nil {
-		t.Fatal(err)
-	}
-	putReq.Header.Set("Content-Type", "application/json")
-	putResp, err := client.Do(putReq)
-	if err != nil {
-		t.Fatal(err)
-	}
-	putResp.Body.Close()
-	if putResp.StatusCode != http.StatusOK {
-		t.Fatalf("enabling detection: got %d, want 200", putResp.StatusCode)
-	}
-
-	req, err := http.NewRequest("GET", base+"/p/vibecheck/preview.mjpeg", nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := client.Do(req)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		t.Fatalf("code = %d body = %.200s", resp.StatusCode, body)
-	}
-	ct := resp.Header.Get("Content-Type")
-	if !strings.Contains(ct, "multipart/x-mixed-replace") || !strings.Contains(ct, "boundary=vcframe") {
-		t.Fatalf("Content-Type = %q, want multipart/x-mixed-replace with boundary=vcframe", ct)
-	}
-
-	// Read continuously in the background so the main loop below can poll
-	// what has arrived so far without itself blocking on Read — the
-	// response is 5s+ from ever hitting EOF if streaming is actually
-	// working, so a single blocking Read is not an option here.
-	//
-	// `eofSeen` is the fix that makes "still open" a real assertion rather
-	// than an unchecked comment: a buffered-then-closed response delivers
-	// everything in one shot, so a version of this loop that only checked
-	// `count >= 2` would pass for exactly the failure mode this test
-	// exists to exclude — the read goroutine would already be past EOF by
-	// the time the main loop's first 50ms poll observed the two markers.
-	// Requiring `count >= 2 && !eofSeen` closes that: the two markers must
-	// have been observed BEFORE the body ended, not merely before the
-	// deadline.
-	var mu sync.Mutex
-	var received bytes.Buffer
-	eofSeen := false
-	go func() {
-		buf := make([]byte, 4096)
-		for {
-			n, err := resp.Body.Read(buf)
-			if n > 0 {
-				mu.Lock()
-				received.Write(buf[:n])
-				mu.Unlock()
-			}
-			if err != nil {
-				mu.Lock()
-				eofSeen = true
-				mu.Unlock()
-				return
-			}
-		}
-	}()
-
-	deadline := time.Now().Add(5 * time.Second)
-	for time.Now().Before(deadline) {
-		mu.Lock()
-		count := bytes.Count(received.Bytes(), []byte("--vcframe"))
-		ended := eofSeen
-		body := received.String()
-		mu.Unlock()
-
-		if count >= 2 && !ended {
-			return // PASS: two-plus frames arrived, and the body was not yet closed.
-		}
-		if ended {
-			t.Fatalf("response body ended before two boundary markers arrived while still open (count=%d): %.300s", count, body)
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	mu.Lock()
-	defer mu.Unlock()
-	t.Fatalf("only %d boundary markers arrived within 5s (want >= 2, still open); got %.300s",
-		bytes.Count(received.Bytes(), []byte("--vcframe")), received.String())
-}
+// The property it protected is NOT lost, and is in fact asserted more sharply
+// where it belongs — `backend/kernel/proxy_test.go`'s
+// `TestProxyStreamsWithoutBuffering`. That one drives the proxy directly with
+// `image/jpeg` and a fully known `Content-Length`, which is the one streaming
+// shape Go's `ReverseProxy` does NOT auto-flush and therefore the only shape
+// that actually depends on `proxy.go` setting `FlushInterval: -1`. The test
+// deleted here used a never-ending multipart body, which the stdlib flushes on
+// its own regardless. Re-homing it into a vision e2e would additionally
+// require a real camera and a TCC grant to produce a second frame.

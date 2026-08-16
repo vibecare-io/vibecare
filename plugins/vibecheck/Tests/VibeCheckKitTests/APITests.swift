@@ -1,5 +1,7 @@
 import Testing
+import CoreGraphics
 import Foundation
+import VCKStubs
 import VCPluginSDK
 @testable import VibeCheckKit
 
@@ -12,12 +14,13 @@ import VCPluginSDK
 // wired to real, temp-directory-backed stores. What they do NOT prove is
 // that NIO's real HTTP framing, or the kernel proxy, deliver those same
 // bytes end to end — that is `e2e_test.go`'s job, against the actual built
-// binary. Neither test the camera or Vision: every fixture below uses
-// `enabled: false`, deliberately, because a body with `enabled: true`
-// reaching the `/api/config` PUT handler would call `DetectionEngine.apply`
-// -> `camera.start()` -> real `AVFoundation`/TCC — undesirable and
-// non-deterministic inside `swift test`, which (unlike the built binary
-// `e2e_test.go` compiles) carries no `NSCameraUsageDescription`.
+// binary.
+//
+// The fixtures below finally use `enabled: true` where a detecting user
+// would. Before the vision cutover every one of them had to say `false`,
+// because `enabled: true` reaching the `/api/config` PUT handler called
+// `DetectionEngine.apply` -> `camera.start()` -> real AVFoundation/TCC
+// inside `swift test`. Nothing here opens a camera any more.
 
 // MARK: - Fixtures
 
@@ -61,7 +64,7 @@ private struct Fixture {
     let config: ConfigStore
     let prefs: AlertPrefsStore
     let counts: CountsStore
-    let preview = PreviewStream()
+    let joiner = VisionFrameJoiner()
     let snooze: SnoozeGate
     let sink: HostSink
     let engine: DetectionEngine
@@ -74,11 +77,7 @@ private struct Fixture {
     /// `SnoozeGate()` for `sink` while wiring a different one to the
     /// routes — the fixture still worked (both gates started fresh and
     /// unsnoozed), but it meant nothing here could ever have caught a
-    /// `main.swift` regression that passed the wrong gate to one side,
-    /// because `snoozeRouteSuppressesTheNextAlertButNotTheDetectionBroadcast`
-    /// below is the only test that exercises the gate at all, and it would
-    /// have silently tested two independent, always-unsnoozed gates
-    /// instead of one shared, genuinely-snoozed one.
+    /// `main.swift` regression that passed the wrong gate to one side.
     static func make() async throws -> Fixture {
         let dir = try tempDir()
         let config = try ConfigStore(directory: dir)
@@ -90,10 +89,18 @@ private struct Fixture {
         let f = Fixture(config: config, prefs: prefs, counts: counts, snooze: snooze, sink: sink, engine: engine)
         await registerVibeCheckRoutes(
             router: f.router, engine: f.engine, config: f.config, prefs: f.prefs,
-            preview: f.preview, sink: f.sink, snooze: f.snooze,
+            joiner: f.joiner, sink: f.sink, snooze: f.snooze,
             loadIcon: { id in id == "nail-biting" ? Data("<svg/>".utf8) : nil }
         )
         return f
+    }
+
+    /// Puts the engine into the state a detecting user is in, without going
+    /// through the PUT handler.
+    func enableDetection() async {
+        var c = VibeCheckConfig.default
+        c.enabled = true
+        await engine.apply(c)
     }
 
     init(config: ConfigStore, prefs: AlertPrefsStore, counts: CountsStore, snooze: SnoozeGate,
@@ -113,13 +120,10 @@ private actor SpyAlertHost: AlertHost {
     func publish(topic: String, payload: Data) async throws {}
 }
 
-private func nosePickingHit() -> LandmarkFrame {
-    LandmarkFrame(
-        hand: HandGeometry(fingertips: [CGPoint(x: 0.5, y: 0.5)]),
-        face: FaceGeometry(box: CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4),
-                            nose: CGPoint(x: 0.5, y: 0.5),
-                            mouth: CGPoint(x: 0.5, y: 0.62))
-    )
+private func nosePickingHit() -> VisionFrame {
+    Fixtures.frame(box: CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4),
+                   nose: CGPoint(x: 0.5, y: 0.5), mouth: CGPoint(x: 0.5, y: 0.62),
+                   fingertips: [CGPoint(x: 0.5, y: 0.5)])
 }
 
 private func request(_ method: String, _ path: String, query: [String: String] = [:], body: Data = Data()) -> VCRequest {
@@ -128,7 +132,12 @@ private func request(_ method: String, _ path: String, query: [String: String] =
 
 // MARK: - /api/state
 
-@Test func stateAlwaysReportsAPermissionString() async throws {
+@Test func stateReportsWhatThePluginIsAskingVisionFor() async throws {
+    // `permission` is gone with the camera it described. What replaces it is
+    // the thing that is actually true here and cannot be learned any other
+    // way: which topics we asked the provider for, and whether frames are
+    // arriving. A non-empty `requiredTopics` with `joined == 0` is the one
+    // failure mode that is otherwise indistinguishable from a broken bus.
     let f = try await Fixture.make()
     let handler = try #require(await f.router.route("/api/state"))
     let writer = RecordingWriter()
@@ -136,8 +145,23 @@ private func request(_ method: String, _ path: String, query: [String: String] =
 
     #expect(await writer.status == 200)
     let decoded = try JSONDecoder().decode(EngineSnapshot.self, from: await writer.body)
-    #expect(decoded.permission.isEmpty == false)
     #expect(decoded.running == false)
+    #expect(decoded.vision.requiredTopics.isEmpty)
+    #expect(decoded.vision.joined == 0)
+}
+
+@Test func stateReadsTheRequiredTopicsFromTheJoinerNotFromItsOwnConfigMirror() async throws {
+    // Two answers to one question is the bug this composition avoids: the
+    // joiner holds the subscription rule, so the readout has to come from
+    // there rather than being re-derived from the engine's cached config.
+    let f = try await Fixture.make()
+    await f.joiner.setRequired([.face, .hands])
+
+    let handler = try #require(await f.router.route("/api/state"))
+    let writer = RecordingWriter()
+    try await handler(request("GET", "/api/state"), writer)
+    let decoded = try JSONDecoder().decode(EngineSnapshot.self, from: await writer.body)
+    #expect(decoded.vision.requiredTopics == ["vision.face.v1", "vision.hands.v1"])
 }
 
 // MARK: - /api/config
@@ -154,7 +178,7 @@ private func request(_ method: String, _ path: String, query: [String: String] =
     let f = try await Fixture.make()
     let putHandler = try #require(await f.router.route("/api/config"))
     let body = """
-    {"enabled":false,"sensitivity":5.0,"dwell":0.15,"cooldown":900,"enabledBehaviors":[]}
+    {"enabled":true,"sensitivity":5.0,"dwell":0.15,"cooldown":900,"enabledBehaviors":[]}
     """
     try await putHandler(request("PUT", "/api/config", body: Data(body.utf8)), RecordingWriter())
 
@@ -166,12 +190,10 @@ private func request(_ method: String, _ path: String, query: [String: String] =
     #expect(decoded.cooldown == 30)
 
     // Also confirms "apply live": the engine's own cached snapshot reflects
-    // the same clamped values, not just what's on disk. `apply` now runs in
-    // a DETACHED Task (fixed after review: an inline `await engine.apply`
-    // here would block the HTTP response on a TCC prompt whenever
-    // `enabled` transitions to `true` — see API.swift's comment), so this
-    // polls for a bounded window instead of asserting immediately after the
-    // handler returns, which raced the detached Task's scheduling.
+    // the same clamped values, not just what's on disk. `apply` runs in a
+    // DETACHED Task (see API.swift's comment), so this polls for a bounded
+    // window instead of asserting immediately after the handler returns,
+    // which raced the detached Task's scheduling.
     let deadline = ContinuousClock.now + .seconds(2)
     while ContinuousClock.now < deadline {
         if await f.engine.snapshot().config.sensitivity == 1.0 { break }
@@ -194,9 +216,7 @@ private func request(_ method: String, _ path: String, query: [String: String] =
 @Test(arguments: ["GET", "POST"])
 func disableAcceptsBothGetAndPostAndTurnsDetectionOff(method: String) async throws {
     let f = try await Fixture.make()
-    // Seed as enabled so there is something to observe turning off. Applying
-    // this directly (not through the camera-touching PUT handler) keeps this
-    // test off real AVFoundation entirely.
+    // Seed as enabled so there is something to observe turning off.
     var c = VibeCheckConfig.default
     c.enabled = true
     try await f.config.save(c)
@@ -224,13 +244,12 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
 
 // The behavior snooze exists for: hitting the route must actually suppress
 // the next alert, not merely flip a gate nothing downstream reads. This is
-// the test the fixture's earlier two-`SnoozeGate` bug (review finding #3)
-// would have sailed straight through — `Fixture.make()` now wires exactly
-// one `SnoozeGate` to both `sink` and the routes (see its doc comment), and
-// this is what actually exercises that being true rather than merely
-// asserting it in a comment.
+// the test the fixture's earlier two-`SnoozeGate` bug would have sailed
+// straight through — `Fixture.make()` wires exactly one `SnoozeGate` to both
+// `sink` and the routes.
 @Test func snoozeRouteSuppressesTheNextAlertButNotTheDetectionBroadcast() async throws {
     let f = try await Fixture.make()
+    await f.enableDetection()
     let spyHost = SpyAlertHost()
     await f.sink.attach(host: spyHost)
 
@@ -245,11 +264,8 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
     await f.engine.ingestForTesting(hit, at: 0.2)   // dwell (0.15) satisfied -> fires
 
     // Still broadcast to SSE: snoozing suppresses the popup, not the fact
-    // that a detection happened. Bounded (not a bare `await iterator.next()`
-    // — that shape was review finding B, a same-round regression of the
-    // hang-instead-of-fail anti-pattern finding 5 had just removed from
-    // HostSinkTests.swift): a snooze or fan-out regression here now fails
-    // fast instead of hanging `swift test` forever.
+    // that a detection happened. Bounded, so a snooze or fan-out regression
+    // fails fast instead of hanging `swift test` forever.
     let received = try await withTimeout { await firstDetectionEvent(from: stream) }
     #expect(received?.behavior == .nosePicking)
 
@@ -300,17 +316,19 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
     #expect(decoded["nailBiting"]?.title == "Custom title")
 }
 
-// MARK: - /preview.mjpeg
+// MARK: - Routes the vision cutover removed
+//
+// `/preview.mjpeg` and the `frame` SSE event are gone: there is one preview
+// and it lives in the vision plugin's tab, because a detector cannot embed
+// `/p/vision/preview.mjpeg` without an absolute cross-plugin URL and the
+// plugin HTTP contract requires every URL to be relative (design §7).
+// Asserting their ABSENCE is worth a test — a stale route left behind would
+// serve an eternally-empty multipart stream, which looks like a hung camera
+// rather than like a removed feature.
 
-@Test func previewRouteAttachesToThePreviewStream() async throws {
+@Test func thePreviewRouteIsGone() async throws {
     let f = try await Fixture.make()
-    let handler = try #require(await f.router.route("/preview.mjpeg"))
-    let writer = RecordingWriter()
-    try await handler(request("GET", "/preview.mjpeg"), writer)
-
-    #expect(await writer.status == 200)
-    #expect(await writer.headers["Content-Type"] == "multipart/x-mixed-replace; boundary=vcframe")
-    #expect(await f.preview.writerCount == 1)
+    #expect(await f.router.route("/preview.mjpeg") == nil)
 }
 
 // MARK: - /icons/<id>.svg
@@ -335,23 +353,14 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
 
 // MARK: - /api/events (SSE)
 //
-// The handler blocks for the connection's lifetime (it iterates a merged
-// stream of `engine.frames()` and `sink.events()` directly, unlike
-// `/preview.mjpeg`'s attach-and-return — see the task report for why those
-// two streaming routes differ). To test it without hanging the test suite,
-// this drives one frame and one detection event through, then makes the
+// The handler blocks for the connection's lifetime. To test it without
+// hanging the suite, this drives one detection through, then makes the
 // writer's next `write` throw (simulating the client disconnecting) so the
-// handler's internal task group observes the failure and returns instead of
-// running forever.
+// handler returns instead of running forever.
 
-@Test func eventsStreamsBothFrameAndDetectionEventsThenExitsOnWriteFailure() async throws {
+@Test func eventsStreamsDetectionsThenExitsOnWriteFailure() async throws {
     let f = try await Fixture.make()
-    // Enabled behaviors must include nosePicking for the fixture hit below
-    // to reach the sink — apply() with enabled:false never touches the
-    // camera, so this stays off real AVFoundation.
-    var c = VibeCheckConfig.default
-    c.enabled = false
-    await f.engine.apply(c)
+    await f.enableDetection()
 
     let handler = try #require(await f.router.route("/api/events"))
     let writer = RecordingWriter()
@@ -360,114 +369,36 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
         try? await handler(request("GET", "/api/events"), writer)
     }
 
-    // Give the handler a moment to attach its subscriptions, then push a
-    // frame (always published) and a confirmed detection (dwell satisfied
-    // across two ingests) through the SAME engine/sink the route captured.
+    // Give the handler a moment to attach its subscription, then push a
+    // confirmed detection (dwell satisfied across two ingests) through the
+    // SAME engine/sink the route captured.
     try await Task.sleep(for: .milliseconds(50))
-    let hit = LandmarkFrame(
-        hand: HandGeometry(fingertips: [CGPoint(x: 0.5, y: 0.5)]),
-        face: FaceGeometry(box: CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4),
-                            nose: CGPoint(x: 0.5, y: 0.5),
-                            mouth: CGPoint(x: 0.5, y: 0.62))
-    )
+    let hit = nosePickingHit()
     await f.engine.ingestForTesting(hit, at: 0)
     await f.engine.ingestForTesting(hit, at: 0.2)
 
-    // Poll briefly for both event kinds to land, then force a write failure
-    // so the handler's task group unwinds instead of streaming forever.
     let deadline = ContinuousClock.now + .seconds(3)
     while ContinuousClock.now < deadline {
-        let body = await writer.body
-        if body.contains(Data("event: frame".utf8)), body.contains(Data("event: detection".utf8)) {
-            break
-        }
+        if await writer.body.contains(Data("event: detection".utf8)) { break }
         try await Task.sleep(for: .milliseconds(20))
     }
     let body = String(decoding: await writer.body, as: UTF8.self)
-    #expect(body.contains("event: frame\n"))
     #expect(body.contains("event: detection\n"))
     #expect(body.contains("\"behavior\":\"nosePicking\""))
+    // The frame feed moved to the vision tab along with the preview it drew
+    // on; nothing on this stream may carry landmarks any more.
+    #expect(body.contains("event: frame") == false)
 
     await writer.setFailNextWrite(true)
-    // Any further frame publish will now hit the failing write and end the
-    // handler. `ingestForTesting` also republishes a frame each call.
+    // A second detection (past the 5s default cooldown) now hits the failing
+    // write and ends the handler.
     await f.engine.ingestForTesting(hit, at: 10)
+    await f.engine.ingestForTesting(hit, at: 10.2)
 
     // The handler task must complete (not hang) once its write fails.
     try await withTimeout(seconds: 3) {
         _ = await handlerTask.value
     }
-}
-
-// `HairMask` is 3072 booleans, recomputed every frame — encoding it as a
-// naive JSON bool array would run ~15KB/frame through the SSE stream and
-// the kernel proxy. `FrameEventDTO`/`HairMaskDTO` pack it as bits (base64
-// of 384 packed bytes) instead. This test PINS that wire encoding: the
-// expected base64 string below was computed independently, via a
-// standalone `python3 -c` one-liner (packing the same 8 cells MSB-first,
-// row-major), NOT by re-deriving `HairMaskDTO`'s own packing formula — so
-// if a future edit changes the bit order or byte layout without updating
-// both sides, this fails instead of quietly agreeing with itself.
-@Test func frameEventsIncludeThePackedHairMask() async throws {
-    let f = try await Fixture.make()
-    var c = VibeCheckConfig.default
-    c.enabled = false   // stays off real AVFoundation
-    await f.engine.apply(c)
-
-    let handler = try #require(await f.router.route("/api/events"))
-    let writer = RecordingWriter()
-    let handlerTask = Task {
-        try? await handler(request("GET", "/api/events"), writer)
-    }
-    try await Task.sleep(for: .milliseconds(50))
-
-    // cells = [T,T,T,F,F,F,F,F] packed MSB-first row-major into one byte:
-    // 0xE0 -> base64 "4A==" (verified independently: `python3 -c
-    // "print(__import__('base64').b64encode(bytes([0xE0])))"` -> b'4A==').
-    // Deliberately NOT a bit-reversal-symmetric pattern (an earlier draft's
-    // fixture — [T,F,T,F,F,T,F,T] — happened to pack to the identical byte
-    // under BOTH MSB-first and LSB-first bit order, so a mutation flipping
-    // the bit direction silently passed; caught by actually mutating
-    // `HairMaskDTO`'s packing and re-running before settling on this one).
-    let mask = HairMask(cols: 4, rows: 2, cells: [true, true, true, false, false, false, false, false])
-    let frame = LandmarkFrame(
-        hand: HandGeometry(fingertips: [CGPoint(x: 0.5, y: 0.5)]),
-        face: FaceGeometry(box: CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4),
-                            nose: CGPoint(x: 0.5, y: 0.5),
-                            mouth: CGPoint(x: 0.5, y: 0.62)),
-        hairMask: mask
-    )
-    await f.engine.ingestForTesting(frame, at: 0)
-
-    struct HairMaskWire: Decodable { var cols: Int; var rows: Int; var bits: String }
-    struct FrameWire: Decodable { var hairMask: HairMaskWire? }
-
-    var found: HairMaskWire?
-    let deadline = ContinuousClock.now + .seconds(3)
-    while ContinuousClock.now < deadline {
-        let body = String(decoding: await writer.body, as: UTF8.self)
-        if let line = body.split(separator: "\n", omittingEmptySubsequences: false)
-            .first(where: { $0.hasPrefix("data: ") && $0.contains("\"hairMask\"") }) {
-            let jsonText = String(line.dropFirst("data: ".count))
-            if let data = jsonText.data(using: .utf8),
-               let decoded = try? JSONDecoder().decode(FrameWire.self, from: data) {
-                found = decoded.hairMask
-                break
-            }
-        }
-        try await Task.sleep(for: .milliseconds(20))
-    }
-
-    await writer.setFailNextWrite(true)
-    await f.engine.ingestForTesting(frame, at: 10)
-    try await withTimeout(seconds: 3) {
-        _ = await handlerTask.value
-    }
-
-    let wire = try #require(found, "no frame event carrying a hairMask arrived within 3s")
-    #expect(wire.cols == 4)
-    #expect(wire.rows == 2)
-    #expect(wire.bits == "4A==")
 }
 
 /// Reads the first element off a `HostSink.events()` stream, for use inside
@@ -476,7 +407,7 @@ func snoozeAcceptsBothGetAndPostAndSetsADeadline(method: String) async throws {
 /// without capturing a mutable local var across the concurrency boundary.
 /// Same shape as `HostSinkTests.swift`'s own `firstEvent(from:)` —
 /// duplicated rather than shared because Swift's file-private access means
-/// the two test targets' files can't see each other's `private` helpers.
+/// the two files can't see each other's `private` helpers.
 private func firstDetectionEvent(from stream: AsyncStream<DetectionBroadcast>) async -> DetectionBroadcast? {
     for await value in stream { return value }
     return nil

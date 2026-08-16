@@ -20,25 +20,32 @@ private struct NoopSink: DetectionSink {
     func fired(_ event: BFRBEvent, count: Int, behavior: BFRBBehavior) async {}
 }
 
+/// Records what the engine asks the request publisher for, without the
+/// publisher (or a bus) existing.
+private actor SpyDemand: VisionDemandSink {
+    private(set) var configs: [VibeCheckConfig] = []
+    func configChanged(_ config: VibeCheckConfig) async {
+        configs.append(config)
+    }
+    var topics: [Set<VisionTopic>] { configs.map(VisionRequest.topics(for:)) }
+}
+
 /// Builds a `DetectionEngine` backed by real (temp-directory) stores, with an
 /// initial config already applied. Returns the backing directory too, so a
 /// test can point a FRESH `CountsStore` at it afterward and assert what
 /// actually landed on disk — see `firesThroughTheSinkWithAPostIncrementCount`.
 ///
-/// Deviates from the task brief's literal `let engine = try makeTestEngine()`
-/// (unawaited): `DetectionEngine.init` deliberately does NOT read `ConfigStore`
-/// itself (see `DetectionEngine.start()`'s doc comment — only an explicit
-/// `start()`/`apply(_:)` call loads/applies config, so a test never
-/// accidentally starts a real camera), so seeding `sensitivity`/
-/// `enabledBehaviors` for a test requires an `await engine.apply(...)` call
-/// after construction. `apply(_:)` is an actor-isolated `async` method, so
-/// that call cannot be hidden inside a non-async helper — the same shape as
-/// `DetectionPolicyTests.swift`'s documented deviation from its own brief,
-/// where the verbatim-preserved implementation didn't typecheck against the
-/// brief's literal (unawaited) example.
+/// `enabled: true` throughout, which the pre-cutover version of this helper
+/// could not do: `apply(enabled: true)` used to call `camera.start()` and hit
+/// real AVFoundation/TCC inside `swift test`. Nothing here opens a camera any
+/// more — the engine's only reaction to `enabled` is recomputing what it asks
+/// the vision provider for — so the tests can finally use the config a real
+/// detecting user has, which is what `processFrame`'s `cachedConfig.enabled`
+/// guard requires them to use.
 private func makeTestEngine(
     enabledBehaviors: Set<BFRBBehavior> = Set(BFRBBehavior.allCases),
-    sensitivity: Double = 0.5
+    sensitivity: Double = 0.5,
+    enabled: Bool = true
 ) async throws -> (engine: DetectionEngine, dir: URL) {
     let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
@@ -47,6 +54,7 @@ private func makeTestEngine(
     let engine = DetectionEngine(config: config, counts: counts, sink: NoopSink())
 
     var c = VibeCheckConfig.default
+    c.enabled = enabled
     c.sensitivity = sensitivity
     c.enabledBehaviors = enabledBehaviors.map(\.rawValue)
     await engine.apply(c)
@@ -54,19 +62,18 @@ private func makeTestEngine(
 }
 
 // Face box in VIEWER space: top edge at y=0.3, bottom at y=0.7. Nose (0.5, 0.5).
-private func face() -> FaceGeometry {
-    FaceGeometry(box: CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4),
-                 nose: CGPoint(x: 0.5, y: 0.5),
-                 mouth: CGPoint(x: 0.5, y: 0.62))
+private let faceBox = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4)
+
+private func hit() -> VisionFrame {
+    Fixtures.frame(box: faceBox, nose: CGPoint(x: 0.5, y: 0.5), mouth: CGPoint(x: 0.5, y: 0.62),
+                   fingertips: [CGPoint(x: 0.5, y: 0.5)])
 }
 
 // MARK: - Tests
 //
 // These exercise ONLY the detect -> policy -> sink path via
-// `ingestForTesting`, which skips the camera and Vision entirely. That is
-// deliberate and is the honest limit of what can be unit-tested here — see
-// the task report for what this suite does NOT cover (the camera, Vision,
-// and the `didOutput` concurrency argument).
+// `ingestForTesting`, which skips the bus entirely. The join that produces a
+// `VisionFrame` in production has its own suite (`VisionIntakeTests`).
 
 @Test func firesThroughTheSinkWithAPostIncrementCount() async throws {
     // The client's notifier asserted the count is post-increment — the first
@@ -75,10 +82,8 @@ private func face() -> FaceGeometry {
     let sink = SpySink()
     await engine.setSink(sink)
 
-    let hit = LandmarkFrame(hand: HandGeometry(fingertips: [CGPoint(x: 0.5, y: 0.5)]),
-                            face: face())
-    await engine.ingestForTesting(hit, at: 0)
-    await engine.ingestForTesting(hit, at: 0.2)   // dwell (0.15) satisfied
+    await engine.ingestForTesting(hit(), at: 0)
+    await engine.ingestForTesting(hit(), at: 0.2)   // dwell (0.15) satisfied
 
     let calls = await sink.calls
     #expect(calls.count == 1)
@@ -101,12 +106,29 @@ private func face() -> FaceGeometry {
     let sink = SpySink()
     await engine.setSink(sink)
 
-    let hit = LandmarkFrame(hand: HandGeometry(fingertips: [CGPoint(x: 0.5, y: 0.5)]),
-                            face: face())
-    await engine.ingestForTesting(hit, at: 0)
-    await engine.ingestForTesting(hit, at: 0.2)
+    await engine.ingestForTesting(hit(), at: 0)
+    await engine.ingestForTesting(hit(), at: 0.2)
 
     #expect(await sink.calls.isEmpty)
+}
+
+// New guard, and the cutover is what made it necessary. Before, the camera
+// being closed made "a frame arrives while detection is off" structurally
+// impossible. Now the provider publishes to every subscriber of a topic
+// SOMEONE asked for, and this plugin stays subscribed (and its process up)
+// whether or not the user wants it detecting — so without an explicit check,
+// turning detection off would keep firing alerts off another consumer's
+// frames.
+@Test func aFrameArrivingWhileDetectionIsOffIsIgnored() async throws {
+    let (engine, _) = try await makeTestEngine(enabled: false)
+    let sink = SpySink()
+    await engine.setSink(sink)
+
+    await engine.ingestForTesting(hit(), at: 0)
+    await engine.ingestForTesting(hit(), at: 0.2)
+
+    #expect(await sink.calls.isEmpty)
+    #expect(await engine.snapshot().running == false)
 }
 
 @Test func configChangesTakeEffectWithoutRestart() async throws {
@@ -117,13 +139,15 @@ private func face() -> FaceGeometry {
     await engine.setSink(sink)
 
     // A fingertip 0.06 away is outside radius 0.04 but inside 0.12.
-    let nearMiss = LandmarkFrame(hand: HandGeometry(fingertips: [CGPoint(x: 0.56, y: 0.5)]),
-                                 face: face())
+    let nearMiss = Fixtures.frame(box: faceBox, nose: CGPoint(x: 0.5, y: 0.5),
+                                  mouth: CGPoint(x: 0.5, y: 0.62),
+                                  fingertips: [CGPoint(x: 0.56, y: 0.5)])
     await engine.ingestForTesting(nearMiss, at: 0)
     await engine.ingestForTesting(nearMiss, at: 0.2)
     #expect(await sink.calls.isEmpty)
 
     var c = VibeCheckConfig.default
+    c.enabled = true
     c.sensitivity = 1.0
     await engine.apply(c)
 
@@ -144,12 +168,9 @@ private func face() -> FaceGeometry {
     let sink = SpySink()
     await engine.setSink(sink)
 
-    let hit = LandmarkFrame(hand: HandGeometry(fingertips: [CGPoint(x: 0.5, y: 0.5)]),
-                            face: face())
-
     // First nudge: dwell (0.15s) satisfied at t=0.2; starts the 5s cooldown.
-    await engine.ingestForTesting(hit, at: 0)
-    await engine.ingestForTesting(hit, at: 0.2)
+    await engine.ingestForTesting(hit(), at: 0)
+    await engine.ingestForTesting(hit(), at: 0.2)
     #expect(await sink.calls.count == 1)
 
     // Still well inside the default 5s cooldown — must stay suppressed.
@@ -157,47 +178,96 @@ private func face() -> FaceGeometry {
     // `DetectionPolicy` does not clear `dwellStart` on a cooldown-blocked
     // frame — see `DetectionPolicyTests.cooldownSuppressesRepeatsOf...` —
     // so it carries forward into the next phase below.)
-    await engine.ingestForTesting(hit, at: 0.3)
-    await engine.ingestForTesting(hit, at: 0.5)
+    await engine.ingestForTesting(hit(), at: 0.3)
+    await engine.ingestForTesting(hit(), at: 0.5)
     #expect(await sink.calls.count == 1)
 
     // Shrink cooldown live, with sensitivity/enabledBehaviors untouched.
-    // 1.0, not e.g. 0.05: `apply(_:)` now clamps (fix #5 of this review
-    // round) via `VibeCheckConfig.clamped()`, whose floor for cooldown is 1 —
-    // an unclamped 0.05 would silently become 1.0 anyway, which is exactly
-    // the divergence-from-disk bug that clamp exists to prevent.
+    // 1.0, not e.g. 0.05: `apply(_:)` clamps via `VibeCheckConfig.clamped()`,
+    // whose floor for cooldown is 1 — an unclamped 0.05 would silently
+    // become 1.0 anyway, which is exactly the divergence-from-disk bug that
+    // clamp exists to prevent.
     var c = VibeCheckConfig.default
+    c.enabled = true
     c.cooldown = 1.0
     await engine.apply(c)
 
     // t=1.5: dwell has been continuously satisfied since 0.3 (well past
     // 0.15s — same "dwell already primed" shape `DetectionPolicyTests`
     // documents), and 1.5 - 0.2 = 1.3s clears the shrunk 1.0s cooldown.
-    await engine.ingestForTesting(hit, at: 1.5)
+    await engine.ingestForTesting(hit(), at: 1.5)
 
     let calls = await sink.calls
     try #require(calls.count == 2)
     #expect(calls[1].1 == 2)
 }
 
+// MARK: - The engine drives the vision request
+
+@Test func startPublishesWhateverThePersistedConfigImplies() async throws {
+    let dir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+    let store = try ConfigStore(directory: dir)
+    var persisted = VibeCheckConfig.default
+    persisted.enabled = true
+    persisted.enabledBehaviors = [BFRBBehavior.nailBiting.rawValue]
+    try await store.save(persisted)
+
+    let engine = DetectionEngine(config: store, counts: try CountsStore(directory: dir), sink: NoopSink())
+    let demand = SpyDemand()
+    await engine.attach(demand: demand)
+    await engine.start()
+
+    // A fresh install with detection OFF must contribute nothing to the
+    // provider's union, so this has to be driven by what is on disk and not
+    // by a hardcoded boot value.
+    #expect(await demand.topics == [[.face, .hands]])
+    #expect(await engine.snapshot().running == true)
+}
+
+@Test func aConfigChangeThatCannotChangeTheTopicSetDoesNotRepublish() async throws {
+    // Dragging the sensitivity slider must not put a message on the bus per
+    // pixel. `apply` compares the topic sets, not the configs.
+    let (engine, _) = try await makeTestEngine()
+    let demand = SpyDemand()
+    await engine.attach(demand: demand)
+
+    var c = VibeCheckConfig.default
+    c.enabled = true
+    c.sensitivity = 0.9
+    await engine.apply(c)
+    #expect(await demand.configs.isEmpty)
+
+    c.enabled = false
+    await engine.apply(c)
+    #expect(await demand.topics == [[]])
+}
+
+@Test func stopMakesTheEngineRefuseFramesStillInFlight() async throws {
+    let (engine, _) = try await makeTestEngine()
+    let sink = SpySink()
+    await engine.setSink(sink)
+
+    await engine.stop()
+    await engine.ingestForTesting(hit(), at: 0)
+    await engine.ingestForTesting(hit(), at: 0.2)
+
+    #expect(await sink.calls.isEmpty)
+    #expect(await engine.snapshot().running == false)
+}
+
 // MARK: - apply(_:generation:) — "the last request issued wins"
 //
-// Review round 3 finding A: `/api/config` PUT and `/api/config/disable`
-// respond before applying live, then run `engine.apply(saved, generation:)`
-// in a DETACHED `Task` (an earlier round's fix — awaiting `apply` inline
-// could block the HTTP response on a TCC prompt). Detaching removed the
-// ordering `VCHTTPServer`'s `lastRequestTask` chaining used to give for
-// free: two requests on one keep-alive connection now spawn two
-// INDEPENDENT `Task`s, and `apply(_:)` unconditionally overwrites
-// `cachedConfig` before checking for a transition — so if the two detached
-// calls reach the actor out of request order, the OLDER request finishing
-// LAST would clobber the newer one's config. Unlike the `startToken`/
-// `queuedStopToken` race (which needs a real in-flight `camera.start()`
-// suspension and has no mock seam — see that fix's own tests-not-written
-// note), THIS is pure integer bookkeeping with no camera involvement at
-// all: every config below uses `enabled: false`, so nothing here ever
-// reaches `startCameraOnly()`, and the ordering claim is fully,
-// deterministically testable by simply calling things in a chosen order.
+// `/api/config` PUT and `/api/config/disable` respond before applying live,
+// then run `engine.apply(saved, generation:)` in a DETACHED `Task` (awaiting
+// `apply` inline could block the HTTP response, and with it every later
+// request queued behind it on the same keep-alive connection). Detaching
+// removed an ordering guarantee that used to hold for free: two requests on
+// one keep-alive connection now spawn two INDEPENDENT `Task`s with no
+// ordering relative to each other, and `apply(_:)` unconditionally
+// overwrites `cachedConfig` — so if the two detached calls reach the actor
+// out of request order, the OLDER request finishing LAST would clobber the
+// newer one's config.
 
 @Test func aStaleGenerationArrivingLastIsIgnoredNotAppliedInOrderOfArrival() async throws {
     let (engine, _) = try await makeTestEngine()
@@ -217,7 +287,7 @@ private func face() -> FaceGeometry {
 
     // Completion order is the INVERSE of request order — the later
     // request's detached apply (genB) reaches the actor and commits
-    // FIRST, exactly the interleaving a slow TCC prompt on the earlier
+    // FIRST, exactly the interleaving a slow publish on the earlier
     // request would produce.
     await engine.apply(configB, generation: genB)
     await engine.apply(configA, generation: genA)   // stale — must be ignored
