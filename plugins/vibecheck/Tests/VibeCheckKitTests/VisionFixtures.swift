@@ -52,13 +52,28 @@ enum Fixtures {
         frame.bounds = rect(box)
         frame.confidence = 0.9
 
-        let offsets = FaceLandmarkLayout.offsets(FaceLandmarkLayout.regions76)
-        let total = FaceLandmarkLayout.regions76.reduce(0) { $0 + $1.count }
+        let offsets = faceRegionOffsets
+        let total = faceRegionCounts.reduce(0, +)
         var points = [VCTPoint](repeating: point(CGPoint(x: box.midX, y: box.minY)), count: total)
         for i in offsets["nose"]! { points[i] = point(nose) }
         for i in offsets["outerLips"]! { points[i] = point(mouth) }
         frame.points = points
+        // The layout rides WITH the points, exactly as the provider sends it.
+        // A fixture that omitted this would be testing the bounds fallback
+        // while claiming to test the landmark path.
+        frame.regionPointCounts = faceRegionCounts.map(UInt32.init)
         return frame
+    }
+
+    /// The per-region counts MEASURED from a real camera on macOS 26, in the
+    /// order the proto pins. Not a guess: this plugin previously carried
+    /// 11, 8, 8, 6, 6, 9, 5, 5, 10, 6, 1, 1 for the same constellation and
+    /// every offset past the contour was wrong.
+    static let faceRegionCounts = [17, 6, 6, 6, 6, 8, 6, 10, 14, 6, 1, 1]
+
+    static var faceRegionOffsets: [String: Range<Int>] {
+        FaceLandmarkLayout.offsets(
+            zip(FaceLandmarkLayout.regionOrder, faceRegionCounts).map { (name: $0, count: $1) })
     }
 
     /// A face frame with a bounding box and NO landmark cloud — what a

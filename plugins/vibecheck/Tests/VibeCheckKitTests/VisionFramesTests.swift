@@ -35,14 +35,16 @@ import VCKStubs
     // `centroid(face.landmarks?.nose)` actually made.
     let box = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4)
     var frame = Fixtures.face(box: box, nose: CGPoint(x: 0.5, y: 0.5), mouth: CGPoint(x: 0.5, y: 0.62))
-    let noseRange = FaceLandmarkLayout.offsets(FaceLandmarkLayout.regions76)["nose"]!
+    let noseRange = Fixtures.faceRegionOffsets["nose"]!
     for (n, i) in noseRange.enumerated() {
         frame.points[i] = Fixtures.point(CGPoint(x: n.isMultiple(of: 2) ? 0.46 : 0.54, y: 0.5))
     }
     let anchors = try #require(FaceAnchors.from(frame))
-    // 9 points alternating 0.46/0.54 starting at 0.46: five at 0.46,
-    // four at 0.54 -> mean 4.46/9 = 0.4955…
-    #expect(abs(anchors.nose.x - 0.4955556) < 1e-4)
+    // 8 points alternating 0.46/0.54 -> mean exactly 0.50. A
+    // `points[offset]` implementation would report 0.46, which is what this
+    // test is here to catch. (The count is 8 because the layout now comes
+    // from the wire; the guessed table this replaced said 9.)
+    #expect(abs(anchors.nose.x - 0.50) < 1e-4)
 }
 
 // MARK: - Face anchors, the degraded path
@@ -81,7 +83,7 @@ import VCKStubs
     // eyebrow lives; the anchors must be refused and the box used instead.
     let box = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4)
     var frame = Fixtures.face(box: box, nose: CGPoint(x: 0.5, y: 0.5), mouth: CGPoint(x: 0.5, y: 0.62))
-    let noseRange = FaceLandmarkLayout.offsets(FaceLandmarkLayout.regions76)["nose"]!
+    let noseRange = Fixtures.faceRegionOffsets["nose"]!
     for i in noseRange { frame.points[i] = Fixtures.point(CGPoint(x: 0.45, y: 0.33)) }
 
     let anchors = try #require(FaceAnchors.from(frame))
@@ -106,21 +108,31 @@ import VCKStubs
     #expect(FaceAnchors.from(Fixtures.noFace()) == nil)
 }
 
-@Test func theKnownLayoutIsInternallyConsistent() {
-    // The offsets are derived from the counts, so the one thing that can be
-    // wrong without being obvious is the counts not summing to the
-    // constellation they claim to describe.
-    let total = FaceLandmarkLayout.regions76.reduce(0) { $0 + $1.count }
-    #expect(total == 76)
-    #expect(FaceLandmarkLayout.forPointCount(76) != nil)
-    #expect(FaceLandmarkLayout.forPointCount(65) == nil)
-    let offsets = FaceLandmarkLayout.offsets(FaceLandmarkLayout.regions76)
-    // Regions tile the array with no gap and no overlap.
-    let covered = FaceLandmarkLayout.regions76.reduce(into: Set<Int>()) { set, region in
-        set.formUnion(offsets[region.name]!)
-    }
-    #expect(covered.count == total)
-    #expect(covered.max() == total - 1)
+@Test func theLayoutIsTakenFromTheWireAndCheckedAgainstTheArrayItDescribes() {
+    let box = CGRect(x: 0.4, y: 0.3, width: 0.2, height: 0.4)
+    let good = Fixtures.face(box: box, nose: CGPoint(x: 0.5, y: 0.5), mouth: CGPoint(x: 0.5, y: 0.62))
+    #expect(FaceLandmarkLayout.fromWire(good) != nil)
+    #expect(good.regionPointCounts.map(Int.init).reduce(0, +) == good.points.count)
+
+    // Counts that do not add up to the array they claim to describe. This is
+    // the case a consumer CANNOT detect downstream — the offsets are all
+    // valid indices, they just point at the wrong landmarks — so it has to
+    // be refused here.
+    var wrongSum = good
+    wrongSum.regionPointCounts[0] += 1
+    #expect(FaceLandmarkLayout.fromWire(wrongSum) == nil)
+
+    // A different number of regions means a different contract.
+    var wrongLength = good
+    wrongLength.regionPointCounts = [76]
+    #expect(FaceLandmarkLayout.fromWire(wrongLength) == nil)
+
+    // Absent means the provider could not determine its own layout. Falling
+    // back to a table of our own is exactly the bug this replaced.
+    var absent = good
+    absent.regionPointCounts = []
+    #expect(FaceLandmarkLayout.fromWire(absent) == nil)
+    #expect(FaceAnchors.from(absent)?.source == .bounds)
 }
 
 // MARK: - Fingertips
