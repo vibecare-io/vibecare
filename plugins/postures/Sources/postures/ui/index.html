@@ -1,0 +1,411 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Postures</title>
+    <!--
+      Two rules this file must keep:
+        * every URL relative — the plugin is mounted at /p/postures/ and must
+          not know it;
+        * no localStorage, sessionStorage or cookies — all plugins share one
+          web origin in v1, and depending on browser storage is what would
+          make origin isolation expensive to add later. Every piece of state
+          on this page comes from `api/state` on each poll.
+
+      Nothing here invents a number. A measurement the provider did not make
+      is rendered as "not measured", never as 0 — that is the same
+      absent-is-not-zero rule the Swift side enforces, carried to the last
+      surface that could break it.
+    -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f5f5f7;
+        --pane-bg: #ffffff;
+        --border: #d8d8dc;
+        --text: #1c1c1e;
+        --text-dim: #6b6b70;
+        --accent: #2e6f6a;
+        --good: #2f855a;
+        --poor: #b7791f;
+        --unknown: #6b6b70;
+        --note-bg: #fff8e6;
+        --note-border: #e8d18a;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16161a;
+          --pane-bg: #1c1c1e;
+          --border: #38383c;
+          --text: #f2f2f3;
+          --text-dim: #9a9aa0;
+          --accent: #6fb3ac;
+          --good: #63c295;
+          --poor: #e2b04a;
+          --unknown: #9a9aa0;
+          --note-bg: #2a2418;
+          --note-border: #59492a;
+        }
+      }
+      * { box-sizing: border-box; }
+      html, body { height: 100%; margin: 0; }
+      body {
+        background: var(--bg);
+        color: var(--text);
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+        padding: 20px;
+      }
+      .wrap { max-width: 620px; margin: 0 auto; display: grid; gap: 16px; }
+      .card {
+        background: var(--pane-bg);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 18px 20px;
+      }
+      h1 { font-size: 18px; margin: 0; display: flex; align-items: center; gap: 10px; }
+      h1 img { width: 34px; height: 23px; border-radius: 5px; }
+      h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .06em;
+           color: var(--text-dim); margin: 0 0 12px; font-weight: 600; }
+      .verdict { display: flex; align-items: baseline; gap: 10px; margin: 0 0 4px; }
+      .verdict strong { font-size: 24px; font-weight: 600; }
+      .verdict.good strong { color: var(--good); }
+      .verdict.poor strong { color: var(--poor); }
+      .verdict.unknown strong { color: var(--unknown); }
+      .sub { color: var(--text-dim); margin: 0; }
+      dl.metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 16px; margin: 14px 0 0; }
+      dl.metrics div { border-top: 1px solid var(--border); padding-top: 8px; }
+      dt { color: var(--text-dim); font-size: 12px; }
+      dd { margin: 2px 0 0; font-variant-numeric: tabular-nums; font-size: 16px; }
+      dd.absent { color: var(--text-dim); font-size: 14px; font-style: italic; }
+      .row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 0; }
+      .row + .row { border-top: 1px solid var(--border); }
+      .row label { flex: 1; }
+      .row .hint { display: block; color: var(--text-dim); font-size: 12px; }
+      input[type="number"] { width: 92px; padding: 5px 7px; font: inherit;
+        border: 1px solid var(--border); border-radius: 6px;
+        background: var(--bg); color: var(--text); text-align: right; }
+      button {
+        font: inherit; padding: 6px 14px; border-radius: 7px;
+        border: 1px solid var(--border); background: var(--bg); color: var(--text);
+        cursor: pointer;
+      }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+      button:disabled { opacity: .5; cursor: default; }
+      .actions { display: flex; align-items: center; gap: 10px; margin-top: 14px; }
+      .actions .status { color: var(--text-dim); font-size: 12px; }
+      ul.notes { list-style: none; padding: 0; margin: 0; display: grid; gap: 8px; }
+      ul.notes li {
+        background: var(--note-bg); border: 1px solid var(--note-border);
+        border-radius: 8px; padding: 9px 12px; color: var(--text);
+      }
+      table.req { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+      table.req th { text-align: left; font-weight: 400; color: var(--text-dim);
+                     padding: 5px 0; width: 42%; }
+      table.req td { padding: 5px 0; }
+      code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; }
+      .switch { display: flex; align-items: center; gap: 8px; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1><img src="icons/posture.svg" alt="" /> Postures</h1>
+        <p class="sub" style="margin-top:6px">
+          Reads body pose from the vision plugin and nudges you when poor posture
+          holds. It never opens a camera itself.
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>Right now</h2>
+        <p class="verdict unknown" id="verdict-row">
+          <strong id="verdict">—</strong>
+          <span class="sub" id="verdict-detail"></span>
+        </p>
+        <p class="sub" id="reading-age">Waiting for the first reading…</p>
+        <dl class="metrics">
+          <div>
+            <dt>Shoulder tilt</dt>
+            <dd id="m-shoulder">—</dd>
+          </div>
+          <div>
+            <dt>Forward head</dt>
+            <dd id="m-neck">—</dd>
+          </div>
+          <div>
+            <dt>Body in frame</dt>
+            <dd id="m-body">—</dd>
+          </div>
+          <div>
+            <dt>Nudges today</dt>
+            <dd id="m-count">—</dd>
+          </div>
+        </dl>
+      </div>
+
+      <ul class="notes" id="notes" hidden></ul>
+
+      <div class="card">
+        <h2>Settings</h2>
+        <div class="row switch">
+          <label for="enabled">
+            Nudge me about my posture
+            <span class="hint">Off means postures asks vision for nothing at all.</span>
+          </label>
+          <input type="checkbox" id="enabled" />
+        </div>
+        <div class="row">
+          <label for="dwell">
+            Sustained for
+            <span class="hint">Seconds of continuous poor posture before a nudge (5–3600).</span>
+          </label>
+          <input type="number" id="dwell" min="5" max="3600" step="5" />
+        </div>
+        <div class="row">
+          <label for="cooldown">
+            Quiet for
+            <span class="hint">Seconds before another nudge, however bad posture stays (30–21600).</span>
+          </label>
+          <input type="number" id="cooldown" min="30" max="21600" step="30" />
+        </div>
+        <div class="row">
+          <label for="shoulder">
+            Shoulder tilt threshold
+            <span class="hint">Degrees off level before shoulders count as uneven (1–45).</span>
+          </label>
+          <input type="number" id="shoulder" min="1" max="45" step="0.5" />
+        </div>
+        <div class="row">
+          <label for="neck">
+            Forward head threshold
+            <span class="hint">Normalized distance before the head counts as craned (0.02–1).</span>
+          </label>
+          <input type="number" id="neck" min="0.02" max="1" step="0.01" />
+        </div>
+        <div class="actions">
+          <button class="primary" id="save">Save</button>
+          <button id="snooze">Snooze 30 min</button>
+          <span class="status" id="save-status"></span>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>What postures asks vision for</h2>
+        <table class="req">
+          <tbody>
+            <tr><th>Topics requested</th><td id="r-topics">—</td></tr>
+            <tr><th>Rate</th><td id="r-fps">—</td></tr>
+            <tr><th>Request last sent</th><td id="r-asserted">—</td></tr>
+            <tr><th>Frames received</th><td id="r-frames">—</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      // Set while the user is editing so a poll cannot yank the value out
+      // from under their cursor mid-keystroke.
+      let editing = false;
+      let lastSavedConfig = null;
+
+      for (const id of ["enabled", "dwell", "cooldown", "shoulder", "neck"]) {
+        $(id).addEventListener("focus", () => { editing = true; });
+        $(id).addEventListener("change", () => { editing = true; });
+      }
+
+      // `undefined` and `null` both mean "the provider did not measure this".
+      // Anything numeric — including 0 — is a real measurement and is shown
+      // as one.
+      const measured = (v) => typeof v === "number" && isFinite(v);
+
+      function setMetric(el, value, format) {
+        if (measured(value)) {
+          el.textContent = format(value);
+          el.classList.remove("absent");
+        } else {
+          el.textContent = "not measured";
+          el.classList.add("absent");
+        }
+      }
+
+      function humanDuration(seconds) {
+        const s = Math.max(0, Math.floor(seconds));
+        if (s < 90) return s + "s";
+        const m = Math.floor(s / 60);
+        if (m < 90) return m + " min";
+        return Math.floor(m / 60) + " h";
+      }
+
+      function ago(iso) {
+        if (!iso) return null;
+        const then = Date.parse(iso);
+        if (isNaN(then)) return null;
+        return humanDuration((Date.now() - then) / 1000) + " ago";
+      }
+
+      function renderVerdict(state) {
+        const row = $("verdict-row");
+        row.className = "verdict " + state.verdict;
+        const words = { good: "Looking good", poor: "Poor posture", unknown: "Can't tell" };
+        $("verdict").textContent = words[state.verdict] || state.verdict;
+
+        const faultWords = {
+          unevenShoulders: "uneven shoulders",
+          forwardHead: "head forward of the shoulders",
+        };
+        const detail = [];
+        if (state.faults && state.faults.length) {
+          detail.push(state.faults.map((f) => faultWords[f] || f).join(" and "));
+        }
+        if (measured(state.poorForSeconds)) {
+          detail.push("for " + humanDuration(state.poorForSeconds));
+        }
+        if (state.verdict === "unknown") {
+          detail.length = 0;
+          detail.push("no posture measurement in the latest frame");
+        }
+        $("verdict-detail").textContent = detail.join(", ");
+      }
+
+      function renderReading(state) {
+        const r = state.reading;
+        if (!r) {
+          $("reading-age").textContent = "No vision frames received yet.";
+          setMetric($("m-shoulder"), undefined, String);
+          setMetric($("m-neck"), undefined, String);
+          $("m-body").textContent = "—";
+          $("m-body").classList.add("absent");
+        } else {
+          const age = ago(r.at);
+          $("reading-age").textContent =
+            "Frame #" + r.seq + (age ? " · " + age : "");
+          setMetric($("m-shoulder"), r.shoulderAngle, (v) => v.toFixed(1) + "°");
+          setMetric($("m-neck"), r.neckForward, (v) => v.toFixed(3));
+          if (typeof r.bodyDetected === "boolean") {
+            $("m-body").textContent = r.bodyDetected ? "yes" : "no";
+            $("m-body").classList.remove("absent");
+          } else {
+            $("m-body").textContent = "not measured";
+            $("m-body").classList.add("absent");
+          }
+        }
+
+        let count = String(state.nudgesToday);
+        if (state.snoozedUntil) {
+          const until = new Date(state.snoozedUntil);
+          if (!isNaN(until)) count += " · snoozed until " + until.toLocaleTimeString();
+        }
+        $("m-count").textContent = count;
+        $("m-count").classList.remove("absent");
+      }
+
+      function renderNotes(state) {
+        const ul = $("notes");
+        ul.innerHTML = "";
+        const notes = state.notes || [];
+        ul.hidden = notes.length === 0;
+        for (const note of notes) {
+          const li = document.createElement("li");
+          li.textContent = note;
+          ul.appendChild(li);
+        }
+      }
+
+      function renderRequest(state) {
+        const req = state.request || {};
+        const topics = req.topics || [];
+        // `topics` reflects the last request that actually REACHED the bus,
+        // so an empty list before the first successful publish is "not sent
+        // yet", not "retracted". Reporting the second would look like the
+        // user had turned the feature off.
+        $("r-topics").textContent = topics.length
+          ? topics.join(", ")
+          : (req.lastAssertedAt ? "nothing — the request is retracted" : "not sent yet");
+        $("r-fps").textContent = req.fps + " fps, TTL " + req.ttlSeconds +
+          "s, re-sent every " + req.heartbeatSeconds + "s";
+        const when = ago(req.lastAssertedAt);
+        $("r-asserted").textContent = req.lastError
+          ? "failed: " + req.lastError
+          : (when ? when + " (" + req.assertCount + " total)" : "not yet");
+        const f = state.frames || {};
+        $("r-frames").textContent =
+          f.bodyPose + " body pose, " + f.signals + " signals (" +
+          f.signalsWithShoulderAngle + " with shoulder angle, " +
+          f.signalsWithNeckForward + " with forward head)";
+      }
+
+      function renderConfig(config) {
+        // Never clobber a field the user is in the middle of editing.
+        if (editing) return;
+        lastSavedConfig = config;
+        $("enabled").checked = config.enabled;
+        $("dwell").value = config.dwell;
+        $("cooldown").value = config.cooldown;
+        $("shoulder").value = config.shoulderAngleThreshold;
+        $("neck").value = config.neckForwardThreshold;
+      }
+
+      async function poll() {
+        try {
+          const res = await fetch("api/state", { cache: "no-store" });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const state = await res.json();
+          renderVerdict(state);
+          renderReading(state);
+          renderNotes(state);
+          renderRequest(state);
+          renderConfig(state.config);
+        } catch (err) {
+          $("reading-age").textContent = "Cannot reach the plugin: " + err.message;
+        }
+      }
+
+      $("save").addEventListener("click", async () => {
+        const body = {
+          enabled: $("enabled").checked,
+          dwell: Number($("dwell").value),
+          cooldown: Number($("cooldown").value),
+          shoulderAngleThreshold: Number($("shoulder").value),
+          neckForwardThreshold: Number($("neck").value),
+        };
+        $("save").disabled = true;
+        $("save-status").textContent = "Saving…";
+        try {
+          const res = await fetch("api/config", {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+          if (!res.ok) throw new Error("HTTP " + res.status);
+          const saved = await res.json();
+          editing = false;
+          renderConfig(saved);
+          // Says "clamped", not "saved", when the server changed a value —
+          // silently snapping a field back would look like the save failed.
+          const changed = Object.keys(body).some((k) => saved[k] !== body[k]);
+          $("save-status").textContent = changed ? "Saved (values clamped)" : "Saved";
+        } catch (err) {
+          $("save-status").textContent = "Save failed: " + err.message;
+        } finally {
+          $("save").disabled = false;
+          setTimeout(() => { $("save-status").textContent = ""; }, 4000);
+        }
+      });
+
+      $("snooze").addEventListener("click", async () => {
+        $("snooze").disabled = true;
+        try {
+          await fetch("api/snooze?minutes=30", { method: "POST" });
+          await poll();
+        } finally {
+          $("snooze").disabled = false;
+        }
+      });
+
+      poll();
+      setInterval(poll, 2000);
+    </script>
+  </body>
+</html>
