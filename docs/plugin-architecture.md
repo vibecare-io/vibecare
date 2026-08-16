@@ -380,9 +380,16 @@ just run                # runs core against the repo's plugins/ directory
 just dev-ui             # same, with plugin UI served from disk + live reload
 ```
 
-> `just run` passes `--plugins-dir ../plugins`; a default-configured core reads
-> `~/.vibecare/plugins-v2/`. A plugin rebuilt but not installed will not reach a core started any
-> other way, and nothing reports the mismatch.
+> `just run` passes `--plugins-dir ../plugins`, which scans that one directory and nothing else. A
+> default-configured core instead reads a two-directory search path, writable first:
+> `~/.vibecare/plugins-v2/`, then any `plugins/` directory beside its own executable — in a packaged
+> build, `VibeCare.app/Contents/Resources/plugins/`, where the release ships every first-party
+> plugin. A plugin rebuilt but not installed will not reach a core started any other way, and
+> nothing reports the mismatch.
+>
+> Same id in both directories is not an error: the writable copy wins and the bundled one is logged
+> as shadowed. That is how an installed update supersedes a plugin that shipped inside the `.app`,
+> which can never be written to without breaking its signature.
 
 Core's dashboard is at `<base_url>/_core/status`; get `base_url` from the `Plugin kernel ready
 origin=` log line and the token from `~/.vibecare/session`.

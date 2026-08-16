@@ -314,3 +314,70 @@ func TestStartLeavesAnExistingPluginsDirAlone(t *testing.T) {
 		t.Fatalf("roster = %+v, want the pre-existing plugin still discovered", got)
 	}
 }
+
+// A packaged build ships its first-party plugins read-only inside the .app
+// bundle, so Start must roster plugins it will never be able to write to —
+// and must not create that directory, which for a signed bundle would be a
+// silent lie about what shipped.
+func TestStartDiscoversBundledPluginsDir(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.BundledPluginsDir = filepath.Join(t.TempDir(), "plugins")
+	dir := filepath.Join(cfg.BundledPluginsDir, "shipped")
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	manifest := "id: shipped\nname: Shipped\nexec: ./missing-binary\nui: webview\n"
+	if err := os.WriteFile(filepath.Join(dir, "manifest.yaml"), []byte(manifest), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	k := startKernel(t, cfg)
+
+	if got := k.Registry().Snapshot(); len(got) != 1 || got[0].ID != "shipped" {
+		t.Fatalf("roster = %+v, want the bundled plugin discovered", got)
+	}
+}
+
+// The precedence rule, end to end: an installed copy in the writable dir
+// supersedes the one that shipped. Backwards, an update would be dead on
+// arrival and the symptom — "my new version isn't running" — points at
+// everything except discovery.
+func TestStartPrefersInstalledOverBundled(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.BundledPluginsDir = filepath.Join(t.TempDir(), "plugins")
+
+	for _, p := range []struct{ root, name string }{
+		{cfg.PluginsDir, "Installed"},
+		{cfg.BundledPluginsDir, "Shipped"},
+	} {
+		dir := filepath.Join(p.root, "widget")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		manifest := "id: widget\nname: " + p.name + "\nexec: ./missing-binary\nui: webview\n"
+		if err := os.WriteFile(filepath.Join(dir, "manifest.yaml"), []byte(manifest), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	k := startKernel(t, cfg)
+
+	got := k.Registry().Snapshot()
+	if len(got) != 1 || got[0].Name != "Installed" {
+		t.Fatalf("roster = %+v, want only the installed copy", got)
+	}
+}
+
+// BundledPluginsDir is read-only by contract. Start creates PluginsDir
+// because "drop a directory in and restart" needs somewhere to drop into;
+// creating a missing bundled dir instead papers over a broken bundle.
+func TestStartNeverCreatesTheBundledPluginsDir(t *testing.T) {
+	cfg := testConfig(t)
+	cfg.BundledPluginsDir = filepath.Join(t.TempDir(), "nonexistent")
+
+	startKernel(t, cfg)
+
+	if _, err := os.Stat(cfg.BundledPluginsDir); !os.IsNotExist(err) {
+		t.Fatalf("bundled dir must be left alone, stat err = %v", err)
+	}
+}

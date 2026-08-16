@@ -124,10 +124,24 @@ Core (kernel)                                Plugin subprocess
   pointed at Core's proxy path.
 - **Core's dashboard**: `/_core/status`, for inspecting plugin health
   outside the client.
-- **Default plugins directory**: in production, core scans
-  `~/.vibecare/plugins-v2/`. In development, `just run` passes
-  `--plugins-dir ../plugins`, so it scans the repo's own `plugins/`
-  directory instead. This is deliberately *not* the v1
+- **Plugins search path**: core scans two directories in precedence
+  order, writable first. `~/.vibecare/plugins-v2/` is the writable half —
+  created if missing, and the only one anything may install into. Beside
+  it, core also scans a `plugins/` directory sitting next to its own
+  executable, which in a packaged build is
+  `VibeCare.app/Contents/Resources/plugins/`, where the release ships
+  every first-party plugin. Locating it from the binary's own path is
+  what keeps the install location out of the LaunchAgent plist.
+
+  The bundled half is read-only by contract: writing into a signed `.app`
+  breaks its signature, which is also why the writable directory wins on
+  an id collision — that is what lets an installed plugin supersede a
+  shipped one rather than being masked by it. A shadowed plugin is logged
+  at info; a duplicate id *within* one directory stays a hard error.
+
+  In development, `just run` passes `--plugins-dir ../plugins`, which
+  scans the repo's own `plugins/` and suppresses the bundled directory
+  entirely — one tree, no merge. This is deliberately *not* the v1
   `~/.vibecare/plugins/` directory — those manifests use ids that v2's
   stricter id regex rejects.
 - **Known gap**: alert action buttons are carried on the wire
