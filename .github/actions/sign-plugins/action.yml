@@ -90,10 +90,18 @@ runs:
           # just build-vision-plugin — codesign resolves the directory as a
           # flat bundle and AMFI SIGKILLs the process at spawn while
           # `codesign --verify` still calls the file valid.
+          # ${entflags[@]+"${entflags[@]}"}, NOT "${entflags[@]}". macOS ships
+          # bash 3.2, and that is what `shell: bash` resolves to on a runner.
+          # Before 4.4, expanding an EMPTY array under `set -u` counts as an
+          # unbound variable and aborts the script. Every plugin without an
+          # entitlements file has an empty entflags, so this killed signing at
+          # the first one of those, while vision — the only plugin WITH a file
+          # — signed cleanly just before it. The `+` form expands to nothing
+          # when unset and works on both 3.2 and 5.x.
           /usr/bin/codesign --force --sign "$IDENTITY" \
             --options runtime \
             --timestamp \
-            "${entflags[@]}" \
+            ${entflags[@]+"${entflags[@]}"} \
             "$bin"
 
           codesign --verify --strict --verbose=2 "$bin"
