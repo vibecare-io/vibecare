@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>io.vibecare.plugin.vision</string>
+  <key>CFBundleName</key><string>Vision</string>
+  <key>CFBundleExecutable</key><string>vision</string>
+  <key>NSCameraUsageDescription</key>
+  <string>VibeCare uses the camera to measure head, hand and body position for the features you turn on. Video is processed on-device and never leaves your Mac.</string>
+</dict>
+</plist>

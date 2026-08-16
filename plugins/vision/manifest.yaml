@@ -1,0 +1,16 @@
+id: vision
+name: Vision
+icon: eye
+exec: ./dist/vision
+# The manifest is the PERMITTED set. vision.request.v1 (published by every
+# consumer, subscribed here) picks the active subset at runtime — see the
+# design's §5. Discovery runs once in Kernel.Start, so changing this list
+# needs a core restart.
+subscribes: [vision.request.v1]
+publishes:  [vision.face.v1, vision.hands.v1, vision.body_pose.v1,
+             vision.segmentation.v1, vision.signals.v1]
+ui: webview
+# Must not be inferred: the build embeds Info.plist via -sectcreate and the
+# codesign step is what seals it, without which macOS shows no camera prompt
+# and the TCC grant carries no usage description.
+build: just build-vision-plugin

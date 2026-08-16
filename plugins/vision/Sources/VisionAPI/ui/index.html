@@ -1,0 +1,849 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Vision</title>
+    <!--
+      Vision's tab: the preview, the camera picker, and the "Running now"
+      readout that names the plugin behind every running model. That readout
+      IS this product's privacy surface — the one place that says "the camera
+      is on because postures wants body pose".
+
+      There are deliberately NO feature toggles here. A user turns a feature on
+      in the plugin that owns the feature; vision derives its models from live
+      demand and the vision.request.v1 union, never from a setting of its own.
+
+      Two rules this file must keep, both of which have bitten:
+        * every URL relative — core reverse-proxies this page under a mount
+          point the plugin is not told about, so a leading-slash URL escapes
+          the plugin entirely;
+        * no browser storage of any kind — not local or session storage, not
+          cookies, not IndexedDB. Every plugin shares one web origin in v1, so
+          anything stored here is readable and clobberable by every other
+          plugin's tab.
+
+      `Tests/VisionAPITests/UIContractTests.swift` enforces both against this
+      file, by searching it for the forbidden spellings. That check parses
+      nothing, so it cannot tell code from prose — which is why the paragraph
+      above names those APIs in English rather than in JavaScript.
+
+      /api/* is the real interface and this page is merely its first consumer:
+      everything below is a rendering of GET api/state, and nothing is computed
+      here that the JSON does not already say.
+    -->
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f5f5f7;
+        --pane-bg: #ffffff;
+        --surface: #eeeef1;
+        --surface-2: #e4e4e8;
+        --border: #d8d8dc;
+        --text: #1c1c1e;
+        --text-dim: #6b6b70;
+        --accent: #0a84ff;
+        --accent-contrast: #ffffff;
+        --warn-bg: #fff4e0;
+        --warn-border: #f0c168;
+        --warn-text: #7a4d00;
+        --live: #30d158;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #16161a;
+          --pane-bg: #1c1c1e;
+          --surface: #232326;
+          --surface-2: #2c2c2f;
+          --border: #38383c;
+          --text: #f2f2f3;
+          --text-dim: #9a9aa0;
+          --accent: #0a84ff;
+          --accent-contrast: #ffffff;
+          --warn-bg: #3a2c10;
+          --warn-border: #6d5320;
+          --warn-text: #f0c168;
+          --live: #30d158;
+        }
+      }
+
+      * { box-sizing: border-box; }
+
+      html, body { height: 100%; margin: 0; }
+
+      body {
+        font: 14px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+        background: var(--bg);
+        color: var(--text);
+      }
+
+      .app {
+        display: flex;
+        flex-wrap: wrap;
+        min-height: 100vh;
+      }
+
+      /* ---------- Left: preview ---------- */
+
+      .preview-pane {
+        flex: 1 1 55%;
+        min-width: 320px;
+        min-height: 360px;
+        position: relative;
+        background: #000;
+        display: flex;
+      }
+
+      .preview-stage {
+        position: relative;
+        flex: 1;
+        overflow: hidden;
+      }
+
+      /*
+       * object-fit: cover, and the overlay reproduces the SAME aspect-fill
+       * mapping in computeFillTransform() below. These two must agree exactly:
+       * switching either one to `contain` (or letting them disagree) slides
+       * the overlay off the face by the letterbox margin, which looks like a
+       * landmark bug and is not one.
+       */
+      .preview-stage img#preview-img {
+        display: block;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .preview-stage canvas#overlay {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        pointer-events: none;
+      }
+
+      /*
+       * Which pane shows is driven ENTIRELY by data-mode on #preview-stage —
+       * never by the `hidden` attribute, which the user-agent stylesheet
+       * implements as `display: none` and which ANY author `display` rule
+       * beats regardless of specificity. One attribute, mutually exclusive
+       * selectors, so at most one pane can be visible by construction.
+       */
+      .preview-message {
+        position: absolute;
+        inset: 0;
+        display: none;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.6rem;
+        text-align: center;
+        padding: 2rem;
+        color: #f2f2f3;
+        background: linear-gradient(180deg, #0d0d0f, #1a1a1d);
+      }
+      .preview-stage[data-mode="off"] #preview-off { display: flex; }
+      .preview-stage[data-mode="denied"] #preview-denied { display: flex; }
+      .preview-stage[data-mode="noDevice"] #preview-nodevice { display: flex; }
+
+      .preview-message svg {
+        width: 52px;
+        height: 52px;
+        opacity: 0.55;
+      }
+      .preview-message h2 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+      .preview-message p { margin: 0; max-width: 26rem; color: #b8b8bc; }
+      .preview-message p.path {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.85rem;
+        color: #e5c07b;
+        background: rgba(255, 255, 255, 0.06);
+        padding: 0.35rem 0.6rem;
+        border-radius: 6px;
+      }
+
+      .live-badge {
+        position: absolute;
+        top: 0.75rem;
+        left: 0.75rem;
+        z-index: 2;
+        display: none;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.3rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(0, 0, 0, 0.55);
+        color: #fff;
+        font-size: 0.75rem;
+        font-weight: 600;
+        letter-spacing: 0.02em;
+      }
+      .preview-stage[data-mode="live"] .live-badge { display: flex; }
+      .live-badge .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--live);
+      }
+
+      /* ---------- Right: readout ---------- */
+
+      .controls-pane {
+        flex: 1 1 380px;
+        max-width: 460px;
+        min-width: 320px;
+        background: var(--pane-bg);
+        padding: 1.5rem;
+        overflow-y: auto;
+        max-height: 100vh;
+      }
+
+      .controls-pane h1 { font-size: 1.2rem; margin: 0 0 0.75rem; }
+
+      .summary {
+        margin: 0 0 1.5rem;
+        padding: 0.75rem 0.9rem;
+        border-radius: 12px;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        font-size: 0.95rem;
+      }
+
+      section.group { margin-bottom: 1.75rem; }
+
+      section.group h2 {
+        font-size: 0.8rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.04em;
+        color: var(--text-dim);
+        margin: 0 0 0.5rem 0.2rem;
+      }
+
+      .rows {
+        background: var(--surface);
+        border-radius: 12px;
+        overflow: hidden;
+        border: 1px solid var(--border);
+      }
+
+      .row {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 0.75rem;
+        padding: 0.7rem 0.9rem;
+      }
+      .row + .row { border-top: 1px solid var(--border); }
+
+      .row .model { font-weight: 600; }
+      .row .rate {
+        font-variant-numeric: tabular-nums;
+        color: var(--text-dim);
+        margin-left: 0.5rem;
+        font-weight: 400;
+      }
+      .row .requesters {
+        color: var(--text-dim);
+        text-align: right;
+        font-size: 0.85rem;
+      }
+      .row.idle .model { font-weight: 400; color: var(--text-dim); }
+      .row .empty { color: var(--text-dim); }
+
+      select {
+        width: 100%;
+        font: inherit;
+        padding: 0.45rem 0.55rem;
+        border-radius: 10px;
+        border: 1px solid var(--border);
+        background: var(--surface-2);
+        color: var(--text);
+      }
+      select:disabled { opacity: 0.55; }
+
+      .warning {
+        background: var(--warn-bg);
+        border: 1px solid var(--warn-border);
+        color: var(--warn-text);
+        border-radius: 12px;
+        padding: 0.7rem 0.9rem;
+        margin-bottom: 0.5rem;
+        font-size: 0.85rem;
+      }
+      .warning .topic {
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-weight: 600;
+      }
+
+      details.requests {
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        padding: 0.15rem 0.9rem 0.6rem;
+      }
+      details.requests summary {
+        cursor: pointer;
+        padding: 0.7rem 0;
+        font-weight: 600;
+        list-style: none;
+      }
+      details.requests summary::-webkit-details-marker { display: none; }
+      details.requests summary::before {
+        content: "\25B8";
+        display: inline-block;
+        margin-right: 0.4rem;
+        transition: transform 0.15s ease;
+        color: var(--text-dim);
+      }
+      details.requests[open] summary::before { transform: rotate(90deg); }
+
+      .request {
+        font-size: 0.85rem;
+        padding: 0.4rem 0;
+        border-top: 1px solid var(--border);
+      }
+      .request:first-of-type { border-top: none; }
+      .request .who { font-weight: 600; }
+      .request .detail {
+        color: var(--text-dim);
+        font-family: ui-monospace, "SF Mono", Menlo, monospace;
+        font-size: 0.78rem;
+        word-break: break-all;
+      }
+
+      .hint { font-size: 0.78rem; color: var(--text-dim); margin: 0.5rem 0.2rem 0; }
+      .error-note { color: #ff453a; font-size: 0.8rem; margin: 0.5rem 0.2rem 0; min-height: 1.2em; }
+    </style>
+  </head>
+  <body>
+    <div class="app">
+      <div class="preview-pane">
+        <div class="preview-stage" id="preview-stage" data-mode="off">
+          <img id="preview-img" alt="" />
+          <canvas id="overlay"></canvas>
+
+          <div class="live-badge"><span class="dot"></span><span>CAMERA ON</span></div>
+
+          <div class="preview-message" id="preview-off">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.5-7 10-7c2.06 0 3.83.55 5.29 1.31" />
+              <path d="M22 12s-.86 1.72-2.5 3.36" />
+              <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+              <path d="M6.1 6.1C3.6 7.8 2 12 2 12s3.5 7 10 7c1.83 0 3.4-.42 4.72-1.07" />
+              <line x1="2" y1="2" x2="22" y2="22" />
+            </svg>
+            <h2>The camera is off</h2>
+            <p id="preview-off-text">
+              No plugin is asking to see anything. Turn a feature on in the
+              plugin that owns it — vision has no switches of its own.
+            </p>
+          </div>
+
+          <div class="preview-message" id="preview-denied">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M2 12s3.5-7 10-7c2.06 0 3.83.55 5.29 1.31" />
+              <path d="M22 12s-.86 1.72-2.5 3.36" />
+              <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+              <path d="M6.1 6.1C3.6 7.8 2 12 2 12s3.5 7 10 7c1.83 0 3.4-.42 4.72-1.07" />
+              <line x1="2" y1="2" x2="22" y2="22" />
+            </svg>
+            <h2>Camera access was denied</h2>
+            <p>
+              Vision can't see the camera and can't open System Settings
+              itself. Grant access from:
+            </p>
+            <p class="path">System Settings &rsaquo; Privacy &amp; Security &rsaquo; Camera</p>
+          </div>
+
+          <div class="preview-message" id="preview-nodevice">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M23 7l-7 5 7 5V7z" />
+              <rect x="1" y="5" width="15" height="14" rx="2" ry="2" />
+              <line x1="2" y1="2" x2="22" y2="22" />
+            </svg>
+            <h2>No camera found</h2>
+            <p>Vision couldn't find a camera on this Mac. Connect one and it will appear here.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="controls-pane">
+        <h1>Vision</h1>
+
+        <p class="summary" id="summary">Loading&hellip;</p>
+
+        <section class="group" id="warnings-group" style="display: none">
+          <h2>Check your wiring</h2>
+          <div id="warnings"></div>
+        </section>
+
+        <section class="group">
+          <h2>Camera</h2>
+          <select id="device-select"></select>
+          <p class="error-note" id="device-error"></p>
+        </section>
+
+        <section class="group">
+          <h2>Running now</h2>
+          <div class="rows" id="running-rows"></div>
+          <p class="hint">
+            Each model runs because a plugin asked for it. Vision has no
+            toggles: to stop one, turn the feature off in the plugin named
+            beside it.
+          </p>
+        </section>
+
+        <section class="group">
+          <h2>Not running</h2>
+          <div class="rows" id="idle-rows"></div>
+        </section>
+
+        <section class="group">
+          <details class="requests">
+            <summary>Live requests</summary>
+            <div id="requests"></div>
+            <p class="hint">
+              Requests are self-asserted and expire unless re-published. A
+              subscriber with no request here receives nothing.
+            </p>
+          </details>
+        </section>
+      </div>
+    </div>
+
+    <script>
+      "use strict";
+
+      // Every URL below is relative. This page is served through core's
+      // reverse proxy under a mount point the plugin is never told, so a
+      // leading slash would leave the plugin's namespace entirely.
+      //
+      // No browser storage anywhere in this file — no local or session
+      // storage, no cookies, no IndexedDB. All plugins share one web origin
+      // in v1, so there is no such thing as private storage here.
+
+      var POLL_MS = 3000;
+
+      var lastState = null;
+      var eventSource = null;
+      var pollTimer = null;
+
+      // ============================================================
+      // Fetch helpers
+      // ============================================================
+
+      function getJSON(path) {
+        return fetch(path).then(function (r) {
+          if (!r.ok) throw new Error(path + ": " + r.status);
+          return r.json();
+        });
+      }
+
+      function putJSON(path, body) {
+        return fetch(path, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        }).then(function (r) {
+          return r.json().catch(function () { return {}; }).then(function (parsed) {
+            if (!r.ok) throw new Error(parsed.error || path + ": " + r.status);
+            return parsed;
+          });
+        });
+      }
+
+      function text(el, value) {
+        el.textContent = value;
+      }
+
+      // ============================================================
+      // Readout rendering — everything here comes from api/state.
+      // ============================================================
+
+      function renderSummary(state) {
+        text(document.getElementById("summary"), state.summary);
+      }
+
+      function renderWarnings(state) {
+        var group = document.getElementById("warnings-group");
+        var container = document.getElementById("warnings");
+        container.innerHTML = "";
+        var warnings = state.warnings || [];
+        group.style.display = warnings.length ? "" : "none";
+        warnings.forEach(function (w) {
+          var div = document.createElement("div");
+          div.className = "warning";
+          var topic = document.createElement("span");
+          topic.className = "topic";
+          topic.textContent = w.topic;
+          div.appendChild(topic);
+          div.appendChild(document.createTextNode(" — " + w.message));
+          container.appendChild(div);
+        });
+      }
+
+      function modelRow(model, idle) {
+        var row = document.createElement("div");
+        row.className = idle ? "row idle" : "row";
+
+        var left = document.createElement("div");
+        var name = document.createElement("span");
+        name.className = "model";
+        name.textContent = model.model;
+        left.appendChild(name);
+        if (!idle) {
+          var rate = document.createElement("span");
+          rate.className = "rate";
+          rate.textContent = model.fps + "fps";
+          left.appendChild(rate);
+        }
+
+        var right = document.createElement("span");
+        right.className = "requesters";
+        if (model.requesters && model.requesters.length) {
+          // The privacy claim, per model: who asked for this.
+          right.textContent = "← " + model.requesters.join(", ");
+        } else if (model.subscribers > 0) {
+          right.textContent = model.subscribers + " subscriber(s), nobody asked";
+        } else {
+          right.textContent = "nobody asked";
+        }
+
+        row.appendChild(left);
+        row.appendChild(right);
+        return row;
+      }
+
+      function renderModels(state) {
+        var running = document.getElementById("running-rows");
+        running.innerHTML = "";
+        if (!state.running.length) {
+          var none = document.createElement("div");
+          none.className = "row";
+          var span = document.createElement("span");
+          span.className = "empty";
+          span.textContent = "Nothing is running.";
+          none.appendChild(span);
+          running.appendChild(none);
+        } else {
+          state.running.forEach(function (m) { running.appendChild(modelRow(m, false)); });
+        }
+
+        var idle = document.getElementById("idle-rows");
+        idle.innerHTML = "";
+        (state.idle || []).forEach(function (m) { idle.appendChild(modelRow(m, true)); });
+      }
+
+      function renderRequests(state) {
+        var container = document.getElementById("requests");
+        container.innerHTML = "";
+        var requests = state.requests || [];
+        if (!requests.length) {
+          var p = document.createElement("div");
+          p.className = "request";
+          p.textContent = "No plugin has published a request.";
+          container.appendChild(p);
+          return;
+        }
+        requests.forEach(function (r) {
+          var div = document.createElement("div");
+          div.className = "request";
+          var who = document.createElement("div");
+          who.className = "who";
+          who.textContent = r.requester + " · " + r.fps + "fps · expires in " + r.expiresInSeconds + "s";
+          var detail = document.createElement("div");
+          detail.className = "detail";
+          detail.textContent = r.topics.length ? r.topics.join(", ") : "(no topics — asking for nothing)";
+          div.appendChild(who);
+          div.appendChild(detail);
+          container.appendChild(div);
+        });
+      }
+
+      // ============================================================
+      // Camera picker
+      // ============================================================
+
+      var deviceSelectBound = false;
+
+      function renderDevices(devices) {
+        var select = document.getElementById("device-select");
+        // Never rebuild the list while it is open — replacing the options
+        // under an open popup closes it mid-choice on every poll.
+        if (document.activeElement === select) return;
+
+        var selectedId = null;
+        select.innerHTML = "";
+        if (!devices.length) {
+          var empty = document.createElement("option");
+          empty.textContent = "No camera attached";
+          select.appendChild(empty);
+          select.disabled = true;
+        } else {
+          select.disabled = false;
+          devices.forEach(function (d) {
+            var option = document.createElement("option");
+            option.value = d.id;
+            option.textContent = d.name;
+            if (d.selected) selectedId = d.id;
+            select.appendChild(option);
+          });
+          if (selectedId !== null) select.value = selectedId;
+        }
+
+        if (!deviceSelectBound) {
+          deviceSelectBound = true;
+          select.addEventListener("change", function () {
+            var id = select.value;
+            select.disabled = true;
+            text(document.getElementById("device-error"), "");
+            putJSON("api/device", { deviceId: id })
+              .then(function () { return refreshState(); })
+              .catch(function (e) {
+                text(document.getElementById("device-error"), String(e.message || e));
+              })
+              .then(function () { select.disabled = false; });
+          });
+        }
+      }
+
+      // ============================================================
+      // Preview pane state machine
+      // ============================================================
+
+      var currentMode = null; // "live" | "off" | "denied" | "noDevice"
+
+      function setPaneMode(mode) {
+        if (mode === currentMode) return;
+        currentMode = mode;
+        document.getElementById("preview-stage").dataset.mode = mode;
+
+        var img = document.getElementById("preview-img");
+        if (mode === "live") {
+          img.src = "preview.mjpeg";
+          connectEvents();
+        } else {
+          // Detaching is what makes the plugin stop encoding: with no
+          // attached client, neither the JPEG stream nor the overlay stream
+          // does any work at all.
+          img.removeAttribute("src");
+          disconnectEvents();
+          clearOverlay();
+        }
+      }
+
+      function modeFor(state) {
+        if (state.camera.permission === "denied" || state.camera.permission === "restricted") return "denied";
+        if (state.camera.permission === "noDevice") return "noDevice";
+        return state.camera.open ? "live" : "off";
+      }
+
+      // ============================================================
+      // Overlay — aspect-FILL, matching the <img>'s object-fit: cover.
+      // ============================================================
+
+      var overlayCanvas = document.getElementById("overlay");
+      var overlayCtx = overlayCanvas.getContext("2d");
+      var overlayDPR = window.devicePixelRatio || 1;
+
+      function resizeOverlay() {
+        var stage = document.getElementById("preview-stage");
+        var w = stage.clientWidth;
+        var h = stage.clientHeight;
+        overlayDPR = window.devicePixelRatio || 1;
+        overlayCanvas.width = Math.round(w * overlayDPR);
+        overlayCanvas.height = Math.round(h * overlayDPR);
+        overlayCanvas.style.width = w + "px";
+        overlayCanvas.style.height = h + "px";
+      }
+
+      if (window.ResizeObserver) {
+        var ro = new ResizeObserver(function () { resizeOverlay(); });
+        ro.observe(document.getElementById("preview-stage"));
+      } else {
+        window.addEventListener("resize", resizeOverlay);
+      }
+      resizeOverlay();
+
+      function clearOverlay() {
+        overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
+      }
+
+      // The aspect-FILL derivation, and the reason it is spelled out rather
+      // than approximated: `object-fit: cover` scales the frame until it
+      // covers the box and CENTER-CROPS the overflow, so the visible frame
+      // origin is negative on whichever axis overflows. Mapping a normalized
+      // point as `x * width` — i.e. assuming `contain` — drifts the overlay
+      // off the face by exactly the cropped margin, which reads as a landmark
+      // bug and is not one.
+      //
+      // Computed ONCE per frame, not per point: a 76-point face plus a 3072
+      // cell mask would otherwise re-derive the same five numbers thousands
+      // of times a second.
+      function computeFillTransform(w, h, imageWidth, imageHeight) {
+        var fa = imageHeight > 0 ? imageWidth / imageHeight : 16 / 9;
+        var viewAspect = w / h;
+        var dispW = viewAspect > fa ? w : h * fa;
+        var dispH = viewAspect > fa ? w / fa : h;
+        return { dispW: dispW, dispH: dispH, ox: (w - dispW) / 2, oy: (h - dispH) / 2 };
+      }
+
+      // Coordinates arrive in viewer space — origin top-left, y DOWN, already
+      // mirrored by the provider. This is a pure scale and offset with NO
+      // flip of either axis; re-flipping y here would put the markers on the
+      // forehead instead of the nose.
+      function mapPoint(x, y, t) {
+        return { x: t.ox + x * t.dispW, y: t.oy + y * t.dispH };
+      }
+
+      function mapRect(r, t) {
+        return {
+          x: t.ox + r.x * t.dispW,
+          y: t.oy + r.y * t.dispH,
+          width: r.width * t.dispW,
+          height: r.height * t.dispH
+        };
+      }
+
+      // Decodes the segmentation mask's `bits`: base64 of the packed payload,
+      // in the SAME packing proto/topics/v1/vision.proto defines — row-major,
+      // MSB first, bit i == row * cols + col in byte i/8 at position
+      // 7 - (i % 8). `atob` returns a binary string (one char per byte);
+      // charCodeAt recovers the byte values.
+      function decodeBase64ToBytes(b64) {
+        var bin = atob(b64);
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        return bytes;
+      }
+
+      function drawFrame(frame) {
+        var w = overlayCanvas.width / overlayDPR;
+        var h = overlayCanvas.height / overlayDPR;
+        clearOverlay();
+        overlayCtx.save();
+        overlayCtx.scale(overlayDPR, overlayDPR);
+
+        var t = computeFillTransform(w, h, frame.imageWidth, frame.imageHeight);
+
+        // Segmentation, drawn as filled canvas cells — a real canvas, never
+        // SVG rects: a 64x48 mask is 3072 nodes per frame, which no DOM holds
+        // at frame rate.
+        var mask = frame.segmentation;
+        if (mask && mask.cols > 0 && mask.rows > 0) {
+          var bytes = decodeBase64ToBytes(mask.bits);
+          var cellW = t.dispW / mask.cols;
+          var cellH = t.dispH / mask.rows;
+          overlayCtx.fillStyle = "rgba(10, 132, 255, 0.20)";
+          for (var row = 0; row < mask.rows; row++) {
+            for (var col = 0; col < mask.cols; col++) {
+              var i = row * mask.cols + col;
+              if (!(bytes[i >> 3] & (0x80 >> (i & 7)))) continue;
+              overlayCtx.fillRect(
+                t.ox + col * cellW,
+                t.oy + row * cellH,
+                // +1 device-ish pixel of overlap: adjacent cells drawn at
+                // fractional widths otherwise leave hairline seams.
+                cellW + 0.5,
+                cellH + 0.5
+              );
+            }
+          }
+        }
+
+        // Body pose first (largest, lowest detail), then face, then hands, so
+        // the small markers are never buried under the big ones.
+        (frame.body || []).forEach(function (joint) {
+          if (joint.confidence < 0.2) return;
+          var p = mapPoint(joint.x, joint.y, t);
+          drawDot(p, "#ff9f0a", 4, joint.confidence);
+        });
+
+        if (frame.face) {
+          var box = mapRect(frame.face.bounds, t);
+          overlayCtx.strokeStyle = "rgba(255, 255, 255, 0.5)";
+          overlayCtx.lineWidth = 1.5;
+          overlayCtx.strokeRect(box.x, box.y, box.width, box.height);
+
+          overlayCtx.fillStyle = "rgba(48, 209, 88, 0.9)";
+          (frame.face.points || []).forEach(function (pt) {
+            var p = mapPoint(pt.x, pt.y, t);
+            overlayCtx.fillRect(p.x - 1, p.y - 1, 2, 2);
+          });
+        }
+
+        (frame.hands || []).forEach(function (hand) {
+          (hand.points || []).forEach(function (pt) {
+            drawDot(mapPoint(pt.x, pt.y, t), "#0a84ff", 2.5, 1);
+          });
+        });
+
+        overlayCtx.restore();
+      }
+
+      function drawDot(p, color, radius, alpha) {
+        overlayCtx.globalAlpha = Math.max(0.25, Math.min(1, alpha));
+        overlayCtx.beginPath();
+        overlayCtx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+        overlayCtx.fillStyle = color;
+        overlayCtx.fill();
+        overlayCtx.globalAlpha = 1;
+      }
+
+      // ============================================================
+      // SSE: api/events (overlay tiers)
+      // ============================================================
+
+      function connectEvents() {
+        if (eventSource) return;
+        eventSource = new EventSource("api/events");
+        eventSource.addEventListener("frame", function (evt) {
+          try {
+            drawFrame(JSON.parse(evt.data));
+          } catch (e) {
+            console.error(e);
+          }
+        });
+        eventSource.onerror = function () {
+          // EventSource retries on its own; the next api/state poll is what
+          // reconciles the pane if the camera actually closed.
+        };
+      }
+
+      function disconnectEvents() {
+        if (eventSource) {
+          eventSource.close();
+          eventSource = null;
+        }
+      }
+
+      // ============================================================
+      // Poll — self-heals when a plugin starts or stops asking.
+      // ============================================================
+
+      function applyState(state) {
+        lastState = state;
+        renderSummary(state);
+        renderWarnings(state);
+        renderModels(state);
+        renderRequests(state);
+        renderDevices(state.devices || []);
+        setPaneMode(modeFor(state));
+      }
+
+      function refreshState() {
+        return getJSON("api/state").then(applyState).catch(function (e) {
+          console.error(e);
+        });
+      }
+
+      function startPolling() {
+        if (pollTimer) return;
+        pollTimer = setInterval(refreshState, POLL_MS);
+      }
+
+      refreshState().then(startPolling);
+    </script>
+  </body>
+</html>

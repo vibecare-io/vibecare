@@ -1,0 +1,7 @@
+.build/
+# Build output. `just build-vision-plugin` stages the binary and its SwiftPM
+# resource bundle here, in a directory that holds nothing else — the plugin
+# root cannot hold the binary itself, because a directory holding an
+# Info.plist beside an executable named after that directory IS a flat bundle
+# to codesign, and AMFI then SIGKILLs it at spawn. See that recipe.
+/dist/
