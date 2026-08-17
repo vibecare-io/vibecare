@@ -1,6 +1,7 @@
 package storage
 
 import (
+	"fmt"
 	"os"
 	"testing"
 	"time"
@@ -1100,79 +1101,91 @@ func TestIsProblematicRRule(t *testing.T) {
 }
 
 // TestOptimizeDtstartForFrequency tests that dtstart is moved closer to 'after'
-// for high-frequency rules to reduce iteration count.
+// for high-frequency rules to reduce iteration count, without ever leaving the rule's
+// own occurrence grid. Time-of-day is NOT the invariant for sub-daily frequencies —
+// pinning those to dtstart's clock time is what pushed an "every 20 minutes" schedule
+// a day into the future.
 func TestOptimizeDtstartForFrequency(t *testing.T) {
 	// Fixed reference times for predictable testing
 	now := time.Date(2025, 6, 15, 14, 30, 0, 0, time.UTC)
 	oldDtstart := time.Date(2020, 1, 1, 9, 0, 0, 0, time.UTC) // 5+ years ago
 
 	tests := []struct {
-		name                string
-		freq                rrule.Frequency
-		dtstart             time.Time
-		after               time.Time
-		expectOptimized     bool
-		expectTimePreserved bool // time-of-day should be preserved
+		name            string
+		freq            rrule.Frequency
+		interval        int
+		dtstart         time.Time
+		after           time.Time
+		expectOptimized bool
+		stride          time.Duration // occurrence spacing the result must land on
 	}{
 		{
-			name:                "SECONDLY moves dtstart close to after",
-			freq:                rrule.SECONDLY,
-			dtstart:             oldDtstart,
-			after:               now,
-			expectOptimized:     true,
-			expectTimePreserved: true,
+			name:            "SECONDLY moves dtstart close to after",
+			freq:            rrule.SECONDLY,
+			interval:        1,
+			dtstart:         oldDtstart,
+			after:           now,
+			expectOptimized: true,
+			stride:          time.Second,
 		},
 		{
-			name:                "MINUTELY moves dtstart close to after",
-			freq:                rrule.MINUTELY,
-			dtstart:             oldDtstart,
-			after:               now,
-			expectOptimized:     true,
-			expectTimePreserved: true,
+			name:            "MINUTELY moves dtstart close to after",
+			freq:            rrule.MINUTELY,
+			interval:        1,
+			dtstart:         oldDtstart,
+			after:           now,
+			expectOptimized: true,
+			stride:          time.Minute,
 		},
 		{
-			name:                "HOURLY moves dtstart close to after",
-			freq:                rrule.HOURLY,
-			dtstart:             oldDtstart,
-			after:               now,
-			expectOptimized:     true,
-			expectTimePreserved: true,
+			name:            "HOURLY moves dtstart close to after",
+			freq:            rrule.HOURLY,
+			interval:        1,
+			dtstart:         oldDtstart,
+			after:           now,
+			expectOptimized: true,
+			stride:          time.Hour,
 		},
 		{
-			name:                "DAILY moves dtstart close to after",
-			freq:                rrule.DAILY,
-			dtstart:             oldDtstart,
-			after:               now,
-			expectOptimized:     true,
-			expectTimePreserved: true,
+			name:            "DAILY moves dtstart close to after",
+			freq:            rrule.DAILY,
+			interval:        1,
+			dtstart:         oldDtstart,
+			after:           now,
+			expectOptimized: true,
+			stride:          24 * time.Hour,
 		},
 		{
-			name:                "WEEKLY moves dtstart close to after",
-			freq:                rrule.WEEKLY,
-			dtstart:             oldDtstart,
-			after:               now,
-			expectOptimized:     true,
-			expectTimePreserved: true,
+			name:            "WEEKLY moves dtstart close to after",
+			freq:            rrule.WEEKLY,
+			interval:        1,
+			dtstart:         oldDtstart,
+			after:           now,
+			expectOptimized: true,
+			stride:          7 * 24 * time.Hour,
 		},
 		{
-			name:                "MONTHLY moves dtstart close to after",
-			freq:                rrule.MONTHLY,
-			dtstart:             oldDtstart,
-			after:               now,
-			expectOptimized:     true,
-			expectTimePreserved: true,
+			// MONTHLY/YEARLY have no fixed stride to step by, and iterating a few
+			// years of them is cheap, so they are deliberately left untouched.
+			name:            "MONTHLY is left alone",
+			freq:            rrule.MONTHLY,
+			interval:        1,
+			dtstart:         oldDtstart,
+			after:           now,
+			expectOptimized: false,
 		},
 		{
-			name:                "YEARLY moves dtstart close to after",
-			freq:                rrule.YEARLY,
-			dtstart:             oldDtstart,
-			after:               now,
-			expectOptimized:     true,
-			expectTimePreserved: true,
+			name:            "YEARLY is left alone",
+			freq:            rrule.YEARLY,
+			interval:        1,
+			dtstart:         oldDtstart,
+			after:           now,
+			expectOptimized: false,
 		},
 		{
 			name:            "dtstart after 'after' is not changed",
 			freq:            rrule.MINUTELY,
+			interval:        1,
 			dtstart:         now.Add(1 * time.Hour), // dtstart is in the future
 			after:           now,
 			expectOptimized: false,
@@ -1180,6 +1193,7 @@ func TestOptimizeDtstartForFrequency(t *testing.T) {
 		{
 			name:            "recent dtstart is not changed (within lookback)",
 			freq:            rrule.MINUTELY,
+			interval:        1,
 			dtstart:         now.Add(-30 * time.Minute), // only 30 min ago, lookback is 1 hour
 			after:           now,
 			expectOptimized: false,
@@ -1188,7 +1202,7 @@ func TestOptimizeDtstartForFrequency(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := optimizeDtstartForFrequency(tt.freq, tt.dtstart, tt.after, time.UTC)
+			result := optimizeDtstartForFrequency(tt.freq, tt.dtstart, tt.after, time.UTC, tt.interval)
 
 			if tt.expectOptimized {
 				// Result should be different from original
@@ -1206,21 +1220,19 @@ func TestOptimizeDtstartForFrequency(t *testing.T) {
 					t.Errorf("optimized dtstart should be closer to 'after': original diff=%v, optimized diff=%v",
 						originalDiff, optimizedDiff)
 				}
+				// ...but never at or past 'after', or occurrences get skipped
+				if !result.Before(tt.after) {
+					t.Errorf("optimized dtstart %v must stay before 'after' %v", result, tt.after)
+				}
+				// ...and it must still be an occurrence of the original rule
+				if off := result.Sub(tt.dtstart) % tt.stride; off != 0 {
+					t.Errorf("optimized dtstart %v is %v off the %v grid anchored at %v",
+						result, off, tt.stride, tt.dtstart)
+				}
 			} else {
 				// Result should equal original
 				if !result.Equal(tt.dtstart) {
 					t.Errorf("expected dtstart unchanged, got %v (original: %v)", result, tt.dtstart)
-				}
-			}
-
-			// Check time-of-day preservation
-			if tt.expectTimePreserved && tt.expectOptimized {
-				if result.Hour() != tt.dtstart.Hour() ||
-					result.Minute() != tt.dtstart.Minute() ||
-					result.Second() != tt.dtstart.Second() {
-					t.Errorf("time-of-day not preserved: original %02d:%02d:%02d, result %02d:%02d:%02d",
-						tt.dtstart.Hour(), tt.dtstart.Minute(), tt.dtstart.Second(),
-						result.Hour(), result.Minute(), result.Second())
 				}
 			}
 		})
@@ -1500,4 +1512,290 @@ func TestUpdateSchedule_NonRRuleChangePreservesCadence(t *testing.T) {
 	}
 
 	t.Logf("✓ Non-RRule change preserves cadence: next_execution in %v", timeUntilNext)
+}
+
+// TestCalculateNextFromRRule_MinutelyWithOldDtstart reproduces the 20-20-20 bug:
+// a live "FREQ=MINUTELY;INTERVAL=20" schedule created weeks earlier reported its next
+// execution ~26 hours out instead of within 20 minutes. dtstart is 18:08:58 in the
+// schedule's own timezone, and every recalculation landed on *that clock time*, so the
+// UI showed "in 1h 54m" for a schedule that should fire every 20 minutes.
+func TestCalculateNextFromRRule_MinutelyWithOldDtstart(t *testing.T) {
+	// Exact values from the reported schedule row.
+	dtstart := time.Date(2026, 7, 21, 1, 8, 58, 0, time.UTC) // 18:08:58 America/Los_Angeles
+	after := time.Date(2026, 8, 16, 23, 18, 0, 0, time.UTC)  // 16:18 America/Los_Angeles
+
+	next, err := calculateNextFromRRule("FREQ=MINUTELY;INTERVAL=20", dtstart, after, "America/Los_Angeles")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule failed: %v", err)
+	}
+
+	if !next.After(after) {
+		t.Fatalf("next execution %v should be after %v", next, after)
+	}
+	if delta := next.Sub(after); delta > 20*time.Minute {
+		t.Errorf("next execution is %v after %v; a 20-minute schedule must fire within 20 minutes (got %v)",
+			delta, after.Format(time.RFC3339), next.Format(time.RFC3339))
+	}
+	// The occurrence must stay on the grid anchored at dtstart, not merely be "soon".
+	if off := next.Sub(dtstart) % (20 * time.Minute); off != 0 {
+		t.Errorf("next execution %v is %v off the 20-minute grid anchored at dtstart %v",
+			next.Format(time.RFC3339), off, dtstart.Format(time.RFC3339))
+	}
+}
+
+// TestOptimizeDtstartForFrequency_NeverSkipsPastAfter locks in the invariant the bug
+// violated: the optimized dtstart is a shortcut for iteration, so it must never move
+// forward past the moment we are searching from, and must stay on the rule's own grid.
+func TestOptimizeDtstartForFrequency_NeverSkipsPastAfter(t *testing.T) {
+	chicago, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		t.Fatalf("failed to load timezone: %v", err)
+	}
+
+	// dtstart late in the day, 'after' early in the day weeks later: the combination
+	// that pushed the optimized dtstart into the future.
+	dtstart := time.Date(2026, 7, 21, 18, 8, 58, 0, chicago)
+	after := time.Date(2026, 8, 16, 9, 18, 0, 0, chicago)
+
+	tests := []struct {
+		name     string
+		freq     rrule.Frequency
+		interval int
+		stride   time.Duration
+	}{
+		{"SECONDLY every 30s", rrule.SECONDLY, 30, 30 * time.Second},
+		{"MINUTELY every 20m", rrule.MINUTELY, 20, 20 * time.Minute},
+		{"HOURLY every 2h", rrule.HOURLY, 2, 2 * time.Hour},
+		{"DAILY every 3d", rrule.DAILY, 3, 3 * 24 * time.Hour},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := optimizeDtstartForFrequency(tt.freq, dtstart, after, chicago, tt.interval)
+
+			if !got.Before(after) {
+				t.Errorf("optimized dtstart %v is not before 'after' %v - occurrences would be skipped",
+					got.Format(time.RFC3339), after.Format(time.RFC3339))
+			}
+			if got.Before(dtstart) {
+				t.Errorf("optimized dtstart %v moved backwards past %v",
+					got.Format(time.RFC3339), dtstart.Format(time.RFC3339))
+			}
+			if off := got.Sub(dtstart) % tt.stride; off != 0 {
+				t.Errorf("optimized dtstart %v is %v off the %v grid anchored at dtstart",
+					got.Format(time.RFC3339), off, tt.stride)
+			}
+		})
+	}
+}
+
+// TestCalculateNextFromRRule_SubDailyNeverExceedsInterval sweeps every hour of the day
+// as dtstart's clock time. The 20-20-20 bug only surfaced when dtstart's clock time was
+// later in the day than 'after', so a single fixed dtstart would have missed it: the
+// interval, not the clock, is what bounds a sub-daily schedule.
+func TestCalculateNextFromRRule_SubDailyNeverExceedsInterval(t *testing.T) {
+	rules := []struct {
+		rrule    string
+		interval time.Duration
+	}{
+		{"FREQ=MINUTELY;INTERVAL=20", 20 * time.Minute},
+		{"FREQ=MINUTELY;INTERVAL=7", 7 * time.Minute},
+		{"FREQ=HOURLY;INTERVAL=2", 2 * time.Hour},
+		{"FREQ=HOURLY", time.Hour},
+		{"FREQ=SECONDLY;INTERVAL=45", 45 * time.Second},
+	}
+	zones := []string{"UTC", "America/Los_Angeles", "America/Chicago", "Asia/Kathmandu"}
+
+	// 'after' is nearly a month past dtstart, the situation a long-lived schedule is in.
+	after := time.Date(2026, 8, 16, 23, 18, 0, 0, time.UTC)
+
+	for _, r := range rules {
+		for _, zone := range zones {
+			for hour := 0; hour < 24; hour++ {
+				name := fmt.Sprintf("%s/%s/dtstart_%02dh", r.rrule, zone, hour)
+				t.Run(name, func(t *testing.T) {
+					dtstart := time.Date(2026, 7, 21, hour, 8, 58, 0, time.UTC)
+
+					next, err := calculateNextFromRRule(r.rrule, dtstart, after, zone)
+					if err != nil {
+						t.Fatalf("calculateNextFromRRule failed: %v", err)
+					}
+					if !next.After(after) {
+						t.Fatalf("next execution %v is not after %v", next, after)
+					}
+					if delta := next.Sub(after); delta > r.interval {
+						t.Errorf("next execution is %v out; %s must fire within %v (next=%v)",
+							delta, r.rrule, r.interval, next.Format(time.RFC3339))
+					}
+					if off := next.Sub(dtstart) % r.interval; off != 0 {
+						t.Errorf("next execution %v is %v off the %v grid anchored at dtstart %v",
+							next.Format(time.RFC3339), off, r.interval, dtstart.Format(time.RFC3339))
+					}
+				})
+			}
+		}
+	}
+}
+
+// TestCalculateNextFromRRule_MinutelyAcrossDSTTransition checks that the dtstart
+// shortcut is computed on the wall clock like rrule-go itself, so a schedule that
+// spans a DST boundary keeps its cadence instead of sliding by an hour.
+func TestCalculateNextFromRRule_MinutelyAcrossDSTTransition(t *testing.T) {
+	chicago, err := time.LoadLocation("America/Chicago")
+	if err != nil {
+		t.Fatalf("failed to load timezone: %v", err)
+	}
+
+	// dtstart well before the 2026-11-01 fall-back transition, 'after' well past it.
+	dtstart := time.Date(2026, 10, 1, 8, 0, 0, 0, chicago)
+	after := time.Date(2026, 11, 15, 14, 33, 0, 0, chicago)
+
+	next, err := calculateNextFromRRule("FREQ=MINUTELY;INTERVAL=20", dtstart, after, "America/Chicago")
+	if err != nil {
+		t.Fatalf("calculateNextFromRRule failed: %v", err)
+	}
+	if delta := next.Sub(after); delta <= 0 || delta > 20*time.Minute {
+		t.Errorf("next execution %v is %v from 'after'; expected within 20 minutes",
+			next.Format(time.RFC3339), delta)
+	}
+	// The wall clock is what repeats: minute-of-hour must match dtstart's offset grid.
+	if m := next.In(chicago).Minute() % 20; m != dtstart.Minute()%20 {
+		t.Errorf("next execution %v drifted off dtstart's minute grid (%d vs %d)",
+			next.In(chicago).Format(time.RFC3339), m, dtstart.Minute()%20)
+	}
+}
+
+// TestUpdateScheduleExecution_MinutelyStaysOnCadence covers the bug end to end at the
+// storage layer: after a long-lived "every 20 minutes" schedule fires, the row the UI
+// reads back must say the next run is 20 minutes out, not the next day.
+func TestUpdateScheduleExecution_MinutelyStaysOnCadence(t *testing.T) {
+	db, dbPath := setupTestDB(t)
+	defer os.Remove(dbPath)
+	defer db.Close()
+
+	profile, err := db.CreateProfile("Test User", "test@example.com", "UTC", map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test profile: %v", err)
+	}
+	routine, err := db.CreateRoutine("", profile.ID, "Self Care", "", true, map[string]string{})
+	if err != nil {
+		t.Fatalf("Failed to create test routine: %v", err)
+	}
+
+	// dtstart 26 days ago at 23:58 in the schedule's own timezone - a clock time later in
+	// the day than "now" is what triggered the bug, and this is the shape of the reported
+	// 20-20-20 Eye Care row.
+	losAngeles, err := time.LoadLocation("America/Los_Angeles")
+	if err != nil {
+		t.Fatalf("failed to load timezone: %v", err)
+	}
+	past := time.Now().In(losAngeles).AddDate(0, 0, -26)
+	dtstart := time.Date(past.Year(), past.Month(), past.Day(), 23, 58, 0, 0, losAngeles).UTC()
+	scheduleID := uuid.New().String()
+	if _, err := db.CreateSchedule(scheduleID, profile.ID, routine.ID, "20-20-20 Eye Care",
+		"FREQ=MINUTELY;INTERVAL=20", "America/Los_Angeles", &dtstart, []string{}, "", true); err != nil {
+		t.Fatalf("CreateSchedule failed: %v", err)
+	}
+
+	if err := db.UpdateScheduleExecution(scheduleID, models.ScheduleTypeRecurring,
+		"FREQ=MINUTELY;INTERVAL=20", dtstart, "America/Los_Angeles"); err != nil {
+		t.Fatalf("UpdateScheduleExecution failed: %v", err)
+	}
+
+	updated, err := db.GetSchedule(scheduleID)
+	if err != nil {
+		t.Fatalf("GetSchedule failed: %v", err)
+	}
+	if updated.NextExecution == nil {
+		t.Fatal("NextExecution should be set for a recurring schedule")
+	}
+
+	untilNext := time.Until(*updated.NextExecution)
+	if untilNext <= 0 || untilNext > 20*time.Minute {
+		t.Errorf("next execution is %v away; an every-20-minutes schedule must be within 20 minutes (next=%v)",
+			untilNext, updated.NextExecution.Format(time.RFC3339))
+	}
+}
+
+// unoptimizedNext walks a rule from its real dtstart with no shortcut at all, which is
+// the answer calculateNextFromRRule must always reproduce.
+func unoptimizedNext(t *testing.T, rruleStr string, dtstart, after time.Time, tz string) time.Time {
+	t.Helper()
+
+	loc := time.UTC
+	if l, err := time.LoadLocation(tz); err == nil {
+		loc = l
+	}
+	dtstartInTZ, afterInTZ := dtstart.In(loc), after.In(loc)
+
+	rule, err := rrule.StrToRRule("DTSTART:" + dtstartInTZ.Format("20060102T150405") + "\nRRULE:" + rruleStr)
+	if err != nil {
+		t.Fatalf("failed to parse %q: %v", rruleStr, err)
+	}
+	rule, err = applyTimezoneToRRule(rule, dtstartInTZ)
+	if err != nil {
+		t.Fatalf("failed to apply timezone: %v", err)
+	}
+	set := &rrule.Set{}
+	set.RRule(rule)
+	return set.After(afterInTZ, false).UTC()
+}
+
+// TestCalculateNextFromRRule_MatchesUnoptimizedRRule is the guard on the dtstart
+// shortcut: skipping ahead must never change the answer. It differentially compares the
+// optimized path against a plain rrule walk from the original dtstart, across every
+// rule shape the app can produce and a full week of query times.
+//
+// The 20-20-20 bug was exactly this contract being broken - the shortcut invented an
+// occurrence the rule itself would never produce.
+func TestCalculateNextFromRRule_MatchesUnoptimizedRRule(t *testing.T) {
+	cases := []struct{ name, rrule, dtstart, tz string }{
+		{"weekly one day", "FREQ=WEEKLY;BYHOUR=18;BYMINUTE=0;BYDAY=SA", "2025-11-28T23:31:07Z", "America/Chicago"},
+		{"weekly two days", "FREQ=WEEKLY;BYHOUR=18;BYMINUTE=0;BYDAY=FR,TU", "2025-11-30T02:55:30Z", "America/Chicago"},
+		{"weekly no time of day", "FREQ=WEEKLY;BYDAY=FR,TU", "2025-11-28T23:58:40Z", "America/Chicago"},
+		{"weekly every 2 weeks", "FREQ=WEEKLY;INTERVAL=2;BYDAY=MO", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"weekly every 3 weeks", "FREQ=WEEKLY;INTERVAL=3", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"daily once", "FREQ=DAILY;BYHOUR=8;BYMINUTE=47", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"daily three times", "FREQ=DAILY;BYHOUR=7,13,20;BYMINUTE=0", "2025-12-06T15:59:20Z", "America/Chicago"},
+		{"daily every 3 days", "FREQ=DAILY;INTERVAL=3", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"daily every 5 days at 9", "FREQ=DAILY;INTERVAL=5;BYHOUR=9;BYMINUTE=0", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"hourly every 2 hours", "FREQ=HOURLY;INTERVAL=2", "2025-11-28T23:48:55Z", "America/Chicago"},
+		{"hourly every 5 hours", "FREQ=HOURLY;INTERVAL=5", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"hourly every 7 hours, half-hour zone", "FREQ=HOURLY;INTERVAL=7", "2025-11-28T23:48:34Z", "Asia/Kathmandu"},
+		{"minutely every 20 minutes", "FREQ=MINUTELY;INTERVAL=20", "2026-07-21T01:08:58Z", "America/Los_Angeles"},
+		{"minutely every 7 minutes", "FREQ=MINUTELY;INTERVAL=7", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"secondly every 45 seconds", "FREQ=SECONDLY;INTERVAL=45", "2026-08-01T23:48:34Z", "America/Chicago"},
+		{"monthly on the 15th", "FREQ=MONTHLY;BYMONTHDAY=15", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"monthly on a short month's 31st", "FREQ=MONTHLY;BYMONTHDAY=31", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"monthly every 2 months", "FREQ=MONTHLY;INTERVAL=2", "2025-11-28T23:48:34Z", "America/Chicago"},
+		{"yearly", "FREQ=YEARLY;BYHOUR=20;BYMINUTE=59;BYMONTHDAY=23;BYMONTH=11", "2025-11-30T02:59:40Z", "America/Chicago"},
+		{"yearly every 2 years", "FREQ=YEARLY;INTERVAL=2", "2025-11-28T23:48:34Z", "America/Chicago"},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			dtstart, err := time.Parse(time.RFC3339, c.dtstart)
+			if err != nil {
+				t.Fatalf("bad dtstart: %v", err)
+			}
+
+			// Sweep query times across a week and around the clock: the bug only showed
+			// up at certain times of day relative to dtstart.
+			for _, day := range []int{17, 20, 23} {
+				for hour := 0; hour < 24; hour += 2 {
+					after := time.Date(2026, 8, day, hour, 37, 13, 0, time.UTC)
+
+					want := unoptimizedNext(t, c.rrule, dtstart, after, c.tz)
+					got, err := calculateNextFromRRule(c.rrule, dtstart, after, c.tz)
+					if err != nil {
+						t.Fatalf("calculateNextFromRRule failed at %v: %v", after, err)
+					}
+					if !got.Equal(want) {
+						t.Errorf("at %v: optimized path returned %v, plain rrule walk says %v",
+							after.Format(time.RFC3339), got.Format(time.RFC3339), want.Format(time.RFC3339))
+					}
+				}
+			}
+		})
+	}
 }
