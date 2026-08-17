@@ -193,6 +193,20 @@ Routing rule, in order — rule 3 is why rule 1 exists:
 - [ ] **Step 5:** Verify in-app: a plugin alert renders at its existing geometry; ESC, click-anywhere and a button each dismiss an interrupt; a countdown cancelled by early dismissal does **not** fire afterwards; `PluginInterrupt`'s red flash still works (its 10-arg literal must still compile).
 - [ ] **Step 6:** Commit: `refactor(client): drop the reimplemented plugin alert view`
 
+### Task 13: Webview surface (added mid-run by user; do LAST)
+
+**Not in the approved spec** — added by explicit user request during execution, to be done after Task 12. It overlaps sub-project C, which deferred "embedding the blink-jump game". Needs a short design pass before implementation; the notes below are what execution already knows, not a design.
+
+**Goal:** VibeNotify can render a web page as an alert surface, in both `.interrupt` (full screen) and `.ambient` (popup) modes — e.g. the blink-jump plugin UI at `/p/blink-jump/`, so a 20-20-20 break can *be* the game.
+
+**Known constraints — these are the hard part, not the WKWebView:**
+- Plugin UIs are reverse-proxied by core at `<base_url>/p/<id>/` (`PluginList.base_url` in `proto/client/v1/client.proto`). The port is assigned at runtime, so no URL can be hardcoded.
+- **Authenticated endpoints.** The client's existing `PluginWebView` appends `?vc=<token>` (`PluginList.token`) on the *first* load, and `PluginShellService.resolveIcon` fetches through the proxy with a `vc_session` cookie. A library-level `WKWebView` gets neither for free — it has its own `WKWebsiteDataStore` and cookie jar. Decide deliberately whether the library takes a pre-configured `WKWebView`/`WKWebViewConfiguration` from the caller (keeps all auth in VibeCare, keeps the library generic) or learns about tokens (couples a general-purpose library to VibeCare's auth). **Strong lean: the former** — VibeNotify is published for general use and must not learn what a `vc_session` is.
+- The countdown clock and buttons must still work over the webview; the web content must not swallow ESC or the dismissal hit target.
+- A live web page inside an interrupt is a focus and keyboard-input surface — revisit the "interrupt takes key focus" decision for this case specifically.
+
+**Do not start this before Task 12 is complete and reviewed.**
+
 ---
 
 ## Deferred (do not build here)
