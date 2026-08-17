@@ -64,8 +64,8 @@ enum VibeNotifyConfig {
   /// rather than growing the window — deliberately, because an
   /// `NSHostingView` free to publish its content's height resized an `.ambient`
   /// window to 2289pt tall. Every authored height in this app predates that
-  /// renderer: they were chosen against one with no 28pt content padding, no
-  /// 26pt title and no half-height illustration cap. At the default 450x220 the
+  /// renderer: they were chosen against one with no content padding, no
+  /// set title and no half-height illustration cap. At the default 450x220 the
   /// rich renderer clips its own illustration at the top and everything below
   /// the message at the bottom. So an authored height is a floor, not a size.
   ///
@@ -87,17 +87,28 @@ enum VibeNotifyConfig {
   /// were 248pt of chrome without a button row and 286pt with one. Both worst
   /// cases are a five-line message, which is not hypothetical: it is what the
   /// customization sheet's preview substitutes when no message is set.
+  ///
+  /// **Re-measured after the renderer's ambient type and spacing scale changed**
+  /// (VibeNotify `RichMetrics.ambient`: 22pt padding, a 19pt title, a 13pt
+  /// message and grouped rather than uniform gaps, replacing a flat 28/26/15/22).
+  /// The same sweep now yields 248 without buttons and **276** with them — the
+  /// stack got tighter, so both constants below remain floors with room to
+  /// spare and neither is changed. Only this prose was stale: it described the
+  /// old scale, and a comment that names four numbers none of which the renderer
+  /// still uses is worse than no comment.
   static func richAmbientHeight(illustrationHeight: CGFloat, hasButtons: Bool) -> CGFloat {
     let chrome = hasButtons ? richChromeWithButtons : richChrome
     return chrome + min(illustrationHeight, chrome)
   }
 
   /// Room for everything the rich renderer draws that is not the illustration:
-  /// 28pt of padding top and bottom, a 26pt title, the message, 22pt between
-  /// each element, and the dismiss clock's own row. Measured worst case 248 (see
-  /// above); the margin is for a message longer than any measured.
+  /// the content padding, the title, the message, the gaps between elements and
+  /// the dismiss clock's own row — all of them now sourced from VibeNotify's
+  /// `RichMetrics.ambient` rather than from literals repeated here. Measured
+  /// worst case 248 (see above); the margin is for a message longer than any
+  /// measured.
   private static let richChrome: CGFloat = 264
-  /// `richChrome` with a row of action buttons — measured worst case 286.
+  /// `richChrome` with a row of action buttons — measured worst case 276.
   private static let richChromeWithButtons: CGFloat = 304
 
   // MARK: - Schedule Notification
