@@ -70,6 +70,22 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
     var autoDismissAfter: TimeInterval? // Duration in seconds before auto-dismiss
     var screenBlurEnabled: Bool // Enable/disable screen blur background
     var screenBlurIntensity: BlurIntensity // Blur intensity level (VibeNotify 0.0.5+)
+    /// The large, legible countdown ring's duration, in seconds. `nil` (the
+    /// default, and what every action predating this field decodes to) means
+    /// no task timer at all — today's behaviour, unchanged. Sourced from an
+    /// action's `task_timer_seconds` parameter; see
+    /// `VibeNotifyConfig.showNotification` for how it becomes a VibeNotify
+    /// `TaskTimer`.
+    var taskTimerSeconds: TimeInterval?
+    /// The word under the ring's number, e.g. "seconds". Defaulted at the
+    /// point of use (`VibeNotifyConfig`), not here, so `nil` unambiguously
+    /// means "the action didn't say" rather than baking a default into the
+    /// model.
+    var taskTimerUnitLabel: String?
+    /// What the ring's centre says once the task reaches zero, e.g. "Break
+    /// complete". Never shown for an early Done or a Skip — see
+    /// `RichNotification.completionState`.
+    var taskTimerCompletionLabel: String?
 
     init(
         bundledIconId: String? = nil,
@@ -84,7 +100,10 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         moveable: Bool = true,
         autoDismissAfter: TimeInterval? = 20.0,
         screenBlurEnabled: Bool = false,
-        screenBlurIntensity: BlurIntensity = .medium
+        screenBlurIntensity: BlurIntensity = .medium,
+        taskTimerSeconds: TimeInterval? = nil,
+        taskTimerUnitLabel: String? = nil,
+        taskTimerCompletionLabel: String? = nil
     ) {
         self.bundledIconId = bundledIconId
         self.svgPath = svgPath
@@ -99,6 +118,9 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         self.autoDismissAfter = autoDismissAfter
         self.screenBlurEnabled = screenBlurEnabled
         self.screenBlurIntensity = screenBlurIntensity
+        self.taskTimerSeconds = taskTimerSeconds
+        self.taskTimerUnitLabel = taskTimerUnitLabel
+        self.taskTimerCompletionLabel = taskTimerCompletionLabel
     }
 
     /// Returns an independent copy of these preferences (a distinct reference,
@@ -118,7 +140,10 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
             moveable: moveable,
             autoDismissAfter: autoDismissAfter,
             screenBlurEnabled: screenBlurEnabled,
-            screenBlurIntensity: screenBlurIntensity
+            screenBlurIntensity: screenBlurIntensity,
+            taskTimerSeconds: taskTimerSeconds,
+            taskTimerUnitLabel: taskTimerUnitLabel,
+            taskTimerCompletionLabel: taskTimerCompletionLabel
         )
     }
 
@@ -254,7 +279,10 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
             lhs.moveable == rhs.moveable &&
             lhs.autoDismissAfter == rhs.autoDismissAfter &&
             lhs.screenBlurEnabled == rhs.screenBlurEnabled &&
-            lhs.screenBlurIntensity == rhs.screenBlurIntensity
+            lhs.screenBlurIntensity == rhs.screenBlurIntensity &&
+            lhs.taskTimerSeconds == rhs.taskTimerSeconds &&
+            lhs.taskTimerUnitLabel == rhs.taskTimerUnitLabel &&
+            lhs.taskTimerCompletionLabel == rhs.taskTimerCompletionLabel
     }
 
     // MARK: - Hashable
@@ -272,6 +300,9 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         hasher.combine(autoDismissAfter)
         hasher.combine(screenBlurEnabled)
         hasher.combine(screenBlurIntensity)
+        hasher.combine(taskTimerSeconds)
+        hasher.combine(taskTimerUnitLabel)
+        hasher.combine(taskTimerCompletionLabel)
     }
 }
 
