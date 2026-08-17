@@ -164,10 +164,15 @@ class NotificationManager: NSObject, ObservableObject {
         let autoDismissAfter = params["auto_dismiss_after"].flatMap { Double($0) }
         let screenBlurEnabled = params["screen_blur_enabled"].flatMap { Bool($0) } ?? false
         let screenBlurIntensity = params["screen_blur_intensity"].flatMap { BlurIntensity(rawValue: $0) } ?? .medium
+        // Absent or unparseable means no task timer — today's behaviour,
+        // unchanged (see `NotificationPreferences.taskTimerSeconds`).
+        let taskTimerSeconds = params["task_timer_seconds"].flatMap { Double($0) }
+        let taskTimerUnitLabel = params["task_timer_unit_label"]
+        let taskTimerCompletionLabel = params["task_timer_completion_label"]
 
         // Only return preferences if at least some customization exists
         // Otherwise return nil to use default notification appearance
-        if svgPath != nil || width != nil || height != nil || position != .center || screenBlurEnabled {
+        if svgPath != nil || width != nil || height != nil || position != .center || screenBlurEnabled || taskTimerSeconds != nil {
             return NotificationPreferences(
                 bundledIconId: nil, // Always nil now - IDs converted to URLs
                 svgPath: svgPath,
@@ -181,7 +186,10 @@ class NotificationManager: NSObject, ObservableObject {
                 moveable: moveable,
                 autoDismissAfter: autoDismissAfter,
                 screenBlurEnabled: screenBlurEnabled,
-                screenBlurIntensity: screenBlurIntensity
+                screenBlurIntensity: screenBlurIntensity,
+                taskTimerSeconds: taskTimerSeconds,
+                taskTimerUnitLabel: taskTimerUnitLabel,
+                taskTimerCompletionLabel: taskTimerCompletionLabel
             )
         }
 

@@ -184,11 +184,24 @@ enum VibeNotifyConfig {
       builder = builder.illustration(.symbol(defaultSystemIcon, pointSize: fallbackSymbolPointSize, color: nil))
     }
 
+    // A task-timer duration rides along on the action's parameters
+    // (`task_timer_seconds`, with optional `task_timer_unit_label` /
+    // `task_timer_completion_label`) — see `NotificationPreferences`. Absent
+    // or unparseable means `nil` here too, which is what keeps an action with
+    // no task timer rendering exactly as it did before this existed: no
+    // `.taskTimer(...)` call below, no ring.
+    let taskTimer: TaskTimer? = prefs.taskTimerSeconds.map { seconds in
+      TaskTimer(
+        duration: seconds,
+        unitLabel: prefs.taskTimerUnitLabel ?? "seconds",
+        completionLabel: prefs.taskTimerCompletionLabel ?? "Break complete"
+      )
+    }
+
     builder = builder
       .title(title)
       .message(message)
       .dismissOnScreenTap(true)
-      .autoDismiss(after: prefs.autoDismissAfter ?? quickDismissDelay)
       // The blur toggle is already the user's way of saying "take over my
       // screen for this", so it selects the alert mode rather than a lone
       // window knob — no new persisted key and no new control in the
@@ -198,6 +211,16 @@ enum VibeNotifyConfig {
       // appearance, which is exactly how a title landed invisible over a dark
       // terminal.
       //
+      // A task timer forces `.interrupt` regardless of `screenBlurEnabled`.
+      // `RichNotification.effectiveTaskTimer` returns `nil` in `.ambient` by
+      // design — a labelled ring reads as a task, and ambient alerts have
+      // none — so an action that set `task_timer_seconds` but left
+      // `screen_blur_enabled: false` would otherwise get no ring at all and
+      // no error to explain why. A duration the caller explicitly asked for
+      // is a stronger signal than a blur flag that may just be an
+      // unconsidered default, so this upgrades rather than silently drops
+      // the ring.
+      //
       // Setting `.mode(_:)` at all is what routes this funnel to the rich
       // renderer (see `NotificationBuilder.routesToRichRenderer`), which is
       // also why `.moveable`, `.alwaysOnTop` and `.screenBlur(_:intensity:)`
@@ -206,7 +229,38 @@ enum VibeNotifyConfig {
       // would read as though the preferences still reached the window.
       // `prefs.screenBlurIntensity` and `prefs.moveable` are consequently no
       // longer honoured for schedule alerts.
-      .mode(prefs.screenBlurEnabled ? .interrupt : .ambient)
+      .mode(taskTimer != nil || prefs.screenBlurEnabled ? .interrupt : .ambient)
+
+    if let taskTimer {
+      if !prefs.screenBlurEnabled {
+        logger.info(
+          "task_timer_seconds set without screen_blur_enabled; upgrading to .interrupt so the ring is visible",
+          metadata: ["duration": "\(taskTimer.duration)"]
+        )
+      }
+      builder = builder
+        .taskTimer(taskTimer)
+        .button(StandardNotification.Button(title: "Done", style: .primary, action: {}))
+        .button(StandardNotification.Button(title: "Skip", style: .secondary, action: {}))
+      // `auto_dismiss_after` is deliberately NOT forwarded here. A task timer
+      // and an auto-dismiss are sequential phases, not a race — the task
+      // runs first and alone, and the dismiss clock only arms once it hits
+      // zero, so honouring both would total `duration + delay` (e.g. the
+      // 20-20-20 action's 20s task + 25s dismiss = 45s on screen), which is
+      // very unlikely to be what an author who set a task duration meant.
+      // Leaving `AutoDismiss` unset lets the library's own short
+      // `completionHold` (1.5s) govern how long the completion/acknowledgement
+      // label holds before the window closes — an honest, brief beat instead
+      // of a silent 45-second alert.
+      if let autoDismissAfter = prefs.autoDismissAfter {
+        logger.debug(
+          "ignoring auto_dismiss_after because a task timer is present",
+          metadata: ["auto_dismiss_after": "\(autoDismissAfter)"]
+        )
+      }
+    } else {
+      builder = builder.autoDismiss(after: prefs.autoDismissAfter ?? quickDismissDelay)
+    }
 
     switch prefs.position {
     case .center:
@@ -227,8 +281,9 @@ enum VibeNotifyConfig {
     // The authored height is a floor — see `richAmbientHeight`. Unconditional
     // rather than branched on the mode because `.interrupt` ignores width and
     // height entirely (it takes the whole screen), so there is nothing for a
-    // branch to protect. A schedule alert carries no action buttons; its Done /
-    // Snooze row is a later task.
+    // branch to protect. `hasButtons` reserves the extra row height only for
+    // the Done/Skip pair a task timer adds — a plain schedule alert still has
+    // none.
     builder = builder.height(
       max(
         CGFloat(prefs.height ?? 0),
@@ -238,7 +293,7 @@ enum VibeNotifyConfig {
           // is still set, so that one case reserves the SVG's room for a smaller
           // symbol — over-reserving, which is the harmless direction.
           illustrationHeight: prefs.svgSize?.height ?? fallbackSymbolPointSize,
-          hasButtons: false
+          hasButtons: taskTimer != nil
         )
       )
     )

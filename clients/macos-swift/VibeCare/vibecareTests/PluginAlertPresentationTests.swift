@@ -80,6 +80,46 @@ private let defaultBlob = #"""
     #expect(p.blurIntensity == nil)
 }
 
+// MARK: - Task timer
+
+// `NotificationPreferences.taskTimerSeconds`/`taskTimerUnitLabel`/
+// `taskTimerCompletionLabel` are what `VibeNotifyConfig.showNotification`
+// reads to build VibeNotify's `TaskTimer` (the countdown ring) — sourced
+// from an action's `task_timer_seconds` etc. parameters via
+// `ScheduleActionCard`/`NotificationManager`'s deserializers. `nil` (the
+// default) means no task timer at all, which is what keeps every action
+// that predates this field rendering exactly as it did before. Exercised
+// here at the model level — construction, `copy()`, `Equatable`/`Hashable`
+// — since those are the surfaces every caller that builds or compares a
+// `NotificationPreferences` actually goes through.
+@Test func taskTimerFieldsDefaultToNil() {
+    let p = NotificationPreferences.default
+    #expect(p.taskTimerSeconds == nil)
+    #expect(p.taskTimerUnitLabel == nil)
+    #expect(p.taskTimerCompletionLabel == nil)
+}
+
+@Test func taskTimerFieldsSurviveCopy() {
+    let p = NotificationPreferences(
+        taskTimerSeconds: 20,
+        taskTimerUnitLabel: "seconds",
+        taskTimerCompletionLabel: "Break complete"
+    )
+    let copy = p.copy()
+
+    #expect(copy.taskTimerSeconds == 20)
+    #expect(copy.taskTimerUnitLabel == "seconds")
+    #expect(copy.taskTimerCompletionLabel == "Break complete")
+    #expect(copy !== p)
+    #expect(copy == p)
+}
+
+@Test func taskTimerSecondsParticipatesInEquality() {
+    let withTimer = NotificationPreferences(taskTimerSeconds: 20)
+    let withoutTimer = NotificationPreferences(taskTimerSeconds: nil)
+    #expect(withTimer != withoutTimer)
+}
+
 // MARK: - Routing
 
 // An alert with no appearance is untouched by any of this.
