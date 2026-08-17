@@ -105,7 +105,7 @@ func calculateNextFromRRuleWithContext(ctx context.Context, rruleStr string, dts
 
 	// Optimize dtstart for high-frequency rules to reduce iterations
 	// Use timezone-aware values for optimization
-	effectiveDtstart := optimizeDtstartForFrequency(freq, dtstartInTZ, afterInTZ, loc)
+	effectiveDtstart := optimizeDtstartForFrequency(freq, dtstartInTZ, afterInTZ, loc, opts.Interval)
 
 	span.SetAttributes(
 		attribute.String("rrule.frequency", freqToString(freq)),
@@ -198,53 +198,80 @@ func isProblematicRRule(freq rrule.Frequency, opts rrule.ROption) bool {
 	return false
 }
 
-// optimizeDtstartForFrequency moves dtstart closer to 'after' for high-frequency rules.
-// This dramatically reduces the number of iterations needed by rrule-go's After() method.
-// The loc parameter specifies the timezone to use for the optimized time.
-func optimizeDtstartForFrequency(freq rrule.Frequency, dtstart, after time.Time, loc *time.Location) time.Time {
+// optimizeDtstartForFrequency moves dtstart forward, closer to 'after', so rrule-go's
+// After() doesn't have to walk every occurrence since the original dtstart.
+//
+// The shortcut is only sound if the new dtstart lands *on the rule's own occurrence
+// grid* and stays before 'after'. So the move is a whole number of intervals measured
+// from dtstart, and never lands at or past 'after' — a dtstart in the future is itself
+// the first occurrence, which is how a "every 20 minutes" schedule once reported its
+// next run a day out.
+//
+// The stepping is done on the wall clock, because rrule-go advances local wall time:
+// a DST transition must not shift the grid by an hour.
+//
+// MONTHLY and YEARLY have no fixed stride, so they're left alone — walking a few years
+// of months costs little, and any shortcut would have to guess at calendar arithmetic.
+func optimizeDtstartForFrequency(freq rrule.Frequency, dtstart, after time.Time, loc *time.Location, interval int) time.Time {
 	// Only optimize if dtstart is before 'after'
 	if !dtstart.Before(after) {
 		return dtstart
 	}
 
-	// Calculate safe lookback based on frequency
-	// We go back enough to ensure we don't miss the pattern alignment
-	var lookback time.Duration
+	if interval < 1 {
+		interval = 1 // RFC 5545 default
+	}
+
+	// lookback: how far before 'after' to land, leaving room for BY* constraints
+	// within the rule to still produce occurrences before 'after'.
+	// unit: the duration of one interval step for this frequency.
+	var lookback, unit time.Duration
 	switch freq {
 	case rrule.SECONDLY:
-		lookback = 1 * time.Minute
+		lookback, unit = 1*time.Minute, time.Second
 	case rrule.MINUTELY:
-		lookback = 1 * time.Hour
+		lookback, unit = 1*time.Hour, time.Minute
 	case rrule.HOURLY:
-		lookback = 24 * time.Hour
+		lookback, unit = 24*time.Hour, time.Hour
 	case rrule.DAILY:
-		lookback = 7 * 24 * time.Hour
+		lookback, unit = 7*24*time.Hour, 24*time.Hour
 	case rrule.WEEKLY:
-		lookback = 4 * 7 * 24 * time.Hour
-	case rrule.MONTHLY:
-		lookback = 60 * 24 * time.Hour // ~2 months
-	case rrule.YEARLY:
-		lookback = 400 * 24 * time.Hour // ~13 months
+		lookback, unit = 4*7*24*time.Hour, 7*24*time.Hour
 	default:
 		return dtstart
 	}
 
-	// Calculate candidate: go back from 'after' by lookback amount
-	candidate := after.Add(-lookback)
+	// Step from dtstart by whole intervals, stopping at or before the lookback target.
+	stride := unit * time.Duration(interval)
+	dtstartWall := wallClock(dtstart)
+	steps := wallClock(after.Add(-lookback)).Sub(dtstartWall) / stride
+	if steps < 1 {
+		return dtstart // already within the lookback window
+	}
 
-	// Preserve time-of-day from original dtstart (important for patterns like "every day at 9am")
-	// Use the provided timezone location for consistency
-	candidate = time.Date(
-		candidate.Year(), candidate.Month(), candidate.Day(),
-		dtstart.Hour(), dtstart.Minute(), dtstart.Second(), dtstart.Nanosecond(),
+	stepped := dtstartWall.Add(steps * stride)
+	candidate := time.Date(
+		stepped.Year(), stepped.Month(), stepped.Day(),
+		stepped.Hour(), stepped.Minute(), stepped.Second(), stepped.Nanosecond(),
 		loc,
 	)
 
-	// Only use candidate if it's after original dtstart (don't go backwards)
-	if candidate.After(dtstart) {
-		return candidate
+	// A DST gap can push the reconstructed time forward; never hand back a dtstart that
+	// skips occurrences or moves backwards.
+	if !candidate.After(dtstart) || !candidate.Before(after) {
+		return dtstart
 	}
-	return dtstart
+	return candidate
+}
+
+// wallClock reinterprets t's local clock reading as UTC, so subtracting two wallClock
+// values measures wall-clock distance rather than elapsed absolute time.
+func wallClock(t time.Time) time.Time {
+	return time.Date(
+		t.Year(), t.Month(), t.Day(),
+		t.Hour(), t.Minute(), t.Second(), t.Nanosecond(),
+		time.UTC,
+	)
 }
 
 // freqToString converts rrule.Frequency to string for logging/telemetry
