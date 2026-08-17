@@ -2,153 +2,28 @@ import AppKit
 import SwiftUI
 import VibeNotify
 
-/// The shell's own rendering of a plugin alert that carried an appearance
-/// (ruling U2).
-///
-/// ## Why this view exists at all
-///
-/// VibeNotify 0.0.5 has two built-in renderers and neither can draw an
-/// illustration and buttons at the same time:
-///
-/// * `SVGNotificationView` draws a full-size SVG, and `SVGNotification` has
-///   no `buttons` property — the builder's buttons are dropped on the way in.
-/// * `StandardNotificationView` draws buttons, but renders
-///   `IconType.svg`/`.url` as `EmptyView()` and pins `IconType.image` to a
-///   hardcoded 48x48 frame.
-///
-/// The package's third path — a caller-supplied SwiftUI view rendered in the
-/// same overlay window machinery — has neither limitation, so the layout
-/// lives here instead. It is deliberately modelled on `SVGNotificationView`
-/// (the "old and nice" design): illustration at full size, no card chrome,
-/// floating over the blurred screen, adaptive text with a glow in dark mode.
-/// The button row is the one addition.
-///
-/// ## Why it is not plugin-specific
-///
-/// Nothing here names a plugin or knows what any alert means. It renders the
-/// shell's own appearance vocabulary (`PluginAlertPresentation`), which any
-/// plugin may send. That is the rule that lets a plugin ship a styled alert
-/// without a client release.
-struct PluginAlertOverlayView: View {
-    let icon: NSImage?
-    let iconSize: CGSize
-    let title: String
-    let message: String
-    let actions: [NotificationAction]
-    let onDismiss: () -> Void
-
-    @Environment(\.colorScheme) private var colorScheme
-
-    @State private var scale: CGFloat = 0.8
-    @State private var opacity: Double = 0.0
-
-    /// Follows the system theme, exactly as `SVGNotificationView` does: the
-    /// alert floats over a blurred desktop with no background of its own, so
-    /// the text needs a glow to stay legible against whatever is behind it.
-    private var useLightText: Bool { colorScheme == .dark }
-
-    var body: some View {
-        VStack(spacing: 20) {
-            if let icon {
-                Image(nsImage: icon)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: iconSize.width, height: iconSize.height)
-                    .shadow(color: useLightText ? .white.opacity(0.5) : .black.opacity(0.5), radius: 15)
-            }
-
-            if !title.isEmpty {
-                Text(title)
-                    .font(.title2)
-                    .fontWeight(.semibold)
-                    .foregroundColor(useLightText ? .white : .primary)
-                    .shadow(color: useLightText ? .white.opacity(0.3) : .clear, radius: 4)
-                    .multilineTextAlignment(.center)
-            }
-
-            if !message.isEmpty {
-                Text(message)
-                    .font(.body)
-                    .foregroundColor(useLightText ? .white.opacity(0.9) : .secondary)
-                    .shadow(color: useLightText ? .white.opacity(0.2) : .clear, radius: 3)
-                    .multilineTextAlignment(.center)
-            }
-
-            if !actions.isEmpty {
-                HStack(spacing: 12) {
-                    ForEach(Array(actions.enumerated()), id: \.offset) { _, action in
-                        SwiftUI.Button {
-                            // Run the action, then take the alert down. The
-                            // action itself is a fire-and-forget HTTP call
-                            // (see PluginShellService.performAction), so
-                            // waiting for it would leave the alert on screen
-                            // for a round trip with no feedback.
-                            action.handler()
-                            onDismiss()
-                        } label: {
-                            Text(action.label)
-                                .fontWeight(.medium)
-                                .padding(.horizontal, 18)
-                                .padding(.vertical, 9)
-                        }
-                        .buttonStyle(PluginAlertButtonStyle())
-                    }
-                }
-                .padding(.top, 4)
-            }
-        }
-        .padding(24)
-        // The whole card is a hit target for dismissal EXCEPT the buttons,
-        // which take their taps first. Without `contentShape` the transparent
-        // padding around the content would not respond at all.
-        .contentShape(Rectangle())
-        .onTapGesture { onDismiss() }
-        .onAppear {
-            withAnimation(.spring(response: 0.6, dampingFraction: 0.7)) {
-                scale = 1.0
-                opacity = 1.0
-            }
-        }
-        .scaleEffect(scale)
-        .opacity(opacity)
-    }
-}
-
-/// A button legible against a blurred desktop. VibeNotify's own
-/// `SecondaryButtonStyle` is internal to that package, and a plain
-/// `.bordered` button disappears against a light-blurred background, so the
-/// style is owned here.
-private struct PluginAlertButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .strokeBorder(Color.primary.opacity(0.15), lineWidth: 1)
-            )
-            .foregroundColor(.primary)
-            .opacity(configuration.isPressed ? 0.7 : 1.0)
-    }
-}
-
 // MARK: - Presenter
 
-/// Shows `PluginAlertOverlayView` in VibeNotify's overlay window.
+/// Presents a plugin alert that carried an appearance (ruling U2) through
+/// VibeNotify's rich renderer.
 ///
-/// This goes through `OverlayWindowManager.show(id:configuration:content:)`
-/// rather than `VibeNotify.showCustom(...)`. They are the same mechanism —
-/// `showCustom` is a four-argument wrapper around this exact call — but
-/// `showCustom` hardcodes the rest of the `Configuration`, and the three
-/// things it drops are the three this alert needs most: `screenBlur` (with
-/// its separate full-screen blur window), `position`, and `width`/`height`.
-/// Rebuilding full-screen blur inside the view is not equivalent: a material
-/// in the view's own background blurs only what is behind the 450x220 window,
-/// whereas the old design dimmed the entire screen. Using the underlying
-/// public method keeps that behaviour identical to the old alert instead of
-/// approximating it.
+/// A client-owned SwiftUI view used to live here, because neither built-in
+/// renderer could draw an illustration and buttons at the same time. The rich
+/// renderer draws both, so the view is gone, and with it the hand-written
+/// fifteen-argument window `Configuration`, the hand-rolled button style and the
+/// `asyncAfter` that stood in for a countdown. Deleting the view is also how
+/// this path *inherits* the contrast-correct text treatment rather than needing
+/// it ported: the old view picked its colours from the system appearance alone —
+/// a white glow under white text, a `.clear` shadow in light mode — which is the
+/// bug the rich renderer exists to fix.
 ///
-/// Auto-dismiss IS ours to schedule: the built-in renderers each run their
-/// own timer, and a caller-supplied view gets none.
+/// `.ambient`, not `.interrupt`, even when the appearance asked for blur: a
+/// plugin alert is a positioned window whose geometry plugins author against,
+/// and `.interrupt` deliberately ignores position and size in order to own the
+/// whole screen. Legibility over an arbitrary desktop comes from the renderer's
+/// local feathered scrim instead of a full-screen dim, which is what `.ambient`
+/// is for. The consequence is that `PluginAlertPresentation.blurIntensity` no
+/// longer reaches a window — `.ambient` builds no blur window at all.
 @MainActor
 enum PluginAlertPresenter {
     /// Presents the alert and returns its overlay id, or nil if notification
@@ -166,50 +41,57 @@ enum PluginAlertPresenter {
             return nil
         }
 
-        let id = UUID()
-        let view = PluginAlertOverlayView(
-            icon: icon,
-            iconSize: presentation.iconSize,
+        let notification = RichNotification(
+            // `.image`, never a URL. The icon arrives already fetched because
+            // fetching goes through core's reverse proxy with a `vc_session`
+            // cookie (`PluginShellService.resolveIcon`); handing VibeNotify a
+            // URL would re-fetch it unauthenticated and fail.
+            illustration: icon.map { .image($0, size: presentation.iconSize) },
             title: title,
             message: message,
-            actions: actions,
-            onDismiss: { OverlayWindowManager.shared.dismiss(id: id) }
+            buttons: actions.map { action in
+                // `.secondary` so the library cancels the dismiss clock and then
+                // takes the window down after running the handler. The handler
+                // is a fire-and-forget HTTP call
+                // (`PluginShellService.performAction`), so waiting on it would
+                // leave the alert up for a round trip with no feedback.
+                StandardNotification.Button(
+                    title: action.label, style: .secondary, action: action.handler)
+            },
+            // The clock owns the alert's lifetime now, which the `asyncAfter`
+            // this replaces never could: an early dismissal cancels it instead
+            // of leaving a timer to fire into a window that is already gone.
+            // `.none` because the alert this reproduces showed no countdown.
+            autoDismiss: .init(delay: presentation.autoDismissAfter, indicator: .none),
+            mode: .ambient
         )
 
-        let height = fittingHeight(for: view, width: presentation.width, atLeast: presentation.minHeight)
-
-        let configuration = OverlayWindowManager.Configuration(
-            // Position + explicit width/height override the presentation
-            // mode entirely (see OverlayWindowManager.createWindow), so this
-            // is only a starting rect.
-            presentationMode: .fullScreen,
-            position: windowPosition(for: presentation.position),
+        // The appearance's height is a floor, and in the rich renderer it is a
+        // floor well below what the content occupies — `richAmbientHeight`
+        // carries the measurements and the reasoning, and lives next to the
+        // schedule path because both feed the same renderer and the metrics
+        // being mirrored are one renderer's.
+        let height = fittingHeight(
+            for: RichNotificationView(notification: notification, onDismiss: {}),
             width: presentation.width,
-            height: height,
-            windowLevel: .floating,
-            backgroundColor: .clear,
-            isTransparent: true,
-            ignoresMouseEvents: false,
-            isMoveable: presentation.moveable,
-            alwaysOnTop: true,
-            // No window material: the design floats over the blurred screen
-            // with no card behind it, same as the alert this replaces.
-            transparent: false,
-            screenBlur: presentation.blurIntensity != nil,
-            screenBlurIntensity: presentation.blurIntensity?.vibeNotifyIntensity,
-            dismissOnScreenTap: true,
-            animatePresentation: true
+            atLeast: max(
+                presentation.minHeight,
+                VibeNotifyConfig.richAmbientHeight(
+                    illustrationHeight: icon == nil ? 0 : presentation.iconSize.height,
+                    hasButtons: !actions.isEmpty
+                )
+            )
         )
 
-        OverlayWindowManager.shared.show(id: id, configuration: configuration) { view }
-
-        // Dismissing an already-dismissed id is a no-op inside
-        // OverlayWindowManager (it looks the window up first), so a button
-        // press that beats the timer needs no cancellation here.
-        DispatchQueue.main.asyncAfter(deadline: .now() + presentation.autoDismissAfter) {
-            OverlayWindowManager.shared.dismiss(id: id)
-        }
-        return id
+        return VibeNotify.shared.showRich(
+            notification,
+            configuration: .ambient(
+                position: windowPosition(for: presentation.position),
+                width: presentation.width,
+                height: height,
+                dismissOnScreenTap: true
+            )
+        )
     }
 
     /// The height the content actually needs at this width, floored at the
@@ -221,6 +103,13 @@ enum PluginAlertPresenter {
     /// merely ugly but unclickable — and the button in question is "Turn
     /// off". `fittingSize` can report zero for content SwiftUI cannot size
     /// eagerly, so a zero measurement falls back to the configured height.
+    ///
+    /// `RichNotificationView` is one such view, deliberately: its
+    /// `GeometryReader` exists precisely so the hosted content publishes no
+    /// height of its own and cannot resize the window it was given. Measured
+    /// through this probe it reports 10pt, so today the floor always wins and
+    /// `VibeNotifyConfig.richAmbientHeight` is what decides the window. This
+    /// stays the way in for a renderer that ever does report a real size.
     private static func fittingHeight(
         for view: some View, width: CGFloat, atLeast minimum: CGFloat
     ) -> CGFloat {
