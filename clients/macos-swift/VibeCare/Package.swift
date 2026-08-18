@@ -29,7 +29,7 @@ let package = Package(
     // Core package (contains OpenTelemetryApi and OpenTelemetrySdk)
     .package(url: "https://github.com/open-telemetry/opentelemetry-swift-core.git", from: "2.2.0"),
     // customized notification
-    .package(url: "https://github.com/vibecare-io/vibe-notify-macos.git", from: "0.0.5"),
+    .package(url: "https://github.com/vibecare-io/vibe-notify-macos.git", from: "0.0.6"),
   ],
   targets: [
     .target(
