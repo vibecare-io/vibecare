@@ -126,6 +126,26 @@ global counterparts (`screen_blur_enabled`, not `notify.blur_enabled`).
 | `task_timer_unit_label` | The word under the number | `notify.break_unit_label` ("seconds") |
 | `task_timer_completion_label` | What the ring's centre says at zero | `notify.break_completion_label` ("Break complete") |
 
+**Web panel** — turns the break into something the user can do. Action-only,
+no global counterpart (what to load during a break is content, not appearance):
+
+| Key | Value |
+|---|---|
+| `web_url` | `https://…`, or `plugin:<id>` / `plugin:<id>/<path>` |
+| `web_side` | `leading` (default) or `trailing` — which side the page takes |
+| `web_width` | The page's share of the surface width, `0.3`–`0.85` |
+| `web_autoplay` | `true` / `false` — may media start on its own (default `false`) |
+
+`plugin:` specs resolve at delivery time through
+`PluginRoster.handoffURL(for:path:)`, which appends the `?vc=` token core swaps
+for a session cookie. They are stored unresolved on purpose: the base URL and
+the token both change when core restarts, so an already-resolved URL saved into
+an action would be a stale credential in the database. A spec naming a plugin
+that is not in the roster logs and shows **no panel** — a break that opens on
+core's error page is worse than one with no panel. A bare `example.com` is
+rejected rather than upgraded to `https://`, because `URL(string:)` accepts it
+as a relative URL and the panel would then be silently blank.
+
 **Appearance** — global unless the action says otherwise:
 
 | Key | Values |
@@ -137,7 +157,7 @@ global counterparts (`screen_blur_enabled`, not `notify.blur_enabled`).
 | `screen_blur_enabled` | `true` / `false` |
 | `screen_blur_intensity` | `light`, `medium`, `heavy` |
 
-#### Two behaviours that surprise people
+#### Four behaviours that surprise people
 
 **A task timer forces `.interrupt`, whatever `screen_blur_enabled` says.**
 `RichNotification.effectiveTaskTimer` returns `nil` in `.ambient` by design — a
@@ -155,6 +175,20 @@ the task hits zero, so honouring both would total `duration + delay` — the
 very unlikely to be what an author who set a task duration meant. Instead the
 library's own `NotificationClock.completionHold` (1.5s) governs how long the
 completion label holds before the window closes. The ignored value is logged.
+
+**`web_url` forces `.interrupt` too, and takes click-anywhere-to-dismiss
+away.** `RichNotification.effectiveWebPanel` is `nil` in `.ambient` for the
+same reason the task timer is — a 380×210 toast split into two columns is two
+columns too narrow to be either. And `RichNotificationView` suppresses its
+full-bleed tap target whenever a panel is present: everywhere else "click
+anywhere to skip" is a courtesy, but with a game in the panel one shot landing
+in the margin would cancel the break and explain nothing. ESC and the buttons
+remain, and the footnote says so.
+
+**A `web_url` with no `task_timer_seconds` gets a Close button.** Without one
+it would have no buttons (those come with the timer), no click-away (see
+above), and a 3-second `quickDismissDelay` — three seconds of a video, then
+gone. The panel-without-timer case gets a button and no deadline instead.
 
 ## Plugins (v2)
 

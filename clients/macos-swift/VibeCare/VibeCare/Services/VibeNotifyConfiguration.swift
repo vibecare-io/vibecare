@@ -54,6 +54,70 @@ enum VibeNotifyConfig {
 
   private static let logger = Logger(label: "com.vibecare.vibe-notify-config")
 
+  // MARK: - Plugin web panels
+
+  /// How a `plugin:<id>/<path>` web-panel spec becomes a loadable URL, set by
+  /// the plugin shell once its roster is live.
+  ///
+  /// A hook rather than a direct call because the roster lives on
+  /// `PluginShellService`, which is a `@StateObject` owned by `Dashboard` and
+  /// has no singleton — and should not grow one for this. It is also genuinely
+  /// dynamic: the base URL and the session token both change when core
+  /// restarts, so this must be read at delivery time and never cached.
+  ///
+  /// `nil` until the shell starts, which is the honest answer for an alert
+  /// that fires before the plugin list exists: no panel, rather than a panel
+  /// pointed at nothing.
+  @MainActor static var pluginWebURLResolver: ((_ pluginID: String, _ path: String) -> URL?)?
+
+  /// A `web_url` action parameter resolved to something a web view can load.
+  ///
+  /// Two accepted forms, and everything else is rejected rather than guessed
+  /// at. In particular a bare `example.com` is *not* upgraded to
+  /// `https://example.com`: `URL(string:)` accepts it happily as a relative
+  /// URL, the web view then fails to load it, and the user gets a blank panel
+  /// with no explanation. A log line and no panel is the better failure.
+  @MainActor
+  static func resolveWebURL(_ spec: String) -> URL? {
+    let trimmed = spec.trimmingCharacters(in: .whitespacesAndNewlines)
+
+    if trimmed.hasPrefix("plugin:") {
+      let body = String(trimmed.dropFirst("plugin:".count))
+      // `blink-jump` and `blink-jump/index.html` both work; the id is
+      // everything up to the first slash.
+      let separator = body.firstIndex(of: "/")
+      let pluginID = separator.map { String(body[body.startIndex..<$0]) } ?? body
+      let path = separator.map { String(body[body.index(after: $0)...]) } ?? ""
+      guard !pluginID.isEmpty else {
+        logger.error("web_url names no plugin", metadata: ["web_url": "\(spec)"])
+        return nil
+      }
+      guard let resolver = pluginWebURLResolver else {
+        logger.error(
+          "web_url names a plugin but the plugin shell has not started; showing no panel",
+          metadata: ["plugin": "\(pluginID)"])
+        return nil
+      }
+      guard let url = resolver(pluginID, path) else {
+        logger.error(
+          "web_url names a plugin that is not in the roster; showing no panel",
+          metadata: ["plugin": "\(pluginID)"])
+        return nil
+      }
+      return url
+    }
+
+    guard trimmed.hasPrefix("https://") || trimmed.hasPrefix("http://"),
+          let url = URL(string: trimmed)
+    else {
+      logger.error(
+        "web_url is neither an http(s) URL nor plugin:<id>; showing no panel",
+        metadata: ["web_url": "\(spec)"])
+      return nil
+    }
+    return url
+  }
+
   // MARK: - Ambient Window Height
 
   /// The window height an `.ambient` rich alert needs, which is not the height
@@ -222,7 +286,21 @@ enum VibeNotifyConfig {
     // error to explain why. A duration the caller explicitly asked for is a
     // stronger signal than a blur flag that may just be an unconsidered
     // default, so this upgrades rather than silently drops the ring.
-    let mode: AlertMode = (taskTimer != nil || prefs.screenBlurEnabled) ? .interrupt : .ambient
+    //
+    // A web panel forces it for the same reason: `effectiveWebPanel` is nil in
+    // `.ambient`, so the action would get no panel and no explanation.
+    let webPanel: WebPanel? = prefs.webURLSpec
+      .flatMap(resolveWebURL)
+      .map { url in
+        WebPanel(
+          url: url,
+          placement: prefs.webPlacement == "trailing" ? .trailing : .leading,
+          widthFraction: prefs.webWidthFraction ?? WebPanel.defaultWidthFraction,
+          allowsAutoplay: prefs.webAutoplay)
+      }
+
+    let mode: AlertMode =
+      (taskTimer != nil || webPanel != nil || prefs.screenBlurEnabled) ? .interrupt : .ambient
 
     var buttons: [StandardNotification.Button] = []
     var autoDismiss: StandardNotification.AutoDismiss?
@@ -254,6 +332,13 @@ enum VibeNotifyConfig {
           metadata: ["auto_dismiss_after": "\(autoDismissAfter)"]
         )
       }
+    } else if webPanel != nil {
+      // A web panel with no task timer would otherwise be an alert nobody can
+      // keep: no buttons are added above, `RichNotificationView` suppresses
+      // click-anywhere-to-dismiss whenever a panel is present, and the `else`
+      // branch below would close it after `quickDismissDelay` — three seconds
+      // of a video, then gone. Give it a way out and no deadline instead.
+      buttons = [StandardNotification.Button(title: "Close", style: .primary, action: {})]
     } else {
       autoDismiss = StandardNotification.AutoDismiss(
         delay: prefs.autoDismissAfter ?? quickDismissDelay, indicator: .none)
@@ -261,8 +346,13 @@ enum VibeNotifyConfig {
 
     let notification = RichNotification(
       illustration: illustration,
+      webPanel: webPanel,
       title: title,
       message: message,
+      // Only with a panel, and only because the panel is what takes
+      // click-anywhere away. Without it the sentence would name an escape the
+      // renderer does not offer, which is worse than saying nothing.
+      footnote: webPanel != nil ? "Press ESC to skip" : nil,
       buttons: buttons,
       taskTimer: taskTimer,
       autoDismiss: autoDismiss,

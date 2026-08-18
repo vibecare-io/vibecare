@@ -115,6 +115,32 @@ struct PluginRoster: Equatable, Sendable {
         guard let entry = entry(id: pluginID) else { return nil }
         return url(for: entry, path: path)
     }
+
+    /// An INITIAL-load URL for a plugin-relative path — `url(for:path:)` plus
+    /// the token handoff `handoffURL(for:)` performs.
+    ///
+    /// Both halves are needed and neither existing method has both.
+    /// `handoffURL(for:)` carries the token but only ever points at a plugin's
+    /// root; `url(for:path:)` reaches a sub-path but carries no token — which
+    /// is right for an alert action, since that is followed inside a web view
+    /// that already went through the handoff and holds the cookie. An alert's
+    /// web panel is the *first* load in a web view of its own, so it needs
+    /// both: no token means core's auth wall, no path means every panel
+    /// showing the plugin's index page.
+    ///
+    /// Nil when the plugin is not in the roster — it may have died between the
+    /// schedule being authored and the alert firing, and a break that opens on
+    /// core's error page is worse than a break with no panel.
+    func handoffURL(for pluginID: String, path: String) -> URL? {
+        guard let resolved = url(for: pluginID, path: path),
+              var comps = URLComponents(url: resolved, resolvingAgainstBaseURL: false)
+        else { return nil }
+        // Appended rather than assigned: `url(for:path:)` preserves any query
+        // the caller's path carried, and replacing `queryItems` outright would
+        // silently drop it.
+        comps.queryItems = (comps.queryItems ?? []) + [URLQueryItem(name: "vc", value: token)]
+        return comps.url
+    }
 }
 
 /// A transient, native notification originating from a plugin.
