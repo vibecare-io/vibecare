@@ -42,6 +42,17 @@ struct GlobalNotificationSettings: Equatable, Sendable {
   /// only — an `.ambient` alert builds no backdrop window at all, so this is
   /// inert for one. See `screenDimRange` for why the bounds are what they are.
   var screenDim: Double
+  /// What a full-screen alert puts behind itself: the user's own desktop
+  /// blurred and dimmed (the default, and what every alert did before this
+  /// existed), or one of the flat/gradient fields the library paints instead.
+  ///
+  /// Global-only, deliberately: there is no per-action override key for it and
+  /// it is absent from `appearanceParameterKeys`. A break backdrop is a
+  /// property of *this machine's* idea of restful, not of the routine that
+  /// fired the alert, and every option is luminance-capped by the library
+  /// (`Legibility.maxSafeLuminance`) so there is no unsafe value for an action
+  /// to smuggle in anyway.
+  var backdropStyle: BackdropStyle
   var autoDismissAfter: TimeInterval
   var moveable: Bool
   /// The word under a break countdown's number, used when an action sets
@@ -77,6 +88,7 @@ struct GlobalNotificationSettings: Equatable, Sendable {
     screenBlurEnabled: Bool,
     screenBlurIntensity: BlurIntensity,
     screenDim: Double,
+    backdropStyle: BackdropStyle = .blurredDesktop,
     autoDismissAfter: TimeInterval,
     moveable: Bool,
     breakUnitLabel: String,
@@ -88,6 +100,7 @@ struct GlobalNotificationSettings: Equatable, Sendable {
     self.screenBlurEnabled = screenBlurEnabled
     self.screenBlurIntensity = screenBlurIntensity
     self.screenDim = screenDim
+    self.backdropStyle = backdropStyle
     self.autoDismissAfter = autoDismissAfter
     self.moveable = moveable
     self.breakUnitLabel = breakUnitLabel
@@ -107,6 +120,9 @@ struct GlobalNotificationSettings: Equatable, Sendable {
     screenBlurEnabled: false,
     screenBlurIntensity: .medium,
     screenDim: wcagSafeScreenDim,
+    // The blurred desktop, i.e. nothing about an existing alert changes until
+    // the user picks something else.
+    backdropStyle: .blurredDesktop,
     autoDismissAfter: 20,
     moveable: true,
     breakUnitLabel: "seconds",
@@ -125,6 +141,7 @@ struct GlobalNotificationSettings: Equatable, Sendable {
     static let blurEnabled = "notify.blur_enabled"
     static let blurIntensity = "notify.blur_intensity"
     static let screenDim = "notify.screen_dim"
+    static let backdropStyle = "notify.backdrop_style"
     static let autoDismissAfter = "notify.auto_dismiss_after"
     static let moveable = "notify.moveable"
     static let breakUnitLabel = "notify.break_unit_label"
@@ -193,6 +210,11 @@ struct GlobalNotificationSettings: Equatable, Sendable {
     if defaults.object(forKey: Key.screenDim) != nil {
       settings.screenDim = defaults.double(forKey: Key.screenDim)
     }
+    if let raw = defaults.string(forKey: Key.backdropStyle),
+      let style = BackdropStyle(rawValue: raw)
+    {
+      settings.backdropStyle = style
+    }
     if defaults.object(forKey: Key.autoDismissAfter) != nil {
       settings.autoDismissAfter = defaults.double(forKey: Key.autoDismissAfter)
     }
@@ -256,6 +278,15 @@ struct GlobalNotificationSettings: Equatable, Sendable {
     if let value = profilePreferences[Key.screenDim].flatMap(Double.init) {
       settings.screenDim = value
     }
+    // An unknown raw value — a style this build does not have, written by a
+    // newer one on another device — falls back to the blurred desktop rather
+    // than failing the whole hydration. Every option is safe; none is
+    // load-bearing.
+    if let raw = profilePreferences[Key.backdropStyle],
+      let style = BackdropStyle(rawValue: raw)
+    {
+      settings.backdropStyle = style
+    }
     if let value = profilePreferences[Key.autoDismissAfter].flatMap(Double.init) {
       settings.autoDismissAfter = value
     }
@@ -285,6 +316,7 @@ struct GlobalNotificationSettings: Equatable, Sendable {
       Key.blurEnabled: String(settings.screenBlurEnabled),
       Key.blurIntensity: settings.screenBlurIntensity.rawValue,
       Key.screenDim: String(settings.screenDim),
+      Key.backdropStyle: settings.backdropStyle.rawValue,
       Key.autoDismissAfter: String(settings.autoDismissAfter),
       Key.moveable: String(settings.moveable),
       Key.breakUnitLabel: settings.breakUnitLabel,

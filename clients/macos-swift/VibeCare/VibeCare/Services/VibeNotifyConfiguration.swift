@@ -308,7 +308,14 @@ enum VibeNotifyConfig {
       configuration: configuration,
       countdown: notification.countdown
     ) {
-      RichNotificationView(notification: notification, effectiveDim: effectiveDim) {
+      RichNotificationView(
+        notification: notification,
+        effectiveDim: effectiveDim,
+        // Off the configuration the backdrop window is built from, never a
+        // second read of the settings: the window and the renderer have to
+        // agree about what is behind the text.
+        backdropStyle: configuration.backdropStyle
+      ) {
         OverlayWindowManager.shared.dismiss(id: id)
       }
     }
@@ -335,7 +342,12 @@ enum VibeNotifyConfig {
     height: CGFloat
   ) -> (OverlayWindowManager.Configuration, Double) {
     let reduceTransparency = Legibility.Accessibility.reduceTransparency
-    let backdrop = Legibility.backdrop(for: mode, reduceTransparency: reduceTransparency)
+    // The user's chosen break backdrop is global, like the dim beside it, and
+    // is read from the same place for the same reason: it is not something an
+    // action can override, so it never rides in on `prefs`.
+    let backdropStyle = GlobalNotificationSettings.current.backdropStyle
+    let backdrop = Legibility.backdrop(
+      for: mode, reduceTransparency: reduceTransparency, style: backdropStyle)
 
     switch mode {
     case .interrupt:
@@ -358,12 +370,24 @@ enum VibeNotifyConfig {
         dismissOnScreenTap: true,
         animatePresentation: true,
         screenDim: dim,
-        takesKeyFocus: true
+        takesKeyFocus: true,
+        backdropStyle: backdropStyle
       )
-      // `Configuration` clamps `screenDim` on the way in, so read it back off
-      // the configuration rather than passing the unclamped request on to the
-      // renderer — the two must agree about the same number.
-      return (configuration, isOpaque ? 1.0 : configuration.screenDim)
+      // What the renderer should believe is behind its text.
+      //
+      // A painted backdrop hides the desktop outright with a surface capped at
+      // `Legibility.maxSafeLuminance`; that is total coverage, so it reads as 1
+      // and the renderer draws no local scrim — the same conclusion it reaches
+      // over Reduce Transparency's black. Deliberately **not**
+      // `backdrop?.effectiveDim`, which would be right for those two cases and
+      // wrong for the third: `Legibility.backdrop` reports the blurred
+      // desktop's dim as the safe 0.55 it *prescribes*, not the possibly much
+      // lower one this user actually set, and handing the renderer 0.55 when
+      // the screen is dimmed to 0.2 is exactly the "no scrim needed" mistake
+      // this parameter exists to prevent. For that case the honest number is
+      // the configuration's own, read back after its clamp so the two agree.
+      let paintsOwnSurface = isOpaque || backdrop?.fill != nil
+      return (configuration, paintsOwnSurface ? 1.0 : configuration.screenDim)
 
     case .ambient:
       let configuration = OverlayWindowManager.Configuration(
