@@ -56,5 +56,11 @@ just lint              # golangci-lint
 - RRule library follows RFC 5545 for recurring schedule calculations
 - Tracing enabled by default (`--enable-tracing`), OTLP endpoint: `localhost:4317`
 - MCP server can run embedded (`--with-mcp`) or standalone (`cmd/mcp-server/`)
+- **One server per database.** Startup takes an exclusive `flock` on `<db>.lock`; a second
+  server on the same database exits non-zero naming the holder's PID. To run one beside a
+  live server use `--db <other path>` — a different `--port` is not enough, since both
+  would still share `~/.vibecare/vibecare.db` and race over `next_execution`. Readers
+  (`just inspect-db`, sqlite3) never take the lock. See
+  [the design](../docs/superpowers/specs/2026-08-18-single-instance-db-lock-design.md).
 
 For full architecture details, see [`docs/architecture.md`](../docs/architecture.md).
