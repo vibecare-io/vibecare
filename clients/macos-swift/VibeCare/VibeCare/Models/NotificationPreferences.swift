@@ -149,6 +149,12 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
 
     // MARK: - Default Presets
 
+    /// **No longer the fallback for schedule notifications.** That role belongs
+    /// to `GlobalNotificationSettings`, which the user can actually change; this
+    /// remains only as the "Default" entry in the quick-preset row and as the
+    /// base the plugin alert path fills its gaps from
+    /// (`PluginAlertAppearance`), where an appearance arrives from the plugin
+    /// and is deliberately not user-configurable.
     nonisolated(unsafe) static let `default` = NotificationPreferences(
         position: .center,
         width: 450,

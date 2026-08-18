@@ -11,6 +11,8 @@ struct NotificationCustomizationView: View {
   @State private var showingFilePicker = false
   @State private var showingIconPicker = false
   @State private var previewNotification = false
+  /// Closed by default — see `advancedDisclosure`.
+  @State private var advancedExpanded = false
   @State private var iconPreviewData: Data?
   @State private var iconPreviewLoading = false
   @State private var iconPreviewError: Error?
@@ -26,30 +28,22 @@ struct NotificationCustomizationView: View {
 
         Spacer()
 
-        Button("Reset to Default") {
-          preferences = .default
+        Button("Reset to Global Settings") {
+          preferences = GlobalNotificationSettings.current.basePreferences()
         }
         .buttonStyle(.plain)
         .foregroundColor(.accentColor)
       }
 
-      // Preset Selector
-      presetSection
-
-      // SVG Icon Section
+      // Content: icon and wording. Always visible.
       svgIconSection
 
-      // Message Customization
       messageCustomizationSection
 
-      // Position Section
-      positionSection
-
-      // Size Controls
-      sizeSection
-
-      // Behavior Options
-      behaviorSection
+      // Appearance: demoted behind a disclosure that is closed by default,
+      // because Settings › Notifications now answers for it. Same shape as the
+      // action editor's own Advanced section.
+      advancedDisclosure
 
       // Preview Button
       previewSection
@@ -61,6 +55,28 @@ struct NotificationCustomizationView: View {
       // Load icons from backend if not already loaded
       if !iconManager.isLoaded && iconManager.loadError == nil {
         try? await iconManager.loadIcons()
+      }
+    }
+  }
+
+  // MARK: - Advanced Disclosure
+  private var advancedDisclosure: some View {
+    DisclosureGroup(isExpanded: $advancedExpanded) {
+      VStack(alignment: .leading, spacing: 20) {
+        presetSection
+        positionSection
+        sizeSection
+        behaviorSection
+      }
+      .padding(.top, 8)
+    } label: {
+      HStack(spacing: 6) {
+        Text("Advanced")
+          .font(.subheadline)
+          .fontWeight(.medium)
+        Text("Starting from your global notification settings")
+          .font(.caption)
+          .foregroundColor(.secondary)
       }
     }
   }

@@ -24,6 +24,44 @@ public class AppState: ObservableObject {
     private init() {
         loadCachedProfile()
         setupEventHandlers()
+        observeProfileForGlobalSettings()
+    }
+
+    // MARK: - Global Notification Settings
+
+    /// Keeps `GlobalNotificationSettings`' local mirror in step with whichever
+    /// profile is current.
+    ///
+    /// A sink on `$currentProfile` rather than a call at each assignment site:
+    /// the profile is set in four places (restore-from-cache, `selectProfile`,
+    /// and twice in `updateProfile`'s local-first/server-response pair), and a
+    /// hydration that only ran at three of them would be a bug nobody could see
+    /// until an alert rendered with the wrong look.
+    private func observeProfileForGlobalSettings() {
+        $currentProfile
+            .compactMap { $0 }
+            .sink { profile in
+                GlobalNotificationSettings.hydrate(from: profile.preferences)
+            }
+            .store(in: &cancellables)
+    }
+
+    /// Persists global notification appearance: the local mirror first (so the
+    /// very next alert uses it even if the backend is unreachable), then the
+    /// profile, which is the durable, cross-device copy.
+    ///
+    /// Goes through `updateProfile` rather than talking to `ProfileService`
+    /// directly so it inherits the same local-first-then-sync behaviour every
+    /// other profile edit already has.
+    func saveGlobalNotificationSettings(_ settings: GlobalNotificationSettings) {
+        settings.persistLocally()
+
+        guard var profile = currentProfile else {
+            logger.info("No current profile; global notification settings saved locally only")
+            return
+        }
+        profile.preferences = settings.merged(into: profile.preferences)
+        updateProfile(profile)
     }
 
     // MARK: - Public Methods

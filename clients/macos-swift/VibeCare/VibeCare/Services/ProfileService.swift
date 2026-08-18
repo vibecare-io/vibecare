@@ -123,6 +123,15 @@ public final class ProfileService: @unchecked Sendable {
                 request.name = profile.name
                 request.email = profile.email ?? ""  // Convert nil to empty string for protobuf
                 request.timezone = profile.timezone
+                // `UpdateProfileRequest.preferences` has existed on the wire
+                // since the first version of the proto (`vibecare.proto:237`)
+                // and the server persists it (`profile_service.go`, UpdateProfile:
+                // `if len(req.Preferences) > 0 { profile.Preferences = ... }`),
+                // but this client never filled it in — so every preference the
+                // UI edited was dropped on the way out. Global notification
+                // settings ride in this map; without this line they would round
+                // trip locally and silently reset on the next profile load.
+                request.preferences = profile.preferences
 
                 let clientRequest = ClientRequest(message: request)
                 let updatedVCProfile = try await client.updateProfile(

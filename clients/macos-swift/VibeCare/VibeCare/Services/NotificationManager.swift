@@ -34,8 +34,11 @@ class NotificationManager: NSObject, ObservableObject {
 
         let scheduledTime = event.hasScheduledTime ? event.scheduledTime.date : Date()
 
-        // Note: Notification preferences are now stored per-action, not at schedule level
-        // For basic schedule notifications (without specific actions), use default preferences
+        // Notification preferences are stored per-action, not at schedule
+        // level. A bare schedule notification has no action to read, so it gets
+        // the global layer alone — `nil` here, which
+        // `VibeNotifyConfig.showScheduleNotification` resolves to
+        // `GlobalNotificationSettings.current.basePreferences()`.
         let notificationPreferences: NotificationPreferences? = nil
 
         let notificationID = VibeNotifyConfig.showScheduleNotification(
@@ -148,51 +151,20 @@ class NotificationManager: NSObject, ObservableObject {
 
     // MARK: - Helper Methods
 
-    /// Deserialize notification preferences from action parameters
-    private func deserializeNotificationPreferences(from params: [String: String]) -> NotificationPreferences? {
-        // Create notification preferences from parameters
-        // Only read svg_path (contains full URL for both bundled and custom icons)
-        let svgPath = params["svg_path"]
-        let svgWidth = params["svg_width"].flatMap { Double($0) }.map { CGFloat($0) }
-        let svgHeight = params["svg_height"].flatMap { Double($0) }.map { CGFloat($0) }
-        let title = params["title"]
-        let message = params["body"]
-        let position = params["position"].flatMap { NotificationPosition(rawValue: $0) } ?? .center
-        let width = params["width"].flatMap { Double($0) }.map { CGFloat($0) }
-        let height = params["height"].flatMap { Double($0) }.map { CGFloat($0) }
-        let moveable = params["moveable"].flatMap { Bool($0) } ?? true
-        let autoDismissAfter = params["auto_dismiss_after"].flatMap { Double($0) }
-        let screenBlurEnabled = params["screen_blur_enabled"].flatMap { Bool($0) } ?? false
-        let screenBlurIntensity = params["screen_blur_intensity"].flatMap { BlurIntensity(rawValue: $0) } ?? .medium
-        // Absent or unparseable means no task timer — today's behaviour,
-        // unchanged (see `NotificationPreferences.taskTimerSeconds`).
-        let taskTimerSeconds = params["task_timer_seconds"].flatMap { Double($0) }
-        let taskTimerUnitLabel = params["task_timer_unit_label"]
-        let taskTimerCompletionLabel = params["task_timer_completion_label"]
-
-        // Only return preferences if at least some customization exists
-        // Otherwise return nil to use default notification appearance
-        if svgPath != nil || width != nil || height != nil || position != .center || screenBlurEnabled || taskTimerSeconds != nil {
-            return NotificationPreferences(
-                bundledIconId: nil, // Always nil now - IDs converted to URLs
-                svgPath: svgPath,
-                svgWidth: svgWidth,
-                svgHeight: svgHeight,
-                title: title,
-                message: message,
-                position: position,
-                width: width,
-                height: height,
-                moveable: moveable,
-                autoDismissAfter: autoDismissAfter,
-                screenBlurEnabled: screenBlurEnabled,
-                screenBlurIntensity: screenBlurIntensity,
-                taskTimerSeconds: taskTimerSeconds,
-                taskTimerUnitLabel: taskTimerUnitLabel,
-                taskTimerCompletionLabel: taskTimerCompletionLabel
-            )
-        }
-
-        return nil
+    /// Resolve an action's notification preferences: the user's global settings
+    /// as defaults, with any appearance key the action sets winning over them.
+    ///
+    /// This used to build preferences purely from `params` and return `nil`
+    /// unless *some* customisation existed — that `nil` is what made an
+    /// uncustomised alert fall back to the hardcoded
+    /// `NotificationPreferences.default`. Both halves are gone: the fallback is
+    /// now the user's global settings, and the "is anything customised?" test
+    /// is meaningless once every notification has preferences (they just may
+    /// all come from the global layer). Hence the non-optional return.
+    ///
+    /// The rule itself lives in `GlobalNotificationSettings.resolving(actionParameters:)`
+    /// so the action editor and this delivery path cannot disagree about it.
+    private func deserializeNotificationPreferences(from params: [String: String]) -> NotificationPreferences {
+        GlobalNotificationSettings.current.resolving(actionParameters: params)
     }
 }

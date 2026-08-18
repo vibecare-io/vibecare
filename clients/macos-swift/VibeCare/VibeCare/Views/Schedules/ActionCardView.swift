@@ -8,12 +8,23 @@ struct ScheduleActionCard: Identifiable, Equatable {
     let id: String
     var type: ActionType
     var parameters: [String: String]
-    var notificationPreferences: NotificationPreferences = .default // For notification actions
+    var notificationPreferences: NotificationPreferences = GlobalNotificationSettings.current.basePreferences() // For notification actions
+    /// Whether this action overrides the global notification appearance.
+    ///
+    /// Not persisted as a flag of its own: the *presence* of the appearance
+    /// keys in `parameters` is the persisted state, and this is derived from
+    /// them on load (`GlobalNotificationSettings.overridesAppearance`) and
+    /// written back to them on save. That way an action authored by the CLI or
+    /// MCP with only a `position` reads correctly here without ever having
+    /// passed through this app, and there is no second copy of the truth to
+    /// drift.
+    var overridesAppearance: Bool = false
 
     static func == (lhs: ScheduleActionCard, rhs: ScheduleActionCard) -> Bool {
         return lhs.id == rhs.id &&
                lhs.type == rhs.type &&
                lhs.parameters == rhs.parameters &&
+               lhs.overridesAppearance == rhs.overridesAppearance &&
                lhs.notificationPreferences == rhs.notificationPreferences
     }
 
@@ -33,16 +44,19 @@ struct ScheduleActionCard: Identifiable, Equatable {
                     "title": "",
                     "body": ""
                 ]
-                self.notificationPreferences = .default
+                // A brand-new action inherits the global look — no appearance
+                // keys written, so `overridesAppearance` stays false and the
+                // controls it seeds show what the alert will actually look like.
+                self.notificationPreferences = GlobalNotificationSettings.current.basePreferences()
+                self.overridesAppearance = false
             } else {
                 // Loading existing action - deserialize from parameters
                 print("DEBUG [ScheduleActionCard.init]: Loading existing notification action from parameters")
                 self.parameters = parameters
-                let deserialized = Self.deserializeNotificationPreferences(from: parameters)
-                print("DEBUG [ScheduleActionCard.init]: Deserialized notification prefs: \(deserialized != nil ? "present" : "nil")")
-                self.notificationPreferences = deserialized ?? .default
+                self.notificationPreferences = Self.deserializeNotificationPreferences(from: parameters)
+                self.overridesAppearance = GlobalNotificationSettings.overridesAppearance(parameters)
 
-                print("DEBUG [ScheduleActionCard.init]: Final prefs: title=\(notificationPreferences.title ?? "nil"), position=\(notificationPreferences.position)")
+                print("DEBUG [ScheduleActionCard.init]: Final prefs: title=\(notificationPreferences.title ?? "nil"), position=\(notificationPreferences.position), overridesAppearance=\(overridesAppearance)")
             }
         } else {
             // Seed missing values from each parameter's defaultValue (e.g. system
@@ -58,7 +72,11 @@ struct ScheduleActionCard: Identifiable, Equatable {
 
         // Serialize notification preferences into parameters for notification actions
         if type == .notification {
-            actionParams = Self.serializeNotificationPreferences(notificationPreferences, into: actionParams)
+            actionParams = Self.serializeNotificationPreferences(
+                notificationPreferences,
+                into: actionParams,
+                overridesAppearance: overridesAppearance
+            )
 
             // Apply defaults for empty title/body
             if actionParams["title"]?.isEmpty ?? true {
@@ -140,7 +158,20 @@ struct ScheduleActionCard: Identifiable, Equatable {
 
     // MARK: - Notification Preferences Serialization
 
-    private static func serializeNotificationPreferences(_ prefs: NotificationPreferences, into params: [String: String]) -> [String: String] {
+    /// Writes an action's *content* always, and its *appearance* only when the
+    /// action actually overrides the global settings.
+    ///
+    /// The `overridesAppearance == false` branch **removes** the appearance
+    /// keys rather than leaving whatever was there. That is what makes the
+    /// inheritance real: writing `position`/`moveable`/`screen_blur_enabled`
+    /// unconditionally — as this used to — meant every action ever opened in
+    /// the editor pinned its own appearance forever, and a later change to the
+    /// global settings would reach none of them.
+    private static func serializeNotificationPreferences(
+        _ prefs: NotificationPreferences,
+        into params: [String: String],
+        overridesAppearance: Bool
+    ) -> [String: String] {
         var result = params  // Start with existing params to preserve title/body from UI
 
         // Serialize SVG path (works for both bundled URLs and custom file paths)
@@ -174,19 +205,23 @@ struct ScheduleActionCard: Identifiable, Equatable {
             result["body"] = ""
         }
 
-        result["position"] = prefs.position.rawValue
-        if let width = prefs.width {
-            result["width"] = String(Double(width))
+        if overridesAppearance {
+            result["position"] = prefs.position.rawValue
+            if let width = prefs.width {
+                result["width"] = String(Double(width))
+            }
+            if let height = prefs.height {
+                result["height"] = String(Double(height))
+            }
+            result["moveable"] = String(prefs.moveable)
+            if let autoDismiss = prefs.autoDismissAfter {
+                result["auto_dismiss_after"] = String(autoDismiss)
+            }
+            result["screen_blur_enabled"] = String(prefs.screenBlurEnabled)
+            result["screen_blur_intensity"] = prefs.screenBlurIntensity.rawValue
+        } else {
+            result = GlobalNotificationSettings.clearingAppearance(result)
         }
-        if let height = prefs.height {
-            result["height"] = String(Double(height))
-        }
-        result["moveable"] = String(prefs.moveable)
-        if let autoDismiss = prefs.autoDismissAfter {
-            result["auto_dismiss_after"] = String(autoDismiss)
-        }
-        result["screen_blur_enabled"] = String(prefs.screenBlurEnabled)
-        result["screen_blur_intensity"] = prefs.screenBlurIntensity.rawValue
 
         if let taskTimerSeconds = prefs.taskTimerSeconds {
             result["task_timer_seconds"] = String(taskTimerSeconds)
@@ -203,45 +238,14 @@ struct ScheduleActionCard: Identifiable, Equatable {
         return result
     }
 
-    private static func deserializeNotificationPreferences(from params: [String: String]) -> NotificationPreferences? {
-        // Create notification preferences from parameters
-        // Only read svg_path (contains full URL for both bundled and custom icons)
-        let svgPath = params["svg_path"]
-        let svgWidth = params["svg_width"].flatMap { Double($0) }.map { CGFloat($0) }
-        let svgHeight = params["svg_height"].flatMap { Double($0) }.map { CGFloat($0) }
-        let title = params["title"]
-        let message = params["body"]
-        let position = params["position"].flatMap { NotificationPosition(rawValue: $0) } ?? .center
-        let width = params["width"].flatMap { Double($0) }.map { CGFloat($0) }
-        let height = params["height"].flatMap { Double($0) }.map { CGFloat($0) }
-        let moveable = params["moveable"].flatMap { Bool($0) } ?? true
-        let autoDismissAfter = params["auto_dismiss_after"].flatMap { Double($0) }
-        let screenBlurEnabled = params["screen_blur_enabled"].flatMap { Bool($0) } ?? false
-        let screenBlurIntensity = params["screen_blur_intensity"].flatMap { BlurIntensity(rawValue: $0) } ?? .medium
-        // Absent or unparseable means no task timer — today's behaviour,
-        // unchanged (see `NotificationPreferences.taskTimerSeconds`).
-        let taskTimerSeconds = params["task_timer_seconds"].flatMap { Double($0) }
-        let taskTimerUnitLabel = params["task_timer_unit_label"]
-        let taskTimerCompletionLabel = params["task_timer_completion_label"]
-
-        return NotificationPreferences(
-            bundledIconId: nil, // Always nil now - IDs converted to URLs
-            svgPath: svgPath,
-            svgWidth: svgWidth,
-            svgHeight: svgHeight,
-            title: title,
-            message: message,
-            position: position,
-            width: width,
-            height: height,
-            moveable: moveable,
-            autoDismissAfter: autoDismissAfter,
-            screenBlurEnabled: screenBlurEnabled,
-            screenBlurIntensity: screenBlurIntensity,
-            taskTimerSeconds: taskTimerSeconds,
-            taskTimerUnitLabel: taskTimerUnitLabel,
-            taskTimerCompletionLabel: taskTimerCompletionLabel
-        )
+    /// The same resolution the delivery path performs
+    /// (`NotificationManager.deserializeNotificationPreferences`), through the
+    /// same function: global settings as defaults, per-action keys winning
+    /// where present. Sharing it is what keeps the editor's controls showing
+    /// the values the alert will actually be rendered with, including for the
+    /// keys this action does not override.
+    private static func deserializeNotificationPreferences(from params: [String: String]) -> NotificationPreferences {
+        GlobalNotificationSettings.current.resolving(actionParameters: params)
     }
 }
 
@@ -401,6 +405,9 @@ struct NotificationActionParametersView: View {
     @State private var showingFilePicker = false
     @State private var showingIconPicker = false
     @State private var previewNotification = false
+    /// Closed by default: the appearance controls it holds are the ones the
+    /// global settings now answer for.
+    @State private var advancedExpanded = false
     @ObservedObject private var iconManager = SVGIconManager.shared
 
     // SVG icon preview state
@@ -414,23 +421,115 @@ struct NotificationActionParametersView: View {
         @Bindable var vm = viewModel
 
         VStack(alignment: .leading, spacing: 16) {
-            // Quick Presets
-            presetSection
-
-            // SVG Icon Section
+            // Content: what this notification says. Always visible — it is the
+            // only part of an action that has no global counterpart.
             svgIconSection
 
-            // Message Customization
             messageCustomizationSection
 
-            // Position Section
-            positionSection
+            breakCountdownSection
 
-            // Size Controls
-            sizeSection
+            // Appearance: how it looks. Collapsed by default, because the
+            // answer for almost every action is "the same as everything else",
+            // and that answer now lives in Settings › Notifications.
+            appearanceDisclosure
+        }
+    }
 
-            // Behavior Options
-            behaviorSection
+    // MARK: - Appearance Disclosure
+
+    /// The demoted per-action appearance controls.
+    ///
+    /// Closed by default and headed by a line that says, in as many words,
+    /// where the appearance is coming from — an action that overrides nothing
+    /// should not make the user open a disclosure to find that out.
+    private var appearanceDisclosure: some View {
+        @Bindable var vm = viewModel
+
+        return DisclosureGroup(isExpanded: $advancedExpanded) {
+            VStack(alignment: .leading, spacing: 16) {
+                Toggle(isOn: Binding(
+                    get: { vm.overridesAppearance },
+                    set: { viewModel.setOverridesAppearance($0) }
+                )) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Override global appearance for this action")
+                            .font(.caption)
+                        Text("Turn off to follow Settings › Notifications.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .toggleStyle(.switch)
+
+                Group {
+                    presetSection
+                    positionSection
+                    sizeSection
+                    behaviorSection
+                }
+                .disabled(!vm.overridesAppearance)
+                .opacity(vm.overridesAppearance ? 1 : 0.5)
+            }
+            .padding(.top, 8)
+        } label: {
+            HStack(spacing: 6) {
+                Text("Advanced")
+                    .font(.subheadline)
+                    .fontWeight(.medium)
+                Text(inheritanceSummary)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    private var inheritanceSummary: String {
+        viewModel.overridesAppearance
+            ? "Custom appearance for this action"
+            : "Using global notification settings"
+    }
+
+    // MARK: - Break Countdown Section
+
+    /// The break duration, which is content rather than appearance: whether an
+    /// action runs a break is what the action *is*. Its wording — the unit and
+    /// completion labels — comes from the global settings.
+    private var breakCountdownSection: some View {
+        @Bindable var vm = viewModel
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Break Countdown")
+                .font(.subheadline)
+                .fontWeight(.medium)
+
+            Toggle("Show a break countdown", isOn: Binding(
+                get: { vm.preferences.taskTimerSeconds != nil },
+                set: { vm.preferences.taskTimerSeconds = $0 ? 20 : nil }
+            ))
+            .toggleStyle(.switch)
+            .font(.caption)
+
+            if let seconds = vm.preferences.taskTimerSeconds {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Duration: \(Int(seconds))s")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Slider(
+                        value: Binding(
+                            get: { seconds },
+                            set: { vm.preferences.taskTimerSeconds = $0 }
+                        ),
+                        in: 5...300,
+                        step: 5
+                    )
+                }
+
+                Text("Shown as a full-screen countdown labelled “\(GlobalNotificationSettings.current.breakUnitLabel)”, ending in “\(GlobalNotificationSettings.current.breakCompletionLabel)”. Change the wording in Settings › Notifications.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
         }
     }
 
