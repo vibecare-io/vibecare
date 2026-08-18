@@ -381,6 +381,12 @@ Section("Actions") {
 
 ## Example Action Configurations
 
+> This document is a build plan from 2025-10-13, not a parameter reference. The
+> current, complete list of `notification` action `parameters` keys — including
+> the break-countdown keys (`task_timer_seconds` and friends) and how they
+> resolve against the user's global notification settings — lives in
+> [`clients/macos-swift/VibeCare/CLAUDE.md`](../clients/macos-swift/VibeCare/CLAUDE.md#action-parameters-keys).
+
 ### Meeting Reminder
 ```json
 {
