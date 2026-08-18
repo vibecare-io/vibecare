@@ -2,6 +2,9 @@ import SwiftUI
 import UniformTypeIdentifiers
 import SVGView
 import Logging
+// For `WebPanel`'s width bounds, so the editor's slider cannot offer a value
+// the library will clamp away behind the author's back.
+import VibeNotify
 
 // MARK: - ScheduleActionCard Model
 struct ScheduleActionCard: Identifiable, Equatable {
@@ -456,13 +459,37 @@ struct NotificationActionParametersView: View {
         ActionKind.isRich(viewModel.parameters)
     }
 
+    /// Whether a web panel is what this alert shows.
+    ///
+    /// Also the answer to "is the illustration drawn?" — it is not.
+    /// `RichNotification.effectiveIllustration` returns nil whenever a web
+    /// panel is present, because the panel *is* the picture and two focal
+    /// points is the composition problem the renderer has metrics to avoid. So
+    /// the icon picker is hidden rather than left there setting a value
+    /// nothing will read.
+    private var hasWebPanel: Bool {
+        !(viewModel.preferences.webURLSpec ?? "").isEmpty
+    }
+
+    /// The width the panel will actually take, defaulted the way the library
+    /// defaults it so the slider never shows a position the alert will not use.
+    private var effectiveWebWidth: CGFloat {
+        viewModel.preferences.webWidthFraction ?? WebPanel.defaultWidthFraction
+    }
+
     var body: some View {
         @Bindable var vm = viewModel
 
         VStack(alignment: .leading, spacing: 16) {
             // Content: what this notification says. Always visible — it is the
             // only part of an action that has no global counterpart.
-            svgIconSection
+            //
+            // Except when a web panel is present, where the renderer discards
+            // the illustration outright (`effectiveIllustration`) — leaving the
+            // picker on screen would be offering a choice with no effect.
+            if !hasWebPanel {
+                svgIconSection
+            }
 
             messageCustomizationSection
 
@@ -511,8 +538,17 @@ struct NotificationActionParametersView: View {
 
                 Group {
                     presetSection
-                    positionSection
-                    sizeSection
+                    // Position and size are ignored outright once the alert
+                    // takes the screen: a break countdown or a web panel
+                    // selects `.interrupt`, and that mode's configuration
+                    // passes nil for position, width and height. Showing a
+                    // corner picker there offers a choice the renderer throws
+                    // away. `behaviorSection` stays — the blur controls it
+                    // holds are what the interrupt backdrop is made of.
+                    if !isRich {
+                        positionSection
+                        sizeSection
+                    }
                     behaviorSection
                 }
                 .disabled(!vm.overridesAppearance)
@@ -626,6 +662,35 @@ struct NotificationActionParametersView: View {
                 ))
                 .textFieldStyle(.roundedBorder)
                 .font(.system(.caption, design: .monospaced))
+
+                // Size and side. Both are properties of *this* activity rather
+                // than of the user's taste — a vertical Short wants a narrow
+                // column and a landscape video a wide one — which is why
+                // picking a catalogue entry sets the width and why there is no
+                // global default for either.
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Size: \(Int(effectiveWebWidth * 100))% of the screen")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Slider(
+                        value: Binding(
+                            get: { Double(effectiveWebWidth) },
+                            set: { vm.preferences.webWidthFraction = CGFloat($0) }
+                        ),
+                        in: Double(WebPanel.minimumWidthFraction)...Double(WebPanel.maximumWidthFraction)
+                    )
+                }
+
+                Picker("Side", selection: Binding(
+                    get: { vm.preferences.webPlacement == "trailing" ? "trailing" : "leading" },
+                    set: { vm.preferences.webPlacement = $0 }
+                )) {
+                    Text("Left").tag("leading")
+                    Text("Right").tag("trailing")
+                }
+                .pickerStyle(.segmented)
+                .font(.caption)
 
                 // Says "muted" because it always is: browsers grant muted
                 // autoplay and refuse unmuted autoplay without a user gesture,

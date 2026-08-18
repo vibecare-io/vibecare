@@ -51,11 +51,31 @@ struct ActionKind: Identifiable, Hashable {
     return kinds
   }()
 
+  /// The activity a brand-new rich notification starts with.
+  ///
+  /// The built-in one, deliberately: it is the only entry that needs no
+  /// network, cannot be taken down by its publisher, and is not subject to
+  /// anybody's embedding rules. A default pointing at someone else's video is
+  /// a default that breaks without warning.
+  static let defaultActivityID = "game-blink-jump"
+
   /// The parameters a newly-added action of this kind starts with.
+  ///
+  /// A rich notification arrives already working — countdown on, Blink Jump in
+  /// the panel — rather than as an empty form that renders as a plain toast
+  /// until the author finds the two controls that make it rich. The seed is
+  /// only a starting point; every value is a control on the sheet.
   func seedParameters() -> [String: String] {
     guard type == .notification else { return [:] }
     var seed = ["title": "", "body": ""]
-    if isRich { seed[Self.styleKey] = Self.richStyle }
+    guard isRich else { return seed }
+
+    seed[Self.styleKey] = Self.richStyle
+    if let activity = BreakActivity.all.first(where: { $0.id == Self.defaultActivityID }) {
+      seed["web_url"] = activity.url
+      seed["web_width"] = String(format: "%.2f", activity.widthFraction)
+      seed["task_timer_seconds"] = String(activity.seconds)
+    }
     return seed
   }
 
