@@ -1,5 +1,5 @@
 {
-  "originHash" : "c2ee1f56fc8064857595bbbb5f33a715df3d09cf56914528cb118b01864c97e9",
+  "originHash" : "c4de3702f15e623fbbdd1d4beb40df8caea4200733c9a73e883aca4c6fe728bc",
   "pins" : [
     {
       "identity" : "grpc-swift",
@@ -267,8 +267,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vibecare-io/vibe-notify-macos.git",
       "state" : {
-        "revision" : "c74f2acd745eaaa2db31741b33bbcadd6bc3d664",
-        "version" : "0.0.5"
+        "revision" : "b0c7c2167481779eaf201018456ea0da1d73b3e6",
+        "version" : "0.0.6"
       }
     }
   ],
