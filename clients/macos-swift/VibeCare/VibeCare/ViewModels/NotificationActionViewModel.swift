@@ -8,12 +8,43 @@ import Logging
 final class NotificationActionViewModel {
     var preferences: NotificationPreferences
     var parameters: [String: String]
+    /// Whether this action pins its own appearance instead of inheriting the
+    /// global notification settings. See `ScheduleActionCard.overridesAppearance`
+    /// for why this is derived from the parameters rather than stored beside
+    /// them.
+    var overridesAppearance: Bool
 
     private let logger = Logger(label: "com.vibecare.notification-action-vm")
 
-    init(preferences: NotificationPreferences, parameters: [String: String]) {
+    init(
+        preferences: NotificationPreferences,
+        parameters: [String: String],
+        overridesAppearance: Bool? = nil
+    ) {
         self.preferences = preferences
         self.parameters = parameters
+        self.overridesAppearance =
+            overridesAppearance ?? GlobalNotificationSettings.overridesAppearance(parameters)
+    }
+
+    /// Turns the per-action override on or off.
+    ///
+    /// Switching it **off** re-seeds the appearance fields from the global
+    /// settings, so the (now read-only-in-effect) controls stop showing values
+    /// that no longer apply. Content — icon, title, message, break duration —
+    /// is untouched either way; it has no global counterpart.
+    func setOverridesAppearance(_ overrides: Bool) {
+        overridesAppearance = overrides
+        guard !overrides else { return }
+
+        let global = GlobalNotificationSettings.current
+        preferences.position = global.position
+        preferences.width = global.width
+        preferences.height = global.height
+        preferences.moveable = global.moveable
+        preferences.autoDismissAfter = global.autoDismissAfter
+        preferences.screenBlurEnabled = global.screenBlurEnabled
+        preferences.screenBlurIntensity = global.screenBlurIntensity
     }
 
     // MARK: - Convenience Update Methods
@@ -62,14 +93,17 @@ final class NotificationActionViewModel {
         preferences.svgHeight = height
     }
 
-    /// Reset preferences to default
+    /// Reset preferences to the user's global notification settings
     func resetToDefault() {
-        preferences = .default
+        preferences = GlobalNotificationSettings.current.basePreferences()
+        overridesAppearance = false
     }
 
-    /// Apply a preset configuration
+    /// Apply a preset configuration. A preset is entirely appearance, so
+    /// picking one *is* the decision to override the global settings.
     func applyPreset(_ preset: NotificationPreferences) {
-        preferences = preset
+        preferences = preset.copy()
+        overridesAppearance = true
     }
 
     // MARK: - Serialization
@@ -112,6 +146,24 @@ final class NotificationActionViewModel {
             parameters["body"] = ""
         }
 
+        // Serialize the break countdown's duration. Content, not appearance:
+        // whether an action runs a break is what the action *is*, and only its
+        // wording comes from the global settings.
+        if let taskTimerSeconds = preferences.taskTimerSeconds {
+            parameters["task_timer_seconds"] = String(taskTimerSeconds)
+        } else {
+            parameters.removeValue(forKey: "task_timer_seconds")
+        }
+
+        // Appearance — written only when this action overrides the global
+        // settings, and actively cleared when it does not. See
+        // `ScheduleActionCard.serializeNotificationPreferences` for why the
+        // clearing half matters.
+        guard overridesAppearance else {
+            parameters = GlobalNotificationSettings.clearingAppearance(parameters)
+            return
+        }
+
         // Serialize position and dimensions
         parameters["position"] = preferences.position.rawValue
         if let width = preferences.width {
@@ -127,6 +179,7 @@ final class NotificationActionViewModel {
             parameters["auto_dismiss_after"] = String(autoDismiss)
         }
         parameters["screen_blur_enabled"] = String(preferences.screenBlurEnabled)
+        parameters["screen_blur_intensity"] = preferences.screenBlurIntensity.rawValue
 
         logger.debug("🔍 serializeToParameters - END", metadata: [
             "svg_path": "\(parameters["svg_path"] ?? "nil")",
@@ -146,7 +199,10 @@ final class NotificationActionViewModel {
            let decoded = try? JSONDecoder().decode(NotificationPreferences.self, from: data) {
             preferences = decoded
         } else {
-            preferences = .default
+            // Global settings as defaults, per-action keys on top — the same
+            // resolution the delivery path performs.
+            preferences = GlobalNotificationSettings.current.resolving(
+                actionParameters: action.parameters)
         }
 
         return NotificationActionViewModel(

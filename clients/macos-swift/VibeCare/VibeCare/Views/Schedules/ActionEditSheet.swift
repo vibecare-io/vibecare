@@ -35,7 +35,8 @@ struct ActionEditSheet: View {
         self._actionType = State(initialValue: actionCard.type)
         self._viewModel = State(initialValue: NotificationActionViewModel(
             preferences: actionCard.notificationPreferences,
-            parameters: actionCard.type.seedingDefaults(into: actionCard.parameters)
+            parameters: actionCard.type.seedingDefaults(into: actionCard.parameters),
+            overridesAppearance: actionCard.overridesAppearance
         ))
     }
 
@@ -72,8 +73,9 @@ struct ActionEditSheet: View {
                         .onChange(of: actionType) { _, newType in
                             // Reset ViewModel and seed defaults for the new type
                             viewModel = NotificationActionViewModel(
-                                preferences: .default,
-                                parameters: newType.seedingDefaults(into: [:])
+                                preferences: GlobalNotificationSettings.current.basePreferences(),
+                                parameters: newType.seedingDefaults(into: [:]),
+                                overridesAppearance: false
                             )
                         }
                     }
@@ -187,6 +189,11 @@ struct ActionEditSheet: View {
             updatedCard.type = actionType
             updatedCard.parameters = viewModel.parameters
             updatedCard.notificationPreferences = viewModel.preferences
+            // Carried across so `toAction`'s own serialization pass agrees with
+            // the one `serializeToParameters()` just made — without this the
+            // card would re-add the appearance keys the view model deliberately
+            // removed.
+            updatedCard.overridesAppearance = viewModel.overridesAppearance
 
             // Convert to Action for API call
             var action = updatedCard.toAction(

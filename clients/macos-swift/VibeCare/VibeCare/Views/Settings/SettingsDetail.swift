@@ -613,6 +613,11 @@ struct NotificationsSettingsDetail: View {
 
       Divider()
 
+      // Global appearance — the defaults every notification inherits.
+      NotificationAppearanceSettingsView()
+
+      Divider()
+
       // Future features
       Text("Advanced Features")
         .font(.headline)

@@ -8,12 +8,12 @@ extension BlurIntensity {
     /// Convert VibeCare BlurIntensity to VibeNotify ScreenBlurIntensity.
     ///
     /// One of the three type-translation boundaries between VibeCare's own
-    /// vocabulary and VibeNotify's. Currently uncalled: both alert paths now
-    /// pick an `AlertMode`, and its factories own the backdrop — `.interrupt`
-    /// blurs heavily and dims to `Legibility.safeDim`, `.ambient` does not blur
-    /// at all. Kept because the boundary, not the call site, is the thing worth
-    /// preserving: it is where an intensity preference reconnects to a window
-    /// if the library ever exposes an intensity-taking mode.
+    /// vocabulary and VibeNotify's. Live again as of global notification
+    /// settings: `VibeNotifyConfig.windowConfiguration` hand-writes the
+    /// `.interrupt` window `Configuration` rather than taking
+    /// `AlertMode`'s factory wholesale, precisely so the user's chosen blur
+    /// intensity and screen dim reach the backdrop. `.ambient` still builds no
+    /// blur window, so intensity remains inert for that mode.
     var vibeNotifyIntensity: ScreenBlurIntensity {
         switch self {
         case .light: return .light
@@ -123,8 +123,10 @@ enum VibeNotifyConfig {
     priority: NotificationPriority = .normal,
     preferences: NotificationPreferences? = nil
   ) -> UUID? {
-    // Use custom preferences or default
-    let prefs = preferences ?? .default
+    // Use the caller's preferences, or the user's global notification settings
+    // — no longer `NotificationPreferences.default`, a hardcoded struct nobody
+    // could change. See `GlobalNotificationSettings` for the resolution order.
+    let prefs = preferences ?? GlobalNotificationSettings.current.basePreferences()
 
     logger.debug("🔍 showScheduleNotification - START", metadata: [
       "svgPath": "\(prefs.svgPath ?? "nil")",
@@ -171,29 +173,25 @@ enum VibeNotifyConfig {
       return nil
     }
 
-    var builder = VibeNotify.builder()
-
     // Illustration: SVG (url/file) if configured, else the caller's default
-    // system icon as an SF Symbol. Deliberately `.illustration(.symbol(...))`
-    // rather than `.icon(.system(...))`: the latter is a
-    // `StandardNotification.IconType`, which the rich renderer's routing does
-    // not recognise as an illustration at all, so the no-SVG case — what every
-    // unconfigured schedule gets — would render without a picture. A nil
+    // system icon as an SF Symbol. Deliberately an `Illustration.symbol(...)`
+    // rather than a `StandardNotification.IconType`: the rich renderer does not
+    // recognise the latter as an illustration at all, so the no-SVG case — what
+    // every unconfigured schedule gets — would render without a picture. A nil
     // `color` means "the title colour", i.e. whatever is legible over the
     // scrim the renderer drew.
-    if let svgPath = prefs.resolvedSVGPath, let svgSize = prefs.svgSize {
-      if svgPath.hasPrefix("http://") || svgPath.hasPrefix("https://") {
-        if let url = URL(string: svgPath) {
-          builder = builder.svgURL(url, size: svgSize)
-        } else {
-          builder = builder.illustration(.symbol(defaultSystemIcon, pointSize: fallbackSymbolPointSize, color: nil))
-        }
-      } else {
-        builder = builder.svg(svgPath, size: svgSize)
+    let fallbackIllustration = RichNotification.Illustration.symbol(
+      defaultSystemIcon, pointSize: fallbackSymbolPointSize, color: nil)
+    let illustration: RichNotification.Illustration = {
+      guard let svgPath = prefs.resolvedSVGPath, let svgSize = prefs.svgSize else {
+        return fallbackIllustration
       }
-    } else {
-      builder = builder.illustration(.symbol(defaultSystemIcon, pointSize: fallbackSymbolPointSize, color: nil))
-    }
+      if svgPath.hasPrefix("http://") || svgPath.hasPrefix("https://") {
+        guard let url = URL(string: svgPath) else { return fallbackIllustration }
+        return .svg(.url(url), size: svgSize)
+      }
+      return .svg(.filePath(svgPath), size: svgSize)
+    }()
 
     // A task-timer duration rides along on the action's parameters
     // (`task_timer_seconds`, with optional `task_timer_unit_label` /
@@ -209,38 +207,25 @@ enum VibeNotifyConfig {
       )
     }
 
-    builder = builder
-      .title(title)
-      .message(message)
-      .dismissOnScreenTap(true)
-      // The blur toggle is already the user's way of saying "take over my
-      // screen for this", so it selects the alert mode rather than a lone
-      // window knob — no new persisted key and no new control in the
-      // customization UI. `.interrupt` dims the whole screen to
-      // `Legibility.safeDim` and picks text colours against that dim; the old
-      // code pinned a light blur at 0.1 and chose text from the system
-      // appearance, which is exactly how a title landed invisible over a dark
-      // terminal.
-      //
-      // A task timer forces `.interrupt` regardless of `screenBlurEnabled`.
-      // `RichNotification.effectiveTaskTimer` returns `nil` in `.ambient` by
-      // design — a labelled ring reads as a task, and ambient alerts have
-      // none — so an action that set `task_timer_seconds` but left
-      // `screen_blur_enabled: false` would otherwise get no ring at all and
-      // no error to explain why. A duration the caller explicitly asked for
-      // is a stronger signal than a blur flag that may just be an
-      // unconsidered default, so this upgrades rather than silently drops
-      // the ring.
-      //
-      // Setting `.mode(_:)` at all is what routes this funnel to the rich
-      // renderer (see `NotificationBuilder.routesToRichRenderer`), which is
-      // also why `.moveable`, `.alwaysOnTop` and `.screenBlur(_:intensity:)`
-      // are gone from this chain: `AlertMode`'s factories own the whole
-      // window `Configuration` now, and leaving inert builder calls here
-      // would read as though the preferences still reached the window.
-      // `prefs.screenBlurIntensity` and `prefs.moveable` are consequently no
-      // longer honoured for schedule alerts.
-      .mode(taskTimer != nil || prefs.screenBlurEnabled ? .interrupt : .ambient)
+    // The blur toggle is already the user's way of saying "take over my
+    // screen for this", so it selects the alert mode rather than a lone window
+    // knob. `.interrupt` dims the whole screen and picks text colours against
+    // that dim; the old pre-rich code pinned a light blur at 0.1 and chose
+    // text from the system appearance, which is exactly how a title landed
+    // invisible over a dark terminal.
+    //
+    // A task timer forces `.interrupt` regardless of `screenBlurEnabled`.
+    // `RichNotification.effectiveTaskTimer` returns `nil` in `.ambient` by
+    // design — a labelled ring reads as a task, and ambient alerts have
+    // none — so an action that set `task_timer_seconds` but left
+    // `screen_blur_enabled: false` would otherwise get no ring at all and no
+    // error to explain why. A duration the caller explicitly asked for is a
+    // stronger signal than a blur flag that may just be an unconsidered
+    // default, so this upgrades rather than silently drops the ring.
+    let mode: AlertMode = (taskTimer != nil || prefs.screenBlurEnabled) ? .interrupt : .ambient
+
+    var buttons: [StandardNotification.Button] = []
+    var autoDismiss: StandardNotification.AutoDismiss?
 
     if let taskTimer {
       if !prefs.screenBlurEnabled {
@@ -249,10 +234,10 @@ enum VibeNotifyConfig {
           metadata: ["duration": "\(taskTimer.duration)"]
         )
       }
-      builder = builder
-        .taskTimer(taskTimer)
-        .button(StandardNotification.Button(title: "Done", style: .primary, action: {}))
-        .button(StandardNotification.Button(title: "Skip", style: .secondary, action: {}))
+      buttons = [
+        StandardNotification.Button(title: "Done", style: .primary, action: {}),
+        StandardNotification.Button(title: "Skip", style: .secondary, action: {}),
+      ]
       // `auto_dismiss_after` is deliberately NOT forwarded here. A task timer
       // and an auto-dismiss are sequential phases, not a race — the task
       // runs first and alone, and the dismiss clock only arms once it hits
@@ -270,51 +255,147 @@ enum VibeNotifyConfig {
         )
       }
     } else {
-      builder = builder.autoDismiss(after: prefs.autoDismissAfter ?? quickDismissDelay)
+      autoDismiss = StandardNotification.AutoDismiss(
+        delay: prefs.autoDismissAfter ?? quickDismissDelay, indicator: .none)
     }
 
-    switch prefs.position {
-    case .center:
-      builder = builder.position(.center)
-    case .topLeft:
-      builder = builder.position(.topLeft)
-    case .topRight:
-      builder = builder.position(.topRight)
-    case .bottomLeft:
-      builder = builder.position(.bottomLeft)
-    case .bottomRight:
-      builder = builder.position(.bottomRight)
-    }
+    let notification = RichNotification(
+      illustration: illustration,
+      title: title,
+      message: message,
+      buttons: buttons,
+      taskTimer: taskTimer,
+      autoDismiss: autoDismiss,
+      mode: mode
+    )
 
-    if let width = prefs.width {
-      builder = builder.width(CGFloat(width))
-    }
-    // The authored height is a floor — see `richAmbientHeight`. Unconditional
-    // rather than branched on the mode because `.interrupt` ignores width and
-    // height entirely (it takes the whole screen), so there is nothing for a
-    // branch to protect. `hasButtons` reserves the extra row height only for
-    // the Done/Skip pair a task timer adds — a plain schedule alert still has
-    // none.
-    builder = builder.height(
-      max(
-        CGFloat(prefs.height ?? 0),
-        richAmbientHeight(
-          // The height of the picture as the renderer will be asked to draw it.
-          // The invalid-URL branch above falls back to a symbol while `svgSize`
-          // is still set, so that one case reserves the SVG's room for a smaller
-          // symbol — over-reserving, which is the harmless direction.
-          illustrationHeight: prefs.svgSize?.height ?? fallbackSymbolPointSize,
-          hasButtons: taskTimer != nil
-        )
+    // The authored height is a floor — see `richAmbientHeight`. Computed
+    // unconditionally rather than branched on the mode because `.interrupt`
+    // ignores width and height entirely (it takes the whole screen), so there
+    // is nothing for a branch to protect. `hasButtons` reserves the extra row
+    // height only for the Done/Skip pair a task timer adds — a plain schedule
+    // alert still has none.
+    let height = max(
+      CGFloat(prefs.height ?? 0),
+      richAmbientHeight(
+        // The height of the picture as the renderer will be asked to draw it.
+        // The invalid-URL branch above falls back to a symbol while `svgSize`
+        // is still set, so that one case reserves the SVG's room for a smaller
+        // symbol — over-reserving, which is the harmless direction.
+        illustrationHeight: prefs.svgSize?.height ?? fallbackSymbolPointSize,
+        hasButtons: taskTimer != nil
       )
     )
 
-    return builder.show()
+    let (configuration, effectiveDim) = windowConfiguration(
+      mode: mode, prefs: prefs, height: height)
+
+    // `OverlayWindowManager.show` rather than `VibeNotify.shared.showRich`,
+    // for one reason: `showRich` builds `RichNotificationView` without an
+    // `effectiveDim`, so the renderer assumes whatever `AlertMode` implies —
+    // a flat `Legibility.safeDim` (0.55) for `.interrupt`. That assumption is
+    // exactly what stops being true once the dim is a user setting: at a dim
+    // of 0.2 the renderer would conclude the backdrop is already safe and skip
+    // the local feathered scrim, leaving white text over a barely-dimmed
+    // desktop. Passing the real dim is what `RichNotificationView`'s
+    // `effectiveDim` parameter exists for, and it is the only knob `showRich`
+    // does not forward. Everything else here is what `showRich` does:
+    // `notification.countdown` for the clock, `Legibility.backdrop` to decide
+    // whether the blur window should exist at all under Reduce Transparency.
+    let id = UUID()
+    OverlayWindowManager.shared.show(
+      id: id,
+      configuration: configuration,
+      countdown: notification.countdown
+    ) {
+      RichNotificationView(notification: notification, effectiveDim: effectiveDim) {
+        OverlayWindowManager.shared.dismiss(id: id)
+      }
+    }
+    return id
   }
 
-  // MARK: - Position Mapping
-  // Note: The position is set using the builder's .position() method
-  // which accepts the enum directly (e.g., .center, .topLeft, etc.)
+  // MARK: - Window Configuration
+
+  /// The window `Configuration` for `mode`, and the backdrop dim the renderer
+  /// should believe is in force.
+  ///
+  /// Hand-written memberwise literals rather than `Configuration.interrupt(...)`
+  /// / `.ambient(...)`, which is what `OverlayWindowManager.Configuration`'s own
+  /// doc comment asks consumers to do — and necessary here regardless, because
+  /// neither factory takes the two fields this feature exists to make
+  /// adjustable: `.interrupt` pins `screenDim` to `Legibility.safeDim` and
+  /// `.ambient` pins `isMoveable` to false. Every other field is copied from the
+  /// corresponding factory verbatim; see `AlertMode.swift` for why each is what
+  /// it is.
+  @MainActor
+  private static func windowConfiguration(
+    mode: AlertMode,
+    prefs: NotificationPreferences,
+    height: CGFloat
+  ) -> (OverlayWindowManager.Configuration, Double) {
+    let reduceTransparency = Legibility.Accessibility.reduceTransparency
+    let backdrop = Legibility.backdrop(for: mode, reduceTransparency: reduceTransparency)
+
+    switch mode {
+    case .interrupt:
+      // An opaque backdrop means Reduce Transparency: the renderer draws its
+      // own solid black layer, so a blur window behind it is a live, invisible
+      // no-op — the same suppression `VibeNotify.showRich` performs.
+      let isOpaque = backdrop?.isOpaque ?? false
+      let dim = GlobalNotificationSettings.current.screenDim
+      let configuration = OverlayWindowManager.Configuration(
+        presentationMode: .fullScreen,
+        position: nil,
+        width: nil,
+        height: nil,
+        backgroundColor: .clear,
+        isTransparent: true,
+        isMoveable: false,
+        alwaysOnTop: true,
+        screenBlur: !isOpaque,
+        screenBlurIntensity: prefs.screenBlurIntensity.vibeNotifyIntensity,
+        dismissOnScreenTap: true,
+        animatePresentation: true,
+        screenDim: dim,
+        takesKeyFocus: true
+      )
+      // `Configuration` clamps `screenDim` on the way in, so read it back off
+      // the configuration rather than passing the unclamped request on to the
+      // renderer — the two must agree about the same number.
+      return (configuration, isOpaque ? 1.0 : configuration.screenDim)
+
+    case .ambient:
+      let configuration = OverlayWindowManager.Configuration(
+        position: windowPosition(for: prefs.position),
+        width: prefs.width ?? 450,
+        height: height,
+        backgroundColor: .clear,
+        isTransparent: true,
+        isMoveable: prefs.moveable,
+        alwaysOnTop: true,
+        screenBlur: false,
+        dismissOnScreenTap: true,
+        animatePresentation: true,
+        takesKeyFocus: false
+      )
+      // No backdrop window at all, so the renderer owns the backdrop under its
+      // own text and must draw the local feathered scrim.
+      return (configuration, 0)
+    }
+  }
+
+  static func windowPosition(
+    for position: NotificationPosition
+  ) -> OverlayWindowManager.WindowPosition {
+    switch position {
+    case .center: return .center
+    case .topLeft: return .topLeft
+    case .topRight: return .topRight
+    case .bottomLeft: return .bottomLeft
+    case .bottomRight: return .bottomRight
+    }
+  }
 
   // MARK: - Generic Notification Methods
 
