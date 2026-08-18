@@ -406,11 +406,11 @@ struct ScheduleDetailView: View {
 
                 // Add Action Dropdown Menu
                 Menu {
-                    ForEach(ActionType.allCases, id: \.self) { type in
+                    ForEach(ActionKind.all) { kind in
                         Button {
-                            openCreateActionSheet(type: type)
+                            openCreateActionSheet(kind: kind)
                         } label: {
-                            Label(type.displayName, systemImage: type.iconName)
+                            Label(kind.title, systemImage: kind.icon)
                         }
                     }
                 } label: {
@@ -663,13 +663,15 @@ struct ScheduleDetailView: View {
         }
     }
 
-    private func openCreateActionSheet(type: ActionType) {
+    private func openCreateActionSheet(kind: ActionKind) {
         guard let schedule = schedule, let profileId = AppState.shared.currentProfile?.id else {
             return
         }
 
         actionEditContext = ActionEditContext(
-            actionCard: ScheduleActionCard(type: type),
+            // The seed carries the rich marker, so the sheet opens in the
+            // editor that was picked rather than the one empty parameters imply.
+            actionCard: ScheduleActionCard(type: kind.type, parameters: kind.seedParameters()),
             isCreating: true,
             profileId: profileId,
             schedule: schedule

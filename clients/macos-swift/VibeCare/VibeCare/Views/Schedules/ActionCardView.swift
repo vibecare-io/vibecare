@@ -289,12 +289,12 @@ struct ScheduleActionCardView: View {
         VStack(alignment: .leading, spacing: 12) {
             // Header
             HStack(spacing: 12) {
-                Image(systemName: card.type.iconName)
+                Image(systemName: ActionKind.iconName(for: card.type, parameters: card.parameters))
                     .font(.title3)
                     .foregroundColor(colorForType(card.type))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(card.type.displayName)
+                    Text(ActionKind.displayName(for: card.type, parameters: card.parameters))
                         .font(.headline)
                         .fontWeight(.semibold)
 
@@ -448,6 +448,14 @@ struct NotificationActionParametersView: View {
     // Logger
     private let logger = Logger(label: "com.vibecare.notification-action-params")
 
+    /// Whether this action gets the rich editor — see `ActionKind.isRich`,
+    /// which also treats an existing countdown or web panel as evidence so
+    /// actions authored by the MCP server, the CLI or a template do not open
+    /// in an editor with no controls for their own settings.
+    private var isRich: Bool {
+        ActionKind.isRich(viewModel.parameters)
+    }
+
     var body: some View {
         @Bindable var vm = viewModel
 
@@ -458,9 +466,15 @@ struct NotificationActionParametersView: View {
 
             messageCustomizationSection
 
-            breakCountdownSection
+            // Rich only. A plain notification is a line of text in a corner; a
+            // countdown ring and an embedded page are the things that make it
+            // something else, so they belong to the kind of action that was
+            // chosen for them and not in every notification's editor.
+            if isRich {
+                breakCountdownSection
 
-            breakActivitySection
+                breakActivitySection
+            }
 
             // Appearance: how it looks. Collapsed by default, because the
             // answer for almost every action is "the same as everything else",
