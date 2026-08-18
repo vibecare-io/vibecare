@@ -12,6 +12,9 @@ struct ActionEditSheet: View {
     @StateObject private var actionService = ActionService()
     @State private var viewModel: NotificationActionViewModel
     @State private var actionType: ActionType
+    /// The menu's selection. `ActionType` cannot serve as one — rich and plain
+    /// notifications share it — so the picker binds to an `ActionKind.id`.
+    @State private var actionKindID: String
     @State private var isSaving = false
     @State private var errorMessage: String?
     @State private var showingPreview = false
@@ -33,6 +36,13 @@ struct ActionEditSheet: View {
 
         // Initialize state properties
         self._actionType = State(initialValue: actionCard.type)
+        // Derived from the card's own parameters, so an action carrying a
+        // countdown or a web panel opens on "Send Rich Notification" whether or
+        // not it was authored here — see `ActionKind.isRich`.
+        self._actionKindID = State(
+            initialValue: actionCard.type == .notification
+                && ActionKind.isRich(actionCard.parameters)
+                ? "notification.rich" : actionCard.type.rawValue)
         self._viewModel = State(initialValue: NotificationActionViewModel(
             preferences: actionCard.notificationPreferences,
             parameters: actionCard.type.seedingDefaults(into: actionCard.parameters),
@@ -63,18 +73,28 @@ struct ActionEditSheet: View {
                         Text("Action Type")
                             .font(.headline)
 
-                        Picker("Action Type", selection: $actionType) {
-                            ForEach(ActionType.allCases, id: \.self) { type in
-                                Label(type.displayName, systemImage: type.iconName)
-                                    .tag(type)
+                        // Selects an `ActionKind`, not an `ActionType`: rich and
+                        // plain notifications share a type, so a type picker
+                        // shows one entry for two different things and cannot
+                        // switch between them.
+                        Picker("Action Type", selection: $actionKindID) {
+                            ForEach(ActionKind.all) { kind in
+                                Label(kind.title, systemImage: kind.icon)
+                                    .tag(kind.id)
                             }
                         }
                         .pickerStyle(.menu)
-                        .onChange(of: actionType) { _, newType in
-                            // Reset ViewModel and seed defaults for the new type
+                        .onChange(of: actionKindID) { _, newID in
+                            guard let kind = ActionKind.all.first(where: { $0.id == newID })
+                            else { return }
+                            actionType = kind.type
+                            // Reset ViewModel and seed defaults for the new kind.
+                            // `seedParameters()` carries the rich marker and the
+                            // default activity; `seedingDefaults` fills in the
+                            // per-type fields for everything else.
                             viewModel = NotificationActionViewModel(
                                 preferences: GlobalNotificationSettings.current.basePreferences(),
-                                parameters: newType.seedingDefaults(into: [:]),
+                                parameters: kind.type.seedingDefaults(into: kind.seedParameters()),
                                 overridesAppearance: false
                             )
                         }
