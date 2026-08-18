@@ -1,9 +1,15 @@
 package main
 
 import (
+	"errors"
+	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strconv"
+	"strings"
 	"testing"
+	"time"
 )
 
 // resolvePluginsDirs is what makes a brew-installed VibeCare find the
@@ -90,4 +96,93 @@ func TestResolvePluginsDirsToleratesUnknownExeDir(t *testing.T) {
 	if bundled != "" {
 		t.Fatalf("bundled = %q, want none", bundled)
 	}
+}
+
+// A second server sharing a database is not a hypothetical: three of them ran for four
+// days against ~/.vibecare/vibecare.db, each on its own port, each running a scheduler
+// loop, racing over the same next_execution column. The port check cannot catch that -
+// --port is exactly what those servers were given - so the guard is on the database, and
+// this test runs the real binary twice on different ports to prove it.
+func TestSecondServerOnTheSameDatabaseRefusesToStart(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds and runs the server binary")
+	}
+
+	binary := buildServer(t)
+	dir := t.TempDir()
+	dbPath := filepath.Join(dir, "vibecare.db")
+	pluginsDir := filepath.Join(dir, "plugins")
+	if err := os.MkdirAll(pluginsDir, 0755); err != nil {
+		t.Fatalf("creating empty plugins dir: %v", err)
+	}
+
+	// Port 0 on both: the two servers never contend for a port, only for the database.
+	args := []string{
+		"--db", dbPath,
+		"--port", "0",
+		"--web-port", "0",
+		"--plugins-dir", pluginsDir,
+		"--enable-tracing=false",
+	}
+
+	first := exec.Command(binary, args...)
+	first.Stdout, first.Stderr = io.Discard, io.Discard
+	if err := first.Start(); err != nil {
+		t.Fatalf("starting first server: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = first.Process.Kill()
+		_ = first.Wait()
+	})
+	waitForLockHeldBy(t, dbPath, first.Process.Pid)
+
+	second := exec.Command(binary, args...)
+	output, err := second.CombinedOutput()
+
+	if err == nil {
+		_ = second.Process.Kill()
+		t.Fatal("second server started against a database another server already holds")
+	}
+	var exitErr *exec.ExitError
+	if !errors.As(err, &exitErr) {
+		t.Fatalf("second server should have exited non-zero, got: %v", err)
+	}
+
+	out := string(output)
+	if !strings.Contains(out, dbPath) {
+		t.Errorf("failure should name the database %q; output was:\n%s", dbPath, out)
+	}
+	if !strings.Contains(out, strconv.Itoa(first.Process.Pid)) {
+		t.Errorf("failure should name the holding pid %d; output was:\n%s", first.Process.Pid, out)
+	}
+}
+
+// buildServer compiles the server under test, so the test exercises the real startup path
+// rather than a re-implementation of it.
+func buildServer(t *testing.T) string {
+	t.Helper()
+
+	binary := filepath.Join(t.TempDir(), "vibecare-server")
+	build := exec.Command("go", "build", "-o", binary, ".")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("building server: %v\n%s", err, out)
+	}
+	return binary
+}
+
+// waitForLockHeldBy blocks until the server has taken the database lock, which is the
+// point after which a second server must be refused.
+func waitForLockHeldBy(t *testing.T, dbPath string, pid int) {
+	t.Helper()
+
+	deadline := time.Now().Add(60 * time.Second)
+	for time.Now().Before(deadline) {
+		if content, err := os.ReadFile(dbPath + ".lock"); err == nil {
+			if strings.TrimSpace(string(content)) == strconv.Itoa(pid) {
+				return
+			}
+		}
+		time.Sleep(50 * time.Millisecond)
+	}
+	t.Fatalf("server %d never took the lock on %s", pid, dbPath)
 }
