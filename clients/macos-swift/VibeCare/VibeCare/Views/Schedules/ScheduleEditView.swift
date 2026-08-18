@@ -1113,11 +1113,11 @@ struct ScheduleEditView: View {
 
         // Add Action Dropdown
         Menu {
-          ForEach(ActionType.allCases, id: \.self) { type in
+          ForEach(ActionKind.all) { kind in
             Button {
-              addActionCard(type: type)
+              addActionCard(kind: kind)
             } label: {
-              Label(type.displayName, systemImage: type.iconName)
+              Label(kind.title, systemImage: kind.icon)
             }
           }
         } label: {
@@ -1359,8 +1359,11 @@ struct ScheduleEditView: View {
   }
 
   // MARK: - Action Card Management
-  private func addActionCard(type: ActionType) {
-    let newCard = ScheduleActionCard(type: type)
+  private func addActionCard(kind: ActionKind) {
+    // The seed carries the rich marker when there is one, so the card opens in
+    // the editor the user picked from the menu rather than in whichever one its
+    // (empty) parameters happen to imply.
+    let newCard = ScheduleActionCard(type: kind.type, parameters: kind.seedParameters())
     actionCards.append(newCard)
 
     // Eager save to backend with enabled: false (orphaned state)

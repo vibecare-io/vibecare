@@ -126,6 +126,20 @@ global counterparts (`screen_blur_enabled`, not `notify.blur_enabled`).
 | `task_timer_unit_label` | The word under the number | `notify.break_unit_label` ("seconds") |
 | `task_timer_completion_label` | What the ring's centre says at zero | `notify.break_completion_label` ("Break complete") |
 
+**Rich vs plain** — `notification_style: rich` records which editor an action
+was authored in. There is no ninth `ActionType`: a rich notification and a
+plain one are both `notification` on the wire, because that is what the
+backend schedules and what every other client understands. The split is an
+authoring concern and lives in `ActionKind` — the "Add Action" menu, the
+editor, and the label in the list.
+
+`ActionKind.isRich` deliberately does **not** trust the marker alone: an
+action carrying `task_timer_seconds` or `web_url` is rich whatever it was
+authored in. Without that, every action written by the MCP server, the CLI or
+a routine template would open in the plain editor, which has no controls for
+either — so the author would see its most important settings missing and the
+next save would drop them.
+
 **Web panel** — turns the break into something the user can do. Action-only,
 no global counterpart (what to load during a break is content, not appearance):
 
