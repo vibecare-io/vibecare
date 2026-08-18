@@ -26,6 +26,14 @@ public struct Dashboard: View {
         }
         .task {
           pluginShell.start()
+          // Lets a schedule alert open `plugin:blink-jump` in its web panel.
+          // The closure reads `roster` at delivery time rather than capturing
+          // it: core's base URL and session token both change when it
+          // restarts, so a resolved URL cached here would be a stale
+          // credential the next time an alert fired.
+          VibeNotifyConfig.pluginWebURLResolver = { [weak pluginShell] id, path in
+            pluginShell?.roster.handoffURL(for: id, path: path)
+          }
         }
 
       // Global status bar

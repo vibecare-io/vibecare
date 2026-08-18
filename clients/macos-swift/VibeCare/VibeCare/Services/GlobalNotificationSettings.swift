@@ -433,6 +433,20 @@ struct GlobalNotificationSettings: Equatable, Sendable {
       preferences.taskTimerCompletionLabel = label
     }
 
+    // Web panel — the action's alone, with no global counterpart. What to load
+    // during a break is content, not appearance, which is the same reason
+    // `task_timer_seconds` has no global default either. The three modifiers
+    // are inert without `web_url`; `VibeNotifyConfig` reads none of them once
+    // it resolves to no panel.
+    if let spec = parameters["web_url"], !spec.isEmpty {
+      preferences.webURLSpec = spec
+    }
+    preferences.webPlacement = parameters["web_side"]
+    preferences.webWidthFraction = parameters["web_width"].flatMap(Double.init).map { CGFloat($0) }
+    if let value = parameters["web_autoplay"].flatMap(Bool.init) {
+      preferences.webAutoplay = value
+    }
+
     return preferences
   }
 }

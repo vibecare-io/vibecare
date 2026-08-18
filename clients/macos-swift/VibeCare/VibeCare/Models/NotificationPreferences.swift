@@ -87,6 +87,31 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
     /// `RichNotification.completionState`.
     var taskTimerCompletionLabel: String?
 
+    // MARK: - Web panel
+
+    /// What to load in the alert's web column, or `nil` for no column at all —
+    /// which is every action that predates this field, unchanged.
+    ///
+    /// Two forms, kept as one string rather than a discriminated pair because
+    /// this is what the author types into a single field:
+    ///
+    /// - `https://…` — loaded as-is.
+    /// - `plugin:<id>` or `plugin:<id>/<path>` — resolved at delivery time
+    ///   through `PluginRoster.handoffURL(for:)`, which is what supplies the
+    ///   session token. Stored unresolved because the roster's base URL and
+    ///   token both change between runs, so an already-resolved URL saved into
+    ///   an action would be a stale credential in the database.
+    var webURLSpec: String?
+    /// `"leading"` or `"trailing"` — which side the web column takes. Anything
+    /// else (including `nil`) means the default, `leading`.
+    var webPlacement: String?
+    /// The web column's share of the surface width. `nil` means VibeNotify's
+    /// own default; the library clamps whatever arrives.
+    var webWidthFraction: CGFloat?
+    /// Whether media in the panel may start on its own. Off unless the action
+    /// says otherwise — see `WebPanel.allowsAutoplay`.
+    var webAutoplay: Bool
+
     init(
         bundledIconId: String? = nil,
         svgPath: String? = nil,
@@ -103,7 +128,11 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         screenBlurIntensity: BlurIntensity = .medium,
         taskTimerSeconds: TimeInterval? = nil,
         taskTimerUnitLabel: String? = nil,
-        taskTimerCompletionLabel: String? = nil
+        taskTimerCompletionLabel: String? = nil,
+        webURLSpec: String? = nil,
+        webPlacement: String? = nil,
+        webWidthFraction: CGFloat? = nil,
+        webAutoplay: Bool = false
     ) {
         self.bundledIconId = bundledIconId
         self.svgPath = svgPath
@@ -121,6 +150,10 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         self.taskTimerSeconds = taskTimerSeconds
         self.taskTimerUnitLabel = taskTimerUnitLabel
         self.taskTimerCompletionLabel = taskTimerCompletionLabel
+        self.webURLSpec = webURLSpec
+        self.webPlacement = webPlacement
+        self.webWidthFraction = webWidthFraction
+        self.webAutoplay = webAutoplay
     }
 
     /// Returns an independent copy of these preferences (a distinct reference,
@@ -143,7 +176,11 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
             screenBlurIntensity: screenBlurIntensity,
             taskTimerSeconds: taskTimerSeconds,
             taskTimerUnitLabel: taskTimerUnitLabel,
-            taskTimerCompletionLabel: taskTimerCompletionLabel
+            taskTimerCompletionLabel: taskTimerCompletionLabel,
+            webURLSpec: webURLSpec,
+            webPlacement: webPlacement,
+            webWidthFraction: webWidthFraction,
+            webAutoplay: webAutoplay
         )
     }
 
