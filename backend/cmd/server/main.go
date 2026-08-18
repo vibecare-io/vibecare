@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -178,6 +179,23 @@ func main() {
 			logger.Fatal("Failed to create database directory", zap.Error(err))
 		}
 	}
+
+	// Claim the database before opening it. Two servers sharing one database each run a
+	// scheduler loop and race over the same next_execution column - the port check cannot
+	// catch that, since --port is what a second server is given in the first place.
+	// Taking the lock first also keeps two servers from running migrations at once.
+	dbLock, err := storage.AcquireDBLock(*dbPath)
+	if err != nil {
+		var locked *storage.ErrLocked
+		if errors.As(err, &locked) {
+			logger.Fatal("Another server already has this database",
+				zap.String("path", *dbPath),
+				zap.Int("holder_pid", locked.HolderPID),
+				zap.String("remedy", "stop that server, or run with --db <other path>"))
+		}
+		logger.Fatal("Failed to lock database", zap.String("path", *dbPath), zap.Error(err))
+	}
+	defer dbLock.Release()
 
 	// Initialize database
 	logger.Info("Opening database", zap.String("path", *dbPath))
