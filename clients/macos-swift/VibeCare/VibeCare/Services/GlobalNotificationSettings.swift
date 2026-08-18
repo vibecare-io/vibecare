@@ -446,6 +446,9 @@ struct GlobalNotificationSettings: Equatable, Sendable {
     if let value = parameters["web_autoplay"].flatMap(Bool.init) {
       preferences.webAutoplay = value
     }
+    if let value = parameters["web_loop"].flatMap(Bool.init) {
+      preferences.webLoops = value
+    }
 
     return preferences
   }

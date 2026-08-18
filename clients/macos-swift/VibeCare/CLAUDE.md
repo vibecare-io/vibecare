@@ -135,6 +135,13 @@ no global counterpart (what to load during a break is content, not appearance):
 | `web_side` | `leading` (default) or `trailing` — which side the page takes |
 | `web_width` | The page's share of the surface width, `0.3`–`0.85` |
 | `web_autoplay` | `true` / `false` — may media start on its own (default `false`) |
+| `web_loop` | `true` / `false` — restart the video when it ends (default `false`) |
+
+YouTube links of every shape are rewritten to an embedded player: `watch?v=`,
+`youtu.be`, `/shorts/` and `/live/`, keeping any `?t=` start offset. Shorts in
+particular need it — followed directly, a Short plays and then scrolls on to
+the next one, handing the user an infinite feed at the moment the break was
+meant to stop them looking at one.
 
 `plugin:` specs resolve at delivery time through
 `PluginRoster.handoffURL(for:path:)`, which appends the `?vc=` token core swaps
