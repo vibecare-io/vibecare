@@ -111,6 +111,9 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
     /// Whether media in the panel may start on its own. Off unless the action
     /// says otherwise — see `WebPanel.allowsAutoplay`.
     var webAutoplay: Bool
+    /// Whether the video restarts when it ends. Off unless the action says
+    /// otherwise — see `WebPanel.loops`.
+    var webLoops: Bool
 
     init(
         bundledIconId: String? = nil,
@@ -132,7 +135,8 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         webURLSpec: String? = nil,
         webPlacement: String? = nil,
         webWidthFraction: CGFloat? = nil,
-        webAutoplay: Bool = false
+        webAutoplay: Bool = false,
+        webLoops: Bool = false
     ) {
         self.bundledIconId = bundledIconId
         self.svgPath = svgPath
@@ -154,6 +158,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         self.webPlacement = webPlacement
         self.webWidthFraction = webWidthFraction
         self.webAutoplay = webAutoplay
+        self.webLoops = webLoops
     }
 
     /// Returns an independent copy of these preferences (a distinct reference,
@@ -180,7 +185,8 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
             webURLSpec: webURLSpec,
             webPlacement: webPlacement,
             webWidthFraction: webWidthFraction,
-            webAutoplay: webAutoplay
+            webAutoplay: webAutoplay,
+            webLoops: webLoops
         )
     }
 

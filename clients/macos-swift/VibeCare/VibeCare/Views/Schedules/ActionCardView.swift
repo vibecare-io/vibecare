@@ -235,6 +235,37 @@ struct ScheduleActionCard: Identifiable, Equatable {
             result["task_timer_completion_label"] = completionLabel
         }
 
+        result = Self.applyingWebPanel(prefs, to: result)
+
+        return result
+    }
+
+    /// The four `web_*` keys, written together and removed together.
+    ///
+    /// Removed together is the load-bearing half: clearing the activity has to
+    /// clear the width and the autoplay flag with it, or an action switched
+    /// from a Short back to "countdown only" keeps a 36% column width that
+    /// nothing on screen explains any more, and reinstates it the moment any
+    /// activity is picked again.
+    static func applyingWebPanel(
+        _ prefs: NotificationPreferences, to parameters: [String: String]
+    ) -> [String: String] {
+        var result = parameters
+        guard let spec = prefs.webURLSpec, !spec.isEmpty else {
+            for key in ["web_url", "web_side", "web_width", "web_autoplay", "web_loop"] {
+                result.removeValue(forKey: key)
+            }
+            return result
+        }
+        result["web_url"] = spec
+        if let fraction = prefs.webWidthFraction {
+            result["web_width"] = String(format: "%.2f", Double(fraction))
+        }
+        if let side = prefs.webPlacement, !side.isEmpty {
+            result["web_side"] = side
+        }
+        result["web_autoplay"] = String(prefs.webAutoplay)
+        result["web_loop"] = String(prefs.webLoops)
         return result
     }
 
@@ -429,6 +460,8 @@ struct NotificationActionParametersView: View {
 
             breakCountdownSection
 
+            breakActivitySection
+
             // Appearance: how it looks. Collapsed by default, because the
             // answer for almost every action is "the same as everything else",
             // and that answer now lives in Settings › Notifications.
@@ -530,6 +563,94 @@ struct NotificationActionParametersView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
+        }
+    }
+
+    /// What the break *is*, when it is more than a countdown: a page opened
+    /// beside the timer, from a short curated list or a URL of the author's own.
+    ///
+    /// A list rather than a search box on purpose. A break is twenty seconds
+    /// long, and a user choosing what to watch during one has already spent it
+    /// — so the choosing happens here, once, and costs a click at break time.
+    private var breakActivitySection: some View {
+        @Bindable var vm = viewModel
+
+        return VStack(alignment: .leading, spacing: 8) {
+            Text("Break Activity")
+                .font(.subheadline)
+                .fontWeight(.medium)
+
+            Picker("Activity", selection: Binding(
+                get: { vm.preferences.webURLSpec ?? "" },
+                set: { apply(activityURL: $0) }
+            )) {
+                Text("None — countdown only").tag("")
+                ForEach(BreakActivity.Focus.allCases) { focus in
+                    Section(focus.title) {
+                        ForEach(BreakActivity.all(in: focus)) { activity in
+                            Text(activity.title).tag(activity.url)
+                        }
+                    }
+                }
+                // Keeps a hand-typed URL selectable rather than snapping the
+                // picker back to "None" the moment it stops matching a
+                // catalogue entry.
+                if let spec = vm.preferences.webURLSpec,
+                   !spec.isEmpty, BreakActivity.activity(withURL: spec) == nil {
+                    Section("Custom") {
+                        Text(spec).tag(spec)
+                    }
+                }
+            }
+            .labelsHidden()
+            .font(.caption)
+
+            if let spec = vm.preferences.webURLSpec, !spec.isEmpty {
+                TextField("https://… or plugin:<id>", text: Binding(
+                    get: { spec },
+                    set: { vm.preferences.webURLSpec = $0.isEmpty ? nil : $0 }
+                ))
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.caption, design: .monospaced))
+
+                // Says "muted" because it always is: browsers grant muted
+                // autoplay and refuse unmuted autoplay without a user gesture,
+                // so a label promising sound would be promising something no
+                // policy allows. The player keeps its own unmute control.
+                Toggle("Start playing automatically (muted)", isOn: $vm.preferences.webAutoplay)
+                    .toggleStyle(.switch)
+                    .font(.caption)
+
+                Toggle("Loop until the break ends", isOn: $vm.preferences.webLoops)
+                    .toggleStyle(.switch)
+                    .font(.caption)
+
+                Text("Opens beside the countdown, filling most of the screen. YouTube links — Shorts and ones with a start time included — become an embedded player automatically. Clicking the page will not dismiss the alert; Done, Skip and ESC still will.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    /// Applies a picked activity: the URL always, and the column width and
+    /// break duration only as *defaults*.
+    ///
+    /// Width comes along because a vertical Short in the landscape column is
+    /// letterboxed into two black wings, which is a property of the video and
+    /// not something an author should have to know. The duration is seeded only
+    /// when none is set — an author who already chose 20 seconds meant it, and
+    /// replacing that with a suggestion would overwrite a decision with a guess.
+    private func apply(activityURL: String) {
+        let vm = viewModel
+        guard !activityURL.isEmpty else {
+            vm.preferences.webURLSpec = nil
+            return
+        }
+        vm.preferences.webURLSpec = activityURL
+        guard let activity = BreakActivity.activity(withURL: activityURL) else { return }
+        vm.preferences.webWidthFraction = CGFloat(activity.widthFraction)
+        if vm.preferences.taskTimerSeconds == nil {
+            vm.preferences.taskTimerSeconds = TimeInterval(activity.seconds)
         }
     }
 

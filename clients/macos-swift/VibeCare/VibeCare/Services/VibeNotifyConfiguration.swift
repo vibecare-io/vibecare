@@ -296,7 +296,8 @@ enum VibeNotifyConfig {
           url: url,
           placement: prefs.webPlacement == "trailing" ? .trailing : .leading,
           widthFraction: prefs.webWidthFraction ?? WebPanel.defaultWidthFraction,
-          allowsAutoplay: prefs.webAutoplay)
+          allowsAutoplay: prefs.webAutoplay,
+          loops: prefs.webLoops)
       }
 
     let mode: AlertMode =

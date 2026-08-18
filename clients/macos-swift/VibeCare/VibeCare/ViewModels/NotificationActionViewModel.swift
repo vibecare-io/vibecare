@@ -155,6 +155,12 @@ final class NotificationActionViewModel {
             parameters.removeValue(forKey: "task_timer_seconds")
         }
 
+        // The break's activity, for the same reason: a page opened beside the
+        // countdown is what the break *is*. Written before the appearance
+        // guard below, so an action that takes the global appearance still
+        // keeps its activity.
+        parameters = ScheduleActionCard.applyingWebPanel(preferences, to: parameters)
+
         // Appearance — written only when this action overrides the global
         // settings, and actively cleared when it does not. See
         // `ScheduleActionCard.serializeNotificationPreferences` for why the
