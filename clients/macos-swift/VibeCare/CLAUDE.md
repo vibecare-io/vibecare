@@ -149,7 +149,19 @@ no global counterpart (what to load during a break is content, not appearance):
 | `web_side` | `leading` (default) or `trailing` — which side the page takes |
 | `web_width` | The page's share of the surface width, `0.3`–`0.85` |
 | `web_autoplay` | `true` / `false` — may media start on its own (default `false`) |
+| `web_muted` | `true` / `false` — start with sound off (default **`true`**) |
 | `web_loop` | `true` / `false` — restart the video when it ends (default `false`) |
+
+**Autoplay does not work while macOS Low Power Mode is on**, and this is
+measured, not suspected. WebKit's `RequireUserGestureForVideoDueToLowPowerMode`
+refuses to start any video without a real user gesture — muted or not,
+`autoplay=1` or not, and regardless of
+`mediaTypesRequiringUserActionForPlayback`. It has no muted exemption and no
+API that lifts it. The symptom is a video that loads and displays perfectly,
+shows its play button, and never starts; it cost a long hunt that blamed
+YouTube, the iframe, the origin and the URL parameters first. Nothing detects
+it — the only thing that satisfies the gate is the user pressing play, which
+is the fallback anyway.
 
 YouTube links of every shape are rewritten to an embedded player: `watch?v=`,
 `youtu.be`, `/shorts/` and `/live/`, keeping any `?t=` start offset. Shorts in
