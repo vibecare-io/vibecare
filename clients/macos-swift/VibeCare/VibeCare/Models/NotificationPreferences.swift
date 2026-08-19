@@ -111,6 +111,12 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
     /// Whether media in the panel may start on its own. Off unless the action
     /// says otherwise — see `WebPanel.allowsAutoplay`.
     var webAutoplay: Bool
+    /// Whether the player starts with its sound off. **On** unless the action
+    /// says otherwise — see `WebPanel.startsMuted`. Separate from
+    /// `webAutoplay`: muting is a reasonable thing to want for a video the
+    /// user will press play on themselves, and it is also what makes an
+    /// autoplaying one permissible.
+    var webMuted: Bool
     /// Whether the video restarts when it ends. Off unless the action says
     /// otherwise — see `WebPanel.loops`.
     var webLoops: Bool
@@ -136,6 +142,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         webPlacement: String? = nil,
         webWidthFraction: CGFloat? = nil,
         webAutoplay: Bool = false,
+        webMuted: Bool = true,
         webLoops: Bool = false
     ) {
         self.bundledIconId = bundledIconId
@@ -158,6 +165,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
         self.webPlacement = webPlacement
         self.webWidthFraction = webWidthFraction
         self.webAutoplay = webAutoplay
+        self.webMuted = webMuted
         self.webLoops = webLoops
     }
 
@@ -186,6 +194,7 @@ final class NotificationPreferences: Codable, Equatable, Hashable {
             webPlacement: webPlacement,
             webWidthFraction: webWidthFraction,
             webAutoplay: webAutoplay,
+            webMuted: webMuted,
             webLoops: webLoops
         )
     }
