@@ -1,7 +1,32 @@
 # Web Alert Surface — Design
 
-**Status:** approved, minimal spec
+**Status:** shipped, with amendments — see below before trusting any detail here
 **Scope:** `simple-alerts` (VibeNotify) + `clients/macos-swift` (VibeCare client)
+
+> [!IMPORTANT]
+> **What shipped differs from this document in four ways.** This is the design
+> as approved; it was not rewritten as implementation taught us things. Where
+> the two disagree, the code and `DOCS.md` in `simple-alerts` are right.
+>
+> 1. **The web view lives in the library, not the client.** This document says
+>    the client supplies the `WKWebView` because a library-side one "would
+>    re-fetch unauthenticated". That reasoning was wrong: the library is linked
+>    into the client's own process, so `WKWebsiteDataStore.default()` is the
+>    same cookie jar either way. `WebPanelView` is therefore in VibeNotify, and
+>    authenticated plugin URLs work.
+> 2. **`Presentation` exists.** A YouTube link is loaded in an `<iframe>` in a
+>    document whose origin is a reserved `.invalid` host (`.player`), not
+>    top-level (`.direct`). Getting this wrong produces Error 153 (no origin)
+>    or Error 152 (the target's own origin). See `DOCS.md § Web panel`.
+> 3. **More knobs than described**: `startsMuted` (default **on**), `loops`,
+>    and YouTube URL rewriting for `/shorts/`, `/live/` and `?t=` offsets. The
+>    action keys gained `web_muted` and `web_loop` to match.
+> 4. **A separate authoring kind.** The client grew `ActionKind` and a "Send
+>    Rich Notification" menu entry rather than putting these controls in the
+>    plain notification editor. Still `type: notification` on the wire.
+>
+> Also worth knowing and absent here entirely: **autoplay cannot work while
+> macOS Low Power Mode is on**, whatever any setting says.
 
 ## Goal
 
