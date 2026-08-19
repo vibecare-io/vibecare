@@ -267,8 +267,8 @@
       "kind": "remoteSourceControl",
       "location": "https://github.com/vibecare-io/vibe-notify-macos.git",
       "state": {
-        "revision": "b0c7c2167481779eaf201018456ea0da1d73b3e6",
-        "version": "0.0.6"
+        "revision": "b8284a630f4eba40ffe5f7949b9916a64b1e733d",
+        "version": "0.0.7"
       }
     }
   ],
