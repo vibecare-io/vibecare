@@ -705,6 +705,17 @@ struct NotificationActionParametersView: View {
                     .toggleStyle(.switch)
                     .font(.caption)
 
+                // Stated rather than detected. Reading
+                // `ProcessInfo.isLowPowerModeEnabled` here would describe the
+                // machine *authoring* the action, which is not necessarily the
+                // one showing the alert, and a false "unavailable" would be
+                // worse than the plain fact.
+                if vm.preferences.webAutoplay {
+                    Text("Autoplay never starts while macOS Low Power Mode is on — WebKit requires a real click there, whatever the setting says.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
                 // Not a warning about a mistake, a warning about a *silent*
                 // one: a browser refuses unmuted autoplay without a user
                 // gesture, and the refusal looks exactly like a video waiting
