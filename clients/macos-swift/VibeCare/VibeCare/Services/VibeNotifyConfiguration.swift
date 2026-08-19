@@ -297,6 +297,7 @@ enum VibeNotifyConfig {
           placement: prefs.webPlacement == "trailing" ? .trailing : .leading,
           widthFraction: prefs.webWidthFraction ?? WebPanel.defaultWidthFraction,
           allowsAutoplay: prefs.webAutoplay,
+          startsMuted: prefs.webMuted,
           loops: prefs.webLoops)
       }
 

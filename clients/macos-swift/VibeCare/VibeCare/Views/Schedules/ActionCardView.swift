@@ -255,7 +255,7 @@ struct ScheduleActionCard: Identifiable, Equatable {
     ) -> [String: String] {
         var result = parameters
         guard let spec = prefs.webURLSpec, !spec.isEmpty else {
-            for key in ["web_url", "web_side", "web_width", "web_autoplay", "web_loop"] {
+            for key in ["web_url", "web_side", "web_width", "web_autoplay", "web_muted", "web_loop"] {
                 result.removeValue(forKey: key)
             }
             return result
@@ -268,6 +268,7 @@ struct ScheduleActionCard: Identifiable, Equatable {
             result["web_side"] = side
         }
         result["web_autoplay"] = String(prefs.webAutoplay)
+        result["web_muted"] = String(prefs.webMuted)
         result["web_loop"] = String(prefs.webLoops)
         return result
     }
@@ -696,9 +697,25 @@ struct NotificationActionParametersView: View {
                 // autoplay and refuse unmuted autoplay without a user gesture,
                 // so a label promising sound would be promising something no
                 // policy allows. The player keeps its own unmute control.
-                Toggle("Start playing automatically (muted)", isOn: $vm.preferences.webAutoplay)
+                Toggle("Start playing automatically", isOn: $vm.preferences.webAutoplay)
                     .toggleStyle(.switch)
                     .font(.caption)
+
+                Toggle("Start muted", isOn: $vm.preferences.webMuted)
+                    .toggleStyle(.switch)
+                    .font(.caption)
+
+                // Not a warning about a mistake, a warning about a *silent*
+                // one: a browser refuses unmuted autoplay without a user
+                // gesture, and the refusal looks exactly like a video waiting
+                // to be clicked.
+                if vm.preferences.webAutoplay && !vm.preferences.webMuted {
+                    Label(
+                        "Unmuted autoplay is usually blocked — the video will sit waiting for a click.",
+                        systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                }
 
                 Toggle("Loop until the break ends", isOn: $vm.preferences.webLoops)
                     .toggleStyle(.switch)
